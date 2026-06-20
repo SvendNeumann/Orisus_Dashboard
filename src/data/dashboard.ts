@@ -1,0 +1,238 @@
+export type Status = "green" | "yellow" | "red";
+
+export type Standort = {
+  id: string;
+  name: string;
+  start: string;
+  gesamtleistung: number;
+  pvsUmsatz: number;
+  honorar: number;
+  eigenlabor: number;
+  ebitda: number;
+  ebitdaMarge: number;
+  cashflow: number;
+  kontostand: number;
+  forderungen: number;
+  materialquote: number;
+  fremdlaborquote: number;
+  sonstigeKostenquote: number;
+  status: Status;
+  planAbweichung: number;
+  darlehen: {
+    kaufpreis: number;
+    darlehen: number;
+    restschuld: number;
+    tilgung: number;
+    zins: number;
+    earnOutGesamt: number;
+    earnOutGezahlt: number;
+    zielEbitda: number;
+    istEbitda: number;
+  };
+};
+
+export const standorte: Standort[] = [
+  {
+    id: "kirchberg",
+    name: "Kirchberg",
+    start: "01.07.2024",
+    gesamtleistung: 1184000,
+    pvsUmsatz: 1138000,
+    honorar: 1014000,
+    eigenlabor: 124000,
+    ebitda: 213000,
+    ebitdaMarge: 18.0,
+    cashflow: 82000,
+    kontostand: 246000,
+    forderungen: 168000,
+    materialquote: 8.8,
+    fremdlaborquote: 13.6,
+    sonstigeKostenquote: 33.1,
+    status: "green",
+    planAbweichung: 4.8,
+    darlehen: {
+      kaufpreis: 1320000,
+      darlehen: 860000,
+      restschuld: 704000,
+      tilgung: 96000,
+      zins: 36000,
+      earnOutGesamt: 260000,
+      earnOutGezahlt: 151000,
+      zielEbitda: 205000,
+      istEbitda: 213000
+    }
+  },
+  {
+    id: "essen",
+    name: "Essen",
+    start: "01.01.2025",
+    gesamtleistung: 944000,
+    pvsUmsatz: 912000,
+    honorar: 844000,
+    eigenlabor: 68000,
+    ebitda: 96000,
+    ebitdaMarge: 10.2,
+    cashflow: -18000,
+    kontostand: 104000,
+    forderungen: 142000,
+    materialquote: 10.4,
+    fremdlaborquote: 15.9,
+    sonstigeKostenquote: 39.2,
+    status: "yellow",
+    planAbweichung: -3.7,
+    darlehen: {
+      kaufpreis: 980000,
+      darlehen: 710000,
+      restschuld: 642000,
+      tilgung: 62000,
+      zins: 31000,
+      earnOutGesamt: 190000,
+      earnOutGezahlt: 52000,
+      zielEbitda: 124000,
+      istEbitda: 96000
+    }
+  },
+  {
+    id: "kehl",
+    name: "Kehl",
+    start: "01.04.2025",
+    gesamtleistung: 752000,
+    pvsUmsatz: 724000,
+    honorar: 657000,
+    eigenlabor: 67000,
+    ebitda: 79000,
+    ebitdaMarge: 10.5,
+    cashflow: 21000,
+    kontostand: 132000,
+    forderungen: 121000,
+    materialquote: 11.6,
+    fremdlaborquote: 18.4,
+    sonstigeKostenquote: 41.7,
+    status: "yellow",
+    planAbweichung: -1.8,
+    darlehen: {
+      kaufpreis: 820000,
+      darlehen: 610000,
+      restschuld: 574000,
+      tilgung: 44000,
+      zins: 27000,
+      earnOutGesamt: 150000,
+      earnOutGezahlt: 38000,
+      zielEbitda: 92000,
+      istEbitda: 79000
+    }
+  },
+  {
+    id: "ulmet",
+    name: "Ulmet",
+    start: "01.07.2025",
+    gesamtleistung: 684000,
+    pvsUmsatz: 662000,
+    honorar: 578000,
+    eigenlabor: 84000,
+    ebitda: 129000,
+    ebitdaMarge: 18.9,
+    cashflow: 54000,
+    kontostand: 188000,
+    forderungen: 76000,
+    materialquote: 7.9,
+    fremdlaborquote: 12.7,
+    sonstigeKostenquote: 31.8,
+    status: "green",
+    planAbweichung: 7.6,
+    darlehen: {
+      kaufpreis: 760000,
+      darlehen: 520000,
+      restschuld: 493000,
+      tilgung: 31000,
+      zins: 23000,
+      earnOutGesamt: 120000,
+      earnOutGezahlt: 82000,
+      zielEbitda: 108000,
+      istEbitda: 129000
+    }
+  },
+  {
+    id: "huettenberg",
+    name: "Hüttenberg",
+    start: "01.01.2026",
+    gesamtleistung: 428000,
+    pvsUmsatz: 411000,
+    honorar: 374000,
+    eigenlabor: 37000,
+    ebitda: 36000,
+    ebitdaMarge: 8.4,
+    cashflow: 12000,
+    kontostand: 94000,
+    forderungen: 69000,
+    materialquote: 12.1,
+    fremdlaborquote: 17.6,
+    sonstigeKostenquote: 44.2,
+    status: "red",
+    planAbweichung: -8.4,
+    darlehen: {
+      kaufpreis: 690000,
+      darlehen: 500000,
+      restschuld: 486000,
+      tilgung: 18000,
+      zins: 19000,
+      earnOutGesamt: 110000,
+      earnOutGezahlt: 14000,
+      zielEbitda: 64000,
+      istEbitda: 36000
+    }
+  },
+  {
+    id: "kassel",
+    name: "Kassel",
+    start: "01.07.2026",
+    gesamtleistung: 0,
+    pvsUmsatz: 0,
+    honorar: 0,
+    eigenlabor: 0,
+    ebitda: 0,
+    ebitdaMarge: 0,
+    cashflow: 0,
+    kontostand: 0,
+    forderungen: 0,
+    materialquote: 0,
+    fremdlaborquote: 0,
+    sonstigeKostenquote: 0,
+    status: "yellow",
+    planAbweichung: 0,
+    darlehen: {
+      kaufpreis: 940000,
+      darlehen: 690000,
+      restschuld: 690000,
+      tilgung: 0,
+      zins: 0,
+      earnOutGesamt: 170000,
+      earnOutGezahlt: 0,
+      zielEbitda: 0,
+      istEbitda: 0
+    }
+  }
+];
+
+export const monthly = [
+  { month: "Jan", leistung: 480000, ebitda: 52000, marge: 10.8, cashflow: 18000, plan: 510000 },
+  { month: "Feb", leistung: 522000, ebitda: 68000, marge: 13.0, cashflow: 24000, plan: 530000 },
+  { month: "Mrz", leistung: 558000, ebitda: 76000, marge: 13.6, cashflow: 37000, plan: 550000 },
+  { month: "Apr", leistung: 602000, ebitda: 88000, marge: 14.6, cashflow: 44000, plan: 575000 },
+  { month: "Mai", leistung: 646000, ebitda: 93000, marge: 14.4, cashflow: 38000, plan: 610000 },
+  { month: "Jun", leistung: 684000, ebitda: 101000, marge: 14.8, cashflow: 51000, plan: 640000 }
+];
+
+export const uploadTypes = [
+  "Konsolidierte Orisus-Exportdatei",
+  "BWA",
+  "PVS-Umsätze",
+  "Honorarumsätze",
+  "Eigenlaborumsätze",
+  "Offene Forderungen",
+  "Cashflow",
+  "Kontostände",
+  "Darlehen",
+  "Earn-Out",
+  "Planwerte"
+];
