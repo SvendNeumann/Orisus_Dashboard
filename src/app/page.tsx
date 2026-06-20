@@ -62,8 +62,10 @@ type Page =
   | "cashflow"
   | "darlehen"
   | "banken"
+  | "board"
   | "uploads"
-  | "reports";
+  | "reports"
+  | "admin";
 
 type AuthStep = "welcome" | "login" | "first-password" | "first-pin" | "pin" | "forgot" | "app";
 
@@ -99,8 +101,10 @@ const desktopNav = [
   { id: "cashflow", label: "Cashflow", icon: Wallet },
   { id: "darlehen", label: "Darlehen & Earn-Out", icon: Landmark },
   { id: "banken", label: "Bankenreporting", icon: ShieldCheck },
+  { id: "board", label: "Board-Pack", icon: FileBarChart },
   { id: "uploads", label: "Uploads", icon: FileUp },
-  { id: "reports", label: "Reports", icon: FileBarChart }
+  { id: "reports", label: "Reports", icon: FileBarChart },
+  { id: "admin", label: "Admin / KPI-Regeln", icon: Lock }
 ] as const;
 
 const mobileNav = [
@@ -280,8 +284,10 @@ export default function HomePage() {
           {page === "cashflow" && <Cashflow />}
           {page === "darlehen" && <Darlehen />}
           {page === "banken" && <Bankenreporting />}
+          {page === "board" && <BoardPack />}
           {page === "uploads" && <Uploads />}
           {page === "reports" && <Reports />}
+          {page === "admin" && <AdminKpiRules />}
         </div>
       </main>
 
@@ -1895,12 +1901,39 @@ function TableCell({
 }
 
 function OrisusPerformance() {
+  const metrics = cfoMetrics();
   return (
     <section className="space-y-5">
       <PageTitle
         title="Orisus Performance"
-        text="Behandlerumsatz, PVS-Umsatz und Bank-/Geldbewegungen im CFO-Format, angepasst an das Dashboard-Design."
+        text="Operative Performance der Gruppe: Umsatzentwicklung, Standortleistung, PVS, Forderungen und Cashflow."
       />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <Mini label="Gesamtleistung" value={eur(metrics.gesamtleistung)} />
+        <Mini label="PVS-Umsatz" value={eur(total("pvsUmsatz"))} />
+        <Mini label="EBITDA-Marge" value={pct(metrics.ebitdaMarge)} />
+        <Mini label="Cashflow" value={eur(metrics.cashflow)} />
+        <Mini label="Offene Forderungen" value={eur(metrics.forderungen)} />
+      </div>
+      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <ChartCard title="Operative Entwicklung" icon={TrendingUp}>
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={monthly}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="month" />
+              <YAxis tickFormatter={(v) => eur(Number(v), true)} />
+              <Tooltip formatter={(v) => eur(Number(v))} />
+              <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
+              <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
+              <Line dataKey="cashflow" name="Cashflow" stroke="#64748b" strokeWidth={3} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title="Forderungen nach Standort" icon={FileBarChart}>
+          <ReceivablesChart />
+        </ChartCard>
+      </div>
+      <OperationalPerformanceTable />
       <PerformanceRevenueBlock
         title="Behandlerumsatz je Standort"
         subtitle="Auswahl: YTD | Jahr 2026 | bis Mai 2026 | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD"
@@ -1921,6 +1954,47 @@ function OrisusPerformance() {
       />
       <BankMovementsTable />
     </section>
+  );
+}
+
+function OperationalPerformanceTable() {
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-border p-4">
+        <h2 className="font-bold">Operative Standort-Performance</h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1080px] border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              {["Standort", "Gesamtleistung", "PVS", "EBITDA", "Marge", "Cashflow", "Forderungen", "Kostenquote", "Status"].map((head) => (
+                <th key={head} className="border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                  {head}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {standorte.filter((site) => site.gesamtleistung > 0).map((site) => {
+              const costs = site.materialquote + site.fremdlaborquote + site.sonstigeKostenquote;
+              return (
+                <tr key={site.id}>
+                  <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.gesamtleistung)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.pvsUmsatz)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.ebitda)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{pct(site.ebitdaMarge)}</td>
+                  <td className={cn("border-b border-r border-border p-3 text-right", site.cashflow < 0 && "text-red-700")}>{eur(site.cashflow)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.forderungen)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{pct(costs)}</td>
+                  <td className="border-b border-r border-border p-3"><StatusDot status={site.status} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
@@ -2417,6 +2491,140 @@ function Bankenreporting() {
   );
 }
 
+function BoardPack() {
+  const metrics = cfoMetrics();
+  const summary = [
+    `Gesamtleistung YTD liegt bei ${eur(metrics.gesamtleistung, true)}; die Gruppe bleibt auf Wachstumskurs.`,
+    `EBITDA YTD beträgt ${eur(metrics.ebitda, true)} bei einer Marge von ${pct(metrics.ebitdaMarge)}.`,
+    `Run-Rate EBITDA liegt bei ${eur(metrics.runRateEbitda, true)} und ist die wichtigste Exit-nahe Kennzahl.`,
+    `Netto-Cashflow ist mit ${eur(metrics.cashflow, true)} positiv nach Tilgung und Adjustments.`,
+    `${metrics.kritisch.length} Standort(e) benötigen Management-Fokus: ${metrics.kritisch.map((site) => site.name).join(", ") || "keine"}.`,
+    `Fremdkapital ist mit ${eur(metrics.restschuld, true)} Restschuld transparent steuerbar; ${eur(metrics.getilgt, true)} wurden bereits getilgt.`
+  ];
+
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Investor / Board-Pack"
+        text="Monatliche Management-Übersicht für Gesellschafter: Executive Summary, KPI-Entwicklung, Standortbeiträge, Risiken und Akquisitionen."
+      />
+      <DataStatusStrip />
+
+      <Card className="p-4">
+        <h2 className="font-bold">Executive Summary</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {summary.map((item) => (
+            <div key={item} className="rounded-md bg-slate-50 p-3 text-sm leading-6">
+              {item}
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Mini label="Gesamtleistung YTD" value={eur(metrics.gesamtleistung)} />
+        <Mini label="EBITDA / Marge" value={`${eur(metrics.ebitda, true)} / ${pct(metrics.ebitdaMarge)}`} />
+        <Mini label="Run-Rate EBITDA" value={eur(metrics.runRateEbitda)} />
+        <Mini label="Cashflow" value={eur(metrics.cashflow)} />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <ChartCard title="Board KPI Entwicklung" icon={TrendingUp}>
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={monthly}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="month" />
+              <YAxis tickFormatter={(v) => eur(Number(v), true)} />
+              <Tooltip formatter={(v) => eur(Number(v))} />
+              <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
+              <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
+              <Line dataKey="cashflow" name="Cashflow" stroke="#64748b" strokeWidth={3} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <Card className="p-4">
+          <h2 className="font-bold">Risiken & Fokus</h2>
+          <div className="mt-4 space-y-3">
+            {[
+              ["Forderungen", `${eur(metrics.forderungen, true)} offen`, metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green"],
+              ["Kostenquote", pct(metrics.kostenquote), metrics.kostenquote > 68 ? "yellow" : "green"],
+              ["Kapitaldienstfähigkeit", `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow"],
+              ["Kritische Standorte", `${metrics.kritisch.length} Standort(e)`, metrics.kritisch.length ? "yellow" : "green"]
+            ].map(([label, value, status]) => (
+              <div key={label} className="flex items-center justify-between rounded-md bg-slate-50 p-3">
+                <div>
+                  <p className="font-semibold">{label}</p>
+                  <p className="text-sm text-muted-foreground">{value}</p>
+                </div>
+                <StatusDot status={status as Status} />
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <StandortCfoComparison />
+      <AcquisitionIntegration />
+    </section>
+  );
+}
+
+function AcquisitionIntegration() {
+  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-border p-4">
+        <h2 className="font-bold">Akquisitionen & Integration</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Kaufpreis, Startdatum, Übernahmeziele, Earn-Out und Zielerreichung je Standort.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1180px] border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              {[
+                "Standort",
+                "Start",
+                "Kaufpreis",
+                "Darlehen",
+                "Ziel-EBITDA KV",
+                "Ist-EBITDA",
+                "Zielerreichung",
+                "Earn-Out offen",
+                "Status"
+              ].map((head) => (
+                <th key={head} className="border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                  {head}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {activeSites.map((site) => {
+              const achievement = site.darlehen.zielEbitda ? (site.darlehen.istEbitda / site.darlehen.zielEbitda) * 100 : 0;
+              const open = site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt;
+              return (
+                <tr key={site.id}>
+                  <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
+                  <td className="border-b border-r border-border p-3">{site.start}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.kaufpreis)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.darlehen)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.zielEbitda)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.istEbitda)}</td>
+                  <td className={cn("border-b border-r border-border p-3 text-right font-semibold", achievement < 100 ? "text-red-700" : "text-emerald-700")}>{pct(achievement)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(open)}</td>
+                  <td className="border-b border-r border-border p-3"><StatusDot status={achievement >= 100 ? "green" : "yellow"} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 function Darlehen() {
   const restschuld = standorte.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
   const earnOut = standorte.reduce((sum, site) => sum + site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt, 0);
@@ -2591,6 +2799,85 @@ function Reports() {
             </Button>
           </Card>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function AdminKpiRules() {
+  const rules = [
+    { kpi: "EBITDA-Marge", green: ">= 15,0 %", yellow: "10,0 % bis 14,9 %", red: "< 10,0 %", owner: "CFO" },
+    { kpi: "Cashflow Konzern", green: ">= 0 EUR", yellow: "n/a", red: "< 0 EUR", owner: "CFO" },
+    { kpi: "Offene Forderungen", green: "<= 12 % der Gesamtleistung", yellow: "12 % bis 18 %", red: "> 18 %", owner: "Controlling" },
+    { kpi: "Kostenquote", green: "<= 68,0 %", yellow: "68,1 % bis 74,0 %", red: "> 74,0 %", owner: "Controlling" },
+    { kpi: "Aktuelle Liquidität", green: ">= 500 TEUR", yellow: "250 TEUR bis 499 TEUR", red: "< 250 TEUR", owner: "CFO" },
+    { kpi: "Kapitaldienstfähigkeit", green: ">= 1,50x", yellow: "1,00x bis 1,49x", red: "< 1,00x", owner: "CFO / Bank" },
+    { kpi: "Ziel-EBITDA Kaufvertrag", green: ">= 100 %", yellow: "85 % bis 99 %", red: "< 85 %", owner: "M&A" },
+    { kpi: "Ziel-EBITDA Übernahme", green: ">= 100 %", yellow: "85 % bis 99 %", red: "< 85 %", owner: "M&A" }
+  ];
+
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Admin / KPI-Regeln"
+        text="Interner Einstellungsbereich für Ampel-Schwellenwerte und Zielerreichungslogik. In Phase 1 als Regelübersicht vorbereitet."
+      />
+      <Card className="p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="font-bold">Regelstatus</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Diese Schwellenwerte steuern die Ampeln für Cockpit, Bankenreporting, Standortdetails und Board-Pack.
+            </p>
+          </div>
+          <Badge tone="yellow">Admin-konfigurierbar geplant</Badge>
+        </div>
+      </Card>
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-[980px] border-separate border-spacing-0 text-sm">
+            <thead>
+              <tr>
+                {["KPI", "Grün", "Gelb", "Rot", "Verantwortlich"].map((head) => (
+                  <th key={head} className="border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                    {head}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((rule) => (
+                <tr key={rule.kpi}>
+                  <td className="border-b border-r border-border p-3 font-bold">{rule.kpi}</td>
+                  <td className="border-b border-r border-border p-3 text-emerald-700">{rule.green}</td>
+                  <td className="border-b border-r border-border p-3 text-amber-700">{rule.yellow}</td>
+                  <td className="border-b border-r border-border p-3 text-red-700">{rule.red}</td>
+                  <td className="border-b border-r border-border p-3">{rule.owner}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="p-4">
+          <h2 className="font-bold">Ziel-EBITDA</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Ziel-EBITDA gemäß Kaufvertrag und Übernahme sind Importwerte und keine separat geplanten Budgetwerte.
+          </p>
+        </Card>
+        <Card className="p-4">
+          <h2 className="font-bold">Geltungsbereich</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Regeln gelten konsolidiert und je Standort, sofern die Kennzahl standortbezogen vorhanden ist.
+          </p>
+        </Card>
+        <Card className="p-4">
+          <h2 className="font-bold">Änderungslogik</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Spätere Version: Werte bearbeiten, speichern, Änderungsdatum und verantwortliche Person anzeigen.
+          </p>
+        </Card>
       </div>
     </section>
   );
