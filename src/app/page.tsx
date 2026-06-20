@@ -89,7 +89,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-current-site-cards-v1";
+const importDashboardSchemaVersion = "2026-06-21-site-cards-bank-tabs-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -435,6 +435,91 @@ function lastRowsValue(rows: Record<string, unknown>[], site: string | null, met
   return asNumber(candidates[0]?.Wert) ?? 0;
 }
 
+function monthNumberFromHeader(value: unknown) {
+  const key = normalizeMetric(value);
+  const months: Record<string, number> = {
+    jan: 1,
+    januar: 1,
+    feb: 2,
+    februar: 2,
+    mrz: 3,
+    maerz: 3,
+    marz: 3,
+    apr: 4,
+    april: 4,
+    mai: 5,
+    jun: 6,
+    juni: 6,
+    jul: 7,
+    juli: 7,
+    aug: 8,
+    august: 8,
+    sep: 9,
+    september: 9,
+    okt: 10,
+    oktober: 10,
+    nov: 11,
+    november: 11,
+    dez: 12,
+    dezember: 12
+  };
+  return months[key] ?? null;
+}
+
+function latestKontostandFromWorkbook(workbook: XLSX.WorkBook, siteName: string) {
+  const siteKey = normalizeSiteId(siteName);
+  const sheetName = workbook.SheetNames.find((name) => {
+    const key = normalizeSiteId(name.replace(/^Input_Kontostand_?/i, ""));
+    return normalizeSiteId(name).startsWith("input_kontostand") && key === siteKey;
+  });
+  if (!sheetName) return null;
+
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], {
+    header: 1,
+    defval: null,
+    raw: true,
+    blankrows: false
+  });
+  const yearRowIndex = rows.findIndex((row) => normalizeMetric(row[0]) === "jahr");
+  const monthRowIndex = rows.findIndex((row) => normalizeMetric(row[0]).includes("bankkonto") && normalizeMetric(row[0]).includes("monat"));
+  if (yearRowIndex < 0 || monthRowIndex < 0) return null;
+
+  const yearRow = rows[yearRowIndex] ?? [];
+  const monthRow = rows[monthRowIndex] ?? [];
+  const monthColumns: { column: number; year: number; month: number }[] = [];
+  let currentYear: number | null = null;
+  const columnCount = Math.max(yearRow.length, monthRow.length);
+
+  for (let column = 1; column < columnCount; column += 1) {
+    const explicitYear = asNumber(yearRow[column]);
+    if (explicitYear && explicitYear >= 1900) currentYear = Math.trunc(explicitYear);
+    const month = monthNumberFromHeader(monthRow[column]);
+    if (currentYear && month) monthColumns.push({ column, year: currentYear, month });
+  }
+
+  const values = monthColumns
+    .map(({ column, year, month }) => {
+      let sum = 0;
+      let hasValue = false;
+
+      for (let rowIndex = monthRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
+        const row = rows[rowIndex] ?? [];
+        const label = normalizeMetric(row[0]);
+        if (!label || ["struktur", "pruefung", "pflegehinweis"].includes(label) || label.startsWith("eine_zeile") || label.startsWith("helper")) continue;
+        const value = asNumber(row[column]);
+        if (value == null) continue;
+        sum += value;
+        hasValue = true;
+      }
+
+      return hasValue ? { year, month, value: sum } : null;
+    })
+    .filter((entry): entry is { year: number; month: number; value: number } => entry != null)
+    .sort((a, b) => b.year - a.year || b.month - a.month);
+
+  return values[0]?.value ?? null;
+}
+
 function sumMetricForPeriod(rows: Record<string, unknown>[], siteName: string, sourceKeys: readonly string[], year?: number, month?: number) {
   return rows.reduce((sum, row) => {
     if (asText(row.Standortname) !== siteName) return sum;
@@ -669,14 +754,16 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   const sites = sortSitesByContractStart(siteNamesForCards.map((siteName) => {
     const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     const siteRows = activeRows.filter((row) => asText(row.Standortname) === siteName);
+    const allSiteRows = rows.filter((row) => asText(row.Standortname) === siteName);
     const hasImportedSiteRows = siteRows.length > 0;
     const importedOrFallback = (value: number, fallbackValue: number) => (hasImportedSiteRows ? value : fallbackValue);
     const gesamtleistung = Math.round(importedOrFallback(sumRows(siteRows, null, ["gesamtleistung"], ["bwa"]), fallback.gesamtleistung));
     const pvsUmsatz = Math.round(importedOrFallback(sumRows(siteRows, null, ["pvs_gesamtumsatz_inkl_fl_mat"], ["finanzen"]), fallback.pvsUmsatz));
     const ebitda = Math.round(importedOrFallback(sumRows(siteRows, null, ["ebitda"], ["bwa"]), fallback.ebitda));
     const cashflow = Math.round(importedOrFallback(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]), fallback.cashflow));
+    const inputKontostand = latestKontostandFromWorkbook(workbook, siteName);
     const kontostand = Math.round(
-      importedOrFallback(lastRowsValue(siteRows, null, ["kontostand", "kontostand_monatsende", "kontostand_per_stichtag"], ["kontostand", "dashboard"]), fallback.kontostand)
+      importedOrFallback(inputKontostand ?? lastRowsValue(allSiteRows, null, ["kontostand", "kontostand_monatsende", "kontostand_per_stichtag"], ["kontostand", "dashboard"]), fallback.kontostand)
     );
     const material = Math.abs(sumRows(siteRows, null, ["materialkosten"], ["bwa"]));
     const fremdlabor = Math.abs(sumRows(siteRows, null, ["fremdlaborkosten"], ["bwa"]));
