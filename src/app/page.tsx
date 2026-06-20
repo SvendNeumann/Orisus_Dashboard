@@ -193,11 +193,11 @@ const requiredConsolidationColumns = [
 
 const bwaMetricDefinitions = [
   { key: "section_umsatz", label: "1. Umsatz", section: "1. Umsatz", order: 100, source: [], emphasis: true },
-  { key: "kzv_umsatz", label: "KZV-Umsatz", section: "1. Umsatz", order: 110, source: ["erloese_kzv"] },
-  { key: "privatumsatz", label: "Privatumsatz", section: "1. Umsatz", order: 120, source: ["erloese_privat"] },
+  { key: "kzv_umsatz", label: "KZV-Umsatz", section: "1. Umsatz", order: 110, source: ["erlose_kzv"] },
+  { key: "privatumsatz", label: "Privatumsatz", section: "1. Umsatz", order: 120, source: ["erlose_privat"] },
   { key: "bestandsveraenderung", label: "Bestandsveränderung", section: "1. Umsatz", order: 130, source: ["unterfertige_erzeugnisse"] },
-  { key: "material_und_laborumsaetze", label: "Material- und Laborumsätze", section: "1. Umsatz", order: 140, source: ["material_und_laborumsaetze"] },
-  { key: "sonstige_betriebliche_erloese", label: "Sonstige betriebliche Erlöse", section: "1. Umsatz", order: 150, source: ["sonstige_erloese"] },
+  { key: "material_und_laborumsaetze", label: "Material- und Laborumsätze", section: "1. Umsatz", order: 140, source: ["material_und_laborumsatze"] },
+  { key: "sonstige_betriebliche_erloese", label: "Sonstige betriebliche Erlöse", section: "1. Umsatz", order: 150, source: ["sonstige_erlose"] },
   { key: "aag_erstattungen", label: "AAG / Erstattungen", section: "1. Umsatz", order: 160, source: ["erstattungen_aufwendungsausgleich"] },
   { key: "summe_umsatz", label: "Summe Umsatz", section: "1. Umsatz", order: 170, source: ["gesamtleistung"], emphasis: true },
   { key: "gesamtleistungsquote", label: "Gesamtleistungsquote", section: "1. Umsatz", order: 180, source: [], percent: true, emphasis: true, derived: "gesamtleistungsquote" },
@@ -349,7 +349,8 @@ function normalizeMetric(value: unknown) {
 }
 
 function rowMetric(row: Record<string, unknown>) {
-  const rawMetric = asText(row.Standard_Kennzahl || row.Kennzahl || row.Detailbezeichnung);
+  const originalMetric = asText(row.Kennzahl);
+  const rawMetric = originalMetric.startsWith("+") ? originalMetric : asText(row.Standard_Kennzahl || row.Kennzahl || row.Detailbezeichnung);
   return `${rawMetric.trim().startsWith("+") ? "plus_" : ""}${normalizeMetric(rawMetric)}`;
 }
 
@@ -2138,7 +2139,7 @@ function ConsolidatedBwaMatrix({
                 </td>
                 {groups.map((group) => {
                   const groupRow = group.rows[rowIndex];
-                  const performance = group.rows[0]?.actual || 0;
+                  const performance = group.rows.find((candidate) => candidate.label === "Summe Umsatz")?.actual || 0;
                   const quote = groupRow.percent ? groupRow.actual : performance ? (groupRow.actual / performance) * 100 : 0;
                   return (
                     <FragmentCells
@@ -2212,22 +2213,22 @@ function selectedBwaYear(period: string) {
 
 function buildImportedBwaLines(importedRows: ImportedBwaRow[], period: string, siteId?: string): BwaLine[] {
   const year = selectedBwaYear(period);
+  const siteIds = siteId ? [siteId] : Array.from(new Set(importedRows.map((row) => row.siteId)));
   return bwaMetricDefinitions.map((definition) => {
     const sourceRows = importedRows.filter((row) => row.metricKey === definition.key && (!siteId || row.siteId === siteId));
     const isPercent = definitionFlag(definition, "percent");
     const isEmphasis = definitionFlag(definition, "emphasis");
+    const quoteActual = isPercent
+      ? calculateImportedQuote(importedRows, siteIds, definition.key, year ?? undefined)
+      : 0;
     const actual = sourceRows.reduce((sum, row) => {
       if (definition.key.startsWith("section_")) return 0;
       if (year) return sum + (row.valuesByYear[year] ?? 0);
       return sum + (isPercent ? 0 : row.contractValue);
     }, 0);
-    const percentActual =
-      !year && isPercent
-        ? sourceRows.reduce((sum, row) => sum + calculateImportedContractQuote(importedRows, row.siteId, definition.key), 0) / (sourceRows.length || 1)
-        : actual;
     return {
       label: definition.label,
-      actual: isPercent ? percentActual : actual,
+      actual: isPercent ? quoteActual : actual,
       indent: !isEmphasis && !definition.key.startsWith("section_"),
       emphasis: isEmphasis,
       percent: isPercent,
@@ -2236,11 +2237,11 @@ function buildImportedBwaLines(importedRows: ImportedBwaRow[], period: string, s
   });
 }
 
-function calculateImportedContractQuote(importedRows: ImportedBwaRow[], siteId: string, key: string) {
+function calculateImportedQuote(importedRows: ImportedBwaRow[], siteIds: string[], key: string, year?: string) {
   const value = (metricKey: string) =>
     importedRows
-      .filter((row) => row.siteId === siteId && row.metricKey === metricKey)
-      .reduce((sum, row) => sum + row.contractValue, 0);
+      .filter((row) => siteIds.includes(row.siteId) && row.metricKey === metricKey)
+      .reduce((sum, row) => sum + (year ? row.valuesByYear[year] ?? 0 : row.contractValue), 0);
   const performance = value("summe_umsatz");
   if (key === "gesamtleistungsquote") return performance ? 100 : 0;
   if (key === "praxisleistungsquote") return ratio(value("gesamtleistung_abzueglich_fremdlabor_material"), performance);
@@ -2531,10 +2532,11 @@ function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: str
     const isEmphasis = definitionFlag(definition, "emphasis");
     const months = Array.from({ length: 12 }, (_, index) => {
       if (definition.key.startsWith("section_")) return null;
+      if (isPercent) return calculateImportedMonthlyQuote(importedRows, siteId, definition.key, year, index + 1);
       return sourceRows.reduce((sum, row) => sum + (row.valuesByMonth[`${year}-${index + 1}`] ?? 0), 0);
     });
     const contractValue = isPercent
-      ? sourceRows.reduce((sum, row) => sum + calculateImportedContractQuote(importedRows, row.siteId, definition.key), 0) / (sourceRows.length || 1)
+      ? calculateImportedQuote(importedRows, [siteId], definition.key)
       : sourceRows.reduce((sum, row) => sum + row.contractValue, 0);
     return {
       label: definition.label,
@@ -2547,6 +2549,21 @@ function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: str
       kind: definitionKind(definition)
     };
   });
+}
+
+function calculateImportedMonthlyQuote(importedRows: ImportedBwaRow[], siteId: string, key: string, year: number, month: number) {
+  const value = (metricKey: string) =>
+    importedRows
+      .filter((row) => row.siteId === siteId && row.metricKey === metricKey)
+      .reduce((sum, row) => sum + (row.valuesByMonth[`${year}-${month}`] ?? 0), 0);
+  const performance = value("summe_umsatz");
+  if (key === "gesamtleistungsquote") return performance ? 100 : 0;
+  if (key === "praxisleistungsquote") return ratio(value("gesamtleistung_abzueglich_fremdlabor_material"), performance);
+  if (key === "deckungsbeitragsquote") return ratio(value("deckungsbeitrag"), performance);
+  if (key === "ebitda_marge") return ratio(value("ebitda"), performance);
+  if (key === "ergebnisquote") return ratio(value("vorlaeufiges_ergebnis"), performance);
+  if (key === "cashflow_quote") return ratio(value("cashflow_gesamt"), performance);
+  return 0;
 }
 
 function formatBwaCell(value: number | null, percent?: boolean) {
