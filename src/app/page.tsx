@@ -360,24 +360,71 @@ function AuthFlow({
   setPin: (pin: string) => void;
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-8">
-      <Card className="w-full max-w-md overflow-hidden shadow-soft">
-        <div className="border-b border-border bg-slate-950 px-6 py-6 text-white">
-          <div>
+    <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl items-center gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+        <section className="overflow-hidden rounded-lg border border-border bg-slate-950 text-white shadow-soft">
+          <div className="p-6 sm:p-8 lg:p-10">
             <div className="rounded-md bg-white px-4 py-3">
-              <img src="/orisus-logo.png" alt="Orisus Zahnmedizin" className="h-auto w-full max-w-[300px]" />
+              <img src="/orisus-logo.png" alt="Orisus Zahnmedizin" className="h-auto w-full max-w-[360px]" />
             </div>
-            <h1 className="mt-5 text-xl font-bold">Orisus CFO Dashboard</h1>
+            <div className="mt-8 max-w-3xl">
+              <p className="text-sm font-bold uppercase tracking-wide text-cyan-100">Interne Steuerungsplattform</p>
+              <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+                CFO Dashboard für eine wachsende MVZ-Gruppe.
+              </h1>
+              <p className="mt-5 text-base leading-7 text-slate-300">
+                Orisus bündelt die wirtschaftliche Steuerung von Standorten, BWA, Cashflow, Darlehen,
+                Earn-Outs, Forderungen und Performance-KPIs in einer zentralen Management-Ansicht.
+                Die App ist darauf ausgelegt, operative Entscheidungen, Bankenreporting und
+                Gesellschafterkommunikation auf derselben Zahlenbasis zusammenzuführen.
+              </p>
+            </div>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              {[
+                ["Daily CFO Cockpit", "Liquidität, Free Cashflow, kritische Standorte und offene Forderungen im schnellen Überblick."],
+                ["BWA bis Cashflow", "Konsolidierte Herleitung von Umsatz, Kostenblöcken, EBITDA und Cashflow-Adjustments."],
+                ["Banken & Board", "Fremdkapital, Kapitaldienstfähigkeit, EBITDA-Entwicklung und Investor Summary."],
+                ["Standortsteuerung", "Vergleich von Gesamtleistung, Marge, Cashflow, Forderungen und Kostenquoten je Praxis."]
+              ].map(([title, text]) => (
+                <div key={title} className="rounded-md border border-white/10 bg-white/6 p-4">
+                  <p className="font-bold text-white">{title}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 grid gap-3 border-t border-white/10 pt-6 text-sm text-slate-300 sm:grid-cols-3">
+              <div>
+                <p className="text-xl font-bold text-white">5+</p>
+                <p>Standorte in der Steuerung</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-white">360°</p>
+                <p>BWA, Liquidität, Finanzierung und Performance</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-white">1 Import</p>
+                <p>Excel-/CSV-Datenbasis für alle Management-Sichten</p>
+              </div>
+            </div>
           </div>
-          <p className="mt-4 text-sm leading-6 text-slate-300">
-            Wirtschaftliche Steuerung der Orisus-Gruppe. Konsolidierte Kennzahlen,
-            Standortvergleiche, Cashflow, BWA, PVS-Umsätze, offene Forderungen,
-            Darlehen, Earn-Outs und Liquidität auf einen Blick.
-          </p>
-        </div>
-        <div className="space-y-4 p-6">
+        </section>
+
+        <Card className="w-full overflow-hidden shadow-soft">
+          <div className="border-b border-border bg-white px-6 py-5">
+            <p className="text-sm font-bold uppercase text-primary">Geschützter Zugang</p>
+            <h2 className="mt-2 text-2xl font-bold">Orisus CFO Dashboard</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Login für die interne Steuerung der Orisus-Gruppe. Nach dem Öffnen bleibt der Zugang auf diesem Gerät gespeichert.
+            </p>
+          </div>
+          <div className="space-y-4 p-6">
           {step === "welcome" && (
             <>
+              <div className="rounded-md bg-cyan-50 p-4 text-sm leading-6 text-cyan-950">
+                Einstieg in Cockpit, BWA, Bankenreporting, Board-Pack, Standortdetails und Upload-Datenstand.
+              </div>
               <Button className="w-full" onClick={() => setStep("login")}>
                 Anmelden
               </Button>
@@ -443,8 +490,9 @@ function AuthFlow({
               </Button>
             </FormShell>
           )}
-        </div>
-      </Card>
+          </div>
+        </Card>
+      </div>
     </main>
   );
 }
