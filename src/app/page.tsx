@@ -120,7 +120,33 @@ type ImportedDashboardData = {
   fileName: string;
   sites: DashboardSite[];
   monthly: typeof monthly;
+  bwaRows: ImportedBwaRow[];
   report: ImportReport;
+};
+
+type BwaLine = {
+  label: string;
+  actual: number;
+  indent?: boolean;
+  emphasis?: boolean;
+  percent?: boolean;
+  kind?: "cashflow";
+};
+
+type ImportedBwaRow = {
+  siteId: string;
+  siteName: string;
+  metricKey: string;
+  label: string;
+  section: string;
+  order: number;
+  indent: boolean;
+  emphasis: boolean;
+  percent: boolean;
+  kind?: "cashflow";
+  valuesByYear: Record<string, number>;
+  valuesByMonth: Record<string, number>;
+  contractValue: number;
 };
 
 const emptyImportReport: ImportReport = {
@@ -164,6 +190,49 @@ const requiredConsolidationColumns = [
   "Einheit",
   "Werttyp"
 ];
+
+const bwaMetricDefinitions = [
+  { key: "section_umsatz", label: "1. Umsatz", section: "1. Umsatz", order: 100, source: [], emphasis: true },
+  { key: "kzv_umsatz", label: "KZV-Umsatz", section: "1. Umsatz", order: 110, source: ["erloese_kzv"] },
+  { key: "privatumsatz", label: "Privatumsatz", section: "1. Umsatz", order: 120, source: ["erloese_privat"] },
+  { key: "bestandsveraenderung", label: "Bestandsveränderung", section: "1. Umsatz", order: 130, source: ["unterfertige_erzeugnisse"] },
+  { key: "material_und_laborumsaetze", label: "Material- und Laborumsätze", section: "1. Umsatz", order: 140, source: ["material_und_laborumsaetze"] },
+  { key: "sonstige_betriebliche_erloese", label: "Sonstige betriebliche Erlöse", section: "1. Umsatz", order: 150, source: ["sonstige_erloese"] },
+  { key: "aag_erstattungen", label: "AAG / Erstattungen", section: "1. Umsatz", order: 160, source: ["erstattungen_aufwendungsausgleich"] },
+  { key: "summe_umsatz", label: "Summe Umsatz", section: "1. Umsatz", order: 170, source: ["gesamtleistung"], emphasis: true },
+  { key: "gesamtleistungsquote", label: "Gesamtleistungsquote", section: "1. Umsatz", order: 180, source: [], percent: true, emphasis: true, derived: "gesamtleistungsquote" },
+  { key: "section_praxisleistung", label: "2. Variable Kosten / Praxisleistung", section: "2. Variable Kosten / Praxisleistung", order: 200, source: [], emphasis: true },
+  { key: "fremdlabor_gesamt", label: "Fremdlabor gesamt", section: "2. Variable Kosten / Praxisleistung", order: 210, source: ["fremdlaborkosten"] },
+  { key: "materialkosten_gesamt", label: "Materialkosten gesamt", section: "2. Variable Kosten / Praxisleistung", order: 220, source: ["materialkosten"] },
+  { key: "gesamtleistung_abzueglich_fremdlabor_material", label: "Gesamtleistung abzüglich Fremdlabor/Material", section: "2. Variable Kosten / Praxisleistung", order: 230, source: ["praxisleistung"], emphasis: true },
+  { key: "praxisleistungsquote", label: "Praxisleistungsquote", section: "2. Variable Kosten / Praxisleistung", order: 240, source: [], percent: true, emphasis: true, derived: "praxisleistungsquote" },
+  { key: "section_deckungsbeitrag", label: "3. Operative Kosten / Deckungsbeitrag", section: "3. Operative Kosten / Deckungsbeitrag", order: 300, source: [], emphasis: true },
+  { key: "personalkosten_gesamt", label: "Personalkosten gesamt", section: "3. Operative Kosten / Deckungsbeitrag", order: 310, source: ["personalkosten"] },
+  { key: "reparatur_instandhaltung", label: "Reparatur und Instandhaltung", section: "3. Operative Kosten / Deckungsbeitrag", order: 320, source: ["reparatur_instandhaltungskosten"] },
+  { key: "deckungsbeitrag", label: "Praxisleistung abzüglich operative Kosten", section: "3. Operative Kosten / Deckungsbeitrag", order: 330, source: ["deckungsbeitrag"], emphasis: true },
+  { key: "deckungsbeitragsquote", label: "Deckungsbeitragsquote", section: "3. Operative Kosten / Deckungsbeitrag", order: 340, source: [], percent: true, emphasis: true, derived: "deckungsbeitragsquote" },
+  { key: "section_ebitda", label: "4. Sachkosten / EBITDA", section: "4. Sachkosten / EBITDA", order: 400, source: [], emphasis: true },
+  { key: "miete_nebenkosten", label: "Miete / Nebenkosten", section: "4. Sachkosten / EBITDA", order: 410, source: ["raum_energiekosten"] },
+  { key: "reise_fortbildung_seminare", label: "Reise / Fortbildung / Seminare", section: "4. Sachkosten / EBITDA", order: 420, source: ["reise_fortbildungskosten"] },
+  { key: "summe_sonstige_kosten", label: "Summe sonstige Kosten", section: "4. Sachkosten / EBITDA", order: 490, source: ["sach_sonstige_kosten", "sonstige_kosten"], emphasis: true },
+  { key: "ebitda", label: "EBITDA", section: "4. Sachkosten / EBITDA", order: 500, source: ["ebitda"], emphasis: true },
+  { key: "ebitda_marge", label: "EBITDA-Marge", section: "4. Sachkosten / EBITDA", order: 510, source: [], percent: true, derived: "ebitda_marge" },
+  { key: "section_ergebnis", label: "5. Unter EBITDA / Vorläufiges Ergebnis", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 600, source: [], emphasis: true },
+  { key: "abschreibungen", label: "Abschreibungen", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 610, source: ["abschreibungen"] },
+  { key: "zinsen_neutraler_aufwand", label: "Zinsen & neutraler Aufwand", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 620, source: ["zinsen_neutraler_aufwand"] },
+  { key: "zinsertrag_abzinsung_rueckstellungen", label: "Zinsertrag Abzinsung Rückstellungen", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 630, source: ["zinsertrag_abzinsung_ruckstellungen"] },
+  { key: "steuern_einkommen_ertrag", label: "Steuern vom Einkommen und Ertrag", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 640, source: ["steuern_vom_einkommen_und_ertrag"] },
+  { key: "vorlaeufiges_ergebnis", label: "Vorläufiges Ergebnis", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 650, source: ["vorlaufiges_ergebnis"], emphasis: true },
+  { key: "ergebnisquote", label: "Ergebnisquote", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 660, source: [], percent: true, derived: "ergebnisquote" },
+  { key: "section_cashflow", label: "6. Cashflow-Adjustments", section: "6. Cashflow-Adjustments", order: 700, source: [], emphasis: true, kind: "cashflow" as const },
+  { key: "cf_abschreibungen", label: "+ Abschreibungen", section: "6. Cashflow-Adjustments", order: 710, source: ["plus_abschreibungen"], kind: "cashflow" as const },
+  { key: "investitionsausgaben", label: "Investitionsausgaben", section: "6. Cashflow-Adjustments", order: 720, source: ["investitionsausgaben"], kind: "cashflow" as const },
+  { key: "tilgung", label: "Tilgung", section: "6. Cashflow-Adjustments", order: 730, source: ["tilgung"], kind: "cashflow" as const },
+  { key: "umbuchung_zmvz", label: "Umbuchung ZMVZ", section: "6. Cashflow-Adjustments", order: 740, source: ["umbuchung_zmvz"], kind: "cashflow" as const },
+  { key: "sonstige_rueckstellungen_bestandsminderungen", label: "Sonstige Rückstellungen / Bestandsminderungen", section: "6. Cashflow-Adjustments", order: 750, source: ["sonstige_ruckstellungen_bestandsminderungen"], kind: "cashflow" as const },
+  { key: "cashflow_gesamt", label: "CashFlow Gesamt", section: "6. Cashflow-Adjustments", order: 760, source: ["cashflow_gesamt"], emphasis: true, kind: "cashflow" as const },
+  { key: "cashflow_quote", label: "CashFlow-Quote", section: "6. Cashflow-Adjustments", order: 770, source: [], percent: true, derived: "cashflow_quote", kind: "cashflow" as const }
+] as const;
 
 const statusMap: Record<Status, { label: string; dot: string; tone: "green" | "yellow" | "red" }> = {
   green: { label: "Stabil", dot: "bg-emerald-500", tone: "green" },
@@ -280,7 +349,8 @@ function normalizeMetric(value: unknown) {
 }
 
 function rowMetric(row: Record<string, unknown>) {
-  return normalizeMetric(row.Standard_Kennzahl || row.Kennzahl || row.Detailbezeichnung);
+  const rawMetric = asText(row.Standard_Kennzahl || row.Kennzahl || row.Detailbezeichnung);
+  return `${rawMetric.trim().startsWith("+") ? "plus_" : ""}${normalizeMetric(rawMetric)}`;
 }
 
 function rowDomain(row: Record<string, unknown>) {
@@ -319,6 +389,111 @@ function lastRowsValue(rows: Record<string, unknown>[], site: string | null, met
       return (asNumber(b.Monat) ?? 0) - (asNumber(a.Monat) ?? 0);
     });
   return asNumber(candidates[0]?.Wert) ?? 0;
+}
+
+function sumMetricForPeriod(rows: Record<string, unknown>[], siteName: string, sourceKeys: readonly string[], year?: number, month?: number) {
+  return rows.reduce((sum, row) => {
+    if (asText(row.Standortname) !== siteName) return sum;
+    if (year && (asNumber(row.Jahr) ?? 0) !== year) return sum;
+    if (month && (asNumber(row.Monat) ?? 0) !== month) return sum;
+    if (!metricMatches(rowMetric(row), [...sourceKeys])) return sum;
+    return sum + (asNumber(row.Wert) ?? 0);
+  }, 0);
+}
+
+function ratio(numerator: number, denominator: number) {
+  return denominator ? (numerator / denominator) * 100 : 0;
+}
+
+function derivedBwaValue(rows: Record<string, unknown>[], siteName: string, key: string, year?: number, month?: number) {
+  const totalPerformance = sumMetricForPeriod(rows, siteName, ["gesamtleistung"], year, month);
+  if (key === "gesamtleistungsquote") return totalPerformance ? 100 : 0;
+  if (key === "praxisleistungsquote") {
+    return ratio(sumMetricForPeriod(rows, siteName, ["praxisleistung"], year, month), totalPerformance);
+  }
+  if (key === "deckungsbeitragsquote") {
+    return ratio(sumMetricForPeriod(rows, siteName, ["deckungsbeitrag"], year, month), totalPerformance);
+  }
+  if (key === "ebitda_marge") {
+    return ratio(sumMetricForPeriod(rows, siteName, ["ebitda"], year, month), totalPerformance);
+  }
+  if (key === "ergebnisquote") {
+    return ratio(sumMetricForPeriod(rows, siteName, ["vorlaufiges_ergebnis"], year, month), totalPerformance);
+  }
+  if (key === "cashflow_quote") {
+    return ratio(sumMetricForPeriod(rows, siteName, ["cashflow_gesamt"], year, month), totalPerformance);
+  }
+  return 0;
+}
+
+function definitionDerivedKey(definition: (typeof bwaMetricDefinitions)[number]) {
+  return "derived" in definition ? definition.derived : null;
+}
+
+function definitionFlag(definition: (typeof bwaMetricDefinitions)[number], flag: "percent" | "emphasis") {
+  if (flag === "percent") return "percent" in definition ? Boolean(definition.percent) : false;
+  return "emphasis" in definition ? Boolean(definition.emphasis) : false;
+}
+
+function definitionKind(definition: (typeof bwaMetricDefinitions)[number]) {
+  return "kind" in definition ? definition.kind : undefined;
+}
+
+function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportReport): ImportedBwaRow[] {
+  const bwaRows = rows.filter((row) => rowDomain(row) === "bwa" && !isExcludedPlanRow(row));
+  const validYears = report.jahre.filter((year) => year > 1900);
+  return report.standorte.flatMap((siteName) =>
+    bwaMetricDefinitions.map((definition) => {
+      const valuesByYear = Object.fromEntries(
+        validYears.map((year) => {
+          const derivedKey = definitionDerivedKey(definition);
+          const value = definition.source.length
+            ? sumMetricForPeriod(bwaRows, siteName, definition.source, year)
+            : derivedKey
+              ? derivedBwaValue(bwaRows, siteName, derivedKey, year)
+              : 0;
+          return [String(year), value];
+        })
+      );
+      const valuesByMonth = Object.fromEntries(
+        validYears.flatMap((year) =>
+          Array.from({ length: 12 }, (_, index) => {
+            const month = index + 1;
+            const derivedKey = definitionDerivedKey(definition);
+            const value = definition.source.length
+              ? sumMetricForPeriod(bwaRows, siteName, definition.source, year, month)
+              : derivedKey
+                ? derivedBwaValue(bwaRows, siteName, derivedKey, year, month)
+                : 0;
+            return [`${year}-${month}`, value];
+          })
+        )
+      );
+      const isPercent = definitionFlag(definition, "percent");
+      const isEmphasis = definitionFlag(definition, "emphasis");
+      const contractValue = isPercent
+        ? 0
+        : definition.source.length
+          ? sumMetricForPeriod(bwaRows, siteName, definition.source)
+          : 0;
+
+      return {
+        siteId: normalizeMetric(siteName),
+        siteName,
+        metricKey: definition.key,
+        label: definition.label,
+        section: definition.section,
+        order: definition.order,
+        indent: !isEmphasis && !definition.key.startsWith("section_"),
+        emphasis: isEmphasis,
+        percent: isPercent,
+        kind: definitionKind(definition),
+        valuesByYear,
+        valuesByMonth,
+        contractValue
+      };
+    })
+  );
 }
 
 function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, report: ImportReport): ImportedDashboardData {
@@ -399,6 +574,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     fileName,
     sites: sites.length ? sites : standorte,
     monthly: monthlyData.length ? monthlyData : monthly,
+    bwaRows: buildImportedBwaRows(rows, report),
     report
   };
 }
@@ -656,9 +832,9 @@ export default function HomePage() {
               }}
             />
           )}
-          {page === "standort-detail" && <StandortDetail site={selected} />}
+          {page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} />}
           {page === "analysen" && <Analysen />}
-          {page === "bwa" && <Bwa />}
+          {page === "bwa" && <Bwa importedData={importedData} />}
           {page === "cashflow" && <Cashflow />}
           {page === "darlehen" && <Darlehen />}
           {page === "banken" && <Bankenreporting />}
@@ -1804,14 +1980,14 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BwaStatement({ title, siteId }: { title: string; siteId?: string }) {
+function BwaStatement({ title, siteId, importedData }: { title: string; siteId?: string; importedData?: ImportedDashboardData | null }) {
   const [period, setPeriod] = useState("Geschäftsjahr 2026");
   if (!siteId) {
-    return <ConsolidatedBwaMatrix title={title} period={period} setPeriod={setPeriod} />;
+    return <ConsolidatedBwaMatrix title={title} period={period} setPeriod={setPeriod} importedData={importedData} />;
   }
 
-  const rows = buildBwaRows(period, siteId);
-  const activeSites = siteId ? standorte.filter((site) => site.id === siteId) : standorte;
+  const rows = importedData?.bwaRows?.length ? buildImportedBwaLines(importedData.bwaRows, period, siteId) : buildBwaRows(period, siteId);
+  const activeSites = siteId ? (importedData?.sites ?? standorte).filter((site) => site.id === siteId) : (importedData?.sites ?? standorte);
 
   return (
     <Card className="overflow-hidden">
@@ -1819,7 +1995,7 @@ function BwaStatement({ title, siteId }: { title: string; siteId?: string }) {
         <div>
           <h2 className="font-bold">{title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Enthält Dummy-Werte ab jeweiligem Praxisstart; Kassel erscheint erst ab Geschäftsjahr 2026.
+            {importedData ? "Aus bestätigtem Excel-Import abgeleitet." : "Enthält Dummy-Werte ab jeweiligem Praxisstart; Kassel erscheint erst ab Geschäftsjahr 2026."}
           </p>
         </div>
         <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
@@ -1852,7 +2028,7 @@ function BwaStatement({ title, siteId }: { title: string; siteId?: string }) {
       <div className="grid gap-3 border-t border-border bg-slate-50 p-4 text-sm sm:grid-cols-3">
         <Mini label="Ausgewählte Standorte" value={activeSites.map((site) => site.name).join(", ")} />
         <Mini label="Periode" value={period} />
-        <Mini label="Datenstatus" value="Dummy / Phase 1" />
+        <Mini label="Datenstatus" value={importedData ? "Excel-Import bestätigt" : "Dummy / Phase 1"} />
       </div>
     </Card>
   );
@@ -1861,20 +2037,32 @@ function BwaStatement({ title, siteId }: { title: string; siteId?: string }) {
 function ConsolidatedBwaMatrix({
   title,
   period,
-  setPeriod
+  setPeriod,
+  importedData
 }: {
   title: string;
   period: string;
   setPeriod: (value: string) => void;
+  importedData?: ImportedDashboardData | null;
 }) {
-  const groups = [
-    { id: "konzern", label: "Konzern", rows: buildBwaRows(period) },
-    ...standorte.map((site) => ({
-      id: site.id,
-      label: site.name,
-      rows: buildBwaRows(period, site.id)
-    }))
-  ];
+  const sourceSites = importedData?.sites ?? standorte;
+  const groups = importedData?.bwaRows?.length
+    ? [
+        { id: "konzern", label: "Konzern", rows: buildImportedBwaLines(importedData.bwaRows, period) },
+        ...sourceSites.map((site) => ({
+          id: site.id,
+          label: site.name,
+          rows: buildImportedBwaLines(importedData.bwaRows, period, site.id)
+        }))
+      ]
+    : [
+        { id: "konzern", label: "Konzern", rows: buildBwaRows(period) },
+        ...sourceSites.map((site) => ({
+          id: site.id,
+          label: site.name,
+          rows: buildBwaRows(period, site.id)
+        }))
+      ];
   const rowTemplate = groups[0].rows;
 
   return (
@@ -1972,7 +2160,7 @@ function FragmentCells({
   row,
   quote
 }: {
-  row: ReturnType<typeof buildBwaRows>[number];
+  row: BwaLine;
   quote: number;
 }) {
   return (
@@ -1998,6 +2186,52 @@ function FragmentCells({
       </td>
     </>
   );
+}
+
+function selectedBwaYear(period: string) {
+  const match = period.match(/20\d{2}/);
+  return match ? match[0] : null;
+}
+
+function buildImportedBwaLines(importedRows: ImportedBwaRow[], period: string, siteId?: string): BwaLine[] {
+  const year = selectedBwaYear(period);
+  return bwaMetricDefinitions.map((definition) => {
+    const sourceRows = importedRows.filter((row) => row.metricKey === definition.key && (!siteId || row.siteId === siteId));
+    const isPercent = definitionFlag(definition, "percent");
+    const isEmphasis = definitionFlag(definition, "emphasis");
+    const actual = sourceRows.reduce((sum, row) => {
+      if (definition.key.startsWith("section_")) return 0;
+      if (year) return sum + (row.valuesByYear[year] ?? 0);
+      return sum + (isPercent ? 0 : row.contractValue);
+    }, 0);
+    const percentActual =
+      !year && isPercent
+        ? sourceRows.reduce((sum, row) => sum + calculateImportedContractQuote(importedRows, row.siteId, definition.key), 0) / (sourceRows.length || 1)
+        : actual;
+    return {
+      label: definition.label,
+      actual: isPercent ? percentActual : actual,
+      indent: !isEmphasis && !definition.key.startsWith("section_"),
+      emphasis: isEmphasis,
+      percent: isPercent,
+      kind: definitionKind(definition)
+    };
+  });
+}
+
+function calculateImportedContractQuote(importedRows: ImportedBwaRow[], siteId: string, key: string) {
+  const value = (metricKey: string) =>
+    importedRows
+      .filter((row) => row.siteId === siteId && row.metricKey === metricKey)
+      .reduce((sum, row) => sum + row.contractValue, 0);
+  const performance = value("summe_umsatz");
+  if (key === "gesamtleistungsquote") return performance ? 100 : 0;
+  if (key === "praxisleistungsquote") return ratio(value("gesamtleistung_abzueglich_fremdlabor_material"), performance);
+  if (key === "deckungsbeitragsquote") return ratio(value("deckungsbeitrag"), performance);
+  if (key === "ebitda_marge") return ratio(value("ebitda"), performance);
+  if (key === "ergebnisquote") return ratio(value("vorlaeufiges_ergebnis"), performance);
+  if (key === "cashflow_quote") return ratio(value("cashflow_gesamt"), performance);
+  return 0;
 }
 
 function buildBwaRows(period: string, siteId?: string) {
@@ -2092,9 +2326,11 @@ function buildBwaRows(period: string, siteId?: string) {
 
 const bwaMonths = ["Jan", "Feb", "Mrz", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
-function SiteMonthlyBwa({ site }: { site: (typeof standorte)[number] }) {
+function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedData?: ImportedDashboardData | null }) {
   const [year, setYear] = useState("2026");
-  const rows = buildSiteMonthlyBwa(site, Number(year));
+  const rows = importedData?.bwaRows?.length
+    ? buildImportedSiteMonthlyBwa(importedData.bwaRows, site.id, Number(year))
+    : buildSiteMonthlyBwa(site, Number(year));
   const activeMonthCount = rows[0].months.filter((value) => value !== null).length || 1;
 
   return (
@@ -2271,12 +2507,37 @@ function buildSiteMonthlyBwa(site: (typeof standorte)[number], year: number) {
   ];
 }
 
+function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: string, year: number) {
+  return bwaMetricDefinitions.map((definition) => {
+    const sourceRows = importedRows.filter((row) => row.siteId === siteId && row.metricKey === definition.key);
+    const isPercent = definitionFlag(definition, "percent");
+    const isEmphasis = definitionFlag(definition, "emphasis");
+    const months = Array.from({ length: 12 }, (_, index) => {
+      if (definition.key.startsWith("section_")) return null;
+      return sourceRows.reduce((sum, row) => sum + (row.valuesByMonth[`${year}-${index + 1}`] ?? 0), 0);
+    });
+    const contractValue = isPercent
+      ? sourceRows.reduce((sum, row) => sum + calculateImportedContractQuote(importedRows, row.siteId, definition.key), 0) / (sourceRows.length || 1)
+      : sourceRows.reduce((sum, row) => sum + row.contractValue, 0);
+    return {
+      label: definition.label,
+      months,
+      contract: contractValue,
+      indent: !isEmphasis && !definition.key.startsWith("section_"),
+      emphasis: isEmphasis,
+      section: definition.key.startsWith("section_"),
+      percent: isPercent,
+      kind: definitionKind(definition)
+    };
+  });
+}
+
 function formatBwaCell(value: number | null, percent?: boolean) {
   if (value === null) return "";
   return percent ? pct(value) : eur(value);
 }
 
-function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
+function StandortDetail({ site, importedData }: { site: DashboardSite; importedData?: ImportedDashboardData | null }) {
   return (
     <section className="space-y-5">
       <PageTitle title={site.name} text={`Standortdetail ab Praxisstart ${site.start}.`} />
@@ -2300,7 +2561,8 @@ function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
           </ResponsiveContainer>
         </ChartCard>
       </div>
-      <SiteMonthlyBwa site={site} />
+      <BwaStatement title={`BWA bis Cashflow ${site.name}`} siteId={site.id} importedData={importedData} />
+      <SiteMonthlyBwa site={site} importedData={importedData} />
     </section>
   );
 }
@@ -2914,11 +3176,11 @@ function AnalysisTile({ title, value, text }: { title: string; value: string; te
   );
 }
 
-function Bwa() {
+function Bwa({ importedData }: { importedData?: ImportedDashboardData | null }) {
   return (
     <section className="space-y-5">
       <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow, dynamisch nach Jahren und gesamter Periode auswählbar." />
-      <BwaStatement title="Konsolidierte BWA bis Cashflow" />
+      <BwaStatement title="Konsolidierte BWA bis Cashflow" importedData={importedData} />
       <div className="grid gap-5 xl:grid-cols-2">
         <EbitdaBridge />
         <CashflowBridge />
