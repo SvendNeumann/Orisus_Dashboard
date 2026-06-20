@@ -2144,18 +2144,18 @@ function ConsolidatedBwaMatrix({
           ))}
         </Select>
       </div>
-      <div className="overflow-x-auto">
+      <div className="max-h-[72vh] overflow-auto">
         <table className="min-w-[1180px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 w-64 border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
+              <th className="sticky left-0 top-0 z-30 w-64 border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                 BWA-Position
               </th>
               {groups.map((group) => (
                 <th
                   key={group.id}
                   colSpan={2}
-                  className="border-b border-r border-border table-head p-3 text-center text-xs font-bold uppercase text-white"
+                  className="sticky top-0 z-20 border-b border-r border-border table-head p-3 text-center text-xs font-bold uppercase text-white"
                 >
                   {group.label}
                   {!group.hasData && <span className="block text-[10px] font-semibold normal-case text-cyan-100">keine Daten</span>}
@@ -2163,7 +2163,7 @@ function ConsolidatedBwaMatrix({
               ))}
             </tr>
             <tr>
-              <th className="sticky left-0 z-20 border-b border-r border-border table-subhead p-2 text-left text-xs font-semibold text-white">
+              <th className="sticky left-0 top-[45px] z-30 border-b border-r border-border table-subhead p-2 text-left text-xs font-semibold text-white">
                 {period}
               </th>
               {groups.map((group) => (
@@ -2187,7 +2187,7 @@ function ConsolidatedBwaMatrix({
                 {groups.map((group) => {
                   const groupRow = group.rows[rowIndex];
                   const performance = group.rows.find((candidate) => candidate.label === "Summe Umsatz")?.actual || 0;
-                  const quote = groupRow.percent ? groupRow.actual : performance ? (groupRow.actual / performance) * 100 : 0;
+                  const quote = groupRow.emphasis && groupRow.actual === 0 ? 0 : groupRow.percent ? groupRow.actual : performance ? (groupRow.actual / performance) * 100 : 0;
                   return (
                     <FragmentCells
                       key={`${group.id}-${row.label}`}
@@ -2212,10 +2212,10 @@ function ConsolidatedBwaMatrix({
 function FragmentHeaders() {
   return (
     <>
-      <th className="w-32 border-b border-r border-border table-subhead p-2 text-right text-xs font-semibold text-white">
+      <th className="sticky top-[45px] z-20 w-32 border-b border-r border-border table-subhead p-2 text-right text-xs font-semibold text-white">
         Ist
       </th>
-      <th className="w-24 border-b border-r border-border table-subhead p-2 text-right text-xs font-semibold text-white">
+      <th className="sticky top-[45px] z-20 w-24 border-b border-r border-border table-subhead p-2 text-right text-xs font-semibold text-white">
         % GL
       </th>
     </>
@@ -2236,6 +2236,15 @@ function FragmentCells({
       <>
         <td className="border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground">-</td>
         <td className="border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground">-</td>
+      </>
+    );
+  }
+  const isSectionRow = row.emphasis && row.actual === 0 && !row.percent;
+  if (isSectionRow) {
+    return (
+      <>
+        <td className={cn("border-b border-r border-border bg-white p-2", row.kind === "cashflow" && "table-cashflow")} />
+        <td className={cn("border-b border-r border-border bg-white p-2", row.kind === "cashflow" && "table-cashflow")} />
       </>
     );
   }
@@ -2431,25 +2440,25 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
           <option>2026</option>
         </Select>
       </div>
-      <div className="overflow-x-auto">
+      <div className="max-h-[72vh] overflow-auto">
         <table className="min-w-[1320px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 w-72 border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
+              <th className="sticky left-0 top-0 z-30 w-72 border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                 BWA-Position
               </th>
               {bwaMonths.map((month) => (
-                <th key={month} className="w-24 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
+                <th key={month} className="sticky top-0 z-20 w-24 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                   {month}
                 </th>
               ))}
-              <th className="w-28 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
+              <th className="sticky top-0 z-20 w-28 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Gesamt
               </th>
-              <th className="w-32 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
+              <th className="sticky top-0 z-20 w-32 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Durchschnitt
               </th>
-              <th className="w-40 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
+              <th className="sticky top-0 z-20 w-40 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Vertragsperiode
               </th>
             </tr>
@@ -2482,7 +2491,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                         Number(value) < 0 && "text-red-700"
                       )}
                     >
-                      {formatBwaCell(value, row.percent)}
+                      {row.section ? "" : formatBwaCell(value, row.percent)}
                     </td>
                   ))}
                   <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", totalValue < 0 && "text-red-700")}>
