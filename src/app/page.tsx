@@ -729,16 +729,19 @@ function RevenueSplit() {
   );
 }
 
-function CostRatios() {
+function CostRatios({ site }: { site?: (typeof standorte)[number] }) {
+  const material = site?.materialquote ?? 9.9;
+  const fremdlabor = site?.fremdlaborquote ?? 15.6;
+  const sonstige = site?.sonstigeKostenquote ?? 37.8;
   const rows = [
-    { label: "Materialquote", value: 9.9, target: 10.0, status: "green" as Status },
-    { label: "Fremdlaborquote", value: 15.6, target: 14.5, status: "yellow" as Status },
-    { label: "Sonstige Kostenquote", value: 37.8, target: 36.0, status: "yellow" as Status },
-    { label: "Gesamtkostenquote", value: 69.4, target: 68.0, status: "yellow" as Status }
+    { label: "Materialquote", value: material, target: 10.0, status: (material <= 10 ? "green" : "yellow") as Status },
+    { label: "Fremdlaborquote", value: fremdlabor, target: 14.5, status: (fremdlabor <= 14.5 ? "green" : "yellow") as Status },
+    { label: "Sonstige Kostenquote", value: sonstige, target: 36.0, status: (sonstige <= 36 ? "green" : "yellow") as Status },
+    { label: "Gesamtkostenquote", value: material + fremdlabor + sonstige, target: 68.0, status: (material + fremdlabor + sonstige <= 68 ? "green" : "yellow") as Status }
   ];
   return (
     <Card className="p-4">
-      <h2 className="font-bold">Kostenquoten</h2>
+      <h2 className="font-bold">{site ? `Kostenquoten ${site.name}` : "Kostenquoten"}</h2>
       <div className="mt-4 space-y-4">
         {rows.map((row) => (
           <div key={row.label}>
@@ -1188,7 +1191,7 @@ function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
         <KpiCard label="Cashflow" value={site.cashflow} delta="Netto nach Annuitäten" icon={Wallet} status={site.status} />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
-        <CostRatios />
+        <CostRatios site={site} />
         <ChartCard title="Entwicklung über Zeit" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={monthly}>
@@ -1203,7 +1206,7 @@ function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
         </ChartCard>
       </div>
       <BwaStatement title={`BWA bis Cashflow ${site.name}`} siteId={site.id} />
-      <PlanIst siteName={site.name} />
+      <SitePlanIst site={site} />
     </section>
   );
 }
@@ -1299,6 +1302,43 @@ function Cashflow() {
         </ChartCard>
       </div>
       <Ranking title="Standortvergleich Cashflow" metric="ebitda" />
+    </section>
+  );
+}
+
+function SitePlanIst({ site }: { site: (typeof standorte)[number] }) {
+  const rows = [
+    { label: "Gesamtleistung", actual: site.gesamtleistung, plan: site.gesamtleistung / (1 + site.planAbweichung / 100) },
+    { label: "EBITDA", actual: site.ebitda, plan: site.darlehen.zielEbitda || site.ebitda / 0.96 },
+    { label: "Cashflow", actual: site.cashflow, plan: site.cashflow >= 0 ? site.cashflow / 1.04 : site.cashflow * 0.86 },
+    { label: "Offene Forderungen", actual: site.forderungen, plan: site.forderungen * 0.92 }
+  ];
+
+  return (
+    <section className="space-y-5">
+      <PageTitle title={`Plan/Ist ${site.name}`} text={`Nur Werte für ${site.name}, ohne andere Standorte.`} />
+      <Card className="overflow-hidden">
+        <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr_0.8fr] gap-2 border-b border-border bg-slate-50 p-3 text-xs font-bold uppercase text-muted-foreground">
+          <span>Kennzahl</span>
+          <span className="text-right">Ist</span>
+          <span className="text-right">Plan</span>
+          <span className="text-right">Abw. EUR</span>
+          <span className="text-right">Abw. %</span>
+        </div>
+        {rows.map((row) => {
+          const variance = row.actual - row.plan;
+          const variancePct = row.plan ? (variance / Math.abs(row.plan)) * 100 : 0;
+          return (
+            <div key={row.label} className="grid grid-cols-[1.2fr_1fr_1fr_1fr_0.8fr] gap-2 border-b border-border p-3 text-sm last:border-0">
+              <span className="font-semibold">{row.label}</span>
+              <span className="text-right">{eur(row.actual, true)}</span>
+              <span className="text-right text-muted-foreground">{eur(row.plan, true)}</span>
+              <span className={cn("text-right font-semibold", variance < 0 ? "text-red-700" : "text-emerald-700")}>{eur(variance, true)}</span>
+              <span className={cn("text-right font-semibold", variancePct < 0 ? "text-red-700" : "text-emerald-700")}>{pct(variancePct)}</span>
+            </div>
+          );
+        })}
+      </Card>
     </section>
   );
 }
