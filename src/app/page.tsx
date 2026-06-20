@@ -3884,26 +3884,11 @@ function Uploads({
     try {
       const extension = file.name.split(".").pop()?.toLowerCase();
       await waitForBrowserPaint();
-      let workbook: XLSX.WorkBook;
-      let workbookSheetNames: string[];
-
-      if (extension === "csv") {
-        workbook = XLSX.read(await file.text(), { type: "string", cellDates: true });
-        workbookSheetNames = workbook.SheetNames;
-      } else {
-        const workbookBuffer = await file.arrayBuffer();
-        await waitForBrowserPaint();
-        const workbookOverview = XLSX.read(workbookBuffer, { type: "array", bookSheets: true });
-        workbookSheetNames = workbookOverview.SheetNames;
-        await waitForBrowserPaint();
-        workbook = XLSX.read(workbookBuffer, {
-          type: "array",
-          cellDates: true,
-          sheets: importSourceSheetName
-        });
-      }
-
-      const nextReport = buildImportReport(workbook, file.name, workbookSheetNames);
+      const workbook =
+        extension === "csv"
+          ? XLSX.read(await file.text(), { type: "string", cellDates: true })
+          : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      const nextReport = buildImportReport(workbook, file.name);
       setReport(nextReport);
       if (nextReport.status === "ready" || nextReport.status === "warning") {
         setPendingDashboardData(buildImportedDashboardData(workbook, file.name, nextReport));
