@@ -54,6 +54,7 @@ import {
 type Page =
   | "cockpit"
   | "kennzahlen"
+  | "performance"
   | "standorte"
   | "standort-detail"
   | "analysen"
@@ -92,6 +93,7 @@ const statusMap: Record<Status, { label: string; dot: string; tone: "green" | "y
 const desktopNav = [
   { id: "cockpit", label: "Cockpit", icon: Home },
   { id: "kennzahlen", label: "Orisus Kennzahlen/Entwicklung", icon: BarChart3 },
+  { id: "performance", label: "Orisus Performance", icon: TrendingUp },
   { id: "standorte", label: "Standorte", icon: Building2 },
   { id: "bwa", label: "BWA", icon: FileBarChart },
   { id: "cashflow", label: "Cashflow", icon: Wallet },
@@ -217,6 +219,7 @@ export default function HomePage() {
           <TopFilters period={period} setPeriod={setPeriod} comparison={comparison} setComparison={setComparison} />
           {page === "cockpit" && <Cockpit setPage={go} />}
           {page === "kennzahlen" && <KennzahlenEntwicklung />}
+          {page === "performance" && <OrisusPerformance />}
           {page === "standorte" && (
             <Standorte
               onOpen={(id) => {
@@ -1698,6 +1701,247 @@ function TableCell({
       {children}
     </td>
   );
+}
+
+function OrisusPerformance() {
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Orisus Performance"
+        text="Behandlerumsatz, PVS-Umsatz und Bank-/Geldbewegungen im CFO-Format, angepasst an das Dashboard-Design."
+      />
+      <PerformanceRevenueBlock
+        title="Behandlerumsatz je Standort"
+        subtitle="Auswahl: YTD | Jahr 2026 | bis Mai 2026 | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD"
+        mode="honorar"
+      />
+      <PerformanceMonthlyTable
+        title="Behandlerumsatz inkl. Eigenlabor | Monatsübersicht aktuelles Jahr"
+        mode="honorar"
+      />
+      <PerformanceRevenueBlock
+        title="PVS-Gesamtumsatz je Standort"
+        subtitle="Auswahl: YTD | Jahr 2026 | bis Mai 2026 | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD"
+        mode="pvs"
+      />
+      <PerformanceMonthlyTable
+        title="PVS-Gesamtumsatz inkl. FL + MAT | Monatsübersicht aktuelles Jahr"
+        mode="pvs"
+      />
+      <BankMovementsTable />
+    </section>
+  );
+}
+
+function PerformanceRevenueBlock({
+  title,
+  subtitle,
+  mode
+}: {
+  title: string;
+  subtitle: string;
+  mode: "honorar" | "pvs";
+}) {
+  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const current = activeSites.reduce((sum, site) => sum + performanceBase(site, mode), 0);
+  const previous = Math.round(current * (mode === "honorar" ? 0.48 : 0.46));
+  const qtd = Math.round(current * (mode === "honorar" ? 0.39 : 0.4));
+  const qtdPrevious = Math.round(qtd * (mode === "honorar" ? 0.64 : 0.61));
+  const sinceTakeover = Math.round(current * (mode === "honorar" ? 2.83 : 2.79));
+  const lastMonth = Math.round(current * 0.185);
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="bg-blue-950 p-3 font-bold text-white">{title}</div>
+      <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">{subtitle}</div>
+      <div className="grid gap-px bg-border md:grid-cols-5">
+        <KennzahlTile label={`${mode === "honorar" ? "Behandlerumsatz" : "PVS Umsatz"} Zeitraum`} value={eur(current)} />
+        <KennzahlTile label="YoY Zeitraum" value={pct(((current - previous) / previous) * 100)} />
+        <KennzahlTile label="QTD YoY" value={pct(((qtd - qtdPrevious) / qtdPrevious) * 100)} />
+        <KennzahlTile label="Umsatz seit Übernahme" value={eur(sinceTakeover)} />
+        <KennzahlTile label="Aktueller Gesamtkontostand" value={eur(total("kontostand"))} />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1320px] border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              {[
+                "Standort",
+                "Praxisstart",
+                "Akt. Zeitraum",
+                "VJ Zeitraum",
+                "Δ abs.",
+                "Δ %",
+                "QTD",
+                "QTD VJ",
+                "QTD Δ %",
+                "Monat",
+                "Monat VJ",
+                "Monat Δ %",
+                "Seit Übernahme",
+                "Ø mtl. seit Übernahme"
+              ].map((head) => (
+                <th key={head} className="border-b border-r border-border bg-blue-950 p-2 text-center font-bold text-white">
+                  {head}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {activeSites.map((site, index) => {
+              const currentSite = performanceBase(site, mode);
+              const prevSite = Math.round(currentSite * (0.72 - index * 0.06));
+              const delta = currentSite - prevSite;
+              const qtdSite = Math.round(currentSite * (0.36 + index * 0.02));
+              const qtdPrev = Math.round(qtdSite * (0.8 - index * 0.04));
+              const month = Math.round(currentSite * (0.17 + index * 0.01));
+              const monthPrev = Math.round(month * (0.88 + index * 0.03));
+              const takeover = Math.round(currentSite * (2.4 + index * 0.18));
+              const monthsSince = site.id === "kirchberg" ? 18 : site.id === "essen" ? 12 : site.id === "kehl" ? 9 : site.id === "ulmet" ? 6 : site.id === "huettenberg" ? 6 : 1;
+              return (
+                <tr key={site.id}>
+                  <TableCell strong>{site.name}</TableCell>
+                  <TableCell>{site.start}</TableCell>
+                  <TableCell>{eur(currentSite)}</TableCell>
+                  <TableCell>{eur(prevSite)}</TableCell>
+                  <TableCell tone={delta < 0 ? "red" : "green"}>{eur(delta)}</TableCell>
+                  <TableCell tone={delta < 0 ? "red" : "green"}>{pct((delta / prevSite) * 100)}</TableCell>
+                  <TableCell>{eur(qtdSite)}</TableCell>
+                  <TableCell>{eur(qtdPrev)}</TableCell>
+                  <TableCell tone={qtdSite - qtdPrev < 0 ? "red" : "green"}>{pct(((qtdSite - qtdPrev) / qtdPrev) * 100)}</TableCell>
+                  <TableCell>{eur(month)}</TableCell>
+                  <TableCell>{eur(monthPrev)}</TableCell>
+                  <TableCell tone={month - monthPrev < 0 ? "red" : "green"}>{pct(((month - monthPrev) / monthPrev) * 100)}</TableCell>
+                  <TableCell>{eur(takeover)}</TableCell>
+                  <TableCell>{eur(takeover / monthsSince)}</TableCell>
+                </tr>
+              );
+            })}
+            <tr>
+              <TableCell strong>Gesamt</TableCell>
+              <TableCell>{""}</TableCell>
+              <TableCell strong>{eur(current)}</TableCell>
+              <TableCell strong>{eur(previous)}</TableCell>
+              <TableCell strong tone="green">{eur(current - previous)}</TableCell>
+              <TableCell strong tone="green">{pct(((current - previous) / previous) * 100)}</TableCell>
+              <TableCell strong>{eur(qtd)}</TableCell>
+              <TableCell strong>{eur(qtdPrevious)}</TableCell>
+              <TableCell strong tone="green">{pct(((qtd - qtdPrevious) / qtdPrevious) * 100)}</TableCell>
+              <TableCell strong>{eur(lastMonth)}</TableCell>
+              <TableCell strong>{eur(Math.round(lastMonth * 0.72))}</TableCell>
+              <TableCell strong tone="green">{pct(38.8)}</TableCell>
+              <TableCell strong>{eur(sinceTakeover)}</TableCell>
+              <TableCell strong>{eur(sinceTakeover / 73)}</TableCell>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function PerformanceMonthlyTable({ title, mode }: { title: string; mode: "honorar" | "pvs" }) {
+  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const monthFactors = [0.192, 0.188, 0.228, 0.205, 0.186, 0, 0, 0, 0, 0, 0, 0];
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="bg-blue-950 p-3 font-bold text-white">{title}</div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1120px] border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Standort</th>
+              {bwaMonths.map((month) => (
+                <th key={month} className="border-b border-r border-border bg-blue-950 p-2 text-white">{month}</th>
+              ))}
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Gesamt</th>
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Ø Monat</th>
+            </tr>
+          </thead>
+          <tbody>
+            <PerformanceMonthRow label="Gesamt" values={bwaMonths.map((_, index) => activeSites.reduce((sum, site) => sum + Math.round(performanceBase(site, mode) * monthFactors[index]), 0))} />
+            {activeSites.map((site) => (
+              <PerformanceMonthRow key={site.id} label={site.name} values={bwaMonths.map((_, index) => Math.round(performanceBase(site, mode) * monthFactors[index]))} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function PerformanceMonthRow({ label, values }: { label: string; values: number[] }) {
+  const totalValue = values.reduce((sum, value) => sum + value, 0);
+  const activeMonths = values.filter((value) => value !== 0).length || 1;
+  return (
+    <tr>
+      <TableCell strong={label === "Gesamt"}>{label}</TableCell>
+      {values.map((value, index) => (
+        <TableCell key={`${label}-${index}`}>{value ? eur(value) : ""}</TableCell>
+      ))}
+      <TableCell strong>{eur(totalValue)}</TableCell>
+      <TableCell strong>{eur(totalValue / activeMonths)}</TableCell>
+    </tr>
+  );
+}
+
+function BankMovementsTable() {
+  const rows = [
+    { label: "Geldeingang Bank gesamt", values: [692723, 639715, 932514, 786139, 758133], contract: 10355654 },
+    { label: "davon Praxisumsatz", values: [647483, 634414, 875494, 778864, 755615], contract: 10051134, indent: true },
+    { label: "davon sonstiges", values: [45240, 5302, 57020, 7275, 2518], contract: 304520, indent: true },
+    { label: "Geldausgang Bank inkl. Kredit", values: [-746265, -605887, -1048656, -845770, -650471], contract: -10163268 },
+    { label: "davon Praxisausgaben", values: [-628743, -584887, -748587, -741998, -625971], contract: -8615161, indent: true },
+    { label: "davon Tilgung + Zins", values: [-78522, 0, -280069, -85778, 0], contract: -1269060, indent: true },
+    { label: "davon Umbuchungen an Orisus ZMVZ", values: [-39000, -21000, -20000, -18000, -24500], contract: -278500, indent: true },
+    { label: "Cashflow gesamt im Monat", values: [-53542, 33828, -116142, -59631, 107662], contract: 192385 },
+    { label: "Kontostand Monatsende", values: [1029641, 1063469, 947329, 887698, 995355], contract: 944338 }
+  ];
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="bg-blue-950 p-3 font-bold text-white">Bank / Geldbewegungen aus Input_Finanzen</div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1220px] border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              <th className="border-b border-r border-border bg-blue-900 p-2 text-white">Position</th>
+              {bwaMonths.map((month) => (
+                <th key={month} className="border-b border-r border-border bg-blue-900 p-2 text-white">{month}</th>
+              ))}
+              <th className="border-b border-r border-border bg-blue-900 p-2 text-white">Gesamt</th>
+              <th className="border-b border-r border-border bg-blue-900 p-2 text-white">Ø Monat</th>
+              <th className="border-b border-r border-border bg-blue-900 p-2 text-white">Gesamte Vertragsperiode</th>
+              <th className="border-b border-r border-border bg-blue-900 p-2 text-white">Ø Vertragsperiode</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const fullValues = [...row.values, ...Array(7).fill(0)];
+              const totalValue = row.values.reduce((sum, value) => sum + value, 0);
+              return (
+                <tr key={row.label}>
+                  <TableCell strong={!row.indent}>{row.indent ? `  ${row.label}` : row.label}</TableCell>
+                  {fullValues.map((value, index) => (
+                    <TableCell key={`${row.label}-${index}`} tone={value < 0 ? "red" : undefined}>{value ? eur(value) : ""}</TableCell>
+                  ))}
+                  <TableCell strong tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue)}</TableCell>
+                  <TableCell strong tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue / row.values.length)}</TableCell>
+                  <TableCell strong tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract)}</TableCell>
+                  <TableCell strong tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract / 114)}</TableCell>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function performanceBase(site: (typeof standorte)[number], mode: "honorar" | "pvs") {
+  return mode === "honorar" ? site.honorar + site.eigenlabor : site.pvsUmsatz + site.eigenlabor + site.gesamtleistung * 0.06;
 }
 
 function Analysen() {
