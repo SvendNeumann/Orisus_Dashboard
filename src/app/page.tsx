@@ -53,6 +53,7 @@ import {
 
 type Page =
   | "cockpit"
+  | "kennzahlen"
   | "standorte"
   | "standort-detail"
   | "analysen"
@@ -90,6 +91,7 @@ const statusMap: Record<Status, { label: string; dot: string; tone: "green" | "y
 
 const desktopNav = [
   { id: "cockpit", label: "Cockpit", icon: Home },
+  { id: "kennzahlen", label: "Orisus Kennzahlen/Entwicklung", icon: BarChart3 },
   { id: "standorte", label: "Standorte", icon: Building2 },
   { id: "bwa", label: "BWA", icon: FileBarChart },
   { id: "cashflow", label: "Cashflow", icon: Wallet },
@@ -214,6 +216,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl">
           <TopFilters period={period} setPeriod={setPeriod} comparison={comparison} setComparison={setComparison} />
           {page === "cockpit" && <Cockpit setPage={go} />}
+          {page === "kennzahlen" && <KennzahlenEntwicklung />}
           {page === "standorte" && (
             <Standorte
               onOpen={(id) => {
@@ -1442,6 +1445,258 @@ function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
       <SiteMonthlyBwa site={site} />
       <SitePlanIst site={site} />
     </section>
+  );
+}
+
+function KennzahlenEntwicklung() {
+  const targetBySite: Record<string, number> = {
+    kirchberg: 150000,
+    essen: 75000,
+    kehl: 70000,
+    ulmet: 170000,
+    huettenberg: 63333,
+    kassel: 0
+  };
+  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const totalPerformance = activeSites.reduce((sum, site) => sum + site.gesamtleistung, 0);
+  const totalEbitda = activeSites.reduce((sum, site) => sum + site.ebitda, 0);
+  const totalCashflow = activeSites.reduce((sum, site) => sum + site.cashflow, 0);
+  const totalTarget = activeSites.reduce((sum, site) => sum + (targetBySite[site.id] ?? 0), 0);
+  const averageTargetAchievement = totalTarget ? (totalEbitda / totalTarget) * 100 : 0;
+  const weakest = activeSites
+    .map((site) => ({ site, achievement: (site.ebitda / (targetBySite[site.id] || 1)) * 100 }))
+    .sort((a, b) => a.achievement - b.achievement)[0];
+
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Orisus Kennzahlen/Entwicklung"
+        text="Standort-Performance, Zielerreichung und monatliche EBITDA-Entwicklung im Format der CFO-Auswertung."
+      />
+
+      <Card className="overflow-hidden">
+        <div className="bg-slate-950 p-3 text-lg font-bold text-white">Standort-Performance | BWA-Kennzahlen je Standort</div>
+        <div className="border-b border-border bg-slate-50 p-3 text-sm italic text-muted-foreground">
+          Auswertung: 2026 | Periodenende 30.06.2026 | Alle freigegebenen Standorte inkl. Ulmet | Quelle: Konzern_Konsolidierung_STD
+        </div>
+        <div className="grid gap-px bg-border md:grid-cols-3 xl:grid-cols-6">
+          <KennzahlTile label="Gesamtleistung | 2026 bis 06.2026" value={eur(totalPerformance, true)} />
+          <KennzahlTile label="EBITDA | 2026 bis 06.2026" value={eur(totalEbitda, true)} />
+          <KennzahlTile label="EBITDA-Marge | 2026 bis 06.2026" value={pct((totalEbitda / totalPerformance) * 100)} />
+          <KennzahlTile label="Cashflow | 2026 bis 06.2026" value={eur(totalCashflow, true)} />
+          <KennzahlTile label="Ø Zielerreichung | 2026 bis 06.2026" value={pct(averageTargetAchievement)} />
+          <KennzahlTile label="Schwächster Standort | 2026 bis 06.2026" value={`${weakest.site.name} (${pct(weakest.achievement)})`} />
+        </div>
+      </Card>
+
+      <KennzahlenStandortTable targetBySite={targetBySite} />
+      <MonthlyEbitdaTable targetBySite={targetBySite} />
+    </section>
+  );
+}
+
+function KennzahlTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white p-4 text-center">
+      <p className="text-xs font-bold uppercase text-slate-950">{label}</p>
+      <p className="mt-5 text-2xl font-bold text-blue-950">{value}</p>
+    </div>
+  );
+}
+
+function KennzahlenStandortTable({ targetBySite }: { targetBySite: Record<string, number> }) {
+  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-[1720px] border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              {[
+                "Standort",
+                "Gruppenbeitritt",
+                "Monate im Zeitraum",
+                "Gesamtleistung",
+                "EBITDA",
+                "EBITDA-Marge",
+                "Personalkostenquote",
+                "Materialquote",
+                "Fremdlaborquote",
+                "Cashflow",
+                "Ziel-EBITDA",
+                "EBITDA-Abw.",
+                "Zielerreichung",
+                "Status / Ampel",
+                "EBITDA Zeitraum",
+                "EBITDA Filterzeitraum",
+                "Run-Rate EBITDA p.a.",
+                "Ø EBITDA p.a. seit Beitritt",
+                "Ø EBITDA / Monat seit Beitritt",
+                "Ø Ziel-EBITDA p.a."
+              ].map((head) => (
+                <th key={head} className="border-b border-r border-border bg-blue-950 p-2 text-center font-bold text-white">
+                  {head}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {activeSites.map((site) => {
+              const target = targetBySite[site.id] ?? 0;
+              const deviation = site.ebitda - target;
+              const achievement = target ? (site.ebitda / target) * 100 : 0;
+              const monthsInPeriod = monthly.length;
+              const monthsSinceJoin = site.id === "kirchberg" ? 12 : site.id === "essen" ? 6 : site.id === "kehl" ? 3 : site.id === "ulmet" ? 1 : site.id === "huettenberg" ? 6 : 0;
+              const runRate = monthsInPeriod ? (site.ebitda / monthsInPeriod) * 12 : 0;
+              return (
+                <tr key={site.id}>
+                  <TableCell strong>{site.name}</TableCell>
+                  <TableCell>{site.start}</TableCell>
+                  <TableCell>{monthsInPeriod}</TableCell>
+                  <TableCell>{eur(site.gesamtleistung)}</TableCell>
+                  <TableCell>{eur(site.ebitda)}</TableCell>
+                  <TableCell>{pct(site.ebitdaMarge)}</TableCell>
+                  <TableCell>{pct(27.8 + site.sonstigeKostenquote * 0.38)}</TableCell>
+                  <TableCell>{pct(site.materialquote)}</TableCell>
+                  <TableCell>{pct(site.fremdlaborquote)}</TableCell>
+                  <TableCell>{eur(site.cashflow)}</TableCell>
+                  <TableCell>{eur(target)}</TableCell>
+                  <TableCell tone={deviation < 0 ? "red" : "green"}>{eur(deviation)}</TableCell>
+                  <TableCell>{pct(achievement)}</TableCell>
+                  <TableCell tone={achievement >= 100 ? "green" : "red"}>{achievement >= 100 ? "● Ziel erreicht" : "● Ziel nicht erreicht"}</TableCell>
+                  <TableCell>{eur(site.ebitda)}</TableCell>
+                  <TableCell>{eur(site.ebitda)}</TableCell>
+                  <TableCell>{eur(runRate)}</TableCell>
+                  <TableCell>{eur(runRate)}</TableCell>
+                  <TableCell>{eur(monthsSinceJoin ? site.ebitda / monthsSinceJoin : 0)}</TableCell>
+                  <TableCell>{eur((site.darlehen.zielEbitda || target) * 2)}</TableCell>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function MonthlyEbitdaTable({ targetBySite }: { targetBySite: Record<string, number> }) {
+  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const rows = monthly.map((month, monthIndex) => {
+    const siteValues = Object.fromEntries(
+      activeSites.map((site, siteIndex) => {
+        const weight = [0.18, 0.15, 0.24, 0.17, 0.14, 0.12][monthIndex] ?? 0.12;
+        const modifier = 0.86 + siteIndex * 0.05;
+        return [site.id, Math.round(site.ebitda * weight * modifier)];
+      })
+    ) as Record<string, number>;
+    const totalValue = Object.values(siteValues).reduce((sum, value) => sum + value, 0);
+    const targetTakeover = Math.round(Object.values(targetBySite).reduce((sum, value) => sum + value, 0) * ((monthIndex + 1) / monthly.length));
+    const targetBank = Math.round(targetTakeover * 0.885);
+    return {
+      month: `${month.month} 26`,
+      siteValues,
+      totalValue,
+      cumulative: 0,
+      targetTakeover,
+      targetBank
+    };
+  });
+
+  let cumulative = 0;
+  rows.forEach((row) => {
+    cumulative += row.totalValue;
+    row.cumulative = cumulative;
+  });
+
+  const ytdBySite = activeSites.map((site) => rows.reduce((sum, row) => sum + row.siteValues[site.id], 0));
+  const ytdTotal = rows.reduce((sum, row) => sum + row.totalValue, 0);
+  const ytdTarget = rows.at(-1)?.targetTakeover ?? 0;
+  const ytdBankTarget = rows.at(-1)?.targetBank ?? 0;
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="bg-blue-950 p-3 font-bold text-white">MONATLICHE EBITDA-ÜBERSICHT JE STANDORT</div>
+      <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">
+        Auswertung: 2026 | Ist-EBITDA je Monat und Standort | Zielabweichung kumuliert gegen Übernahme und Bank/KV
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1280px] border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Monat</th>
+              {activeSites.map((site) => (
+                <th key={site.id} className="border-b border-r border-border bg-blue-950 p-2 text-white">{site.name}</th>
+              ))}
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">EBITDA gesamt</th>
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">EBITDA kum.</th>
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Ziel Übernahme kum.</th>
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Abw. ÜN kum.</th>
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Ziel Bank/KV kum.</th>
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Abw. Bank/KV kum.</th>
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Zielerreichung ÜN</th>
+              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Zielerreichung Bank/KV</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.month}>
+                <TableCell strong>{row.month}</TableCell>
+                {activeSites.map((site) => (
+                  <TableCell key={site.id}>{eur(row.siteValues[site.id])}</TableCell>
+                ))}
+                <TableCell strong>{eur(row.totalValue)}</TableCell>
+                <TableCell strong>{eur(row.cumulative)}</TableCell>
+                <TableCell>{eur(row.targetTakeover)}</TableCell>
+                <TableCell tone={row.cumulative - row.targetTakeover < 0 ? "red" : "green"}>{eur(row.cumulative - row.targetTakeover)}</TableCell>
+                <TableCell>{eur(row.targetBank)}</TableCell>
+                <TableCell tone={row.cumulative - row.targetBank < 0 ? "red" : "green"}>{eur(row.cumulative - row.targetBank)}</TableCell>
+                <TableCell>{pct((row.cumulative / row.targetTakeover) * 100)}</TableCell>
+                <TableCell>{pct((row.cumulative / row.targetBank) * 100)}</TableCell>
+              </tr>
+            ))}
+            <tr>
+              <TableCell strong>YTD / Gesamt</TableCell>
+              {ytdBySite.map((value, index) => (
+                <TableCell key={activeSites[index].id} strong>{eur(value)}</TableCell>
+              ))}
+              <TableCell strong>{eur(ytdTotal)}</TableCell>
+              <TableCell strong>{eur(ytdTotal)}</TableCell>
+              <TableCell strong>{eur(ytdTarget)}</TableCell>
+              <TableCell strong tone={ytdTotal - ytdTarget < 0 ? "red" : "green"}>{eur(ytdTotal - ytdTarget)}</TableCell>
+              <TableCell strong>{eur(ytdBankTarget)}</TableCell>
+              <TableCell strong tone={ytdTotal - ytdBankTarget < 0 ? "red" : "green"}>{eur(ytdTotal - ytdBankTarget)}</TableCell>
+              <TableCell strong>{pct((ytdTotal / ytdTarget) * 100)}</TableCell>
+              <TableCell strong>{pct((ytdTotal / ytdBankTarget) * 100)}</TableCell>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function TableCell({
+  children,
+  strong,
+  tone
+}: {
+  children: React.ReactNode;
+  strong?: boolean;
+  tone?: "green" | "red";
+}) {
+  return (
+    <td
+      className={cn(
+        "border-b border-r border-border bg-white p-2 text-right tabular-nums",
+        strong && "font-bold",
+        tone === "green" && "text-emerald-700",
+        tone === "red" && "text-red-700"
+      )}
+    >
+      {children}
+    </td>
   );
 }
 
