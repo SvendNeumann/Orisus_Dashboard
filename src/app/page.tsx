@@ -2407,7 +2407,7 @@ function FragmentCells({
           "table-number-col border-b border-r border-border bg-white p-2 text-right font-semibold tabular-nums",
           row.percent && "text-xs",
           row.percent && "table-ratio",
-          valueToneClass(row.actual, isVarianceRow(row.label)),
+          bwaValueToneClass(row.actual, row.label),
           row.emphasis && "table-total text-foreground",
           row.kind === "cashflow" && "table-cashflow"
         )}
@@ -2674,22 +2674,22 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                         row.percent && "table-ratio",
                         row.emphasis && !row.section && "table-total font-bold text-foreground",
                         row.kind === "cashflow" && "table-cashflow",
-                        valueToneClass(value, isVarianceRow(row.label))
+                        bwaValueToneClass(value, row.label)
                       )}
                     >
                       {row.section ? "" : formatBwaCell(value, row.percent)}
                     </td>
                   ))}
-                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total text-foreground", row.kind === "cashflow" && "table-cashflow", valueToneClass(totalValue, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total text-foreground", row.kind === "cashflow" && "table-cashflow", bwaValueToneClass(totalValue, row.label))}>
                     {row.section ? "" : formatBwaCell(totalValue, row.percent)}
                   </td>
-                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total font-bold text-foreground", row.kind === "cashflow" && "table-cashflow", valueToneClass(row.previousYear, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total font-bold text-foreground", row.kind === "cashflow" && "table-cashflow", bwaValueToneClass(row.previousYear, row.label))}>
                     {row.section ? "" : formatBwaCell(row.previousYear ?? null, row.percent)}
                   </td>
-                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total font-bold text-foreground", row.kind === "cashflow" && "table-cashflow", valueToneClass(average, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total font-bold text-foreground", row.kind === "cashflow" && "table-cashflow", bwaValueToneClass(average, row.label))}>
                     {row.section ? "" : formatBwaCell(average, row.percent)}
                   </td>
-                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total text-foreground", row.kind === "cashflow" && "table-cashflow", valueToneClass(row.contract, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total text-foreground", row.kind === "cashflow" && "table-cashflow", bwaValueToneClass(row.contract, row.label))}>
                     {row.section ? "" : formatBwaCell(row.contract, row.percent)}
                   </td>
                 </tr>
@@ -2879,6 +2879,12 @@ function isVarianceRow(label: string) {
 function valueToneClass(value: number | null | undefined, active = true) {
   if (!active || value == null || value === 0) return "";
   return value > 0 ? "text-emerald-700" : "text-red-700";
+}
+
+function bwaValueToneClass(value: number | null | undefined, label: string) {
+  if (value == null || value === 0) return "";
+  if (value < 0) return "text-red-700";
+  return isVarianceRow(label) ? "text-emerald-700" : "";
 }
 
 function StandortDetail({ site, importedData }: { site: DashboardSite; importedData?: ImportedDashboardData | null }) {
