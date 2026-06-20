@@ -273,14 +273,11 @@ function AuthFlow({
     <main className="flex min-h-screen items-center justify-center px-4 py-8">
       <Card className="w-full max-w-md overflow-hidden shadow-soft">
         <div className="border-b border-border bg-slate-950 px-6 py-6 text-white">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-cyan-500/20 ring-1 ring-white/15">
-              <Gauge className="h-6 w-6 text-cyan-200" />
+          <div>
+            <div className="rounded-md bg-white px-4 py-3">
+              <img src="/orisus-logo.png" alt="Orisus Zahnmedizin" className="h-auto w-full max-w-[300px]" />
             </div>
-            <div>
-              <p className="text-sm font-semibold text-cyan-100">Orisus</p>
-              <h1 className="text-xl font-bold">Orisus CFO Dashboard</h1>
-            </div>
+            <h1 className="mt-5 text-xl font-bold">Orisus CFO Dashboard</h1>
           </div>
           <p className="mt-4 text-sm leading-6 text-slate-300">
             Wirtschaftliche Steuerung der Orisus-Gruppe. Konsolidierte Kennzahlen,
@@ -377,13 +374,12 @@ function FormShell({ title, text, children }: { title: string; text: string; chi
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-white">
-        <Gauge className="h-5 w-5" />
-      </div>
-      <div>
-        <p className="text-sm font-bold leading-tight">Orisus</p>
-        {!compact && <p className="text-xs text-muted-foreground">CFO Dashboard</p>}
-      </div>
+      <img
+        src="/orisus-logo.png"
+        alt="Orisus Zahnmedizin"
+        className={cn("h-auto object-contain", compact ? "w-32" : "w-44")}
+      />
+      {!compact && <span className="sr-only">Orisus CFO Dashboard</span>}
     </div>
   );
 }
