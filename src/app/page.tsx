@@ -145,7 +145,9 @@ type ImportedBwaRow = {
   percent: boolean;
   kind?: "cashflow";
   valuesByYear: Record<string, number>;
+  hasDataByYear: Record<string, boolean>;
   valuesByMonth: Record<string, number>;
+  hasDataByMonth: Record<string, boolean>;
   contractValue: number;
 };
 
@@ -445,6 +447,12 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
   const validYears = report.jahre.filter((year) => year > 1900);
   return report.standorte.flatMap((siteName) =>
     bwaMetricDefinitions.map((definition) => {
+      const hasDataByYear = Object.fromEntries(
+        validYears.map((year) => [
+          String(year),
+          bwaRows.some((row) => asText(row.Standortname) === siteName && (asNumber(row.Jahr) ?? 0) === year)
+        ])
+      );
       const valuesByYear = Object.fromEntries(
         validYears.map((year) => {
           const derivedKey = definitionDerivedKey(definition);
@@ -455,6 +463,22 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
               : 0;
           return [String(year), value];
         })
+      );
+      const hasDataByMonth = Object.fromEntries(
+        validYears.flatMap((year) =>
+          Array.from({ length: 12 }, (_, index) => {
+            const month = index + 1;
+            return [
+              `${year}-${month}`,
+              bwaRows.some(
+                (row) =>
+                  asText(row.Standortname) === siteName &&
+                  (asNumber(row.Jahr) ?? 0) === year &&
+                  (asNumber(row.Monat) ?? 0) === month
+              )
+            ];
+          })
+        )
       );
       const valuesByMonth = Object.fromEntries(
         validYears.flatMap((year) =>
@@ -490,7 +514,9 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
         percent: isPercent,
         kind: definitionKind(definition),
         valuesByYear,
+        hasDataByYear,
         valuesByMonth,
+        hasDataByMonth,
         contractValue
       };
     })
@@ -628,6 +654,24 @@ function buildImportReport(workbook: XLSX.WorkBook, fileName: string): ImportRep
   const monate = uniqueSortedNumbers(usableRows.map((row) => row.Monat)).filter((month) => month >= 1 && month <= 12);
   const datenbereiche = uniqueSortedText(usableRows.map((row) => row.Standard_Datenbereich || row.Datenbereich));
   const werttypen = uniqueSortedText(usableRows.map((row) => row.Standard_Werttyp || row.Werttyp));
+  const latestBwaYear = Math.max(
+    0,
+    ...usableRows
+      .filter((row) => rowDomain(row) === "bwa")
+      .map((row) => asNumber(row.Jahr) ?? 0)
+      .filter((year) => year >= 1900)
+  );
+  const sitesMissingLatestBwa = latestBwaYear
+    ? standorteList.filter(
+        (site) =>
+          !usableRows.some(
+            (row) => asText(row.Standortname) === site && rowDomain(row) === "bwa" && (asNumber(row.Jahr) ?? 0) === latestBwaYear
+          )
+      )
+    : [];
+  if (sitesMissingLatestBwa.length) {
+    warnings.push(`Für ${sitesMissingLatestBwa.join(", ")} wurden keine BWA-Daten im neuesten BWA-Jahr ${latestBwaYear} gefunden.`);
+  }
 
   if (!standorteList.length) errors.push("Es wurden keine Standorte erkannt.");
   if (!jahre.length) warnings.push("Es wurden keine Jahre erkannt. Monats- und Jahresfilter koennen dadurch nicht sauber arbeiten.");
@@ -2066,19 +2110,21 @@ function ConsolidatedBwaMatrix({
   const sourceSites = importedData?.sites ?? standorte;
   const groups = importedData?.bwaRows?.length
     ? [
-        { id: "konzern", label: "Konzern", rows: buildImportedBwaLines(importedData.bwaRows, period) },
+        { id: "konzern", label: "Konzern", rows: buildImportedBwaLines(importedData.bwaRows, period), hasData: true },
         ...sourceSites.map((site) => ({
           id: site.id,
           label: site.name,
-          rows: buildImportedBwaLines(importedData.bwaRows, period, site.id)
+          rows: buildImportedBwaLines(importedData.bwaRows, period, site.id),
+          hasData: hasImportedBwaPeriodData(importedData.bwaRows, period, site.id)
         }))
       ]
     : [
-        { id: "konzern", label: "Konzern", rows: buildBwaRows(period) },
+        { id: "konzern", label: "Konzern", rows: buildBwaRows(period), hasData: true },
         ...sourceSites.map((site) => ({
           id: site.id,
           label: site.name,
-          rows: buildBwaRows(period, site.id)
+          rows: buildBwaRows(period, site.id),
+          hasData: true
         }))
       ];
   const rowTemplate = groups[0].rows;
@@ -2112,6 +2158,7 @@ function ConsolidatedBwaMatrix({
                   className="border-b border-r border-border table-head p-3 text-center text-xs font-bold uppercase text-white"
                 >
                   {group.label}
+                  {!group.hasData && <span className="block text-[10px] font-semibold normal-case text-cyan-100">keine Daten</span>}
                 </th>
               ))}
             </tr>
@@ -2146,6 +2193,7 @@ function ConsolidatedBwaMatrix({
                       key={`${group.id}-${row.label}`}
                       row={groupRow}
                       quote={quote}
+                      hasData={group.hasData}
                     />
                   );
                 })}
@@ -2176,11 +2224,21 @@ function FragmentHeaders() {
 
 function FragmentCells({
   row,
-  quote
+  quote,
+  hasData = true
 }: {
   row: BwaLine;
   quote: number;
+  hasData?: boolean;
 }) {
+  if (!hasData) {
+    return (
+      <>
+        <td className="border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground">-</td>
+        <td className="border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground">-</td>
+      </>
+    );
+  }
   return (
     <>
       <td
@@ -2204,6 +2262,13 @@ function FragmentCells({
       </td>
     </>
   );
+}
+
+function hasImportedBwaPeriodData(importedRows: ImportedBwaRow[], period: string, siteId: string) {
+  const year = selectedBwaYear(period);
+  const rows = importedRows.filter((row) => row.siteId === siteId);
+  if (!year) return rows.some((row) => row.contractValue !== 0 || Object.values(row.hasDataByYear).some(Boolean));
+  return rows.some((row) => row.hasDataByYear[year]);
 }
 
 function selectedBwaYear(period: string) {
