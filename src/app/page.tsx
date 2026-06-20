@@ -93,6 +93,7 @@ const bwaPeriodOptions = ["Geschäftsjahr 2024", "Geschäftsjahr 2025", "Geschä
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
+const importDashboardSchemaVersion = "2026-06-21-target-ebitda-v1";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
 
@@ -116,6 +117,7 @@ type ImportReport = {
 };
 
 type ImportedDashboardData = {
+  schemaVersion: string;
   importedAt: string;
   fileName: string;
   sites: DashboardSite[];
@@ -642,6 +644,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   });
 
   return {
+    schemaVersion: importDashboardSchemaVersion,
     importedAt: new Date().toISOString(),
     fileName,
     sites: sites.length ? sites : standorte,
@@ -813,7 +816,13 @@ export default function HomePage() {
     const savedImport = window.localStorage.getItem(importDashboardStorageKey);
     if (!savedImport) return;
     try {
-      setImportedData(JSON.parse(savedImport) as ImportedDashboardData);
+      const parsedImport = JSON.parse(savedImport) as ImportedDashboardData;
+      if (parsedImport.schemaVersion !== importDashboardSchemaVersion) {
+        window.localStorage.removeItem(importDashboardStorageKey);
+        window.localStorage.removeItem(importStorageKey);
+        return;
+      }
+      setImportedData(parsedImport);
     } catch {
       window.localStorage.removeItem(importDashboardStorageKey);
     }
@@ -3802,9 +3811,19 @@ function Uploads({
     const saved = window.localStorage.getItem(importStorageKey);
     if (!saved) return;
     try {
+      const savedDashboard = window.localStorage.getItem(importDashboardStorageKey);
+      if (savedDashboard) {
+        const parsedDashboard = JSON.parse(savedDashboard) as ImportedDashboardData;
+        if (parsedDashboard.schemaVersion !== importDashboardSchemaVersion) {
+          window.localStorage.removeItem(importStorageKey);
+          window.localStorage.removeItem(importDashboardStorageKey);
+          return;
+        }
+      }
       setConfirmedReport(JSON.parse(saved) as ImportReport);
     } catch {
       window.localStorage.removeItem(importStorageKey);
+      window.localStorage.removeItem(importDashboardStorageKey);
     }
   }, []);
 
