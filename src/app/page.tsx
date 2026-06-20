@@ -93,7 +93,7 @@ const bwaPeriodOptions = ["Geschäftsjahr 2024", "YTD 2024 bis Dez", "Geschäfts
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-site-bwa-prior-year-v1";
+const importDashboardSchemaVersion = "2026-06-21-empty-month-cells-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -151,6 +151,7 @@ type ImportedBwaRow = {
   hasDataByYear: Record<string, boolean>;
   valuesByMonth: Record<string, number>;
   hasDataByMonth: Record<string, boolean>;
+  hasValueByMonth: Record<string, boolean>;
   contractValue: number;
 };
 
@@ -468,6 +469,17 @@ function hasActiveBwaMonth(rows: Record<string, unknown>[], siteName: string, ye
   );
 }
 
+function hasBwaSourceValue(rows: Record<string, unknown>[], siteName: string, sourceKeys: readonly string[], year: number, month: number) {
+  return rows.some(
+    (row) =>
+      asText(row.Standortname) === siteName &&
+      rowDomain(row) === "bwa" &&
+      (rowYear(row) ?? 0) === year &&
+      (rowMonth(row) ?? 0) === month &&
+      metricMatches(rowMetric(row), [...sourceKeys])
+  );
+}
+
 function targetEbitdaValue(rows: Record<string, unknown>[], siteName: string, mode: "kv" | "uebernahme", year?: number, month?: number) {
   const monthlyMetric = mode === "kv" ? "ziel_ebitda_kv" : "ziel_ebitda_ubernahme";
   const annualMetric = mode === "kv" ? "ziel_ebitda_kaufvertrag_p_a" : "ziel_ebitda_ubernahme_p_a";
@@ -512,6 +524,9 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
   const validYears = report.jahre.filter((year) => year > 1900);
   return report.standorte.flatMap((siteName) =>
     bwaMetricDefinitions.map((definition) => {
+      const isPercent = definitionFlag(definition, "percent");
+      const isEmphasis = definitionFlag(definition, "emphasis");
+      const derivedKey = definitionDerivedKey(definition);
       const hasDataByYear = Object.fromEntries(
         validYears.map((year) => [
           String(year),
@@ -537,6 +552,21 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
           })
         )
       );
+      const hasValueByMonth = Object.fromEntries(
+        validYears.flatMap((year) =>
+          Array.from({ length: 12 }, (_, index) => {
+            const month = index + 1;
+            const hasValue = definition.key.startsWith("section_")
+              ? false
+              : definition.source.length
+                ? hasBwaSourceValue(bwaRows, siteName, definition.source, year, month)
+                : derivedKey
+                  ? hasActiveBwaMonth(importRows, siteName, year, month)
+                  : false;
+            return [`${year}-${month}`, hasValue];
+          })
+        )
+      );
       const valuesByMonth = Object.fromEntries(
         validYears.flatMap((year) =>
           Array.from({ length: 12 }, (_, index) => {
@@ -551,9 +581,6 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
           })
         )
       );
-      const isPercent = definitionFlag(definition, "percent");
-      const isEmphasis = definitionFlag(definition, "emphasis");
-      const derivedKey = definitionDerivedKey(definition);
       const contractValue = isPercent
         ? 0
         : definition.key.startsWith("section_")
@@ -587,6 +614,7 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
         hasDataByYear,
         valuesByMonth,
         hasDataByMonth,
+        hasValueByMonth,
         contractValue
       };
     })
@@ -2740,7 +2768,7 @@ function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: str
     const months = Array.from({ length: 12 }, (_, index) => {
       const month = index + 1;
       if (definition.key.startsWith("section_")) return null;
-      if (!hasImportedSiteMonthData(importedRows, siteId, year, month)) return null;
+      if (!hasImportedMetricMonthValue(importedRows, siteId, definition.key, year, month)) return null;
       if (isPercent) return calculateImportedMonthlyQuote(importedRows, siteId, definition.key, year, month);
       return sourceRows.reduce((sum, row) => sum + (row.valuesByMonth[`${year}-${month}`] ?? 0), 0);
     });
@@ -2748,7 +2776,7 @@ function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: str
       .map((value, index) => (value === null ? null : index + 1))
       .filter((value): value is number => Boolean(value));
     const previousYear = year - 1;
-    const hasPreviousYearData = activeMonths.some((month) => hasImportedSiteMonthData(importedRows, siteId, previousYear, month));
+    const hasPreviousYearData = activeMonths.some((month) => hasImportedMetricMonthValue(importedRows, siteId, definition.key, previousYear, month));
     const previousYearValue = hasPreviousYearData
       ? isPercent
         ? calculateImportedPeriodQuote(importedRows, [siteId], definition.key, previousYear, activeMonths)
@@ -2778,6 +2806,10 @@ function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: str
 
 function hasImportedSiteMonthData(importedRows: ImportedBwaRow[], siteId: string, year: number, month: number) {
   return importedRows.some((row) => row.siteId === siteId && row.hasDataByMonth[`${year}-${month}`]);
+}
+
+function hasImportedMetricMonthValue(importedRows: ImportedBwaRow[], siteId: string, metricKey: string, year: number, month: number) {
+  return importedRows.some((row) => row.siteId === siteId && row.metricKey === metricKey && row.hasValueByMonth[`${year}-${month}`]);
 }
 
 function calculateImportedPeriodQuote(importedRows: ImportedBwaRow[], siteIds: string[], key: string, year: number, months: number[]) {
