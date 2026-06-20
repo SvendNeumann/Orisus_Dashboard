@@ -360,71 +360,50 @@ function AuthFlow({
   setPin: (pin: string) => void;
 }) {
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10">
-      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl items-center gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        <section className="overflow-hidden rounded-lg border border-border table-head text-white shadow-soft">
-          <div className="p-6 sm:p-8 lg:p-10">
-            <div className="rounded-md bg-white px-4 py-3">
-              <img src="/orisus-logo.png" alt="Orisus Zahnmedizin" className="h-auto w-full max-w-[360px]" />
+    <main className="min-h-screen bg-[#eef3f4] px-4 py-5 sm:px-6 sm:py-8">
+      <div className="mx-auto grid max-w-7xl gap-6 lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.18fr_0.82fr]">
+        <section className="overflow-hidden rounded-xl border border-[#153547] bg-[#071927] text-white shadow-soft">
+          <div className="p-5 sm:p-7 lg:p-8">
+            <div className="w-44 rounded-md bg-white px-3 py-2 sm:w-52">
+              <img src="/orisus-logo.png" alt="Orisus Zahnmedizin" className="h-auto w-full" />
             </div>
-            <div className="mt-8 max-w-3xl">
-              <p className="text-sm font-bold uppercase tracking-wide text-cyan-100">Interne Steuerungsplattform</p>
-              <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-                CFO Dashboard für eine wachsende MVZ-Gruppe.
+
+            <div className="mt-7 max-w-3xl">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#30d5c8]">Interne Steuerungsplattform</p>
+              <h1 className="mt-4 max-w-4xl text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
+                Die zentrale Steuerungsplattform für die gesamte Orisus-Gruppe.
               </h1>
-              <p className="mt-5 text-base leading-7 text-slate-300">
-                Orisus bündelt die wirtschaftliche Steuerung von Standorten, BWA, Cashflow, Darlehen,
-                Earn-Outs, Forderungen und Performance-KPIs in einer zentralen Management-Ansicht.
-                Die App ist darauf ausgelegt, operative Entscheidungen, Bankenreporting und
-                Gesellschafterkommunikation auf derselben Zahlenbasis zusammenzuführen.
+              <p className="mt-5 max-w-3xl text-base leading-7 text-slate-300 sm:text-lg">
+                Alle wirtschaftlichen Kennzahlen, Standorte, Cashflow, BWA, Finanzierungsdaten und Performance-KPIs
+                auf einer Zahlenbasis. Für fundierte Entscheidungen. In Echtzeit.
               </p>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              {[
-                ["Daily CFO Cockpit", "Liquidität, Free Cashflow, kritische Standorte und offene Forderungen im schnellen Überblick."],
-                ["BWA bis Cashflow", "Konsolidierte Herleitung von Umsatz, Kostenblöcken, EBITDA und Cashflow-Adjustments."],
-                ["Banken & Board", "Fremdkapital, Kapitaldienstfähigkeit, EBITDA-Entwicklung und Investor Summary."],
-                ["Standortsteuerung", "Vergleich von Gesamtleistung, Marge, Cashflow, Forderungen und Kostenquoten je Praxis."]
-              ].map(([title, text]) => (
-                <div key={title} className="rounded-md border border-white/10 bg-white/6 p-4">
-                  <p className="font-bold text-white">{title}</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8 grid gap-3 border-t border-white/10 pt-6 text-sm text-slate-300 sm:grid-cols-3">
-              <div>
-                <p className="text-xl font-bold text-white">5+</p>
-                <p>Standorte in der Steuerung</p>
-              </div>
-              <div>
-                <p className="text-xl font-bold text-white">360°</p>
-                <p>BWA, Liquidität, Finanzierung und Performance</p>
-              </div>
-              <div>
-                <p className="text-xl font-bold text-white">1 Import</p>
-                <p>Excel-/CSV-Datenbasis für alle Management-Sichten</p>
-              </div>
+            <div className="hidden lg:block">
+              <LandingFeatures />
+              <LandingMockup />
             </div>
           </div>
         </section>
 
-        <Card className="w-full overflow-hidden shadow-soft">
-          <div className="border-b border-border bg-white px-6 py-5">
-            <p className="text-sm font-bold uppercase text-primary">Geschützter Zugang</p>
-            <h2 className="mt-2 text-2xl font-bold">Orisus CFO Dashboard</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Login für die interne Steuerung der Orisus-Gruppe. Nach dem Öffnen bleibt der Zugang auf diesem Gerät gespeichert.
-            </p>
-          </div>
-          <div className="space-y-4 p-6">
+        <aside className="flex flex-col justify-center gap-5">
+          <Card className="overflow-hidden rounded-xl border-white bg-white shadow-soft">
+            <div className="p-6 sm:p-8 lg:p-10">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e3f5f4] text-primary">
+                <Lock className="h-6 w-6" />
+              </div>
+              <p className="mt-7 text-xs font-bold uppercase tracking-[0.16em] text-primary">Geschützter Zugang</p>
+              <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-950">Orisus CFO Dashboard</h2>
+              <div className="mt-4 space-y-2 text-base leading-7 text-slate-600">
+                <p>Interne Management-Plattform für Geschäftsführung und Controlling.</p>
+                <p>Zugriff auf CFO-Cockpit, Cashflow, BWA, Standortsteuerung und Finanzierungsdaten.</p>
+              </div>
+
+              <div className="mt-8 space-y-4">
           {step === "welcome" && (
             <>
-              <div className="rounded-md table-total p-4 text-sm leading-6 text-foreground">
-                Einstieg in Cockpit, BWA, Bankenreporting, Board-Pack, Standortdetails und Upload-Datenstand.
-              </div>
+              <Input defaultValue="svend.neumann@orisus.de" type="email" aria-label="E-Mail" />
+              <Input placeholder="Passwort eingeben" type="password" aria-label="Passwort" />
               <Button className="w-full" onClick={() => setStep("login")}>
                 Anmelden
               </Button>
@@ -434,7 +413,7 @@ function AuthFlow({
             </>
           )}
           {step === "login" && (
-            <FormShell title="Anmelden" text="Dummy-Zugang für Svend Neumann.">
+            <FormShell title="Anmelden" text="Interner Demo-Zugang für Svend Neumann.">
               <Input defaultValue="svend.neumann@orisus.de" type="email" aria-label="E-Mail" />
               <Input placeholder="Passwort" type="password" aria-label="Passwort" />
               <Button className="w-full" onClick={() => setStep("first-password")}>
@@ -490,10 +469,199 @@ function AuthFlow({
               </Button>
             </FormShell>
           )}
+              </div>
+            </div>
+          </Card>
+
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+            {[
+              { title: "Sicher & intern", text: "Geschützter Zugriff für autorisierte Nutzer.", icon: ShieldCheck },
+              { title: "Daten auf einer Basis", text: "Ein Import. Alle Zahlen. Volle Konsistenz.", icon: CircleDollarSign },
+              { title: "Entscheidungen beschleunigen", text: "Transparenz in Echtzeit für schnellere Entscheidungen.", icon: TrendingUp }
+            ].map(({ title, text, icon: Icon }) => (
+              <div key={title} className="rounded-lg border border-border bg-white p-4 shadow-sm">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e3f5f4] text-primary">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <p className="mt-4 text-sm font-bold text-slate-950">{title}</p>
+                <p className="mt-2 text-xs leading-5 text-slate-600">{text}</p>
+              </div>
+            ))}
           </div>
-        </Card>
+
+          <p className="text-center text-xs text-slate-500 lg:text-right">
+            © 2025 Orisus Zahnmedizin MVZ GmbH | Version 1.0 | Internal Use Only
+          </p>
+        </aside>
+
+        <section className="rounded-xl border border-[#153547] bg-[#071927] p-5 text-white shadow-soft lg:hidden">
+          <LandingFeatures />
+          <LandingMockup />
+        </section>
       </div>
     </main>
+  );
+}
+
+function LandingFeatures() {
+  const features = [
+    {
+      title: "Daily CFO Cockpit",
+      text: "Alle wichtigen Kennzahlen auf einen Blick - täglich aktualisiert.",
+      icon: Gauge
+    },
+    {
+      title: "BWA bis Cashflow",
+      text: "Von der BWA über Umsatz bis zum Cashflow - lückenlos integriert.",
+      icon: FileBarChart
+    },
+    {
+      title: "Banken & Board",
+      text: "Reporting-ready für Banken, Investoren und die Geschäftsführung.",
+      icon: Landmark
+    },
+    {
+      title: "Standortsteuerung",
+      text: "Vergleichen, steuern und entwickeln - jeden Standort im Blick.",
+      icon: Building2
+    }
+  ];
+
+  return (
+    <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {features.map(({ title, text, icon: Icon }) => (
+        <div key={title} className="rounded-lg border border-white/12 bg-white/[0.04] p-4 shadow-sm backdrop-blur">
+          <div className="flex h-11 w-11 items-center justify-center rounded-md border border-[#30d5c8]/45 bg-[#30d5c8]/10 text-[#30d5c8]">
+            <Icon className="h-5 w-5" />
+          </div>
+          <p className="mt-4 font-bold text-white">{title}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LandingMockup() {
+  const sideItems = ["Cockpit", "Standorte", "Analysen", "Cashflow", "Darlehen & Earn-Out", "Uploads", "Reports"];
+  const kpis = [
+    ["Gesamtleistung (BWA)", "24,58 Mio. EUR"],
+    ["Gesamtumsatz (PVS)", "22,14 Mio. EUR"],
+    ["EBITDA", "5,23 Mio. EUR"],
+    ["EBITDA-Marge", "21,3 %"],
+    ["Cashflow", "3,12 Mio. EUR"],
+    ["Kontostand", "11,78 Mio. EUR"]
+  ];
+  const bars = [42, 52, 48, 64, 72, 84];
+  const siteBars = [
+    ["Kirchberg", 92],
+    ["Essen", 78],
+    ["Kehl", 63],
+    ["Ulmet", 55],
+    ["Kassel", 36]
+  ];
+
+  return (
+    <div className="mt-6 overflow-hidden rounded-xl border border-[#30d5c8]/25 bg-[#061521] shadow-2xl">
+      <div className="grid lg:grid-cols-[164px_1fr]">
+        <div className="border-b border-white/10 bg-[#04111d] p-4 lg:border-b-0 lg:border-r">
+          <img src="/orisus-logo.png" alt="Orisus Zahnmedizin" className="w-28 rounded bg-white px-2 py-1" />
+          <div className="mt-5 space-y-1.5">
+            {sideItems.map((item, index) => (
+              <div
+                key={item}
+                className={cn(
+                  "rounded-md px-3 py-2 text-xs font-semibold",
+                  index === 0 ? "bg-white/10 text-white" : "text-slate-400"
+                )}
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 text-xs text-slate-500">
+            <p>Datenstand</p>
+            <p className="mt-1 text-slate-300">20.06.2025</p>
+          </div>
+        </div>
+
+        <div className="p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="font-bold text-white">CFO Konzern Cockpit</h2>
+            <div className="flex gap-2 text-[11px] text-slate-300">
+              <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5">Zeitraum: YTD 2025</span>
+              <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5">Vergleich: Ist</span>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+            {kpis.map(([label, value]) => (
+              <div key={label} className="rounded-md bg-white p-3 text-slate-950">
+                <p className="text-[10px] font-bold uppercase text-slate-500">{label}</p>
+                <p className="mt-2 text-sm font-bold">{value}</p>
+                <p className="mt-1 text-[10px] font-semibold text-emerald-700">+ 4,2 %</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-3">
+            <div className="rounded-lg bg-white p-3 text-slate-950">
+              <p className="text-xs font-bold">EBITDA vs. Gesamtleistung</p>
+              <div className="mt-4 flex h-28 items-end gap-2">
+                {bars.map((bar, index) => (
+                  <div key={index} className="flex flex-1 items-end gap-1">
+                    <span className="w-1/2 rounded-t bg-primary" style={{ height: `${bar}%` }} />
+                    <span className="w-1/2 rounded-t bg-[#30d5c8]" style={{ height: `${Math.max(18, bar * 0.45)}%` }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-white p-3 text-slate-950">
+              <p className="text-xs font-bold">EBITDA je Standort</p>
+              <div className="mt-4 space-y-3">
+                {siteBars.map(([site, value], index) => (
+                  <div key={site} className="grid grid-cols-[72px_1fr_8px] items-center gap-2 text-[11px]">
+                    <span>{site}</span>
+                    <span className="h-2 rounded-full bg-slate-100">
+                      <span className="block h-2 rounded-full bg-primary" style={{ width: `${value}%` }} />
+                    </span>
+                    <span className={cn("h-2 w-2 rounded-full", index < 3 ? "bg-emerald-500" : "bg-amber-500")} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-white p-3 text-slate-950">
+              <p className="text-xs font-bold">Cashflow Entwicklung</p>
+              <div className="mt-4 flex h-28 items-end gap-1.5">
+                {[32, 58, 44, 64, 38, 82, 54, 72].map((value, index) => (
+                  <span
+                    key={index}
+                    className={cn("flex-1 rounded-t", index % 3 === 0 ? "bg-red-400" : "bg-[#30d5c8]")}
+                    style={{ height: `${value}%` }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-white sm:grid-cols-4">
+            {[
+              ["6", "Standorte"],
+              ["360°", "Transparenz"],
+              ["1", "Datenbasis"],
+              ["100 %", "Entscheidungsstärke"]
+            ].map(([value, label]) => (
+              <div key={label} className="text-center">
+                <p className="text-xl font-bold">{value}</p>
+                <p className="text-xs text-slate-300">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
