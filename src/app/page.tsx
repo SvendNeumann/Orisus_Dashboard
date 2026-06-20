@@ -18,6 +18,7 @@ import {
   YAxis
 } from "recharts";
 import {
+  ArrowLeft,
   ArrowDownRight,
   ArrowUpRight,
   BadgeEuro,
@@ -117,6 +118,15 @@ const mobileNav = [
   { id: "uploads", label: "Uploads", icon: FileUp }
 ] as const;
 
+const quickNav = [
+  { id: "cockpit", label: "Cockpit" },
+  { id: "standorte", label: "Standorte" },
+  { id: "bwa", label: "BWA" },
+  { id: "performance", label: "Performance" },
+  { id: "banken", label: "Banken" },
+  { id: "board", label: "Board" }
+] as const;
+
 function eur(value: number, compact = false) {
   return new Intl.NumberFormat("de-DE", {
     style: "currency",
@@ -188,6 +198,7 @@ export default function HomePage() {
   const [comparison, setComparison] = useState("Vorjahr");
   const [menuOpen, setMenuOpen] = useState(false);
   const [pin, setPin] = useState("");
+  const [previousPage, setPreviousPage] = useState<Page | null>(null);
 
   const selected = useMemo(
     () => standorte.find((site) => site.id === selectedSite) ?? standorte[0],
@@ -212,6 +223,9 @@ export default function HomePage() {
   }
 
   const go = (target: Page) => {
+    if (target !== page) {
+      setPreviousPage(page);
+    }
     setPage(target);
     setMenuOpen(false);
   };
@@ -282,6 +296,12 @@ export default function HomePage() {
       <main className="w-full px-4 pb-28 pt-5 sm:px-6 lg:ml-72 lg:px-8 lg:pb-10">
         <div className="mx-auto max-w-7xl">
           <TopFilters period={period} setPeriod={setPeriod} comparison={comparison} setComparison={setComparison} />
+          <NavigationControls
+            page={page}
+            previousPage={previousPage}
+            onBack={() => go(previousPage ?? "cockpit")}
+            onGo={go}
+          />
           {page === "cockpit" && <Cockpit setPage={go} />}
           {page === "kennzahlen" && <KennzahlenEntwicklung />}
           {page === "performance" && <OrisusPerformance />}
@@ -289,7 +309,7 @@ export default function HomePage() {
             <Standorte
               onOpen={(id) => {
                 setSelectedSite(id);
-                setPage("standort-detail");
+                go("standort-detail");
               }}
             />
           )}
@@ -507,6 +527,48 @@ function TopFilters({
             <option key={option}>{option}</option>
           ))}
         </Select>
+      </div>
+    </div>
+  );
+}
+
+function NavigationControls({
+  page,
+  previousPage,
+  onBack,
+  onGo
+}: {
+  page: Page;
+  previousPage: Page | null;
+  onBack: () => void;
+  onGo: (page: Page) => void;
+}) {
+  return (
+    <div className="mb-5 flex flex-col gap-2 rounded-lg border border-border bg-white/86 p-2 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <button
+        className={cn(
+          "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border px-3 text-sm font-semibold",
+          page === "cockpit" && !previousPage ? "cursor-not-allowed text-muted-foreground" : "bg-white hover:bg-slate-50"
+        )}
+        disabled={page === "cockpit" && !previousPage}
+        onClick={onBack}
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Zurück
+      </button>
+      <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
+        {quickNav.map((item) => (
+          <button
+            key={item.id}
+            className={cn(
+              "h-10 shrink-0 rounded-md px-3 text-sm font-semibold",
+              page === item.id ? "bg-primary text-white" : "bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground"
+            )}
+            onClick={() => onGo(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
     </div>
   );
