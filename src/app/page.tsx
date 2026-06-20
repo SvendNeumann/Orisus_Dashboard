@@ -93,7 +93,7 @@ const bwaPeriodOptions = ["Geschäftsjahr 2024", "YTD 2024 bis Dez", "Geschäfts
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-bwa-ytd-targets-v1";
+const importDashboardSchemaVersion = "2026-06-21-site-bwa-prior-year-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -553,11 +553,24 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
       );
       const isPercent = definitionFlag(definition, "percent");
       const isEmphasis = definitionFlag(definition, "emphasis");
+      const derivedKey = definitionDerivedKey(definition);
       const contractValue = isPercent
         ? 0
-        : definition.source.length
-          ? sumMetricForPeriod(bwaRows, siteName, definition.source)
-          : 0;
+        : definition.key.startsWith("section_")
+          ? 0
+          : definition.source.length
+            ? sumMetricForPeriod(bwaRows, siteName, definition.source)
+            : derivedKey
+              ? validYears.reduce(
+                  (sum, year) =>
+                    sum +
+                    Array.from({ length: 12 }, (_, index) => index + 1).reduce(
+                      (monthSum, month) => monthSum + derivedBwaValue(importRows, siteName, derivedKey, year, month),
+                      0
+                    ),
+                  0
+                )
+              : 0;
 
       return {
         siteId: normalizeMetric(siteName),
@@ -2534,7 +2547,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
   const rows = importedData?.bwaRows?.length
     ? buildImportedSiteMonthlyBwa(importedData.bwaRows, site.id, Number(year))
     : buildSiteMonthlyBwa(site, Number(year));
-  const activeMonthCount = rows[0].months.filter((value) => value !== null).length || 1;
+  const activeMonthCount = rows.find((row) => !row.section)?.months.filter((value) => value !== null).length || 1;
 
   return (
     <Card className="overflow-hidden">
@@ -2542,7 +2555,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
         <div>
           <h2 className="font-bold">Monatliche BWA bis Cashflow {site.name}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Jan bis Dez, Gesamt, Durchschnitt und gesamte Vertragsperiode seit {site.start}.
+            Jan bis Dez, Gesamt, Vorjahr, Durchschnitt und gesamte Vertragsperiode seit {site.start}.
           </p>
         </div>
         <Select value={year} onChange={(event) => setYear(event.target.value)}>
@@ -2552,7 +2565,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
         </Select>
       </div>
       <div className="max-h-[72vh] overflow-auto">
-        <table className="min-w-[1320px] border-separate border-spacing-0 text-sm">
+        <table className="min-w-[1420px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
               <th className="sticky left-0 top-0 z-30 w-72 border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
@@ -2565,6 +2578,9 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
               ))}
               <th className="sticky top-0 z-20 w-28 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Gesamt
+              </th>
+              <th className="sticky top-0 z-20 w-28 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
+                Vorjahr
               </th>
               <th className="sticky top-0 z-20 w-32 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Durchschnitt
@@ -2610,6 +2626,9 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                   <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs", totalValue < 0 && "text-red-700")}>
                     {row.section ? "" : formatBwaCell(totalValue, row.percent)}
                   </td>
+                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs", Number(row.previousYear) < 0 && "text-red-700")}>
+                    {row.section ? "" : formatBwaCell(row.previousYear ?? null, row.percent)}
+                  </td>
                   <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs")}>
                     {row.section ? "" : formatBwaCell(average, row.percent)}
                   </td>
@@ -2647,6 +2666,7 @@ function buildSiteMonthlyBwa(site: (typeof standorte)[number], year: number) {
   ) => ({
     label,
     months: options?.section ? bwaMonths.map(() => null) : monthly(annualValue),
+    previousYear: options?.section ? null : Math.round(annualValue * (year === 2024 ? 0 : year === 2025 ? 0.28 : 0.72)),
     contract: options?.contractValue ?? contract(annualValue),
     ...options
   });
@@ -2718,16 +2738,34 @@ function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: str
     const isPercent = definitionFlag(definition, "percent");
     const isEmphasis = definitionFlag(definition, "emphasis");
     const months = Array.from({ length: 12 }, (_, index) => {
+      const month = index + 1;
       if (definition.key.startsWith("section_")) return null;
-      if (isPercent) return calculateImportedMonthlyQuote(importedRows, siteId, definition.key, year, index + 1);
-      return sourceRows.reduce((sum, row) => sum + (row.valuesByMonth[`${year}-${index + 1}`] ?? 0), 0);
+      if (!hasImportedSiteMonthData(importedRows, siteId, year, month)) return null;
+      if (isPercent) return calculateImportedMonthlyQuote(importedRows, siteId, definition.key, year, month);
+      return sourceRows.reduce((sum, row) => sum + (row.valuesByMonth[`${year}-${month}`] ?? 0), 0);
     });
+    const activeMonths = months
+      .map((value, index) => (value === null ? null : index + 1))
+      .filter((value): value is number => Boolean(value));
+    const previousYear = year - 1;
+    const hasPreviousYearData = activeMonths.some((month) => hasImportedSiteMonthData(importedRows, siteId, previousYear, month));
+    const previousYearValue = hasPreviousYearData
+      ? isPercent
+        ? calculateImportedPeriodQuote(importedRows, [siteId], definition.key, previousYear, activeMonths)
+        : sourceRows.reduce(
+            (sum, row) =>
+              sum +
+              activeMonths.reduce((monthSum, month) => monthSum + (row.valuesByMonth[`${previousYear}-${month}`] ?? 0), 0),
+            0
+          )
+      : null;
     const contractValue = isPercent
       ? calculateImportedQuote(importedRows, [siteId], definition.key)
       : sourceRows.reduce((sum, row) => sum + row.contractValue, 0);
     return {
       label: definition.label,
       months,
+      previousYear: previousYearValue,
       contract: contractValue,
       indent: !isEmphasis && !definition.key.startsWith("section_"),
       emphasis: isEmphasis,
@@ -2736,6 +2774,14 @@ function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: str
       kind: definitionKind(definition)
     };
   });
+}
+
+function hasImportedSiteMonthData(importedRows: ImportedBwaRow[], siteId: string, year: number, month: number) {
+  return importedRows.some((row) => row.siteId === siteId && row.hasDataByMonth[`${year}-${month}`]);
+}
+
+function calculateImportedPeriodQuote(importedRows: ImportedBwaRow[], siteIds: string[], key: string, year: number, months: number[]) {
+  return calculateImportedQuote(importedRows, siteIds, key, { year, months });
 }
 
 function calculateImportedMonthlyQuote(importedRows: ImportedBwaRow[], siteId: string, key: string, year: number, month: number) {
