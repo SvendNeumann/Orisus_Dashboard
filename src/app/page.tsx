@@ -360,6 +360,14 @@ function rowDomain(row: Record<string, unknown>) {
   return normalizeMetric(row.Standard_Datenbereich || row.Datenbereich);
 }
 
+function rowYear(row: Record<string, unknown>) {
+  return asNumber(row.Standard_Jahr) ?? asNumber(row.Jahr);
+}
+
+function rowMonth(row: Record<string, unknown>) {
+  return asNumber(row.Standard_Monat) ?? asNumber(row.Monat);
+}
+
 function metricMatches(metric: string, candidates: string[]) {
   return candidates.some((candidate) => {
     if (candidate.endsWith("*")) return metric.startsWith(candidate.slice(0, -1));
@@ -387,9 +395,9 @@ function lastRowsValue(rows: Record<string, unknown>[], site: string | null, met
       return metricMatches(metric, metrics) && (!domains?.length || metricMatches(domain, domains));
     })
     .sort((a, b) => {
-      const yearDelta = (asNumber(b.Jahr) ?? 0) - (asNumber(a.Jahr) ?? 0);
+      const yearDelta = (rowYear(b) ?? 0) - (rowYear(a) ?? 0);
       if (yearDelta) return yearDelta;
-      return (asNumber(b.Monat) ?? 0) - (asNumber(a.Monat) ?? 0);
+      return (rowMonth(b) ?? 0) - (rowMonth(a) ?? 0);
     });
   return asNumber(candidates[0]?.Wert) ?? 0;
 }
@@ -397,8 +405,8 @@ function lastRowsValue(rows: Record<string, unknown>[], site: string | null, met
 function sumMetricForPeriod(rows: Record<string, unknown>[], siteName: string, sourceKeys: readonly string[], year?: number, month?: number) {
   return rows.reduce((sum, row) => {
     if (asText(row.Standortname) !== siteName) return sum;
-    if (year && (asNumber(row.Jahr) ?? 0) !== year) return sum;
-    if (month && (asNumber(row.Monat) ?? 0) !== month) return sum;
+    if (year && (rowYear(row) ?? 0) !== year) return sum;
+    if (month && (rowMonth(row) ?? 0) !== month) return sum;
     if (!metricMatches(rowMetric(row), [...sourceKeys])) return sum;
     return sum + (asNumber(row.Wert) ?? 0);
   }, 0);
@@ -450,7 +458,7 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
       const hasDataByYear = Object.fromEntries(
         validYears.map((year) => [
           String(year),
-          bwaRows.some((row) => asText(row.Standortname) === siteName && (asNumber(row.Jahr) ?? 0) === year)
+          bwaRows.some((row) => asText(row.Standortname) === siteName && (rowYear(row) ?? 0) === year)
         ])
       );
       const valuesByYear = Object.fromEntries(
@@ -473,8 +481,8 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
               bwaRows.some(
                 (row) =>
                   asText(row.Standortname) === siteName &&
-                  (asNumber(row.Jahr) ?? 0) === year &&
-                  (asNumber(row.Monat) ?? 0) === month
+                  (rowYear(row) ?? 0) === year &&
+                  (rowMonth(row) ?? 0) === month
               )
             ];
           })
@@ -531,7 +539,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     })
     .filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
   const latestYear = report.jahre.filter((year) => year > 1900).at(-1) ?? new Date().getFullYear();
-  const activeRows = rows.filter((row) => (asNumber(row.Jahr) ?? latestYear) === latestYear);
+  const activeRows = rows.filter((row) => (rowYear(row) ?? latestYear) === latestYear);
   const fallbackByName = new Map(standorte.map((site) => [site.name, site]));
 
   const sites = report.standorte.map((siteName) => {
@@ -583,7 +591,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   });
 
   const monthlyData = report.monate.map((monthNumber) => {
-    const monthRows = activeRows.filter((row) => (asNumber(row.Monat) ?? 0) === monthNumber);
+    const monthRows = activeRows.filter((row) => (rowMonth(row) ?? 0) === monthNumber);
     const leistung = Math.round(sumRows(monthRows, null, ["gesamtleistung"], ["bwa"]));
     const ebitda = Math.round(sumRows(monthRows, null, ["ebitda"], ["bwa"]));
     const cashflow = Math.round(sumRows(monthRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]));
@@ -650,22 +658,22 @@ function buildImportReport(workbook: XLSX.WorkBook, fileName: string): ImportRep
   if (excludedPlanRows > 0) warnings.push(`${excludedPlanRows.toLocaleString("de-DE")} klassische Planwert-Zeilen wurden erkannt und vom App-Import ausgeschlossen.`);
 
   const standorteList = uniqueSortedText(usableRows.map((row) => row.Standortname)).filter((site) => site.toLowerCase() !== "konzern");
-  const jahre = uniqueSortedNumbers(usableRows.map((row) => row.Jahr)).filter((year) => year >= 1900);
-  const monate = uniqueSortedNumbers(usableRows.map((row) => row.Monat)).filter((month) => month >= 1 && month <= 12);
+  const jahre = uniqueSortedNumbers(usableRows.map(rowYear)).filter((year) => year >= 1900);
+  const monate = uniqueSortedNumbers(usableRows.map(rowMonth)).filter((month) => month >= 1 && month <= 12);
   const datenbereiche = uniqueSortedText(usableRows.map((row) => row.Standard_Datenbereich || row.Datenbereich));
   const werttypen = uniqueSortedText(usableRows.map((row) => row.Standard_Werttyp || row.Werttyp));
   const latestBwaYear = Math.max(
     0,
     ...usableRows
       .filter((row) => rowDomain(row) === "bwa")
-      .map((row) => asNumber(row.Jahr) ?? 0)
+      .map((row) => rowYear(row) ?? 0)
       .filter((year) => year >= 1900)
   );
   const sitesMissingLatestBwa = latestBwaYear
     ? standorteList.filter(
         (site) =>
           !usableRows.some(
-            (row) => asText(row.Standortname) === site && rowDomain(row) === "bwa" && (asNumber(row.Jahr) ?? 0) === latestBwaYear
+            (row) => asText(row.Standortname) === site && rowDomain(row) === "bwa" && (rowYear(row) ?? 0) === latestBwaYear
           )
       )
     : [];
