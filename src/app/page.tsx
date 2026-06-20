@@ -94,6 +94,7 @@ const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
 const importDashboardSchemaVersion = "2026-06-21-target-ebitda-v1";
+const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
 
@@ -488,6 +489,12 @@ function definitionKind(definition: (typeof bwaMetricDefinitions)[number]) {
   return "kind" in definition ? definition.kind : undefined;
 }
 
+function waitForBrowserPaint() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+}
+
 function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportReport): ImportedBwaRow[] {
   const importRows = rows.filter((row) => !isExcludedPlanRow(row));
   const bwaRows = importRows.filter((row) => rowDomain(row) === "bwa");
@@ -572,7 +579,7 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
 
 function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, report: ImportReport): ImportedDashboardData {
   const rows = XLSX.utils
-    .sheet_to_json<Record<string, unknown>>(workbook.Sheets.Konzern_Konsolidierung_STD, {
+    .sheet_to_json<Record<string, unknown>>(workbook.Sheets[importSourceSheetName], {
       defval: null,
       raw: true
     })
@@ -654,14 +661,14 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   };
 }
 
-function buildImportReport(workbook: XLSX.WorkBook, fileName: string): ImportReport {
-  const sheetNames = workbook.SheetNames;
+function buildImportReport(workbook: XLSX.WorkBook, fileName: string, workbookSheetNames = workbook.SheetNames): ImportReport {
+  const sheetNames = workbookSheetNames;
   const presentSheets = requiredImportSheets.filter((sheet) => sheetNames.includes(sheet));
   const missingSheets = requiredImportSheets.filter((sheet) => !sheetNames.includes(sheet));
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  const sourceSheet = workbook.Sheets.Konzern_Konsolidierung_STD;
+  const sourceSheet = workbook.Sheets[importSourceSheetName];
   if (!sourceSheet) {
     errors.push("Das Pflichtblatt Konzern_Konsolidierung_STD fehlt. Ohne dieses Blatt kann die App die Excel-Datei nicht importieren.");
     return {
@@ -3835,11 +3842,27 @@ function Uploads({
 
     try {
       const extension = file.name.split(".").pop()?.toLowerCase();
-      const workbook =
-        extension === "csv"
-          ? XLSX.read(await file.text(), { type: "string", cellDates: true })
-          : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-      const nextReport = buildImportReport(workbook, file.name);
+      await waitForBrowserPaint();
+      let workbook: XLSX.WorkBook;
+      let workbookSheetNames: string[];
+
+      if (extension === "csv") {
+        workbook = XLSX.read(await file.text(), { type: "string", cellDates: true });
+        workbookSheetNames = workbook.SheetNames;
+      } else {
+        const workbookBuffer = await file.arrayBuffer();
+        await waitForBrowserPaint();
+        const workbookOverview = XLSX.read(workbookBuffer, { type: "array", bookSheets: true });
+        workbookSheetNames = workbookOverview.SheetNames;
+        await waitForBrowserPaint();
+        workbook = XLSX.read(workbookBuffer, {
+          type: "array",
+          cellDates: true,
+          sheets: importSourceSheetName
+        });
+      }
+
+      const nextReport = buildImportReport(workbook, file.name, workbookSheetNames);
       setReport(nextReport);
       if (nextReport.status === "ready" || nextReport.status === "warning") {
         setPendingDashboardData(buildImportedDashboardData(workbook, file.name, nextReport));
