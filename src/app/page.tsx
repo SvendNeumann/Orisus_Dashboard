@@ -73,22 +73,18 @@ type Page =
 
 type AuthStep = "welcome" | "login" | "first-password" | "first-pin" | "pin" | "forgot" | "app";
 
-const periodOptions = [
-  "Aktueller Monat",
-  "YTD",
-  "Letzte 3 Monate",
-  "Letzte 6 Monate",
-  "Letzte 12 Monate",
+const bwaPeriodOptions = [
   "Geschäftsjahr 2024",
+  "YTD 2024 bis Dez",
+  "Dez 2024",
   "Geschäftsjahr 2025",
+  "YTD 2025 bis Dez",
+  "Dez 2025",
   "Geschäftsjahr 2026",
-  "Gesamt seit Praxisstart",
-  "Freier Zeitraum"
+  "YTD 2026 bis Apr",
+  "Apr 2026",
+  "Gesamte Periode"
 ];
-
-const comparisonOptions = ["Ist", "Vorjahr", "Abweichung in EUR", "Abweichung in %"];
-
-const bwaPeriodOptions = ["Geschäftsjahr 2024", "YTD 2024 bis Dez", "Geschäftsjahr 2025", "YTD 2025 bis Dez", "Geschäftsjahr 2026", "YTD 2026 bis Apr", "Gesamte Periode"];
 
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
@@ -873,8 +869,6 @@ export default function HomePage() {
   const [authStep, setAuthStep] = useState<AuthStep>("welcome");
   const [page, setPage] = useState<Page>("cockpit");
   const [selectedSite, setSelectedSite] = useState("kirchberg");
-  const [period, setPeriod] = useState("YTD");
-  const [comparison, setComparison] = useState("Vorjahr");
   const [menuOpen, setMenuOpen] = useState(false);
   const [pin, setPin] = useState("");
   const [previousPage, setPreviousPage] = useState<Page | null>(null);
@@ -1007,7 +1001,6 @@ export default function HomePage() {
 
       <main className="w-full px-4 pb-28 pt-5 sm:px-6 lg:ml-72 lg:px-8 lg:pb-10">
         <div className="mx-auto max-w-7xl">
-          <TopFilters period={period} setPeriod={setPeriod} comparison={comparison} setComparison={setComparison} />
           <NavigationControls
             page={page}
             previousPage={previousPage}
@@ -1425,39 +1418,6 @@ function NavButton({
       <Icon className="h-5 w-5" />
       <span>{label}</span>
     </button>
-  );
-}
-
-function TopFilters({
-  period,
-  setPeriod,
-  comparison,
-  setComparison
-}: {
-  period: string;
-  setPeriod: (value: string) => void;
-  comparison: string;
-  setComparison: (value: string) => void;
-}) {
-  return (
-    <div className="mb-5 flex flex-col gap-3 rounded-lg border border-border bg-white/86 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-xs font-semibold uppercase text-muted-foreground">Globaler Filter</p>
-        <p className="text-sm font-semibold">Zeitraum und Vergleich gelten für die Hauptansichten.</p>
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
-          {periodOptions.map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </Select>
-        <Select value={comparison} onChange={(event) => setComparison(event.target.value)}>
-          {comparisonOptions.map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </Select>
-      </div>
-    </div>
   );
 }
 
@@ -2184,15 +2144,26 @@ function bwaPeriodOptionsFor(importedData?: ImportedDashboardData | null) {
     const latestMonth = activeMonths.at(-1);
     return [
       `Geschäftsjahr ${year}`,
-      ...(latestMonth ? Array.from({ length: latestMonth }, (_, index) => `YTD ${year} bis ${bwaMonths[index]}`) : [])
+      ...(latestMonth ? [`YTD ${year} bis ${bwaMonths[latestMonth - 1]}`] : []),
+      ...activeMonths.map((month) => `${bwaMonths[month - 1]} ${year}`)
     ];
   });
   return [...options, "Gesamte Periode"];
 }
 
+function defaultBwaPeriodFor(importedData?: ImportedDashboardData | null) {
+  const options = bwaPeriodOptionsFor(importedData);
+  return options.findLast((option) => option.startsWith("YTD ")) ?? options.find((option) => option.startsWith("Geschäftsjahr 2026")) ?? options[0];
+}
+
 function BwaStatement({ title, siteId, importedData }: { title: string; siteId?: string; importedData?: ImportedDashboardData | null }) {
-  const [period, setPeriod] = useState("Geschäftsjahr 2026");
   const availablePeriods = bwaPeriodOptionsFor(importedData);
+  const [period, setPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) {
+      setPeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [availablePeriods, importedData, period]);
   if (!siteId) {
     return <ConsolidatedBwaMatrix title={title} period={period} setPeriod={setPeriod} importedData={importedData} availablePeriods={availablePeriods} />;
   }
@@ -2441,12 +2412,17 @@ function selectedBwaPeriod(period: string) {
   const match = period.match(/20\d{2}/);
   const year = match ? Number(match[0]) : null;
   if (!year) return { year: null, months: null };
-  const ytdMatch = period.match(/bis\s+([A-Za-zÄÖÜäöü]+)/);
+  const ytdMatch = period.match(/^YTD\s+20\d{2}\s+bis\s+([A-Za-zÄÖÜäöü]+)/);
   if (ytdMatch) {
     const monthIndex = bwaMonths.findIndex((month) => month.toLowerCase() === ytdMatch[1].toLowerCase());
     if (monthIndex >= 0) {
       return { year, months: Array.from({ length: monthIndex + 1 }, (_, index) => index + 1) };
     }
+  }
+  const monthMatch = period.match(/^([A-Za-zÄÖÜäöü]+)\s+20\d{2}$/);
+  if (monthMatch) {
+    const monthIndex = bwaMonths.findIndex((month) => month.toLowerCase() === monthMatch[1].toLowerCase());
+    if (monthIndex >= 0) return { year, months: [monthIndex + 1] };
   }
   return { year, months: null };
 }
