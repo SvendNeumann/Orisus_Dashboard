@@ -736,6 +736,13 @@ export default function HomePage() {
     setAuthStep(step);
   };
 
+  const logout = () => {
+    window.localStorage.removeItem(authStorageKey);
+    setPin("");
+    setMenuOpen(false);
+    setAuthStep("welcome");
+  };
+
   if (authStep !== "app") {
     return <AuthFlow step={authStep} setStep={setPersistentAuthStep} pin={pin} setPin={setPin} />;
   }
@@ -767,6 +774,9 @@ export default function HomePage() {
           <p className="text-xs font-semibold uppercase text-muted-foreground">Nutzer</p>
           <p className="mt-1 font-semibold">Svend Neumann</p>
           <p className="text-sm text-muted-foreground">Interner CFO-Zugang</p>
+          <Button className="mt-4 w-full" variant="secondary" onClick={logout}>
+            Abmelden
+          </Button>
         </div>
       </aside>
 
@@ -807,6 +817,13 @@ export default function HomePage() {
                 />
               ))}
             </nav>
+            <div className="mt-6 rounded-lg border border-border bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Sitzung</p>
+              <p className="mt-1 text-sm text-muted-foreground">Du bleibst angemeldet, bis du dich aktiv abmeldest.</p>
+              <Button className="mt-4 w-full" variant="secondary" onClick={logout}>
+                Abmelden
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -839,7 +856,7 @@ export default function HomePage() {
           {page === "darlehen" && <Darlehen />}
           {page === "banken" && <Bankenreporting />}
           {page === "board" && <BoardPack />}
-          {page === "uploads" && <Uploads onImportConfirmed={setImportedData} />}
+          {page === "uploads" && <Uploads onImportConfirmed={setImportedData} onImportReset={() => setImportedData(null)} />}
           {page === "reports" && <Reports />}
           {page === "admin" && <AdminKpiRules />}
         </div>
@@ -3617,7 +3634,13 @@ function EarnOutSummary() {
   );
 }
 
-function Uploads({ onImportConfirmed }: { onImportConfirmed?: (data: ImportedDashboardData) => void }) {
+function Uploads({
+  onImportConfirmed,
+  onImportReset
+}: {
+  onImportConfirmed?: (data: ImportedDashboardData) => void;
+  onImportReset?: () => void;
+}) {
   const [report, setReport] = useState<ImportReport>(emptyImportReport);
   const [confirmedReport, setConfirmedReport] = useState<ImportReport | null>(null);
   const [pendingDashboardData, setPendingDashboardData] = useState<ImportedDashboardData | null>(null);
@@ -3672,6 +3695,15 @@ function Uploads({ onImportConfirmed }: { onImportConfirmed?: (data: ImportedDas
     window.localStorage.setItem(importDashboardStorageKey, JSON.stringify(pendingDashboardData));
     setConfirmedReport(report);
     onImportConfirmed?.(pendingDashboardData);
+  }
+
+  function resetImport() {
+    window.localStorage.removeItem(importStorageKey);
+    window.localStorage.removeItem(importDashboardStorageKey);
+    setReport(emptyImportReport);
+    setConfirmedReport(null);
+    setPendingDashboardData(null);
+    onImportReset?.();
   }
 
   const activeReport = report.status === "idle" ? confirmedReport : report;
@@ -3759,9 +3791,14 @@ function Uploads({ onImportConfirmed }: { onImportConfirmed?: (data: ImportedDas
               </div>
             ))}
           </div>
-          <Button className="mt-4 w-full" disabled={report.status !== "ready" && report.status !== "warning"} onClick={confirmImport}>
-            Importbericht bestätigen
-          </Button>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <Button className="w-full" disabled={report.status !== "ready" && report.status !== "warning"} onClick={confirmImport}>
+              Importbericht bestätigen
+            </Button>
+            <Button className="w-full" variant="secondary" disabled={!confirmedReport && report.status === "idle"} onClick={resetImport}>
+              Import zurücksetzen
+            </Button>
+          </div>
         </Card>
       </div>
       <Card className="overflow-hidden">
