@@ -89,7 +89,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-stable-site-ids-v1";
+const importDashboardSchemaVersion = "2026-06-21-current-site-cards-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -503,6 +503,13 @@ function hasBwaSourceValue(rows: Record<string, unknown>[], siteName: string, so
   );
 }
 
+function latestActiveBwaYear(rows: Record<string, unknown>[], siteNames: string[]) {
+  const years = uniqueSortedNumbers(rows.map(rowYear)).filter((year) => year >= 1900);
+  return years.findLast((year) =>
+    siteNames.some((siteName) => Array.from({ length: 12 }, (_, index) => index + 1).some((month) => hasActiveBwaMonth(rows, siteName, year, month)))
+  );
+}
+
 function targetEbitdaValue(rows: Record<string, unknown>[], siteName: string, mode: "kv" | "uebernahme", year?: number, month?: number) {
   const monthlyMetric = mode === "kv" ? "ziel_ebitda_kv" : "ziel_ebitda_ubernahme";
   const annualMetric = mode === "kv" ? "ziel_ebitda_kaufvertrag_p_a" : "ziel_ebitda_ubernahme_p_a";
@@ -651,27 +658,33 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
       raw: true
     })
     .filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
-  const latestYear = report.jahre.filter((year) => year > 1900).at(-1) ?? new Date().getFullYear();
+  const latestYear = latestActiveBwaYear(rows, report.standorte) ?? report.jahre.filter((year) => year > 1900).at(-1) ?? new Date().getFullYear();
   const activeRows = rows.filter((row) => (rowYear(row) ?? latestYear) === latestYear);
+  const activeSiteNames = report.standorte.filter((siteName) =>
+    Array.from({ length: 12 }, (_, index) => index + 1).some((month) => hasActiveBwaMonth(rows, siteName, latestYear, month))
+  );
+  const siteNamesForCards = activeSiteNames.length ? activeSiteNames : report.standorte;
   const fallbackByName = new Map(sortSitesByContractStart(standorte).map((site) => [site.name, site]));
 
-  const sites = sortSitesByContractStart(report.standorte.map((siteName) => {
+  const sites = sortSitesByContractStart(siteNamesForCards.map((siteName) => {
     const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     const siteRows = activeRows.filter((row) => asText(row.Standortname) === siteName);
-    const gesamtleistung = Math.round(
-      sumRows(siteRows, null, ["gesamtleistung"], ["bwa"]) || fallback.gesamtleistung
+    const hasImportedSiteRows = siteRows.length > 0;
+    const importedOrFallback = (value: number, fallbackValue: number) => (hasImportedSiteRows ? value : fallbackValue);
+    const gesamtleistung = Math.round(importedOrFallback(sumRows(siteRows, null, ["gesamtleistung"], ["bwa"]), fallback.gesamtleistung));
+    const pvsUmsatz = Math.round(importedOrFallback(sumRows(siteRows, null, ["pvs_gesamtumsatz_inkl_fl_mat"], ["finanzen"]), fallback.pvsUmsatz));
+    const ebitda = Math.round(importedOrFallback(sumRows(siteRows, null, ["ebitda"], ["bwa"]), fallback.ebitda));
+    const cashflow = Math.round(importedOrFallback(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]), fallback.cashflow));
+    const kontostand = Math.round(
+      importedOrFallback(lastRowsValue(siteRows, null, ["kontostand", "kontostand_monatsende", "kontostand_per_stichtag"], ["kontostand", "dashboard"]), fallback.kontostand)
     );
-    const pvsUmsatz = Math.round(sumRows(siteRows, null, ["pvs_gesamtumsatz_inkl_fl_mat"], ["finanzen"]) || fallback.pvsUmsatz);
-    const ebitda = Math.round(sumRows(siteRows, null, ["ebitda"], ["bwa"]) || fallback.ebitda);
-    const cashflow = Math.round(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]) || fallback.cashflow);
-    const kontostand = Math.round(lastRowsValue(siteRows, null, ["kontostand"], ["kontostand"]) || fallback.kontostand);
     const material = Math.abs(sumRows(siteRows, null, ["materialkosten"], ["bwa"]));
     const fremdlabor = Math.abs(sumRows(siteRows, null, ["fremdlaborkosten"], ["bwa"]));
     const personal = Math.abs(sumRows(siteRows, null, ["personalkosten"], ["bwa"]));
-    const forderungen = Math.round(lastRowsValue(siteRows, null, ["soll_forderung_pvs", "noch_ausstehend_vs_bank"], ["finanzen"]) || fallback.forderungen);
-    const darlehen = Math.round(sumRows(siteRows, null, ["darlehen*", "fremdkapital*"], ["finanzen", "darlehen"]) || fallback.darlehen.darlehen);
-    const tilgung = Math.abs(Math.round(sumRows(siteRows, null, ["tilgung"], ["finanzen", "bwa"]) || fallback.darlehen.tilgung));
-    const restschuld = Math.max(0, Math.round(lastRowsValue(siteRows, null, ["restschuld", "rest_fremdkapital"], ["finanzen", "darlehen"]) || Math.max(0, darlehen - tilgung)));
+    const forderungen = Math.round(importedOrFallback(lastRowsValue(siteRows, null, ["soll_forderung_pvs", "noch_ausstehend_vs_bank"], ["finanzen"]), fallback.forderungen));
+    const darlehen = Math.round(importedOrFallback(sumRows(siteRows, null, ["darlehen*", "fremdkapital*"], ["finanzen", "darlehen"]), fallback.darlehen.darlehen));
+    const tilgung = Math.abs(Math.round(importedOrFallback(sumRows(siteRows, null, ["tilgung"], ["finanzen", "bwa"]), fallback.darlehen.tilgung)));
+    const restschuld = Math.max(0, Math.round(importedOrFallback(lastRowsValue(siteRows, null, ["restschuld", "rest_fremdkapital"], ["finanzen", "darlehen"]), Math.max(0, darlehen - tilgung))));
     const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : fallback.ebitdaMarge;
     const materialquote = gesamtleistung ? (material / gesamtleistung) * 100 : fallback.materialquote;
     const fremdlaborquote = gesamtleistung ? (fremdlabor / gesamtleistung) * 100 : fallback.fremdlaborquote;
@@ -703,13 +716,16 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     };
   }));
 
-  const monthlyData = report.monate.map((monthNumber) => {
+  const activeMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+    siteNamesForCards.some((siteName) => hasActiveBwaMonth(rows, siteName, latestYear, month))
+  );
+  const monthlyData = (activeMonths.length ? activeMonths : report.monate).map((monthNumber) => {
     const monthRows = activeRows.filter((row) => (rowMonth(row) ?? 0) === monthNumber);
     const leistung = Math.round(sumRows(monthRows, null, ["gesamtleistung"], ["bwa"]));
     const ebitda = Math.round(sumRows(monthRows, null, ["ebitda"], ["bwa"]));
     const cashflow = Math.round(sumRows(monthRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]));
     return {
-      month: new Date(2026, monthNumber - 1, 1).toLocaleString("de-DE", { month: "short" }).replace(".", ""),
+      month: new Date(latestYear, monthNumber - 1, 1).toLocaleString("de-DE", { month: "short" }).replace(".", ""),
       leistung,
       ebitda,
       marge: leistung ? (ebitda / leistung) * 100 : 0,
@@ -776,19 +792,12 @@ function buildImportReport(workbook: XLSX.WorkBook, fileName: string, workbookSh
   const monate = uniqueSortedNumbers(usableRows.map(rowMonth)).filter((month) => month >= 1 && month <= 12);
   const datenbereiche = uniqueSortedText(usableRows.map((row) => row.Standard_Datenbereich || row.Datenbereich));
   const werttypen = uniqueSortedText(usableRows.map((row) => row.Standard_Werttyp || row.Werttyp));
-  const latestBwaYear = Math.max(
-    0,
-    ...usableRows
-      .filter((row) => rowDomain(row) === "bwa")
-      .map((row) => rowYear(row) ?? 0)
-      .filter((year) => year >= 1900)
-  );
+  const latestBwaYear = latestActiveBwaYear(usableRows, standorteList) ?? 0;
   const sitesMissingLatestBwa = latestBwaYear
-    ? standorteList.filter(
-        (site) =>
-          !usableRows.some(
-            (row) => asText(row.Standortname) === site && rowDomain(row) === "bwa" && (rowYear(row) ?? 0) === latestBwaYear
-          )
+    ? standorteList.filter((site) =>
+        !Array.from({ length: 12 }, (_, index) => index + 1).some((month) =>
+          hasActiveBwaMonth(usableRows, site, latestBwaYear, month)
+        )
       )
     : [];
   if (sitesMissingLatestBwa.length) {
