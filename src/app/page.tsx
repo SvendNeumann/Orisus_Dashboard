@@ -1246,6 +1246,174 @@ function buildBwaRows(period: string, siteId?: string) {
   ];
 }
 
+const bwaMonths = ["Jan", "Feb", "Mrz", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+
+function SiteMonthlyBwa({ site }: { site: (typeof standorte)[number] }) {
+  const [year, setYear] = useState("2026");
+  const rows = buildSiteMonthlyBwa(site, Number(year));
+  const activeMonthCount = rows[0].months.filter((value) => value !== null).length || 1;
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-bold">Monatliche BWA bis Cashflow {site.name}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Jan bis Dez, Gesamt, Durchschnitt und gesamte Vertragsperiode seit {site.start}.
+          </p>
+        </div>
+        <Select value={year} onChange={(event) => setYear(event.target.value)}>
+          <option>2024</option>
+          <option>2025</option>
+          <option>2026</option>
+        </Select>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1320px] border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-20 w-72 border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                BWA-Position
+              </th>
+              {bwaMonths.map((month) => (
+                <th key={month} className="w-24 border-b border-r border-border bg-slate-950 p-3 text-right text-xs font-bold uppercase text-white">
+                  {month}
+                </th>
+              ))}
+              <th className="w-28 border-b border-r border-border bg-slate-950 p-3 text-right text-xs font-bold uppercase text-white">
+                Gesamt
+              </th>
+              <th className="w-32 border-b border-r border-border bg-slate-950 p-3 text-right text-xs font-bold uppercase text-white">
+                Durchschnitt
+              </th>
+              <th className="w-40 border-b border-r border-border bg-slate-950 p-3 text-right text-xs font-bold uppercase text-white">
+                Vertragsperiode
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const totalValue = row.months.reduce<number>((sum, value) => sum + (value ?? 0), 0);
+              const average = totalValue / activeMonthCount;
+              return (
+                <tr key={row.label}>
+                  <td
+                    className={cn(
+                      "sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-semibold",
+                      row.indent && "pl-6 font-medium text-muted-foreground",
+                      row.section && "bg-slate-900 text-white",
+                      row.emphasis && "bg-cyan-50 text-slate-950",
+                      row.kind === "cashflow" && "bg-emerald-50"
+                    )}
+                  >
+                    {row.label}
+                  </td>
+                  {row.months.map((value, index) => (
+                    <td
+                      key={`${row.label}-${bwaMonths[index]}`}
+                      className={cn(
+                        "border-b border-r border-border bg-white p-2 text-right tabular-nums",
+                        row.section && "bg-slate-900 text-white",
+                        row.emphasis && "bg-cyan-50 font-bold text-slate-950",
+                        row.kind === "cashflow" && "bg-emerald-50",
+                        Number(value) < 0 && "text-red-700"
+                      )}
+                    >
+                      {formatBwaCell(value, row.percent)}
+                    </td>
+                  ))}
+                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", totalValue < 0 && "text-red-700")}>
+                    {row.section ? "" : formatBwaCell(totalValue, row.percent)}
+                  </td>
+                  <td className="border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums">
+                    {row.section ? "" : formatBwaCell(average, row.percent)}
+                  </td>
+                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.contract < 0 && "text-red-700")}>
+                    {row.section ? "" : formatBwaCell(row.contract, row.percent)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="border-t border-border bg-slate-50 p-4 text-sm text-muted-foreground">
+        Mobile Ansicht: horizontal wischen; die BWA-Position bleibt links fixiert. Die Vertragsperiode bleibt unabhängig vom Jahresfilter immer seit Standortstart.
+      </div>
+    </Card>
+  );
+}
+
+function buildSiteMonthlyBwa(site: (typeof standorte)[number], year: number) {
+  const monthWeights = [0.076, 0.081, 0.087, 0.079, 0.086, 0.092, 0.083, 0.078, 0.086, 0.089, 0.084, 0.079];
+  const startParts = site.start.split(".");
+  const startMonth = Number(startParts[1]);
+  const startYear = Number(startParts[2]);
+  const active = bwaMonths.map((_, index) => year > startYear || (year === startYear && index + 1 >= startMonth));
+  const activeWeight = active.reduce((sum, isActive, index) => sum + (isActive ? monthWeights[index] : 0), 0) || 1;
+  const yearFactor = year === 2024 ? 0.28 : year === 2025 ? 0.72 : 0.86;
+  const monthly = (annualValue: number) =>
+    bwaMonths.map((_, index) => (active[index] ? Math.round(annualValue * yearFactor * (monthWeights[index] / activeWeight)) : null));
+  const contract = (value: number) => value;
+  const row = (
+    label: string,
+    annualValue: number,
+    options?: { indent?: boolean; emphasis?: boolean; section?: boolean; percent?: boolean; kind?: "cashflow"; contractValue?: number }
+  ) => ({
+    label,
+    months: options?.section ? bwaMonths.map(() => null) : monthly(annualValue),
+    contract: options?.contractValue ?? contract(annualValue),
+    ...options
+  });
+
+  const material = site.gesamtleistung * (site.materialquote / 100);
+  const fremdlabor = site.gesamtleistung * (site.fremdlaborquote / 100);
+  const personal = site.gesamtleistung * 0.278;
+  const weitere = site.gesamtleistung * (site.sonstigeKostenquote / 100);
+  const praxiskosten = -(material + fremdlabor + personal + weitere);
+
+  return [
+    row("1. Umsatz", 0, { section: true }),
+    row("KZV-Umsatz", site.honorar * 0.44, { indent: true }),
+    row("Privatumsatz", site.honorar * 0.56, { indent: true }),
+    row("Bestandsveränderung", site.gesamtleistung * 0.04, { indent: true }),
+    row("Material- und Laborumsätze", site.eigenlabor, { indent: true }),
+    row("Sonstige betriebliche Erlöse", site.gesamtleistung * 0.01, { indent: true }),
+    row("Gesamtleistung", site.gesamtleistung, { emphasis: true }),
+    row("Gesamtleistungsquote", 100, { percent: true, emphasis: true, contractValue: 100 }),
+    row("2. Variable Kosten / Praxisleistung", 0, { section: true }),
+    row("Fremdlaborkosten", -fremdlabor, { indent: true }),
+    row("Materialkosten", -material, { indent: true }),
+    row("Praxisleistung", site.gesamtleistung - fremdlabor - material, { emphasis: true }),
+    row("Praxisleistungsquote", site.gesamtleistung ? ((site.gesamtleistung - fremdlabor - material) / site.gesamtleistung) * 100 : 0, { percent: true, emphasis: true }),
+    row("3. Operative Kosten / Deckungsbeitrag", 0, { section: true }),
+    row("Personalkosten aggregiert", -personal, { indent: true }),
+    row("Reparatur-/Instandhaltungskosten", -site.gesamtleistung * 0.018, { indent: true }),
+    row("Deckungsbeitrag", site.gesamtleistung - fremdlabor - material - personal - site.gesamtleistung * 0.018, { emphasis: true }),
+    row("4. Sachkosten / EBITDA", 0, { section: true }),
+    row("Raum-/Energiekosten", -site.gesamtleistung * 0.04, { indent: true }),
+    row("Reise-/Fortbildungskosten", -site.gesamtleistung * 0.006, { indent: true }),
+    row("Versicherungen / Beiträge", -site.gesamtleistung * 0.009, { indent: true }),
+    row("Abrechnungs-/Factoringkosten", -site.gesamtleistung * 0.012, { indent: true }),
+    row("Sonstige Praxiskosten", -Math.max(0, weitere - site.gesamtleistung * 0.067), { indent: true }),
+    row("Sonstige Kosten gesamt", -weitere, { emphasis: true }),
+    row("EBITDA", site.ebitda, { emphasis: true }),
+    row("EBITDA-Marge", site.ebitdaMarge, { percent: true, emphasis: true, contractValue: site.ebitdaMarge }),
+    row("5. Cashflow", 0, { section: true, kind: "cashflow" }),
+    row("Praxiseingänge", site.pvsUmsatz * 0.96, { kind: "cashflow" }),
+    row("Sonstige Eingänge", site.gesamtleistung * 0.018, { kind: "cashflow" }),
+    row("Praxiskosten", praxiskosten, { indent: true, kind: "cashflow" }),
+    row("Annuitäten", -(site.darlehen.tilgung + site.darlehen.zins), { indent: true, kind: "cashflow" }),
+    row("Umbuchungen MVZ", -site.gesamtleistung * 0.025, { indent: true, kind: "cashflow" }),
+    row("Netto-Cashflow", site.cashflow, { emphasis: true, kind: "cashflow" })
+  ];
+}
+
+function formatBwaCell(value: number | null, percent?: boolean) {
+  if (value === null) return "";
+  return percent ? pct(value) : eur(value);
+}
+
 function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
   return (
     <section className="space-y-5">
@@ -1271,7 +1439,7 @@ function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
           </ResponsiveContainer>
         </ChartCard>
       </div>
-      <BwaStatement title={`BWA bis Cashflow ${site.name}`} siteId={site.id} />
+      <SiteMonthlyBwa site={site} />
       <SitePlanIst site={site} />
     </section>
   );
