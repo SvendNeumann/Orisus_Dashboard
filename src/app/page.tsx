@@ -623,7 +623,7 @@ function buildImportReport(workbook: XLSX.WorkBook, fileName: string): ImportRep
   if (excludedPlanRows > 0) warnings.push(`${excludedPlanRows.toLocaleString("de-DE")} klassische Planwert-Zeilen wurden erkannt und vom App-Import ausgeschlossen.`);
 
   const standorteList = uniqueSortedText(usableRows.map((row) => row.Standortname)).filter((site) => site.toLowerCase() !== "konzern");
-  const jahre = uniqueSortedNumbers(usableRows.map((row) => row.Jahr));
+  const jahre = uniqueSortedNumbers(usableRows.map((row) => row.Jahr)).filter((year) => year >= 1900);
   const monate = uniqueSortedNumbers(usableRows.map((row) => row.Monat)).filter((month) => month >= 1 && month <= 12);
   const datenbereiche = uniqueSortedText(usableRows.map((row) => row.Standard_Datenbereich || row.Datenbereich));
   const werttypen = uniqueSortedText(usableRows.map((row) => row.Standard_Werttyp || row.Werttyp));
@@ -3805,7 +3805,7 @@ function Uploads({
         <div className="border-b border-border p-4">
           <h2 className="font-bold">Importbericht</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Vorschau aus der hochgeladenen Arbeitsmappe. Die Dashboard-Berechnung wird im nächsten Schritt vollständig auf diese Datenbasis umgestellt.
+            Vorschau aus der hochgeladenen Arbeitsmappe. Nach Bestätigung nutzen Cockpit, BWA und Standortansichten diese Importdaten.
           </p>
         </div>
         <div className="grid gap-px table-grid-bg md:grid-cols-2 xl:grid-cols-4">
