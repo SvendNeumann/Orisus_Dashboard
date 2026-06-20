@@ -219,6 +219,12 @@ const bwaMetricDefinitions = [
   { key: "summe_sonstige_kosten", label: "Summe sonstige Kosten", section: "4. Sachkosten / EBITDA", order: 490, source: ["sach_sonstige_kosten", "sonstige_kosten"], emphasis: true },
   { key: "ebitda", label: "EBITDA", section: "4. Sachkosten / EBITDA", order: 500, source: ["ebitda"], emphasis: true },
   { key: "ebitda_marge", label: "EBITDA-Marge", section: "4. Sachkosten / EBITDA", order: 510, source: [], percent: true, derived: "ebitda_marge" },
+  { key: "ziel_ebitda_kaufvertrag", label: "Ziel-EBITDA gemäß Kaufvertrag", section: "4. Sachkosten / EBITDA", order: 520, source: [], derived: "target_kv" },
+  { key: "abweichung_ziel_ebitda_kaufvertrag_abs", label: "Abw. Ziel-EBITDA Kaufvertrag", section: "4. Sachkosten / EBITDA", order: 530, source: [], derived: "abw_abs_kv" },
+  { key: "abweichung_ziel_ebitda_kaufvertrag_pct", label: "Abw. Ziel-EBITDA Kaufvertrag %", section: "4. Sachkosten / EBITDA", order: 540, source: [], percent: true, derived: "abw_pct_kv" },
+  { key: "ziel_ebitda_uebernahme", label: "Ziel-EBITDA gemäß Übernahme", section: "4. Sachkosten / EBITDA", order: 550, source: [], derived: "target_uebernahme" },
+  { key: "abweichung_ziel_ebitda_uebernahme_abs", label: "Abw. Ziel-EBITDA Übernahme", section: "4. Sachkosten / EBITDA", order: 560, source: [], derived: "abw_abs_uebernahme" },
+  { key: "abweichung_ziel_ebitda_uebernahme_pct", label: "Abw. Ziel-EBITDA Übernahme %", section: "4. Sachkosten / EBITDA", order: 570, source: [], percent: true, derived: "abw_pct_uebernahme" },
   { key: "section_ergebnis", label: "5. Unter EBITDA / Vorläufiges Ergebnis", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 600, source: [], emphasis: true },
   { key: "abschreibungen", label: "Abschreibungen", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 610, source: ["abschreibungen"] },
   { key: "zinsen_neutraler_aufwand", label: "Zinsen & neutraler Aufwand", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 620, source: ["zinsen_neutraler_aufwand"] },
@@ -418,6 +424,9 @@ function ratio(numerator: number, denominator: number) {
 
 function derivedBwaValue(rows: Record<string, unknown>[], siteName: string, key: string, year?: number, month?: number) {
   const totalPerformance = sumMetricForPeriod(rows, siteName, ["gesamtleistung"], year, month);
+  const ebitda = sumMetricForPeriod(rows, siteName, ["ebitda"], year, month);
+  const targetKv = targetEbitdaValue(rows, siteName, "kv", year, month);
+  const targetUebernahme = targetEbitdaValue(rows, siteName, "uebernahme", year, month);
   if (key === "gesamtleistungsquote") return totalPerformance ? 100 : 0;
   if (key === "praxisleistungsquote") {
     return ratio(sumMetricForPeriod(rows, siteName, ["praxisleistung"], year, month), totalPerformance);
@@ -434,7 +443,34 @@ function derivedBwaValue(rows: Record<string, unknown>[], siteName: string, key:
   if (key === "cashflow_quote") {
     return ratio(sumMetricForPeriod(rows, siteName, ["cashflow_gesamt"], year, month), totalPerformance);
   }
+  if (key === "target_kv") return targetKv;
+  if (key === "target_uebernahme") return targetUebernahme;
+  if (key === "abw_abs_kv") return ebitda - targetKv;
+  if (key === "abw_abs_uebernahme") return ebitda - targetUebernahme;
+  if (key === "abw_pct_kv") return ratio(ebitda - targetKv, targetKv);
+  if (key === "abw_pct_uebernahme") return ratio(ebitda - targetUebernahme, targetUebernahme);
   return 0;
+}
+
+function targetEbitdaValue(rows: Record<string, unknown>[], siteName: string, mode: "kv" | "uebernahme", year?: number, month?: number) {
+  const monthlyMetric = mode === "kv" ? "ziel_ebitda_kv" : "ziel_ebitda_ubernahme";
+  const annualMetric = mode === "kv" ? "ziel_ebitda_kaufvertrag_p_a" : "ziel_ebitda_ubernahme_p_a";
+  const targetRows = rows.filter((row) => asText(row.Standortname) === siteName);
+  const monthlyTarget = sumMetricForPeriod(targetRows, siteName, [monthlyMetric], year, month);
+  if (monthlyTarget) return monthlyTarget;
+
+  const annualTarget = lastRowsValue(targetRows, siteName, [annualMetric], ["stammdaten"]);
+  if (!annualTarget) return 0;
+  if (month) return annualTarget / 12;
+  if (!year) return annualTarget;
+
+  const activeMonths = new Set(
+    targetRows
+      .filter((row) => rowDomain(row) === "bwa" && (rowYear(row) ?? 0) === year && asText(row.Standortname) === siteName)
+      .map(rowMonth)
+      .filter((value): value is number => Boolean(value && value >= 1 && value <= 12))
+  );
+  return annualTarget * ((activeMonths.size || 12) / 12);
 }
 
 function definitionDerivedKey(definition: (typeof bwaMetricDefinitions)[number]) {
@@ -451,7 +487,8 @@ function definitionKind(definition: (typeof bwaMetricDefinitions)[number]) {
 }
 
 function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportReport): ImportedBwaRow[] {
-  const bwaRows = rows.filter((row) => rowDomain(row) === "bwa" && !isExcludedPlanRow(row));
+  const importRows = rows.filter((row) => !isExcludedPlanRow(row));
+  const bwaRows = importRows.filter((row) => rowDomain(row) === "bwa");
   const validYears = report.jahre.filter((year) => year > 1900);
   return report.standorte.flatMap((siteName) =>
     bwaMetricDefinitions.map((definition) => {
@@ -467,7 +504,7 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
           const value = definition.source.length
             ? sumMetricForPeriod(bwaRows, siteName, definition.source, year)
             : derivedKey
-              ? derivedBwaValue(bwaRows, siteName, derivedKey, year)
+              ? derivedBwaValue(importRows, siteName, derivedKey, year)
               : 0;
           return [String(year), value];
         })
@@ -496,7 +533,7 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
             const value = definition.source.length
               ? sumMetricForPeriod(bwaRows, siteName, definition.source, year, month)
               : derivedKey
-                ? derivedBwaValue(bwaRows, siteName, derivedKey, year, month)
+                ? derivedBwaValue(importRows, siteName, derivedKey, year, month)
                 : 0;
             return [`${year}-${month}`, value];
           })
@@ -2186,6 +2223,7 @@ function ConsolidatedBwaMatrix({
                   className={cn(
                     "sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-semibold",
                     row.indent && "pl-6 font-medium text-muted-foreground",
+                    row.percent && "text-xs",
                     row.emphasis && "table-total text-foreground",
                     row.kind === "cashflow" && "table-cashflow"
                   )}
@@ -2261,6 +2299,7 @@ function FragmentCells({
       <td
         className={cn(
           "border-b border-r border-border bg-white p-2 text-right font-semibold tabular-nums",
+          row.percent && "text-xs",
           row.actual < 0 && "text-red-700",
           row.emphasis && "table-total text-foreground",
           row.kind === "cashflow" && "table-cashflow"
@@ -2271,6 +2310,7 @@ function FragmentCells({
       <td
         className={cn(
           "border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums",
+          row.percent && "text-xs",
           row.emphasis && "table-total font-bold text-foreground",
           row.kind === "cashflow" && "table-cashflow"
         )}
@@ -2331,6 +2371,12 @@ function calculateImportedQuote(importedRows: ImportedBwaRow[], siteIds: string[
   if (key === "ebitda_marge") return ratio(value("ebitda"), performance);
   if (key === "ergebnisquote") return ratio(value("vorlaeufiges_ergebnis"), performance);
   if (key === "cashflow_quote") return ratio(value("cashflow_gesamt"), performance);
+  if (key === "abweichung_ziel_ebitda_kaufvertrag_pct") {
+    return ratio(value("abweichung_ziel_ebitda_kaufvertrag_abs"), value("ziel_ebitda_kaufvertrag"));
+  }
+  if (key === "abweichung_ziel_ebitda_uebernahme_pct") {
+    return ratio(value("abweichung_ziel_ebitda_uebernahme_abs"), value("ziel_ebitda_uebernahme"));
+  }
   return 0;
 }
 
@@ -2482,6 +2528,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                       "sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-semibold",
                       row.indent && "pl-6 font-medium text-muted-foreground",
                       row.section && "table-section font-bold text-foreground",
+                      row.percent && "text-xs",
                       row.emphasis && "table-total text-foreground",
                       row.kind === "cashflow" && "table-cashflow"
                     )}
@@ -2493,6 +2540,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                       key={`${row.label}-${bwaMonths[index]}`}
                       className={cn(
                         "border-b border-r border-border bg-white p-2 text-right tabular-nums",
+                        row.percent && "text-xs",
                         row.section && "table-section font-bold text-foreground",
                         row.emphasis && "table-total font-bold text-foreground",
                         row.kind === "cashflow" && "table-cashflow",
@@ -2502,13 +2550,13 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                       {row.section ? "" : formatBwaCell(value, row.percent)}
                     </td>
                   ))}
-                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", totalValue < 0 && "text-red-700")}>
+                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs", totalValue < 0 && "text-red-700")}>
                     {row.section ? "" : formatBwaCell(totalValue, row.percent)}
                   </td>
-                  <td className="border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums">
+                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs")}>
                     {row.section ? "" : formatBwaCell(average, row.percent)}
                   </td>
-                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.contract < 0 && "text-red-700")}>
+                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs", row.contract < 0 && "text-red-700")}>
                     {row.section ? "" : formatBwaCell(row.contract, row.percent)}
                   </td>
                 </tr>
@@ -2645,6 +2693,12 @@ function calculateImportedMonthlyQuote(importedRows: ImportedBwaRow[], siteId: s
   if (key === "ebitda_marge") return ratio(value("ebitda"), performance);
   if (key === "ergebnisquote") return ratio(value("vorlaeufiges_ergebnis"), performance);
   if (key === "cashflow_quote") return ratio(value("cashflow_gesamt"), performance);
+  if (key === "abweichung_ziel_ebitda_kaufvertrag_pct") {
+    return ratio(value("abweichung_ziel_ebitda_kaufvertrag_abs"), value("ziel_ebitda_kaufvertrag"));
+  }
+  if (key === "abweichung_ziel_ebitda_uebernahme_pct") {
+    return ratio(value("abweichung_ziel_ebitda_uebernahme_abs"), value("ziel_ebitda_uebernahme"));
+  }
   return 0;
 }
 
