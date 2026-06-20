@@ -93,7 +93,7 @@ const bwaPeriodOptions = ["Geschäftsjahr 2024", "YTD 2024 bis Dez", "Geschäfts
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-empty-month-cells-v1";
+const importDashboardSchemaVersion = "2026-06-21-stable-site-ids-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -370,6 +370,23 @@ function normalizeMetric(value: unknown) {
     .replace(/^_+|_+$/g, "");
 }
 
+function normalizeSiteId(value: unknown) {
+  return asText(value)
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function siteIdForName(siteName: string) {
+  return standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase())?.id ?? normalizeSiteId(siteName);
+}
+
 function rowMetric(row: Record<string, unknown>) {
   const originalMetric = asText(row.Kennzahl);
   const rawMetric = originalMetric.startsWith("+") ? originalMetric : asText(row.Standard_Kennzahl || row.Kennzahl || row.Detailbezeichnung);
@@ -610,7 +627,7 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
               : 0;
 
       return {
-        siteId: normalizeMetric(siteName),
+        siteId: siteIdForName(siteName),
         siteName,
         metricKey: definition.key,
         label: definition.label,
@@ -667,7 +684,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
 
     return {
       ...fallback,
-      id: normalizeMetric(siteName) || fallback.id,
+      id: siteIdForName(siteName) || fallback.id,
       name: siteName,
       gesamtleistung,
       pvsUmsatz,
