@@ -41,7 +41,15 @@ import {
 } from "lucide-react";
 import { Badge, Button, Card, Input, Progress, Select } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { monthly, standorte, Status, uploadTypes } from "@/data/dashboard";
+import {
+  ebitdaTakeover,
+  monthly,
+  receivablesTrend,
+  standorte,
+  Status,
+  topBehandlerHonorar,
+  uploadTypes
+} from "@/data/dashboard";
 
 type Page =
   | "cockpit"
@@ -71,6 +79,8 @@ const periodOptions = [
 ];
 
 const comparisonOptions = ["Ist", "Plan", "Vorjahr", "Abweichung in EUR", "Abweichung in %"];
+
+const bwaPeriodOptions = ["Geschäftsjahr 2024", "Geschäftsjahr 2025", "Geschäftsjahr 2026", "Gesamte Periode"];
 
 const statusMap: Record<Status, { label: string; dot: string; tone: "green" | "yellow" | "red" }> = {
   green: { label: "Stabil", dot: "bg-emerald-500", tone: "green" },
@@ -453,22 +463,29 @@ function Cockpit({ setPage }: { setPage: (page: Page) => void }) {
         ))}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <ChartCard title="Honorarumsatz vs. Eigenlaborumsatz" icon={PieIcon}>
-          <RevenueSplit />
+      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <ChartCard title="Ist EBITDA vs. EBITDA bei Übernahme" icon={TrendingUp}>
+          <EbitdaTakeoverChart />
         </ChartCard>
-        <ChartCard title="EBITDA vs. Gesamtleistung" icon={TrendingUp}>
-          <ResponsiveContainer width="100%" height={270}>
-            <ComposedChart data={monthly}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="month" tickLine={false} axisLine={false} />
-              <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => eur(Number(v), true)} />
-              <Tooltip formatter={(v) => (typeof v === "number" ? eur(v) : v)} />
-              <Bar dataKey="leistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
-              <Line type="monotone" dataKey="ebitda" stroke="#0369a1" strokeWidth={3} dot={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
+        <ChartCard title="Kostenquoten am Umsatz" icon={PieIcon}>
+          <CostShareDonut />
         </ChartCard>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <ChartCard title="Standortvergleich Gesamtleistung & EBITDA" icon={BarChart3}>
+          <SitePerformanceChart />
+        </ChartCard>
+        <ChartCard title="Top Behandler nach Honorarumsatz" icon={BadgeEuro}>
+          <TopBehandlerChart />
+        </ChartCard>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
+        <ChartCard title="Offene Forderungen je Standort" icon={FileBarChart}>
+          <ReceivablesChart />
+        </ChartCard>
+        <AccountsBlock />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-3">
@@ -479,7 +496,9 @@ function Cockpit({ setPage }: { setPage: (page: Page) => void }) {
 
       <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
         <CashflowBlock />
-        <AccountsBlock />
+        <ChartCard title="Honorarumsatz vs. Eigenlaborumsatz" icon={PieIcon}>
+          <RevenueSplit />
+        </ChartCard>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
@@ -562,6 +581,112 @@ function ChartCard({
       </div>
       {children}
     </Card>
+  );
+}
+
+function EbitdaTakeoverChart() {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <ComposedChart data={ebitdaTakeover}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <XAxis dataKey="name" tickLine={false} axisLine={false} />
+        <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => eur(Number(v), true)} />
+        <Tooltip formatter={(v) => eur(Number(v))} />
+        <Bar dataKey="ebitda" name="Ist EBITDA" fill="#0f766e" radius={[5, 5, 0, 0]} />
+        <Line
+          type="monotone"
+          dataKey="uebernahmeEbitda"
+          name="EBITDA bei Übernahme"
+          stroke="#0369a1"
+          strokeWidth={3}
+          dot={{ r: 4 }}
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+function CostShareDonut() {
+  const revenue = total("pvsUmsatz");
+  const data = [
+    { name: "Personal", value: Math.round(revenue * 0.278), color: "#0369a1" },
+    { name: "Material", value: Math.round(revenue * 0.099), color: "#0f766e" },
+    { name: "Fremdlabor", value: Math.round(revenue * 0.156), color: "#0891b2" },
+    { name: "Weitere operative Kosten", value: Math.round(revenue * 0.161), color: "#64748b" },
+    { name: "EBITDA", value: total("ebitda"), color: "#16a34a" }
+  ];
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
+      <ResponsiveContainer width="100%" height={230}>
+        <PieChart>
+          <Pie data={data} innerRadius={64} outerRadius={94} paddingAngle={3} dataKey="value">
+            {data.map((entry) => (
+              <Cell key={entry.name} fill={entry.color} />
+            ))}
+          </Pie>
+          <Tooltip formatter={(v) => eur(Number(v))} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="space-y-2 self-center">
+        {data.map((item) => (
+          <div key={item.name} className="flex items-center justify-between gap-3 rounded-md bg-slate-50 p-2.5">
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <span className="h-3 w-3 rounded-sm" style={{ background: item.color }} />
+              {item.name}
+            </span>
+            <span className="text-sm font-bold">{pct((item.value / revenue) * 100)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SitePerformanceChart() {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={standorte}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <XAxis dataKey="name" tickLine={false} axisLine={false} />
+        <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => eur(Number(v), true)} />
+        <Tooltip formatter={(v) => eur(Number(v))} />
+        <Bar dataKey="gesamtleistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
+        <Bar dataKey="ebitda" name="EBITDA" fill="#0891b2" radius={[5, 5, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function TopBehandlerChart() {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={topBehandlerHonorar} layout="vertical" margin={{ left: 16, right: 12 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <XAxis type="number" tickFormatter={(v) => eur(Number(v), true)} />
+        <YAxis type="category" dataKey="name" width={92} tickLine={false} axisLine={false} />
+        <Tooltip formatter={(v) => eur(Number(v))} labelFormatter={(label) => `${label} Honorarumsatz`} />
+        <Bar dataKey="honorar" name="Honorarumsatz" fill="#0f766e" radius={[0, 5, 5, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function ReceivablesChart() {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <ComposedChart data={receivablesTrend}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <XAxis dataKey="month" tickLine={false} axisLine={false} />
+        <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => eur(Number(v), true)} />
+        <Tooltip formatter={(v) => eur(Number(v))} />
+        <Bar dataKey="kirchberg" name="Kirchberg" stackId="forderungen" fill="#0f766e" />
+        <Bar dataKey="essen" name="Essen" stackId="forderungen" fill="#0891b2" />
+        <Bar dataKey="kehl" name="Kehl" stackId="forderungen" fill="#0369a1" />
+        <Bar dataKey="ulmet" name="Ulmet" stackId="forderungen" fill="#64748b" />
+        <Bar dataKey="huettenberg" name="Hüttenberg" stackId="forderungen" fill="#94a3b8" radius={[5, 5, 0, 0]} />
+      </ComposedChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -791,6 +916,267 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
+function BwaStatement({ title, siteId }: { title: string; siteId?: string }) {
+  const [period, setPeriod] = useState("Geschäftsjahr 2026");
+  if (!siteId) {
+    return <ConsolidatedBwaMatrix title={title} period={period} setPeriod={setPeriod} />;
+  }
+
+  const rows = buildBwaRows(period, siteId);
+  const activeSites = siteId ? standorte.filter((site) => site.id === siteId) : standorte;
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-bold">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Enthält Dummy-Werte ab jeweiligem Praxisstart; Kassel erscheint erst ab Geschäftsjahr 2026.
+          </p>
+        </div>
+        <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
+          {bwaPeriodOptions.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </Select>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[720px]">
+          <div className="grid grid-cols-[1.4fr_1fr_1fr_1fr] gap-3 border-b border-border bg-slate-50 p-3 text-xs font-bold uppercase text-muted-foreground">
+            <span>Position</span>
+            <span className="text-right">Ist</span>
+            <span className="text-right">Plan</span>
+            <span className="text-right">Abweichung</span>
+          </div>
+          {rows.map((row) => (
+            <div
+              key={row.label}
+              className={cn(
+                "grid grid-cols-[1.4fr_1fr_1fr_1fr] gap-3 border-b border-border p-3 text-sm last:border-0",
+                row.emphasis && "bg-cyan-50/55 font-bold",
+                row.kind === "cashflow" && "bg-emerald-50/45"
+              )}
+            >
+              <span className={cn(row.indent && "pl-5 text-muted-foreground")}>{row.label}</span>
+              <span className="text-right font-semibold">{row.percent ? pct(row.actual) : eur(row.actual)}</span>
+              <span className="text-right text-muted-foreground">{row.percent ? pct(row.plan) : eur(row.plan)}</span>
+              <span className={cn("text-right font-semibold", row.variance < 0 ? "text-red-700" : "text-emerald-700")}>
+                {row.percent ? `${row.variance > 0 ? "+" : ""}${pct(row.variance)}` : eur(row.variance)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-3 border-t border-border bg-slate-50 p-4 text-sm sm:grid-cols-3">
+        <Mini label="Ausgewählte Standorte" value={activeSites.map((site) => site.name).join(", ")} />
+        <Mini label="Periode" value={period} />
+        <Mini label="Datenstatus" value="Dummy / Phase 1" />
+      </div>
+    </Card>
+  );
+}
+
+function ConsolidatedBwaMatrix({
+  title,
+  period,
+  setPeriod
+}: {
+  title: string;
+  period: string;
+  setPeriod: (value: string) => void;
+}) {
+  const groups = [
+    { id: "konzern", label: "Konzern", rows: buildBwaRows(period) },
+    ...standorte.map((site) => ({
+      id: site.id,
+      label: site.name,
+      rows: buildBwaRows(period, site.id)
+    }))
+  ];
+  const rowTemplate = groups[0].rows;
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-bold">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Links stehen die BWA-Positionen, rechts Konzern und Standorte nebeneinander. Neue Standorte werden als weitere Spalten ergänzt.
+          </p>
+        </div>
+        <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
+          {bwaPeriodOptions.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </Select>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1180px] border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-20 w-64 border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                BWA-Position
+              </th>
+              {groups.map((group) => (
+                <th
+                  key={group.id}
+                  colSpan={2}
+                  className="border-b border-r border-border bg-slate-950 p-3 text-center text-xs font-bold uppercase text-white"
+                >
+                  {group.label}
+                </th>
+              ))}
+            </tr>
+            <tr>
+              <th className="sticky left-0 z-20 border-b border-r border-border bg-slate-900 p-2 text-left text-xs font-semibold text-white">
+                {period}
+              </th>
+              {groups.map((group) => (
+                <FragmentHeaders key={group.id} />
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rowTemplate.map((row, rowIndex) => (
+              <tr key={row.label}>
+                <td
+                  className={cn(
+                    "sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-semibold",
+                    row.indent && "pl-6 font-medium text-muted-foreground",
+                    row.emphasis && "bg-cyan-50 text-slate-950",
+                    row.kind === "cashflow" && "bg-emerald-50"
+                  )}
+                >
+                  {row.label}
+                </td>
+                {groups.map((group) => {
+                  const groupRow = group.rows[rowIndex];
+                  const performance = group.rows[0]?.actual || 0;
+                  const quote = groupRow.percent ? groupRow.actual : performance ? (groupRow.actual / performance) * 100 : 0;
+                  return (
+                    <FragmentCells
+                      key={`${group.id}-${row.label}`}
+                      row={groupRow}
+                      quote={quote}
+                    />
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="border-t border-border bg-slate-50 p-4 text-sm text-muted-foreground">
+        Mobile Ansicht: horizontal wischen; die BWA-Position bleibt links fixiert.
+      </div>
+    </Card>
+  );
+}
+
+function FragmentHeaders() {
+  return (
+    <>
+      <th className="w-32 border-b border-r border-border bg-slate-900 p-2 text-right text-xs font-semibold text-white">
+        Ist
+      </th>
+      <th className="w-24 border-b border-r border-border bg-slate-900 p-2 text-right text-xs font-semibold text-white">
+        % GL
+      </th>
+    </>
+  );
+}
+
+function FragmentCells({
+  row,
+  quote
+}: {
+  row: ReturnType<typeof buildBwaRows>[number];
+  quote: number;
+}) {
+  return (
+    <>
+      <td
+        className={cn(
+          "border-b border-r border-border bg-white p-2 text-right font-semibold tabular-nums",
+          row.actual < 0 && "text-red-700",
+          row.emphasis && "bg-cyan-50 text-slate-950",
+          row.kind === "cashflow" && "bg-emerald-50"
+        )}
+      >
+        {row.percent ? pct(row.actual) : eur(row.actual)}
+      </td>
+      <td
+        className={cn(
+          "border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums",
+          row.emphasis && "bg-cyan-50 font-bold text-slate-950",
+          row.kind === "cashflow" && "bg-emerald-50"
+        )}
+      >
+        {pct(quote)}
+      </td>
+    </>
+  );
+}
+
+function buildBwaRows(period: string, siteId?: string) {
+  const factor = period === "Geschäftsjahr 2024" ? 0.28 : period === "Geschäftsjahr 2025" ? 0.72 : period === "Gesamte Periode" ? 1 : 0.86;
+  const sites = siteId ? standorte.filter((site) => site.id === siteId) : standorte;
+  const base = (key: keyof (typeof standorte)[number]) =>
+    Math.round(sites.reduce((sum, site) => sum + Number(site[key] ?? 0), 0) * factor);
+  const weightedQuote = (key: "materialquote" | "fremdlaborquote" | "sonstigeKostenquote") => {
+    const performance = base("gesamtleistung");
+    if (!performance) return 0;
+    return sites.reduce((sum, site) => sum + site.gesamtleistung * site[key], 0) / sites.reduce((sum, site) => sum + site.gesamtleistung, 0);
+  };
+
+  const gesamtleistung = base("gesamtleistung");
+  const pvs = base("pvsUmsatz");
+  const honorar = base("honorar");
+  const eigenlabor = base("eigenlabor");
+  const material = Math.round(gesamtleistung * (weightedQuote("materialquote") / 100));
+  const fremdlabor = Math.round(gesamtleistung * (weightedQuote("fremdlaborquote") / 100));
+  const personal = Math.round(gesamtleistung * 0.278);
+  const weitereKosten = Math.round(gesamtleistung * (weightedQuote("sonstigeKostenquote") / 100));
+  const ebitda = base("ebitda");
+  const cashflow = base("cashflow");
+  const praxiseingaenge = Math.round(pvs * 0.96);
+  const sonstigeEingaenge = Math.round(gesamtleistung * 0.018);
+  const praxiskosten = -Math.round(material + fremdlabor + personal + weitereKosten);
+  const annuitaeten = -Math.round(sites.reduce((sum, site) => sum + site.darlehen.tilgung + site.darlehen.zins, 0) * factor);
+  const umbuchen = -Math.round(gesamtleistung * 0.025);
+  const planMultiplier = 0.976;
+
+  const row = (label: string, actual: number, options?: { indent?: boolean; emphasis?: boolean; percent?: boolean; kind?: "cashflow" }) => {
+    const plan = options?.percent ? actual - 0.7 : Math.round(actual * planMultiplier);
+    return {
+      label,
+      actual,
+      plan,
+      variance: options?.percent ? actual - plan : actual - plan,
+      ...options
+    };
+  };
+
+  return [
+    row("Gesamtleistung gem. BWA", gesamtleistung, { emphasis: true }),
+    row("Gesamtumsatz nach PVS", pvs),
+    row("Honorarumsatz", honorar, { indent: true }),
+    row("Eigenlaborumsatz", eigenlabor, { indent: true }),
+    row("Materialaufwand", -material, { indent: true }),
+    row("Fremdlabor", -fremdlabor, { indent: true }),
+    row("Personalaufwand aggregiert", -personal, { indent: true }),
+    row("Weitere operative Kosten", -weitereKosten, { indent: true }),
+    row("EBITDA", ebitda, { emphasis: true }),
+    row("EBITDA-Marge", gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0, { percent: true }),
+    row("Praxiseingänge", praxiseingaenge, { kind: "cashflow" }),
+    row("Sonstige Eingänge", sonstigeEingaenge, { kind: "cashflow" }),
+    row("Praxiskosten", praxiskosten, { kind: "cashflow", indent: true }),
+    row("Annuitäten", annuitaeten, { kind: "cashflow", indent: true }),
+    row("Umbuchungen MVZ", umbuchen, { kind: "cashflow", indent: true }),
+    row("Netto-Cashflow", cashflow, { emphasis: true, kind: "cashflow" })
+  ];
+}
+
 function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
   return (
     <section className="space-y-5">
@@ -816,6 +1202,7 @@ function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
           </ResponsiveContainer>
         </ChartCard>
       </div>
+      <BwaStatement title={`BWA bis Cashflow ${site.name}`} siteId={site.id} />
       <PlanIst siteName={site.name} />
     </section>
   );
@@ -872,7 +1259,8 @@ function AnalysisTile({ title, value, text }: { title: string; value: string; te
 function Bwa() {
   return (
     <section className="space-y-5">
-      <PageTitle title="BWA" text="Gesamtleistung, Kostenquoten und EBITDA aus Dummy-BWA-Struktur." />
+      <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow, dynamisch nach Jahren und gesamter Periode auswählbar." />
+      <BwaStatement title="Konsolidierte BWA bis Cashflow" />
       <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
         <ChartCard title="Gesamtleistungsentwicklung" icon={FileBarChart}>
           <ResponsiveContainer width="100%" height={300}>

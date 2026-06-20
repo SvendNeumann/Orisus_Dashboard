@@ -223,6 +223,32 @@ export const monthly = [
   { month: "Jun", leistung: 684000, ebitda: 101000, marge: 14.8, cashflow: 51000, plan: 640000 }
 ];
 
+export const ebitdaTakeover = [
+  { name: "Kirchberg", ebitda: 213000, uebernahmeEbitda: 172000 },
+  { name: "Essen", ebitda: 96000, uebernahmeEbitda: 128000 },
+  { name: "Kehl", ebitda: 79000, uebernahmeEbitda: 86000 },
+  { name: "Ulmet", ebitda: 129000, uebernahmeEbitda: 101000 },
+  { name: "Hüttenberg", ebitda: 36000, uebernahmeEbitda: 62000 },
+  { name: "Kassel", ebitda: 0, uebernahmeEbitda: 0 }
+];
+
+export const topBehandlerHonorar = [
+  { name: "Behandler A", standort: "Kirchberg", honorar: 318000 },
+  { name: "Behandler B", standort: "Essen", honorar: 286000 },
+  { name: "Behandler C", standort: "Ulmet", honorar: 241000 },
+  { name: "Behandler D", standort: "Kehl", honorar: 214000 },
+  { name: "Behandler E", standort: "Hüttenberg", honorar: 166000 }
+];
+
+export const receivablesTrend = [
+  { month: "Jan", kirchberg: 132000, essen: 98000, kehl: 0, ulmet: 0, huettenberg: 0 },
+  { month: "Feb", kirchberg: 141000, essen: 113000, kehl: 0, ulmet: 0, huettenberg: 0 },
+  { month: "Mrz", kirchberg: 152000, essen: 124000, kehl: 0, ulmet: 0, huettenberg: 0 },
+  { month: "Apr", kirchberg: 158000, essen: 133000, kehl: 94000, ulmet: 0, huettenberg: 0 },
+  { month: "Mai", kirchberg: 161000, essen: 137000, kehl: 108000, ulmet: 65000, huettenberg: 52000 },
+  { month: "Jun", kirchberg: 168000, essen: 142000, kehl: 121000, ulmet: 76000, huettenberg: 69000 }
+];
+
 export const uploadTypes = [
   "Konsolidierte Orisus-Exportdatei",
   "BWA",
