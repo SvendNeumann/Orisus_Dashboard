@@ -499,12 +499,7 @@ function Cockpit({ setPage }: { setPage: (page: Page) => void }) {
         <Ranking title="Gesamtleistung je Standort" metric="gesamtleistung" />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
-        <CashflowBlock />
-        <ChartCard title="Honorarumsatz vs. Eigenlaborumsatz" icon={PieIcon}>
-          <RevenueSplit />
-        </ChartCard>
-      </div>
+      <CashflowBlock />
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <TrafficLights />
@@ -691,45 +686,6 @@ function ReceivablesChart() {
         <Bar dataKey="huettenberg" name="Hüttenberg" stackId="forderungen" fill="#94a3b8" radius={[5, 5, 0, 0]} />
       </ComposedChart>
     </ResponsiveContainer>
-  );
-}
-
-function RevenueSplit() {
-  const honorar = total("honorar");
-  const eigenlabor = total("eigenlabor");
-  const data = [
-    { name: "Honorar", value: honorar, color: "#0f766e" },
-    { name: "Eigenlabor", value: eigenlabor, color: "#0891b2" }
-  ];
-  return (
-    <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
-      <ResponsiveContainer width="100%" height={220}>
-        <PieChart>
-          <Pie data={data} innerRadius={64} outerRadius={92} paddingAngle={4} dataKey="value">
-            {data.map((entry) => (
-              <Cell key={entry.name} fill={entry.color} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(v) => eur(Number(v))} />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="space-y-3 self-center">
-        {data.map((item) => (
-          <div key={item.name} className="rounded-md bg-slate-50 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2 text-sm font-semibold">
-                <span className="h-3 w-3 rounded-sm" style={{ background: item.color }} />
-                {item.name}
-              </span>
-              <span className="font-bold">{eur(item.value)}</span>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {pct((item.value / (honorar + eigenlabor)) * 100)} Anteil am PVS-Umsatz
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
