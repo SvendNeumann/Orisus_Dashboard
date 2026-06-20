@@ -61,6 +61,7 @@ type Page =
   | "bwa"
   | "cashflow"
   | "darlehen"
+  | "banken"
   | "uploads"
   | "reports";
 
@@ -97,6 +98,7 @@ const desktopNav = [
   { id: "bwa", label: "BWA", icon: FileBarChart },
   { id: "cashflow", label: "Cashflow", icon: Wallet },
   { id: "darlehen", label: "Darlehen & Earn-Out", icon: Landmark },
+  { id: "banken", label: "Bankenreporting", icon: ShieldCheck },
   { id: "uploads", label: "Uploads", icon: FileUp },
   { id: "reports", label: "Reports", icon: FileBarChart }
 ] as const;
@@ -124,6 +126,52 @@ function pct(value: number) {
 
 function total(key: keyof (typeof standorte)[number]) {
   return standorte.reduce((sum, site) => sum + Number(site[key] ?? 0), 0);
+}
+
+function cfoMetrics() {
+  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const gesamtleistung = total("gesamtleistung");
+  const ebitda = total("ebitda");
+  const cashflow = total("cashflow");
+  const kontostand = total("kontostand");
+  const forderungen = total("forderungen");
+  const aufgenommen = standorte.reduce((sum, site) => sum + site.darlehen.darlehen, 0);
+  const restschuld = standorte.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
+  const getilgt = Math.max(0, aufgenommen - restschuld);
+  const zins = standorte.reduce((sum, site) => sum + site.darlehen.zins, 0);
+  const tilgung = standorte.reduce((sum, site) => sum + site.darlehen.tilgung, 0);
+  const kapitaldienst = tilgung + zins;
+  const kostenquote =
+    activeSites.reduce(
+      (sum, site) => sum + site.gesamtleistung * (site.materialquote + site.fremdlaborquote + site.sonstigeKostenquote),
+      0
+    ) / (gesamtleistung || 1);
+  const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0;
+  const runRateEbitda = monthly.length ? (ebitda / monthly.length) * 12 : 0;
+  const kapitaldienstfaehigkeit = kapitaldienst ? ebitda / kapitaldienst : 0;
+  const kritisch = activeSites.filter(
+    (site) => site.status === "red" || site.cashflow < 0 || site.ebitdaMarge < 10 || site.forderungen > site.gesamtleistung * 0.15
+  );
+
+  return {
+    activeSites,
+    gesamtleistung,
+    ebitda,
+    cashflow,
+    kontostand,
+    forderungen,
+    aufgenommen,
+    restschuld,
+    getilgt,
+    zins,
+    tilgung,
+    kapitaldienst,
+    kostenquote,
+    ebitdaMarge,
+    runRateEbitda,
+    kapitaldienstfaehigkeit,
+    kritisch
+  };
 }
 
 export default function HomePage() {
@@ -231,6 +279,7 @@ export default function HomePage() {
           {page === "bwa" && <Bwa />}
           {page === "cashflow" && <Cashflow />}
           {page === "darlehen" && <Darlehen />}
+          {page === "banken" && <Bankenreporting />}
           {page === "uploads" && <Uploads />}
           {page === "reports" && <Reports />}
         </div>
@@ -443,24 +492,11 @@ function TopFilters({
 }
 
 function Cockpit({ setPage }: { setPage: (page: Page) => void }) {
-  const kpis = [
-    { label: "Gesamtleistung gem. BWA", value: total("gesamtleistung"), delta: "+4,2 % ggü. Vorjahr", icon: TrendingUp, status: "green" as Status },
-    { label: "Gesamtumsatz nach PVS", value: total("pvsUmsatz"), delta: "+3,6 % ggü. Vorjahr", icon: BadgeEuro, status: "green" as Status },
-    { label: "EBITDA", value: total("ebitda"), delta: "+21 TEUR ggü. Vorjahr", icon: Banknote, status: "green" as Status },
-    { label: "EBITDA-Marge", value: 13.8, percent: true, delta: "+0,9 PP", icon: Gauge, status: "yellow" as Status },
-    { label: "Offene Forderungen", value: total("forderungen"), delta: "+7,1 % zum Vormonat", icon: FileBarChart, status: "yellow" as Status },
-    { label: "Cashflow", value: total("cashflow"), delta: "+34 TEUR netto", icon: Wallet, status: "green" as Status },
-    { label: "Kontostand konsolidiert", value: total("kontostand"), delta: "Liquidität stabil", icon: CircleDollarSign, status: "green" as Status }
-  ];
-
   return (
     <section className="space-y-5">
-      <PageTitle title="CFO Konzern Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe mit Phase-1-Dummy-Daten." />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {kpis.map((kpi) => (
-          <KpiCard key={kpi.label} {...kpi} />
-        ))}
-      </div>
+      <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Handlungsbedarf." />
+      <DataStatusStrip />
+      <DailyCfoCockpit />
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard title="Ist EBITDA vs. EBITDA bei Übernahme" icon={TrendingUp}>
@@ -479,6 +515,8 @@ function Cockpit({ setPage }: { setPage: (page: Page) => void }) {
           <TopBehandlerChart />
         </ChartCard>
       </div>
+
+      <StandortCfoComparison />
 
       <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
         <ChartCard title="Offene Forderungen je Standort" icon={FileBarChart}>
@@ -502,6 +540,90 @@ function Cockpit({ setPage }: { setPage: (page: Page) => void }) {
         <Insights setPage={setPage} />
       </div>
     </section>
+  );
+}
+
+function DataStatusStrip() {
+  return (
+    <Card className="grid gap-3 p-3 text-sm sm:grid-cols-3">
+      <div>
+        <p className="text-xs font-semibold uppercase text-muted-foreground">Datenstand</p>
+        <p className="font-bold">Juni 2026 | letzter Import 20.06.2026</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase text-muted-foreground">Datenqualität</p>
+        <div className="mt-1"><Badge tone="green">Vollständig</Badge></div>
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase text-muted-foreground">Quelle</p>
+        <p className="font-bold">Konsolidierter Excel-/CSV-Import</p>
+      </div>
+    </Card>
+  );
+}
+
+function DailyCfoCockpit() {
+  const metrics = cfoMetrics();
+  const riskLabel = metrics.kritisch.length ? metrics.kritisch.map((site) => site.name).join(", ") : "Keine roten Standorte";
+  const criticalReceivables = [...metrics.activeSites].sort((a, b) => b.forderungen - a.forderungen).slice(0, 2);
+
+  const kpis = [
+    {
+      label: "Aktuelle Liquidität",
+      value: metrics.kontostand,
+      delta: "Konsolidierter Kontostand",
+      icon: CircleDollarSign,
+      status: metrics.kontostand > 500000 ? "green" : "yellow"
+    },
+    {
+      label: "Free Cashflow",
+      value: metrics.cashflow,
+      delta: "nach Tilgung, Investitionen, Umbuchungen",
+      icon: Wallet,
+      status: metrics.cashflow >= 0 ? "green" : "red"
+    },
+    {
+      label: "EBITDA YTD",
+      value: metrics.ebitda,
+      delta: `${pct(metrics.ebitdaMarge)} Marge | Run-Rate ${eur(metrics.runRateEbitda, true)}`,
+      icon: Banknote,
+      status: metrics.ebitdaMarge >= 12 ? "green" : "yellow"
+    },
+    {
+      label: "Kritische Standorte",
+      value: metrics.kritisch.length,
+      delta: riskLabel,
+      icon: Building2,
+      status: metrics.kritisch.length ? "yellow" : "green"
+    },
+    {
+      label: "Offene Forderungen kritisch",
+      value: metrics.forderungen,
+      delta: criticalReceivables.map((site) => site.name).join(" / "),
+      icon: FileBarChart,
+      status: metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green"
+    },
+    {
+      label: "Fremdkapital",
+      value: metrics.restschuld,
+      delta: `${eur(metrics.aufgenommen, true)} aufgenommen | ${eur(metrics.getilgt, true)} getilgt`,
+      icon: Landmark,
+      status: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow"
+    }
+  ] satisfies Array<{
+    label: string;
+    value: number;
+    delta: string;
+    icon: React.ComponentType<{ className?: string }>;
+    status: Status;
+  }>;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {kpis.map((kpi) => (
+        <KpiCard key={kpi.label} {...kpi} />
+      ))}
+    </div>
   );
 }
 
@@ -604,6 +726,7 @@ function EbitdaTakeoverChart() {
 
 function CostShareDonut() {
   const revenue = total("pvsUmsatz");
+  const metrics = cfoMetrics();
   const data = [
     { name: "Personal", value: Math.round(revenue * 0.278), color: "#0369a1" },
     { name: "Material", value: Math.round(revenue * 0.099), color: "#0f766e" },
@@ -633,6 +756,10 @@ function CostShareDonut() {
             <span className="text-sm font-bold">{pct((item.value / revenue) * 100)}</span>
           </div>
         ))}
+        <div className="grid gap-2 pt-2 sm:grid-cols-2">
+          <Mini label="Gesamtkostenquote" value={pct(metrics.kostenquote)} />
+          <Mini label="EBITDA-Marge" value={pct(metrics.ebitdaMarge)} />
+        </div>
       </div>
     </div>
   );
@@ -650,6 +777,49 @@ function SitePerformanceChart() {
         <Bar dataKey="ebitda" name="EBITDA" fill="#0891b2" radius={[5, 5, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
+  );
+}
+
+function StandortCfoComparison() {
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-border p-4">
+        <h2 className="font-bold">Standortvergleich CFO-Kennzahlen</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Konsolidierte Steuerungssicht je Standort: Ergebnisqualität, Cashflow, Forderungen und Kostenquote.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[980px] border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              {["Standort", "Gesamtleistung", "EBITDA", "EBITDA-Marge", "Cashflow", "Forderungen", "Kostenquote", "Ampel"].map((head) => (
+                <th key={head} className="border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                  {head}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {standorte.filter((site) => site.gesamtleistung > 0).map((site) => {
+              const kostenquote = site.materialquote + site.fremdlaborquote + site.sonstigeKostenquote;
+              return (
+                <tr key={site.id}>
+                  <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
+                  <td className="border-b border-r border-border p-3 text-right font-semibold">{eur(site.gesamtleistung)}</td>
+                  <td className="border-b border-r border-border p-3 text-right font-semibold">{eur(site.ebitda)}</td>
+                  <td className="border-b border-r border-border p-3 text-right font-semibold">{pct(site.ebitdaMarge)}</td>
+                  <td className={cn("border-b border-r border-border p-3 text-right font-semibold", site.cashflow < 0 && "text-red-700")}>{eur(site.cashflow)}</td>
+                  <td className="border-b border-r border-border p-3 text-right font-semibold">{eur(site.forderungen)}</td>
+                  <td className="border-b border-r border-border p-3 text-right font-semibold">{pct(kostenquote)}</td>
+                  <td className="border-b border-r border-border p-3"><StatusDot status={site.status} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
@@ -842,25 +1012,57 @@ function DebtCapitalBlock() {
 }
 
 function TrafficLights() {
+  const metrics = cfoMetrics();
   const rows = [
-    ["EBITDA-Marge Konzern", "13,8 %", "yellow"],
-    ["Cashflow Konzern", eur(total("cashflow")), "green"],
-    ["Offene Forderungen", eur(total("forderungen")), "yellow"],
-    ["Kostenquote", "69,4 %", "yellow"],
-    ["Kontostände", eur(total("kontostand")), "green"],
-    ["Vorjahresabweichung", "+2,4 %", "green"]
-  ] as const;
+    {
+      label: "EBITDA-Marge Konzern",
+      value: pct(metrics.ebitdaMarge),
+      status: metrics.ebitdaMarge >= 15 ? "green" : metrics.ebitdaMarge >= 10 ? "yellow" : "red",
+      rule: "grün ab 15 %, gelb ab 10 %"
+    },
+    {
+      label: "Cashflow Konzern",
+      value: eur(metrics.cashflow),
+      status: metrics.cashflow >= 0 ? "green" : "red",
+      rule: "rot bei negativem Netto-Cashflow"
+    },
+    {
+      label: "Offene Forderungen",
+      value: eur(metrics.forderungen),
+      status: metrics.forderungen <= metrics.gesamtleistung * 0.12 ? "green" : metrics.forderungen <= metrics.gesamtleistung * 0.18 ? "yellow" : "red",
+      rule: "Schwelle relativ zur Gesamtleistung"
+    },
+    {
+      label: "Kostenquote",
+      value: pct(metrics.kostenquote),
+      status: metrics.kostenquote <= 68 ? "green" : metrics.kostenquote <= 74 ? "yellow" : "red",
+      rule: "Material, Fremdlabor und sonstige Kosten"
+    },
+    {
+      label: "Aktuelle Liquidität",
+      value: eur(metrics.kontostand),
+      status: metrics.kontostand >= 500000 ? "green" : metrics.kontostand >= 250000 ? "yellow" : "red",
+      rule: "konsolidierter Kontostand aus Import"
+    },
+    {
+      label: "Kapitaldienstfähigkeit",
+      value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
+      status: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : metrics.kapitaldienstfaehigkeit >= 1 ? "yellow" : "red",
+      rule: "EBITDA / Tilgung plus Zins"
+    }
+  ] satisfies Array<{ label: string; value: string; status: Status; rule: string }>;
   return (
     <Card className="p-4">
       <h2 className="font-bold">Ampel-Center</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {rows.map(([label, value, status]) => (
-          <div key={label} className="rounded-md border border-border p-3">
+        {rows.map((row) => (
+          <div key={row.label} className="rounded-md border border-border p-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold">{label}</p>
-              <StatusDot status={status as Status} />
+              <p className="text-sm font-semibold">{row.label}</p>
+              <StatusDot status={row.status} />
             </div>
-            <p className="mt-2 text-lg font-bold">{value}</p>
+            <p className="mt-2 text-lg font-bold">{row.value}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{row.rule}</p>
           </div>
         ))}
       </div>
@@ -1986,6 +2188,10 @@ function Bwa() {
     <section className="space-y-5">
       <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow, dynamisch nach Jahren und gesamter Periode auswählbar." />
       <BwaStatement title="Konsolidierte BWA bis Cashflow" />
+      <div className="grid gap-5 xl:grid-cols-2">
+        <EbitdaBridge />
+        <CashflowBridge />
+      </div>
       <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
         <ChartCard title="Gesamtleistungsentwicklung" icon={FileBarChart}>
           <ResponsiveContainer width="100%" height={300}>
@@ -2002,6 +2208,85 @@ function Bwa() {
         <CostRatios />
       </div>
     </section>
+  );
+}
+
+function EbitdaBridge() {
+  const metrics = cfoMetrics();
+  const personal = Math.round(metrics.gesamtleistung * 0.278);
+  const material = Math.round(total("pvsUmsatz") * 0.099);
+  const fremdlabor = Math.round(total("pvsUmsatz") * 0.156);
+  const sonstige = Math.max(0, metrics.gesamtleistung - personal - material - fremdlabor - metrics.ebitda);
+  const rows: BridgeRow[] = [
+    { label: "Summe Umsatz", value: metrics.gesamtleistung, tone: "green" },
+    { label: "Personal", value: -personal },
+    { label: "Material", value: -material },
+    { label: "Fremdlabor", value: -fremdlabor },
+    { label: "Sonstige operative Kosten", value: -sonstige },
+    { label: "EBITDA", value: metrics.ebitda, tone: "blue" }
+  ];
+
+  return <BridgeCard title="EBITDA-Brücke" rows={rows} />;
+}
+
+function CashflowBridge() {
+  const metrics = cfoMetrics();
+  const abschreibungen = Math.round(metrics.gesamtleistung * 0.17);
+  const investitionen = -Math.round(metrics.gesamtleistung * 0.035);
+  const umbuchen = -Math.round(metrics.gesamtleistung * 0.025);
+  const sonstigeAdjustments = metrics.cashflow - metrics.ebitda - abschreibungen - investitionen + metrics.tilgung - umbuchen;
+  const rows: BridgeRow[] = [
+    { label: "EBITDA", value: metrics.ebitda, tone: "blue" },
+    { label: "+ Abschreibungen", value: abschreibungen },
+    { label: "Investitionsausgaben", value: investitionen },
+    { label: "Tilgung", value: -metrics.tilgung },
+    { label: "Umbuchung ZMVZ", value: umbuchen },
+    { label: "Sonstige Adjustments", value: sonstigeAdjustments },
+    { label: "CashFlow Gesamt", value: metrics.cashflow, tone: metrics.cashflow >= 0 ? "green" : "red" }
+  ];
+
+  return <BridgeCard title="Cashflow-Brücke" rows={rows} />;
+}
+
+type BridgeRow = { label: string; value: number; tone?: "green" | "blue" | "red" };
+
+function BridgeCard({
+  title,
+  rows
+}: {
+  title: string;
+  rows: BridgeRow[];
+}) {
+  const maxValue = Math.max(...rows.map((row) => Math.abs(row.value)), 1);
+  return (
+    <Card className="p-4">
+      <h2 className="font-bold">{title}</h2>
+      <div className="mt-4 space-y-3">
+        {rows.map((row) => {
+          const width = Math.max(7, (Math.abs(row.value) / maxValue) * 100);
+          return (
+            <div key={row.label}>
+              <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                <span className="font-semibold">{row.label}</span>
+                <span className={cn("font-bold", row.value < 0 && "text-red-700")}>{eur(row.value)}</span>
+              </div>
+              <div className="h-2.5 rounded-full bg-slate-100">
+                <div
+                  className={cn(
+                    "h-2.5 rounded-full",
+                    row.tone === "green" && "bg-emerald-500",
+                    row.tone === "blue" && "bg-cyan-800",
+                    row.tone === "red" && "bg-red-500",
+                    !row.tone && (row.value < 0 ? "bg-red-400" : "bg-slate-400")
+                  )}
+                  style={{ width: `${width}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -2028,12 +2313,118 @@ function Cashflow() {
   );
 }
 
+function Bankenreporting() {
+  const metrics = cfoMetrics();
+  const bankKpis = [
+    { label: "Gesamtleistung YTD", value: eur(metrics.gesamtleistung), detail: "+4,2 % ggü. Vorjahr" },
+    { label: "EBITDA YTD", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} EBITDA-Marge` },
+    { label: "Run-Rate EBITDA", value: eur(metrics.runRateEbitda), detail: "auf Basis aktueller Monate" },
+    { label: "Cashflow", value: eur(metrics.cashflow), detail: "nach Tilgung und Adjustments" },
+    { label: "Aufgenommenes Fremdkapital", value: eur(metrics.aufgenommen), detail: "konsolidiert über Vertragsperioden" },
+    { label: "Restschuld", value: eur(metrics.restschuld), detail: `${eur(metrics.getilgt, true)} bereits getilgt` },
+    { label: "Kapitaldienst", value: eur(metrics.kapitaldienst), detail: `${eur(metrics.tilgung, true)} Tilgung / ${eur(metrics.zins, true)} Zins` },
+    {
+      label: "Kapitaldienstfähigkeit",
+      value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
+      detail: "EBITDA / Kapitaldienst"
+    }
+  ];
+
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Bankenreporting"
+        text="Kompakte Bankenübersicht mit Ergebnisentwicklung, Cashflow, Fremdkapital und Kapitaldienstfähigkeit."
+      />
+      <DataStatusStrip />
+      <Card className="grid gap-px overflow-hidden bg-border md:grid-cols-2 xl:grid-cols-4">
+        {bankKpis.map((kpi) => (
+          <div key={kpi.label} className="bg-white p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">{kpi.label}</p>
+            <p className="mt-2 text-2xl font-bold">{kpi.value}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{kpi.detail}</p>
+          </div>
+        ))}
+      </Card>
+
+      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <ChartCard title="Gesamtleistung & EBITDA Entwicklung" icon={TrendingUp}>
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={monthly}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="month" />
+              <YAxis tickFormatter={(v) => eur(Number(v), true)} />
+              <Tooltip formatter={(v) => eur(Number(v))} />
+              <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
+              <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <Card className="p-4">
+          <h2 className="font-bold">Bankenampel</h2>
+          <div className="mt-4 space-y-3">
+            {[
+              ["EBITDA-Marge", pct(metrics.ebitdaMarge), metrics.ebitdaMarge >= 12 ? "green" : "yellow"],
+              ["Cashflow", eur(metrics.cashflow), metrics.cashflow >= 0 ? "green" : "red"],
+              ["Kapitaldienstfähigkeit", `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow"],
+              ["Restschuld-Entwicklung", `${pct((metrics.getilgt / (metrics.aufgenommen || 1)) * 100)} getilgt`, "yellow"]
+            ].map(([label, value, status]) => (
+              <div key={label} className="flex items-center justify-between rounded-md bg-slate-50 p-3">
+                <div>
+                  <p className="font-semibold">{label}</p>
+                  <p className="text-sm text-muted-foreground">{value}</p>
+                </div>
+                <StatusDot status={status as Status} />
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="border-b border-border p-4">
+          <h2 className="font-bold">Standortbeitrag für Bankenreporting</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[980px] border-separate border-spacing-0 text-sm">
+            <thead>
+              <tr>
+                {["Standort", "Gesamtleistung", "EBITDA", "Marge", "Cashflow", "Restschuld", "Tilgung", "Zins"].map((head) => (
+                  <th key={head} className="border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                    {head}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {standorte.map((site) => (
+                <tr key={site.id}>
+                  <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.gesamtleistung)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.ebitda)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{pct(site.ebitdaMarge)}</td>
+                  <td className={cn("border-b border-r border-border p-3 text-right", site.cashflow < 0 && "text-red-700")}>{eur(site.cashflow)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.restschuld)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.tilgung)}</td>
+                  <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.zins)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </section>
+  );
+}
+
 function Darlehen() {
   const restschuld = standorte.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
   const earnOut = standorte.reduce((sum, site) => sum + site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt, 0);
   return (
     <section className="space-y-5">
       <PageTitle title="Darlehen & Earn-Out" text="Kaufpreise, Restschulden, Zins, Tilgung und Earn-Out-Fortschritt je Standort." />
+      <DebtCapitalBlock />
+      <EarnOutSummary />
       <div className="grid gap-4 lg:grid-cols-3">
         <KpiCard label="Gesamte Restschuld" value={restschuld} delta="Konsolidiert" icon={Landmark} status="yellow" />
         <KpiCard label="Earn-Out offen" value={earnOut} delta="Verpflichtungen offen" icon={BadgeEuro} status="yellow" />
@@ -2071,15 +2462,55 @@ function Darlehen() {
   );
 }
 
+function EarnOutSummary() {
+  const totalPotential = standorte.reduce((sum, site) => sum + site.darlehen.earnOutGesamt, 0);
+  const paid = standorte.reduce((sum, site) => sum + site.darlehen.earnOutGezahlt, 0);
+  const open = totalPotential - paid;
+  const likely = standorte.reduce((sum, site) => {
+    const achievement = site.darlehen.zielEbitda ? site.darlehen.istEbitda / site.darlehen.zielEbitda : 0;
+    return sum + Math.max(0, site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt) * Math.min(1, achievement);
+  }, 0);
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="font-bold">Earn-Out konsolidiert</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Gesamtpotenzial, bereits gezahlt, offen und voraussichtlich fällig.</p>
+        </div>
+        <Badge tone={open > totalPotential * 0.5 ? "yellow" : "green"}>{pct((paid / (totalPotential || 1)) * 100)} gezahlt</Badge>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <Mini label="Earn-Out Potenzial" value={eur(totalPotential)} />
+        <Mini label="Bereits gezahlt" value={eur(paid)} />
+        <Mini label="Offen" value={eur(open)} />
+        <Mini label="Voraussichtlich fällig" value={eur(likely)} />
+      </div>
+    </Card>
+  );
+}
+
 function Uploads() {
-  const checks = ["Datei erkannt", "Zeitraum erkannt", "Standorte erkannt", "Pflichtfelder vorhanden", "Keine Dubletten", "Keine Leerwerte", "Summen plausibel"];
+  const checks = [
+    "Datei erkannt",
+    "Zeitraum erkannt",
+    "Standorte erkannt",
+    "Pflichtfelder vorhanden",
+    "Keine Dubletten",
+    "Keine Leerwerte",
+    "BWA-Summen plausibel",
+    "Cashflow-Adjustments plausibel",
+    "Darlehensdaten vollständig",
+    "Forderungen je Standort vorhanden"
+  ];
   return (
     <section className="space-y-5">
-      <PageTitle title="Uploads" text="UI-Prototyp für die spätere konsolidierte Orisus-Power-Query-Exportdatei." />
-      <Card className="p-4">
-        <p className="text-sm leading-6 text-muted-foreground">
-          Der echte Import wird in Phase 2 umgesetzt. Die spätere Datenbasis ist eine konsolidierte Power-Query-Exportdatei aus dem Orisus-Controlling.
-        </p>
+      <PageTitle title="Uploads & Datenstand" text="Zentraler Excel-/CSV-Import mit Pflichtfeld-, Zeitraum-, Standort- und Plausibilitätsprüfung." />
+      <DataStatusStrip />
+      <Card className="grid gap-3 p-4 md:grid-cols-3">
+        <Mini label="Aktueller Importmonat" value="Juni 2026" />
+        <Mini label="Letzte Datei" value="orisus_konsolidiert_2026_06.xlsx" />
+        <Mini label="Datenqualitäts-Ampel" value="Vollständig" />
       </Card>
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="p-4">
@@ -2116,6 +2547,30 @@ function Uploads() {
           <Button className="mt-4 w-full">Import bestätigen</Button>
         </Card>
       </div>
+      <Card className="overflow-hidden">
+        <div className="border-b border-border p-4">
+          <h2 className="font-bold">Importbericht</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Vorschau, welche Daten nach dem Upload übernommen würden.</p>
+        </div>
+        <div className="grid gap-px bg-border md:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Zeitraum", "01.01.2026 bis 30.06.2026"],
+            ["Standorte", "Kirchberg, Essen, Kehl, Ulmet, Hüttenberg"],
+            ["Datenbereiche", "BWA, Cashflow, Forderungen, Darlehen, Earn-Out"],
+            ["Status", "Import freigabefähig"]
+          ].map(([label, value]) => (
+            <div key={label} className="bg-white p-4">
+              <p className="text-xs font-bold uppercase text-muted-foreground">{label}</p>
+              <p className="mt-2 font-bold">{value}</p>
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-3 p-4 md:grid-cols-3">
+          <div className="rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">10 Prüfungen erfolgreich</div>
+          <div className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">1 Warnung: Kassel ohne Ist-Werte</div>
+          <div className="rounded-md bg-slate-50 p-3 text-sm font-semibold text-slate-700">0 blockierende Fehler</div>
+        </div>
+      </Card>
     </section>
   );
 }
