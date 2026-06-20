@@ -617,8 +617,7 @@ function CostShareDonut() {
     { name: "Personal", value: Math.round(revenue * 0.278), color: "#0369a1" },
     { name: "Material", value: Math.round(revenue * 0.099), color: "#0f766e" },
     { name: "Fremdlabor", value: Math.round(revenue * 0.156), color: "#0891b2" },
-    { name: "Weitere operative Kosten", value: Math.round(revenue * 0.161), color: "#64748b" },
-    { name: "EBITDA", value: total("ebitda"), color: "#16a34a" }
+    { name: "Weitere operative Kosten", value: Math.round(revenue * 0.161), color: "#64748b" }
   ];
 
   return (
