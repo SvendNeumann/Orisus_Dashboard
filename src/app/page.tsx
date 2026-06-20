@@ -2657,9 +2657,8 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                     className={cn(
                       "sticky left-0 z-10 table-label-col border-b border-r border-border bg-white p-2 font-semibold",
                       row.indent && "pl-6 font-medium text-muted-foreground",
-                      row.section && "table-section font-bold text-foreground",
+                      row.section && "table-total font-bold text-foreground",
                       row.percent && "text-xs",
-                      row.percent && "table-ratio",
                       row.emphasis && "table-total text-foreground",
                       row.kind === "cashflow" && "table-cashflow"
                     )}
@@ -2673,8 +2672,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                         "table-small-number-col border-b border-r border-border bg-white p-2 text-right tabular-nums",
                         row.percent && "text-xs",
                         row.percent && "table-ratio",
-                        row.section && "table-section font-bold text-foreground",
-                        row.emphasis && "table-total font-bold text-foreground",
+                        row.emphasis && !row.section && "table-total font-bold text-foreground",
                         row.kind === "cashflow" && "table-cashflow",
                         valueToneClass(value, isVarianceRow(row.label))
                       )}
@@ -2682,16 +2680,16 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                       {row.section ? "" : formatBwaCell(value, row.percent)}
                     </td>
                   ))}
-                  <td className={cn("table-number-col border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(totalValue, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total text-foreground", row.kind === "cashflow" && "table-cashflow", valueToneClass(totalValue, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(totalValue, row.percent)}
                   </td>
-                  <td className={cn("table-number-col border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(row.previousYear, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total font-bold text-foreground", row.kind === "cashflow" && "table-cashflow", valueToneClass(row.previousYear, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(row.previousYear ?? null, row.percent)}
                   </td>
-                  <td className={cn("table-number-col border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(average, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total font-bold text-foreground", row.kind === "cashflow" && "table-cashflow", valueToneClass(average, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(average, row.percent)}
                   </td>
-                  <td className={cn("table-number-col border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(row.contract, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total text-foreground", row.kind === "cashflow" && "table-cashflow", valueToneClass(row.contract, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(row.contract, row.percent)}
                   </td>
                 </tr>
