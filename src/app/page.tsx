@@ -2389,7 +2389,8 @@ function FragmentCells({
         className={cn(
           "border-b border-r border-border bg-white p-2 text-right font-semibold tabular-nums",
           row.percent && "text-xs",
-          row.actual < 0 && "text-red-700",
+          row.percent && "table-ratio",
+          valueToneClass(row.actual, isVarianceRow(row.label)),
           row.emphasis && "table-total text-foreground",
           row.kind === "cashflow" && "table-cashflow"
         )}
@@ -2400,6 +2401,7 @@ function FragmentCells({
         className={cn(
           "border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums",
           row.percent && "text-xs",
+          row.percent && "table-ratio",
           row.emphasis && "table-total font-bold text-foreground",
           row.kind === "cashflow" && "table-cashflow"
         )}
@@ -2640,6 +2642,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                       row.indent && "pl-6 font-medium text-muted-foreground",
                       row.section && "table-section font-bold text-foreground",
                       row.percent && "text-xs",
+                      row.percent && "table-ratio",
                       row.emphasis && "table-total text-foreground",
                       row.kind === "cashflow" && "table-cashflow"
                     )}
@@ -2652,25 +2655,26 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                       className={cn(
                         "border-b border-r border-border bg-white p-2 text-right tabular-nums",
                         row.percent && "text-xs",
+                        row.percent && "table-ratio",
                         row.section && "table-section font-bold text-foreground",
                         row.emphasis && "table-total font-bold text-foreground",
                         row.kind === "cashflow" && "table-cashflow",
-                        Number(value) < 0 && "text-red-700"
+                        valueToneClass(value, isVarianceRow(row.label))
                       )}
                     >
                       {row.section ? "" : formatBwaCell(value, row.percent)}
                     </td>
                   ))}
-                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs", totalValue < 0 && "text-red-700")}>
+                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(totalValue, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(totalValue, row.percent)}
                   </td>
-                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs", Number(row.previousYear) < 0 && "text-red-700")}>
+                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(row.previousYear, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(row.previousYear ?? null, row.percent)}
                   </td>
-                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs")}>
+                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(average, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(average, row.percent)}
                   </td>
-                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs", row.contract < 0 && "text-red-700")}>
+                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(row.contract, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(row.contract, row.percent)}
                   </td>
                 </tr>
@@ -2850,6 +2854,16 @@ function calculateImportedMonthlyQuote(importedRows: ImportedBwaRow[], siteId: s
 function formatBwaCell(value: number | null, percent?: boolean) {
   if (value === null) return "";
   return percent ? pct(value) : eur(value);
+}
+
+function isVarianceRow(label: string) {
+  const normalized = label.toLowerCase();
+  return normalized.includes("abw.") || normalized.includes("abweichung") || normalized.includes("delta") || normalized.includes("Δ");
+}
+
+function valueToneClass(value: number | null | undefined, active = true) {
+  if (!active || value == null || value === 0) return "";
+  return value > 0 ? "text-emerald-700" : "text-red-700";
 }
 
 function StandortDetail({ site, importedData }: { site: DashboardSite; importedData?: ImportedDashboardData | null }) {

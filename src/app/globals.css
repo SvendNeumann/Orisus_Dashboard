@@ -74,6 +74,10 @@ select {
   background: #f6fafb;
 }
 
+.table-ratio {
+  background: #edf8f8;
+}
+
 .table-grid-bg {
   background: hsl(var(--border));
 }
