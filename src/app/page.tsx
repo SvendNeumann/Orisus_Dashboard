@@ -88,12 +88,12 @@ const periodOptions = [
 
 const comparisonOptions = ["Ist", "Vorjahr", "Abweichung in EUR", "Abweichung in %"];
 
-const bwaPeriodOptions = ["Geschäftsjahr 2024", "Geschäftsjahr 2025", "Geschäftsjahr 2026", "Gesamte Periode"];
+const bwaPeriodOptions = ["Geschäftsjahr 2024", "YTD 2024 bis Dez", "Geschäftsjahr 2025", "YTD 2025 bis Dez", "Geschäftsjahr 2026", "YTD 2026 bis Apr", "Gesamte Periode"];
 
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-target-ebitda-v1";
+const importDashboardSchemaVersion = "2026-06-21-bwa-ytd-targets-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -455,10 +455,24 @@ function derivedBwaValue(rows: Record<string, unknown>[], siteName: string, key:
   return 0;
 }
 
+function hasActiveBwaMonth(rows: Record<string, unknown>[], siteName: string, year: number | undefined, month: number) {
+  if (!year) return false;
+  return rows.some(
+    (row) =>
+      asText(row.Standortname) === siteName &&
+      rowDomain(row) === "bwa" &&
+      (rowYear(row) ?? 0) === year &&
+      (rowMonth(row) ?? 0) === month &&
+      metricMatches(rowMetric(row), ["gesamtleistung", "ebitda"]) &&
+      Math.abs(asNumber(row.Wert) ?? 0) > 0
+  );
+}
+
 function targetEbitdaValue(rows: Record<string, unknown>[], siteName: string, mode: "kv" | "uebernahme", year?: number, month?: number) {
   const monthlyMetric = mode === "kv" ? "ziel_ebitda_kv" : "ziel_ebitda_ubernahme";
   const annualMetric = mode === "kv" ? "ziel_ebitda_kaufvertrag_p_a" : "ziel_ebitda_ubernahme_p_a";
   const targetRows = rows.filter((row) => asText(row.Standortname) === siteName);
+  if (month && !hasActiveBwaMonth(rows, siteName, year, month)) return 0;
   const monthlyTarget = sumMetricForPeriod(targetRows, siteName, [monthlyMetric], year, month);
   if (monthlyTarget) return monthlyTarget;
 
@@ -468,12 +482,9 @@ function targetEbitdaValue(rows: Record<string, unknown>[], siteName: string, mo
   if (!year) return annualTarget;
 
   const activeMonths = new Set(
-    targetRows
-      .filter((row) => rowDomain(row) === "bwa" && (rowYear(row) ?? 0) === year && asText(row.Standortname) === siteName)
-      .map(rowMonth)
-      .filter((value): value is number => Boolean(value && value >= 1 && value <= 12))
+    Array.from({ length: 12 }, (_, index) => index + 1).filter((activeMonth) => hasActiveBwaMonth(rows, siteName, year, activeMonth))
   );
-  return annualTarget * ((activeMonths.size || 12) / 12);
+  return activeMonths.size ? annualTarget * (activeMonths.size / 12) : 0;
 }
 
 function definitionDerivedKey(definition: (typeof bwaMetricDefinitions)[number]) {
@@ -504,7 +515,7 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
       const hasDataByYear = Object.fromEntries(
         validYears.map((year) => [
           String(year),
-          bwaRows.some((row) => asText(row.Standortname) === siteName && (rowYear(row) ?? 0) === year)
+          Array.from({ length: 12 }, (_, index) => index + 1).some((month) => hasActiveBwaMonth(importRows, siteName, year, month))
         ])
       );
       const valuesByYear = Object.fromEntries(
@@ -522,15 +533,7 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
         validYears.flatMap((year) =>
           Array.from({ length: 12 }, (_, index) => {
             const month = index + 1;
-            return [
-              `${year}-${month}`,
-              bwaRows.some(
-                (row) =>
-                  asText(row.Standortname) === siteName &&
-                  (rowYear(row) ?? 0) === year &&
-                  (rowMonth(row) ?? 0) === month
-              )
-            ];
+            return [`${year}-${month}`, hasActiveBwaMonth(importRows, siteName, year, month)];
           })
         )
       );
@@ -2103,10 +2106,27 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
+function bwaPeriodOptionsFor(importedData?: ImportedDashboardData | null) {
+  if (!importedData?.bwaRows?.length) return bwaPeriodOptions;
+  const years = importedData.report.jahre.filter((year) => year >= 1900);
+  const options = years.flatMap((year) => {
+    const activeMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+      importedData.bwaRows.some((row) => row.hasDataByMonth[`${year}-${month}`])
+    );
+    const latestMonth = activeMonths.at(-1);
+    return [
+      `Geschäftsjahr ${year}`,
+      ...(latestMonth ? Array.from({ length: latestMonth }, (_, index) => `YTD ${year} bis ${bwaMonths[index]}`) : [])
+    ];
+  });
+  return [...options, "Gesamte Periode"];
+}
+
 function BwaStatement({ title, siteId, importedData }: { title: string; siteId?: string; importedData?: ImportedDashboardData | null }) {
   const [period, setPeriod] = useState("Geschäftsjahr 2026");
+  const availablePeriods = bwaPeriodOptionsFor(importedData);
   if (!siteId) {
-    return <ConsolidatedBwaMatrix title={title} period={period} setPeriod={setPeriod} importedData={importedData} />;
+    return <ConsolidatedBwaMatrix title={title} period={period} setPeriod={setPeriod} importedData={importedData} availablePeriods={availablePeriods} />;
   }
 
   const rows = importedData?.bwaRows?.length ? buildImportedBwaLines(importedData.bwaRows, period, siteId) : buildBwaRows(period, siteId);
@@ -2122,7 +2142,7 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
           </p>
         </div>
         <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
-          {bwaPeriodOptions.map((option) => (
+          {availablePeriods.map((option) => (
             <option key={option}>{option}</option>
           ))}
         </Select>
@@ -2161,12 +2181,14 @@ function ConsolidatedBwaMatrix({
   title,
   period,
   setPeriod,
-  importedData
+  importedData,
+  availablePeriods
 }: {
   title: string;
   period: string;
   setPeriod: (value: string) => void;
   importedData?: ImportedDashboardData | null;
+  availablePeriods: string[];
 }) {
   const sourceSites = importedData?.sites ?? standorte;
   const groups = importedData?.bwaRows?.length
@@ -2200,7 +2222,7 @@ function ConsolidatedBwaMatrix({
           </p>
         </div>
         <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
-          {bwaPeriodOptions.map((option) => (
+          {availablePeriods.map((option) => (
             <option key={option}>{option}</option>
           ))}
         </Select>
@@ -2338,30 +2360,43 @@ function FragmentCells({
 }
 
 function hasImportedBwaPeriodData(importedRows: ImportedBwaRow[], period: string, siteId: string) {
-  const year = selectedBwaYear(period);
+  const selection = selectedBwaPeriod(period);
   const rows = importedRows.filter((row) => row.siteId === siteId);
-  if (!year) return rows.some((row) => row.contractValue !== 0 || Object.values(row.hasDataByYear).some(Boolean));
-  return rows.some((row) => row.hasDataByYear[year]);
+  if (!selection.year) return rows.some((row) => row.contractValue !== 0 || Object.values(row.hasDataByYear).some(Boolean));
+  if (selection.months?.length) return rows.some((row) => selection.months?.some((month) => row.hasDataByMonth[`${selection.year}-${month}`]));
+  return rows.some((row) => row.hasDataByYear[String(selection.year)]);
 }
 
-function selectedBwaYear(period: string) {
+function selectedBwaPeriod(period: string) {
   const match = period.match(/20\d{2}/);
-  return match ? match[0] : null;
+  const year = match ? Number(match[0]) : null;
+  if (!year) return { year: null, months: null };
+  const ytdMatch = period.match(/bis\s+([A-Za-zÄÖÜäöü]+)/);
+  if (ytdMatch) {
+    const monthIndex = bwaMonths.findIndex((month) => month.toLowerCase() === ytdMatch[1].toLowerCase());
+    if (monthIndex >= 0) {
+      return { year, months: Array.from({ length: monthIndex + 1 }, (_, index) => index + 1) };
+    }
+  }
+  return { year, months: null };
 }
 
 function buildImportedBwaLines(importedRows: ImportedBwaRow[], period: string, siteId?: string): BwaLine[] {
-  const year = selectedBwaYear(period);
+  const selection = selectedBwaPeriod(period);
   const siteIds = siteId ? [siteId] : Array.from(new Set(importedRows.map((row) => row.siteId)));
   return bwaMetricDefinitions.map((definition) => {
     const sourceRows = importedRows.filter((row) => row.metricKey === definition.key && (!siteId || row.siteId === siteId));
     const isPercent = definitionFlag(definition, "percent");
     const isEmphasis = definitionFlag(definition, "emphasis");
     const quoteActual = isPercent
-      ? calculateImportedQuote(importedRows, siteIds, definition.key, year ?? undefined)
+      ? calculateImportedQuote(importedRows, siteIds, definition.key, selection)
       : 0;
     const actual = sourceRows.reduce((sum, row) => {
       if (definition.key.startsWith("section_")) return 0;
-      if (year) return sum + (row.valuesByYear[year] ?? 0);
+      if (selection.year && selection.months?.length) {
+        return sum + selection.months.reduce((monthSum, month) => monthSum + (row.valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
+      }
+      if (selection.year) return sum + (row.valuesByYear[String(selection.year)] ?? 0);
       return sum + (isPercent ? 0 : row.contractValue);
     }, 0);
     return {
@@ -2375,11 +2410,17 @@ function buildImportedBwaLines(importedRows: ImportedBwaRow[], period: string, s
   });
 }
 
-function calculateImportedQuote(importedRows: ImportedBwaRow[], siteIds: string[], key: string, year?: string) {
+function calculateImportedQuote(importedRows: ImportedBwaRow[], siteIds: string[], key: string, selection = { year: null as number | null, months: null as number[] | null }) {
   const value = (metricKey: string) =>
     importedRows
       .filter((row) => siteIds.includes(row.siteId) && row.metricKey === metricKey)
-      .reduce((sum, row) => sum + (year ? row.valuesByYear[year] ?? 0 : row.contractValue), 0);
+      .reduce((sum, row) => {
+        if (selection.year && selection.months?.length) {
+          return sum + selection.months.reduce((monthSum, month) => monthSum + (row.valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
+        }
+        if (selection.year) return sum + (row.valuesByYear[String(selection.year)] ?? 0);
+        return sum + row.contractValue;
+      }, 0);
   const performance = value("summe_umsatz");
   if (key === "gesamtleistungsquote") return performance ? 100 : 0;
   if (key === "praxisleistungsquote") return ratio(value("gesamtleistung_abzueglich_fremdlabor_material"), performance);
