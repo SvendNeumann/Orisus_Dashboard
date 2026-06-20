@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -85,6 +85,8 @@ const periodOptions = [
 const comparisonOptions = ["Ist", "Vorjahr", "Abweichung in EUR", "Abweichung in %"];
 
 const bwaPeriodOptions = ["Geschäftsjahr 2024", "Geschäftsjahr 2025", "Geschäftsjahr 2026", "Gesamte Periode"];
+
+const authStorageKey = "orisus-cfo-authenticated";
 
 const statusMap: Record<Status, { label: string; dot: string; tone: "green" | "yellow" | "red" }> = {
   green: { label: "Stabil", dot: "bg-emerald-500", tone: "green" },
@@ -192,8 +194,21 @@ export default function HomePage() {
     [selectedSite]
   );
 
+  useEffect(() => {
+    if (window.localStorage.getItem(authStorageKey) === "true") {
+      setAuthStep("app");
+    }
+  }, []);
+
+  const setPersistentAuthStep = (step: AuthStep) => {
+    if (step === "app") {
+      window.localStorage.setItem(authStorageKey, "true");
+    }
+    setAuthStep(step);
+  };
+
   if (authStep !== "app") {
-    return <AuthFlow step={authStep} setStep={setAuthStep} pin={pin} setPin={setPin} />;
+    return <AuthFlow step={authStep} setStep={setPersistentAuthStep} pin={pin} setPin={setPin} />;
   }
 
   const go = (target: Page) => {
