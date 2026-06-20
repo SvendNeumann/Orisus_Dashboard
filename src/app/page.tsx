@@ -488,6 +488,8 @@ function Cockpit({ setPage }: { setPage: (page: Page) => void }) {
         <AccountsBlock />
       </div>
 
+      <DebtCapitalBlock />
+
       <div className="grid gap-5 xl:grid-cols-3">
         <CostRatios />
         <Ranking title="EBITDA je Standort" metric="ebitda" />
@@ -816,6 +818,70 @@ function AccountsBlock() {
             <span className="font-bold">{eur(site.kontostand)}</span>
           </div>
         ))}
+      </div>
+    </Card>
+  );
+}
+
+function DebtCapitalBlock() {
+  const aufgenommen = standorte.reduce((sum, site) => sum + site.darlehen.darlehen, 0);
+  const rest = standorte.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
+  const getilgt = Math.max(0, aufgenommen - rest);
+  const tilgungsquote = aufgenommen ? (getilgt / aufgenommen) * 100 : 0;
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="font-bold">Fremdkapital & Tilgung</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Aufgenommenes Fremdkapital, bereits getilgter Anteil und verbleibende Restschuld.
+          </p>
+        </div>
+        <Badge tone={tilgungsquote >= 20 ? "green" : "yellow"}>{pct(tilgungsquote)} getilgt</Badge>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <Mini label="Aufgenommenes Fremdkapital" value={eur(aufgenommen)} />
+        <Mini label="Bereits getilgt" value={eur(getilgt)} />
+        <Mini label="Rest-Fremdkapital" value={eur(rest)} />
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-md border border-border">
+        <div className="flex h-4 bg-slate-100">
+          <div className="bg-emerald-500" style={{ width: `${tilgungsquote}%` }} />
+          <div className="bg-cyan-800" style={{ width: `${100 - tilgungsquote}%` }} />
+        </div>
+        <div className="grid gap-0 divide-y divide-border md:grid-cols-2 md:divide-x md:divide-y-0">
+          <div className="p-3 text-sm">
+            <span className="inline-flex h-3 w-3 rounded-sm bg-emerald-500" />{" "}
+            <span className="font-semibold">Getilgt:</span> {eur(getilgt)}
+          </div>
+          <div className="p-3 text-sm">
+            <span className="inline-flex h-3 w-3 rounded-sm bg-cyan-800" />{" "}
+            <span className="font-semibold">Rest:</span> {eur(rest)}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {standorte.map((site) => {
+          const siteGetilgt = Math.max(0, site.darlehen.darlehen - site.darlehen.restschuld);
+          const siteQuote = site.darlehen.darlehen ? (siteGetilgt / site.darlehen.darlehen) * 100 : 0;
+          return (
+            <div key={site.id} className="rounded-md bg-slate-50 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold">{site.name}</span>
+                <span className="text-sm font-bold text-muted-foreground">{pct(siteQuote)}</span>
+              </div>
+              <Progress value={siteQuote} tone={siteQuote >= 20 ? "green" : "yellow"} />
+              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                <span>Getilgt {eur(siteGetilgt, true)}</span>
+                <span>Rest {eur(site.darlehen.restschuld, true)}</span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </Card>
   );
