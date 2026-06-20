@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import {
   Area,
   AreaChart,
@@ -88,6 +89,70 @@ const comparisonOptions = ["Ist", "Vorjahr", "Abweichung in EUR", "Abweichung in
 const bwaPeriodOptions = ["Geschäftsjahr 2024", "Geschäftsjahr 2025", "Geschäftsjahr 2026", "Gesamte Periode"];
 
 const authStorageKey = "orisus-cfo-authenticated";
+const importStorageKey = "orisus-cfo-import-report";
+
+type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
+
+type ImportReport = {
+  status: ImportStatus;
+  fileName: string;
+  importedAt: string;
+  totalRows: number;
+  usableRows: number;
+  excludedPlanRows: number;
+  sheetCount: number;
+  missingSheets: string[];
+  presentSheets: string[];
+  standorte: string[];
+  jahre: number[];
+  monate: number[];
+  datenbereiche: string[];
+  werttypen: string[];
+  warnings: string[];
+  errors: string[];
+};
+
+const emptyImportReport: ImportReport = {
+  status: "idle",
+  fileName: "",
+  importedAt: "",
+  totalRows: 0,
+  usableRows: 0,
+  excludedPlanRows: 0,
+  sheetCount: 0,
+  missingSheets: [],
+  presentSheets: [],
+  standorte: [],
+  jahre: [],
+  monate: [],
+  datenbereiche: [],
+  werttypen: [],
+  warnings: [],
+  errors: []
+};
+
+const requiredImportSheets = [
+  "Konzern_Konsolidierung_STD",
+  "Konzern_Konsolidierung",
+  "Konzern_Standard_Mapping",
+  "Konzern_Konsolidierung_QS",
+  "Performance_Audit",
+  "Kontostand_Audit"
+];
+
+const requiredConsolidationColumns = [
+  "Standort_ID",
+  "Standortname",
+  "Gesellschaft",
+  "Datenbereich",
+  "Kategorie",
+  "Kennzahl",
+  "Jahr",
+  "Monat",
+  "Wert",
+  "Einheit",
+  "Werttyp"
+];
 
 const statusMap: Record<Status, { label: string; dot: string; tone: "green" | "yellow" | "red" }> = {
   green: { label: "Stabil", dot: "bg-emerald-500", tone: "green" },
@@ -142,6 +207,121 @@ function pct(value: number) {
 
 function total(key: keyof (typeof standorte)[number]) {
   return standorte.reduce((sum, site) => sum + Number(site[key] ?? 0), 0);
+}
+
+function asText(value: unknown) {
+  return value == null ? "" : String(value).trim();
+}
+
+function asNumber(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const text = asText(value).replace(/\./g, "").replace(",", ".");
+  if (!text) return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function uniqueSortedText(values: unknown[], fallback: string[] = []) {
+  const normalized = values.map(asText).filter(Boolean);
+  const result = Array.from(new Set(normalized)).sort((a, b) => a.localeCompare(b, "de"));
+  return result.length ? result : fallback;
+}
+
+function uniqueSortedNumbers(values: unknown[]) {
+  return Array.from(
+    new Set(
+      values
+        .map(asNumber)
+        .filter((value): value is number => value != null)
+        .map((value) => Math.trunc(value))
+    )
+  ).sort((a, b) => a - b);
+}
+
+function isAllowedTargetValue(row: Record<string, unknown>) {
+  const text = `${asText(row.Kennzahl)} ${asText(row.Detailbezeichnung)} ${asText(row.Kategorie)}`.toLowerCase();
+  const relatesToEbitdaTarget =
+    text.includes("ebitda") &&
+    ["ziel", "soll", "kaufvertrag", "übernahme", "uebernahme"].some((term) => text.includes(term));
+  return relatesToEbitdaTarget || text.includes("earn-out");
+}
+
+function isExcludedPlanRow(row: Record<string, unknown>) {
+  const valueType = asText(row.Werttyp).toLowerCase();
+  return valueType.includes("plan") && !isAllowedTargetValue(row);
+}
+
+function buildImportReport(workbook: XLSX.WorkBook, fileName: string): ImportReport {
+  const sheetNames = workbook.SheetNames;
+  const presentSheets = requiredImportSheets.filter((sheet) => sheetNames.includes(sheet));
+  const missingSheets = requiredImportSheets.filter((sheet) => !sheetNames.includes(sheet));
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  const sourceSheet = workbook.Sheets.Konzern_Konsolidierung_STD;
+  if (!sourceSheet) {
+    errors.push("Das Pflichtblatt Konzern_Konsolidierung_STD fehlt. Ohne dieses Blatt kann die App die Excel-Datei nicht importieren.");
+    return {
+      ...emptyImportReport,
+      status: "error",
+      fileName,
+      importedAt: new Date().toISOString(),
+      sheetCount: sheetNames.length,
+      missingSheets,
+      presentSheets,
+      errors
+    };
+  }
+
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sourceSheet, {
+    defval: null,
+    raw: true
+  });
+  const headerRows = XLSX.utils.sheet_to_json<unknown[]>(sourceSheet, {
+    header: 1,
+    blankrows: false,
+    defval: null
+  });
+  const headers = (headerRows[0] ?? []).map(asText);
+  const missingColumns = requiredConsolidationColumns.filter((column) => !headers.includes(column));
+  const usableRows = rows.filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
+  const excludedPlanRows = rows.filter(isExcludedPlanRow).length;
+
+  if (!rows.length) errors.push("Konzern_Konsolidierung_STD enthält keine Datenzeilen.");
+  if (missingColumns.length) errors.push(`In Konzern_Konsolidierung_STD fehlen Spalten: ${missingColumns.join(", ")}.`);
+  if (missingSheets.length) warnings.push(`Nicht alle ergänzenden Prüfblätter wurden gefunden: ${missingSheets.join(", ")}.`);
+  if (!usableRows.some((row) => asText(row.Datenbereich).toLowerCase().includes("bwa"))) warnings.push("Es wurden keine BWA-Daten im Konsolidierungsblatt erkannt.");
+  if (!usableRows.some((row) => asText(row.Datenbereich).toLowerCase().includes("finanzen"))) warnings.push("Es wurden keine Finanzdaten im Konsolidierungsblatt erkannt.");
+  if (excludedPlanRows > 0) warnings.push(`${excludedPlanRows.toLocaleString("de-DE")} klassische Planwert-Zeilen wurden erkannt und vom App-Import ausgeschlossen.`);
+
+  const standorteList = uniqueSortedText(usableRows.map((row) => row.Standortname)).filter((site) => site.toLowerCase() !== "konzern");
+  const jahre = uniqueSortedNumbers(usableRows.map((row) => row.Jahr));
+  const monate = uniqueSortedNumbers(usableRows.map((row) => row.Monat)).filter((month) => month >= 1 && month <= 12);
+  const datenbereiche = uniqueSortedText(usableRows.map((row) => row.Standard_Datenbereich || row.Datenbereich));
+  const werttypen = uniqueSortedText(usableRows.map((row) => row.Standard_Werttyp || row.Werttyp));
+
+  if (!standorteList.length) errors.push("Es wurden keine Standorte erkannt.");
+  if (!jahre.length) warnings.push("Es wurden keine Jahre erkannt. Monats- und Jahresfilter koennen dadurch nicht sauber arbeiten.");
+  if (!monate.length) warnings.push("Es wurden keine Monatswerte erkannt.");
+
+  return {
+    status: errors.length ? "error" : warnings.length ? "warning" : "ready",
+    fileName,
+    importedAt: new Date().toISOString(),
+    totalRows: rows.length,
+    usableRows: usableRows.length,
+    excludedPlanRows,
+    sheetCount: sheetNames.length,
+    missingSheets,
+    presentSheets,
+    standorte: standorteList,
+    jahre,
+    monate,
+    datenbereiche,
+    werttypen,
+    warnings,
+    errors
+  };
 }
 
 function cfoMetrics() {
@@ -2992,73 +3172,156 @@ function EarnOutSummary() {
 }
 
 function Uploads() {
-  const checks = [
-    "Datei erkannt",
-    "Zeitraum erkannt",
-    "Standorte erkannt",
-    "Pflichtfelder vorhanden",
-    "Keine Dubletten",
-    "Keine Leerwerte",
-    "BWA-Summen plausibel",
-    "Cashflow-Adjustments plausibel",
-    "Darlehensdaten vollständig",
-    "Forderungen je Standort vorhanden"
+  const [report, setReport] = useState<ImportReport>(emptyImportReport);
+  const [confirmedReport, setConfirmedReport] = useState<ImportReport | null>(null);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(importStorageKey);
+    if (!saved) return;
+    try {
+      setConfirmedReport(JSON.parse(saved) as ImportReport);
+    } catch {
+      window.localStorage.removeItem(importStorageKey);
+    }
+  }, []);
+
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setReport({ ...emptyImportReport, status: "reading", fileName: file.name });
+
+    try {
+      const extension = file.name.split(".").pop()?.toLowerCase();
+      const workbook =
+        extension === "csv"
+          ? XLSX.read(await file.text(), { type: "string", cellDates: true })
+          : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      setReport(buildImportReport(workbook, file.name));
+    } catch (error) {
+      setReport({
+        ...emptyImportReport,
+        status: "error",
+        fileName: file.name,
+        importedAt: new Date().toISOString(),
+        errors: [
+          error instanceof Error
+            ? `Die Datei konnte nicht gelesen werden: ${error.message}`
+            : "Die Datei konnte nicht gelesen werden."
+        ]
+      });
+    }
+  }
+
+  function confirmImport() {
+    if (report.status !== "ready" && report.status !== "warning") return;
+    window.localStorage.setItem(importStorageKey, JSON.stringify(report));
+    setConfirmedReport(report);
+  }
+
+  const activeReport = report.status === "idle" ? confirmedReport : report;
+  const statusTone = activeReport?.status === "ready" ? "green" : activeReport?.status === "warning" ? "yellow" : activeReport?.status === "error" ? "red" : "neutral";
+  const statusLabel =
+    activeReport?.status === "ready"
+      ? "Importfähig"
+      : activeReport?.status === "warning"
+        ? "Importfähig mit Warnungen"
+        : activeReport?.status === "error"
+          ? "Nicht importfähig"
+          : report.status === "reading"
+            ? "Datei wird gelesen"
+            : "Noch kein Import";
+
+  const importSteps = [
+    { label: "Arbeitsmappe auswählen", done: report.status !== "idle" || Boolean(confirmedReport) },
+    { label: "Pflichtblätter erkennen", done: Boolean(activeReport?.presentSheets.length) },
+    { label: "Konzern_Konsolidierung_STD auslesen", done: Boolean(activeReport?.totalRows) },
+    { label: "Planwerte filtern", done: Boolean(activeReport && activeReport.status !== "error") },
+    { label: "Standorte, Jahre und Monate prüfen", done: Boolean(activeReport?.standorte.length && activeReport?.jahre.length) },
+    { label: "Importbericht freigeben", done: Boolean(confirmedReport) }
   ];
+
   return (
     <section className="space-y-5">
-      <PageTitle title="Uploads & Datenstand" text="Zentraler Excel-/CSV-Import mit Pflichtfeld-, Zeitraum-, Standort- und Plausibilitätsprüfung." />
+      <PageTitle title="Uploads & Datenstand" text="Zentraler Excel-Import aus der konsolidierten Orisus-Arbeitsmappe mit Blatt-, Zeitraum-, Standort- und Plausibilitätsprüfung." />
       <DataStatusStrip />
       <Card className="grid gap-3 p-4 md:grid-cols-3">
-        <Mini label="Aktueller Importmonat" value="Juni 2026" />
-        <Mini label="Letzte Datei" value="orisus_konsolidiert_2026_06.xlsx" />
-        <Mini label="Datenqualitäts-Ampel" value="Vollständig" />
+        <Mini label="Aktueller Importstatus" value={statusLabel} />
+        <Mini label="Letzte bestätigte Datei" value={confirmedReport?.fileName ?? "Noch keine Datei bestätigt"} />
+        <Mini
+          label="Datenstand"
+          value={confirmedReport?.importedAt ? new Date(confirmedReport.importedAt).toLocaleString("de-DE") : "Noch offen"}
+        />
       </Card>
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="p-4">
           <h2 className="font-bold">Uploadablauf</h2>
           <div className="mt-4 space-y-3">
-            {["Datei auswählen", "Importtyp auswählen", "Zeitraum erkennen", "Enthaltene Standorte erkennen", "Vorschau anzeigen", "Plausibilitätsprüfung anzeigen", "Import bestätigen"].map((step, index) => (
-              <div key={step} className="flex items-center gap-3 rounded-md bg-slate-50 p-3">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">{index + 1}</span>
-                <span className="font-semibold">{step}</span>
+            {importSteps.map((step, index) => (
+              <div key={step.label} className="flex items-center gap-3 rounded-md bg-slate-50 p-3">
+                <span
+                  className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white",
+                    step.done ? "bg-primary" : "bg-slate-300"
+                  )}
+                >
+                  {step.done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                </span>
+                <span className="font-semibold">{step.label}</span>
               </div>
             ))}
           </div>
         </Card>
         <Card className="p-4">
-          <h2 className="font-bold">Importtyp</h2>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="font-bold">Konsolidierte Orisus-Arbeitsmappe</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Lade die komplette Excel-Datei nach Power-Query-Refresh und Speichern hoch.</p>
+            </div>
+            <Badge tone={statusTone}>{statusLabel}</Badge>
+          </div>
           <Select className="mt-4 w-full">
             {uploadTypes.map((type) => (
               <option key={type}>{type}</option>
             ))}
           </Select>
-          <div className="mt-4 rounded-lg border-2 border-dashed border-border bg-slate-50 p-8 text-center">
+          <label className="mt-4 block cursor-pointer rounded-lg border-2 border-dashed border-border bg-slate-50 p-8 text-center transition hover:border-primary hover:bg-cyan-50/60">
             <FileUp className="mx-auto h-10 w-10 text-primary" />
-            <p className="mt-3 font-bold">Datei auswählen</p>
-            <p className="mt-1 text-sm text-muted-foreground">Excel oder CSV, in Phase 1 nur simuliert.</p>
-          </div>
+            <p className="mt-3 font-bold">{report.status === "reading" ? "Datei wird gelesen ..." : "Excel-Datei auswählen"}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Empfohlen: +BWA_Controlling_Orisus_Dashboard+.xlsx</p>
+            <input className="sr-only" type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} />
+          </label>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {checks.map((check) => (
-              <div key={check} className="flex items-center gap-2 rounded-md table-cashflow p-3 text-sm font-semibold text-emerald-800">
-                <CheckCircle2 className="h-4 w-4" />
-                {check}
+            {[
+              ["Pflichtblätter", activeReport ? `${activeReport.presentSheets.length}/${requiredImportSheets.length} erkannt` : "Noch offen"],
+              ["Datenzeilen", activeReport ? activeReport.totalRows.toLocaleString("de-DE") : "Noch offen"],
+              ["Importfähige Zeilen", activeReport ? activeReport.usableRows.toLocaleString("de-DE") : "Noch offen"],
+              ["Ausgeschlossene Planwerte", activeReport ? activeReport.excludedPlanRows.toLocaleString("de-DE") : "Noch offen"]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-md table-total p-3">
+                <p className="text-xs font-bold uppercase text-muted-foreground">{label}</p>
+                <p className="mt-1 font-bold">{value}</p>
               </div>
             ))}
           </div>
-          <Button className="mt-4 w-full">Import bestätigen</Button>
+          <Button className="mt-4 w-full" disabled={report.status !== "ready" && report.status !== "warning"} onClick={confirmImport}>
+            Importbericht bestätigen
+          </Button>
         </Card>
       </div>
       <Card className="overflow-hidden">
         <div className="border-b border-border p-4">
           <h2 className="font-bold">Importbericht</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Vorschau, welche Daten nach dem Upload übernommen würden.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Vorschau aus der hochgeladenen Arbeitsmappe. Die Dashboard-Berechnung wird im nächsten Schritt vollständig auf diese Datenbasis umgestellt.
+          </p>
         </div>
         <div className="grid gap-px table-grid-bg md:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Zeitraum", "01.01.2026 bis 30.06.2026"],
-            ["Standorte", "Kirchberg, Essen, Kehl, Ulmet, Hüttenberg"],
-            ["Datenbereiche", "BWA, Cashflow, Forderungen, Darlehen, Earn-Out"],
-            ["Status", "Import freigabefähig"]
+            ["Jahre", activeReport?.jahre.length ? activeReport.jahre.join(", ") : "Noch nicht erkannt"],
+            ["Monate", activeReport?.monate.length ? activeReport.monate.join(", ") : "Noch nicht erkannt"],
+            ["Standorte", activeReport?.standorte.length ? activeReport.standorte.join(", ") : "Noch nicht erkannt"],
+            ["Datenbereiche", activeReport?.datenbereiche.length ? activeReport.datenbereiche.slice(0, 8).join(", ") : "Noch nicht erkannt"]
           ].map(([label, value]) => (
             <div key={label} className="bg-white p-4">
               <p className="text-xs font-bold uppercase text-muted-foreground">{label}</p>
@@ -3067,10 +3330,40 @@ function Uploads() {
           ))}
         </div>
         <div className="grid gap-3 p-4 md:grid-cols-3">
-          <div className="rounded-md table-cashflow p-3 text-sm font-semibold text-emerald-800">10 Prüfungen erfolgreich</div>
-          <div className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">1 Warnung: Kassel ohne Ist-Werte</div>
-          <div className="rounded-md bg-slate-50 p-3 text-sm font-semibold text-slate-700">0 blockierende Fehler</div>
+          <div className="rounded-md table-cashflow p-3 text-sm font-semibold text-emerald-800">
+            {activeReport ? `${activeReport.presentSheets.length} relevante Blätter erkannt` : "Bereit für Upload"}
+          </div>
+          <div className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+            {activeReport ? `${activeReport.warnings.length} Warnungen` : "Warnungen erscheinen nach Upload"}
+          </div>
+          <div className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-800">
+            {activeReport ? `${activeReport.errors.length} blockierende Fehler` : "Fehler erscheinen nach Upload"}
+          </div>
         </div>
+        {(activeReport?.warnings.length || activeReport?.errors.length) && (
+          <div className="grid gap-4 border-t border-border p-4 lg:grid-cols-2">
+            <div>
+              <h3 className="font-bold text-amber-800">Warnungen</h3>
+              <div className="mt-2 space-y-2">
+                {(activeReport.warnings.length ? activeReport.warnings : ["Keine Warnungen erkannt."]).map((warning) => (
+                  <div key={warning} className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+                    {warning}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="font-bold text-red-800">Fehler</h3>
+              <div className="mt-2 space-y-2">
+                {(activeReport.errors.length ? activeReport.errors : ["Keine blockierenden Fehler erkannt."]).map((error) => (
+                  <div key={error} className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-800">
+                    {error}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
     </section>
   );
