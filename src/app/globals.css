@@ -50,3 +50,30 @@ select {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+.table-head {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.table-subhead {
+  background: hsl(var(--primary) / 0.92);
+  color: hsl(var(--primary-foreground));
+}
+
+.table-section {
+  background: #eff6f7;
+  color: hsl(var(--foreground));
+}
+
+.table-cashflow {
+  background: #eef8f4;
+}
+
+.table-total {
+  background: #f6fafb;
+}
+
+.table-grid-bg {
+  background: hsl(var(--border));
+}

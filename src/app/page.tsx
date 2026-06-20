@@ -334,7 +334,7 @@ export default function HomePage() {
               className={cn(
                 "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-semibold text-muted-foreground",
                 (page === item.id || (item.id === "standorte" && page === "standort-detail")) &&
-                  "bg-cyan-50 text-primary"
+                  "table-total text-primary"
               )}
               onClick={() => go(item.id as Page)}
             >
@@ -362,7 +362,7 @@ function AuthFlow({
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:py-10">
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl items-center gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        <section className="overflow-hidden rounded-lg border border-border bg-slate-950 text-white shadow-soft">
+        <section className="overflow-hidden rounded-lg border border-border table-head text-white shadow-soft">
           <div className="p-6 sm:p-8 lg:p-10">
             <div className="rounded-md bg-white px-4 py-3">
               <img src="/orisus-logo.png" alt="Orisus Zahnmedizin" className="h-auto w-full max-w-[360px]" />
@@ -422,7 +422,7 @@ function AuthFlow({
           <div className="space-y-4 p-6">
           {step === "welcome" && (
             <>
-              <div className="rounded-md bg-cyan-50 p-4 text-sm leading-6 text-cyan-950">
+              <div className="rounded-md table-total p-4 text-sm leading-6 text-foreground">
                 Einstieg in Cockpit, BWA, Bankenreporting, Board-Pack, Standortdetails und Upload-Datenstand.
               </div>
               <Button className="w-full" onClick={() => setStep("login")}>
@@ -537,7 +537,7 @@ function NavButton({
     <button
       className={cn(
         "flex h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground",
-        active && "bg-cyan-50 text-primary"
+        active && "table-total text-primary"
       )}
       onClick={onClick}
     >
@@ -788,7 +788,7 @@ function KpiCard({
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-cyan-50 text-primary">
+        <div className="flex h-10 w-10 items-center justify-center rounded-md table-total text-primary">
           <Icon className="h-5 w-5" />
         </div>
         <StatusDot status={status} />
@@ -925,7 +925,7 @@ function StandortCfoComparison() {
           <thead>
             <tr>
               {["Standort", "Gesamtleistung", "EBITDA", "EBITDA-Marge", "Cashflow", "Forderungen", "Kostenquote", "Ampel"].map((head) => (
-                <th key={head} className="border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                   {head}
                 </th>
               ))}
@@ -1307,8 +1307,8 @@ function BwaStatement({ title, siteId }: { title: string; siteId?: string }) {
               key={row.label}
               className={cn(
                 "grid grid-cols-[1.4fr_1fr] gap-3 border-b border-border p-3 text-sm last:border-0",
-                row.emphasis && "bg-cyan-50/55 font-bold",
-                row.kind === "cashflow" && "bg-emerald-50/45"
+                row.emphasis && "table-total font-bold",
+                row.kind === "cashflow" && "table-cashflow"
               )}
             >
               <span className={cn(row.indent && "pl-5 text-muted-foreground")}>{row.label}</span>
@@ -1364,21 +1364,21 @@ function ConsolidatedBwaMatrix({
         <table className="min-w-[1180px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 w-64 border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+              <th className="sticky left-0 z-20 w-64 border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                 BWA-Position
               </th>
               {groups.map((group) => (
                 <th
                   key={group.id}
                   colSpan={2}
-                  className="border-b border-r border-border bg-slate-950 p-3 text-center text-xs font-bold uppercase text-white"
+                  className="border-b border-r border-border table-head p-3 text-center text-xs font-bold uppercase text-white"
                 >
                   {group.label}
                 </th>
               ))}
             </tr>
             <tr>
-              <th className="sticky left-0 z-20 border-b border-r border-border bg-slate-900 p-2 text-left text-xs font-semibold text-white">
+              <th className="sticky left-0 z-20 border-b border-r border-border table-subhead p-2 text-left text-xs font-semibold text-white">
                 {period}
               </th>
               {groups.map((group) => (
@@ -1393,8 +1393,8 @@ function ConsolidatedBwaMatrix({
                   className={cn(
                     "sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-semibold",
                     row.indent && "pl-6 font-medium text-muted-foreground",
-                    row.emphasis && "bg-cyan-50 text-slate-950",
-                    row.kind === "cashflow" && "bg-emerald-50"
+                    row.emphasis && "table-total text-foreground",
+                    row.kind === "cashflow" && "table-cashflow"
                   )}
                 >
                   {row.label}
@@ -1426,10 +1426,10 @@ function ConsolidatedBwaMatrix({
 function FragmentHeaders() {
   return (
     <>
-      <th className="w-32 border-b border-r border-border bg-slate-900 p-2 text-right text-xs font-semibold text-white">
+      <th className="w-32 border-b border-r border-border table-subhead p-2 text-right text-xs font-semibold text-white">
         Ist
       </th>
-      <th className="w-24 border-b border-r border-border bg-slate-900 p-2 text-right text-xs font-semibold text-white">
+      <th className="w-24 border-b border-r border-border table-subhead p-2 text-right text-xs font-semibold text-white">
         % GL
       </th>
     </>
@@ -1449,8 +1449,8 @@ function FragmentCells({
         className={cn(
           "border-b border-r border-border bg-white p-2 text-right font-semibold tabular-nums",
           row.actual < 0 && "text-red-700",
-          row.emphasis && "bg-cyan-50 text-slate-950",
-          row.kind === "cashflow" && "bg-emerald-50"
+          row.emphasis && "table-total text-foreground",
+          row.kind === "cashflow" && "table-cashflow"
         )}
       >
         {row.percent ? pct(row.actual) : eur(row.actual)}
@@ -1458,8 +1458,8 @@ function FragmentCells({
       <td
         className={cn(
           "border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums",
-          row.emphasis && "bg-cyan-50 font-bold text-slate-950",
-          row.kind === "cashflow" && "bg-emerald-50"
+          row.emphasis && "table-total font-bold text-foreground",
+          row.kind === "cashflow" && "table-cashflow"
         )}
       >
         {pct(quote)}
@@ -1584,21 +1584,21 @@ function SiteMonthlyBwa({ site }: { site: (typeof standorte)[number] }) {
         <table className="min-w-[1320px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 w-72 border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+              <th className="sticky left-0 z-20 w-72 border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                 BWA-Position
               </th>
               {bwaMonths.map((month) => (
-                <th key={month} className="w-24 border-b border-r border-border bg-slate-950 p-3 text-right text-xs font-bold uppercase text-white">
+                <th key={month} className="w-24 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                   {month}
                 </th>
               ))}
-              <th className="w-28 border-b border-r border-border bg-slate-950 p-3 text-right text-xs font-bold uppercase text-white">
+              <th className="w-28 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Gesamt
               </th>
-              <th className="w-32 border-b border-r border-border bg-slate-950 p-3 text-right text-xs font-bold uppercase text-white">
+              <th className="w-32 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Durchschnitt
               </th>
-              <th className="w-40 border-b border-r border-border bg-slate-950 p-3 text-right text-xs font-bold uppercase text-white">
+              <th className="w-40 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Vertragsperiode
               </th>
             </tr>
@@ -1613,9 +1613,9 @@ function SiteMonthlyBwa({ site }: { site: (typeof standorte)[number] }) {
                     className={cn(
                       "sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-semibold",
                       row.indent && "pl-6 font-medium text-muted-foreground",
-                      row.section && "bg-slate-900 text-white",
-                      row.emphasis && "bg-cyan-50 text-slate-950",
-                      row.kind === "cashflow" && "bg-emerald-50"
+                      row.section && "table-section font-bold text-foreground",
+                      row.emphasis && "table-total text-foreground",
+                      row.kind === "cashflow" && "table-cashflow"
                     )}
                   >
                     {row.label}
@@ -1625,9 +1625,9 @@ function SiteMonthlyBwa({ site }: { site: (typeof standorte)[number] }) {
                       key={`${row.label}-${bwaMonths[index]}`}
                       className={cn(
                         "border-b border-r border-border bg-white p-2 text-right tabular-nums",
-                        row.section && "bg-slate-900 text-white",
-                        row.emphasis && "bg-cyan-50 font-bold text-slate-950",
-                        row.kind === "cashflow" && "bg-emerald-50",
+                        row.section && "table-section font-bold text-foreground",
+                        row.emphasis && "table-total font-bold text-foreground",
+                        row.kind === "cashflow" && "table-cashflow",
                         Number(value) < 0 && "text-red-700"
                       )}
                     >
@@ -1800,11 +1800,11 @@ function KennzahlenEntwicklung() {
       />
 
       <Card className="overflow-hidden">
-        <div className="bg-slate-950 p-3 text-lg font-bold text-white">Standort-Performance | BWA-Kennzahlen je Standort</div>
+        <div className="table-head p-3 text-lg font-bold text-white">Standort-Performance | BWA-Kennzahlen je Standort</div>
         <div className="border-b border-border bg-slate-50 p-3 text-sm italic text-muted-foreground">
           Auswertung: 2026 | Periodenende 30.06.2026 | Alle freigegebenen Standorte inkl. Ulmet | Quelle: Konzern_Konsolidierung_STD
         </div>
-        <div className="grid gap-px bg-border md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-px table-grid-bg md:grid-cols-3 xl:grid-cols-6">
           <KennzahlTile label="Gesamtleistung | 2026 bis 06.2026" value={eur(totalPerformance, true)} />
           <KennzahlTile label="EBITDA | 2026 bis 06.2026" value={eur(totalEbitda, true)} />
           <KennzahlTile label="EBITDA-Marge | 2026 bis 06.2026" value={pct((totalEbitda / totalPerformance) * 100)} />
@@ -1823,8 +1823,8 @@ function KennzahlenEntwicklung() {
 function KennzahlTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white p-4 text-center">
-      <p className="text-xs font-bold uppercase text-slate-950">{label}</p>
-      <p className="mt-5 text-2xl font-bold text-blue-950">{value}</p>
+      <p className="text-xs font-bold uppercase text-foreground">{label}</p>
+      <p className="mt-5 text-2xl font-bold text-primary">{value}</p>
     </div>
   );
 }
@@ -1860,7 +1860,7 @@ function KennzahlenStandortTable({ targetBySite }: { targetBySite: Record<string
                 "Ø EBITDA / Monat seit Beitritt",
                 "Ø Ziel-EBITDA p.a."
               ].map((head) => (
-                <th key={head} className="border-b border-r border-border bg-blue-950 p-2 text-center font-bold text-white">
+                <th key={head} className="border-b border-r border-border table-head p-2 text-center font-bold text-white">
                   {head}
                 </th>
               ))}
@@ -1942,7 +1942,7 @@ function MonthlyEbitdaTable({ targetBySite }: { targetBySite: Record<string, num
 
   return (
     <Card className="overflow-hidden">
-      <div className="bg-blue-950 p-3 font-bold text-white">MONATLICHE EBITDA-ÜBERSICHT JE STANDORT</div>
+      <div className="table-head p-3 font-bold text-white">MONATLICHE EBITDA-ÜBERSICHT JE STANDORT</div>
       <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">
         Auswertung: 2026 | Ist-EBITDA je Monat und Standort | Zielabweichung kumuliert gegen Übernahme und Bank/KV
       </div>
@@ -1950,18 +1950,18 @@ function MonthlyEbitdaTable({ targetBySite }: { targetBySite: Record<string, num
         <table className="min-w-[1280px] border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Monat</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">Monat</th>
               {activeSites.map((site) => (
-                <th key={site.id} className="border-b border-r border-border bg-blue-950 p-2 text-white">{site.name}</th>
+                <th key={site.id} className="border-b border-r border-border table-head p-2 text-white">{site.name}</th>
               ))}
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">EBITDA gesamt</th>
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">EBITDA kum.</th>
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Ziel Übernahme kum.</th>
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Abw. ÜN kum.</th>
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Ziel Bank/KV kum.</th>
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Abw. Bank/KV kum.</th>
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Zielerreichung ÜN</th>
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Zielerreichung Bank/KV</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">EBITDA gesamt</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">EBITDA kum.</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">Ziel Übernahme kum.</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">Abw. ÜN kum.</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">Ziel Bank/KV kum.</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">Abw. Bank/KV kum.</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">Zielerreichung ÜN</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">Zielerreichung Bank/KV</th>
             </tr>
           </thead>
           <tbody>
@@ -2093,7 +2093,7 @@ function OperationalPerformanceTable() {
           <thead>
             <tr>
               {["Standort", "Gesamtleistung", "PVS", "EBITDA", "Marge", "Cashflow", "Forderungen", "Kostenquote", "Status"].map((head) => (
-                <th key={head} className="border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                   {head}
                 </th>
               ))}
@@ -2142,9 +2142,9 @@ function PerformanceRevenueBlock({
 
   return (
     <Card className="overflow-hidden">
-      <div className="bg-blue-950 p-3 font-bold text-white">{title}</div>
+      <div className="table-head p-3 font-bold text-white">{title}</div>
       <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">{subtitle}</div>
-      <div className="grid gap-px bg-border md:grid-cols-5">
+      <div className="grid gap-px table-grid-bg md:grid-cols-5">
         <KennzahlTile label={`${mode === "honorar" ? "Behandlerumsatz" : "PVS Umsatz"} Zeitraum`} value={eur(current)} />
         <KennzahlTile label="YoY Zeitraum" value={pct(((current - previous) / previous) * 100)} />
         <KennzahlTile label="QTD YoY" value={pct(((qtd - qtdPrevious) / qtdPrevious) * 100)} />
@@ -2171,7 +2171,7 @@ function PerformanceRevenueBlock({
                 "Seit Übernahme",
                 "Ø mtl. seit Übernahme"
               ].map((head) => (
-                <th key={head} className="border-b border-r border-border bg-blue-950 p-2 text-center font-bold text-white">
+                <th key={head} className="border-b border-r border-border table-head p-2 text-center font-bold text-white">
                   {head}
                 </th>
               ))}
@@ -2236,17 +2236,17 @@ function PerformanceMonthlyTable({ title, mode }: { title: string; mode: "honora
 
   return (
     <Card className="overflow-hidden">
-      <div className="bg-blue-950 p-3 font-bold text-white">{title}</div>
+      <div className="table-head p-3 font-bold text-white">{title}</div>
       <div className="overflow-x-auto">
         <table className="min-w-[1120px] border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Standort</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">Standort</th>
               {bwaMonths.map((month) => (
-                <th key={month} className="border-b border-r border-border bg-blue-950 p-2 text-white">{month}</th>
+                <th key={month} className="border-b border-r border-border table-head p-2 text-white">{month}</th>
               ))}
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Gesamt</th>
-              <th className="border-b border-r border-border bg-blue-950 p-2 text-white">Ø Monat</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">Gesamt</th>
+              <th className="border-b border-r border-border table-head p-2 text-white">Ø Monat</th>
             </tr>
           </thead>
           <tbody>
@@ -2291,19 +2291,19 @@ function BankMovementsTable() {
 
   return (
     <Card className="overflow-hidden">
-      <div className="bg-blue-950 p-3 font-bold text-white">Bank / Geldbewegungen aus Input_Finanzen</div>
+      <div className="table-head p-3 font-bold text-white">Bank / Geldbewegungen aus Input_Finanzen</div>
       <div className="overflow-x-auto">
         <table className="min-w-[1220px] border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
-              <th className="border-b border-r border-border bg-blue-900 p-2 text-white">Position</th>
+              <th className="border-b border-r border-border table-subhead p-2 text-white">Position</th>
               {bwaMonths.map((month) => (
-                <th key={month} className="border-b border-r border-border bg-blue-900 p-2 text-white">{month}</th>
+                <th key={month} className="border-b border-r border-border table-subhead p-2 text-white">{month}</th>
               ))}
-              <th className="border-b border-r border-border bg-blue-900 p-2 text-white">Gesamt</th>
-              <th className="border-b border-r border-border bg-blue-900 p-2 text-white">Ø Monat</th>
-              <th className="border-b border-r border-border bg-blue-900 p-2 text-white">Gesamte Vertragsperiode</th>
-              <th className="border-b border-r border-border bg-blue-900 p-2 text-white">Ø Vertragsperiode</th>
+              <th className="border-b border-r border-border table-subhead p-2 text-white">Gesamt</th>
+              <th className="border-b border-r border-border table-subhead p-2 text-white">Ø Monat</th>
+              <th className="border-b border-r border-border table-subhead p-2 text-white">Gesamte Vertragsperiode</th>
+              <th className="border-b border-r border-border table-subhead p-2 text-white">Ø Vertragsperiode</th>
             </tr>
           </thead>
           <tbody>
@@ -2536,7 +2536,7 @@ function Bankenreporting() {
         text="Kompakte Bankenübersicht mit Ergebnisentwicklung, Cashflow, Fremdkapital und Kapitaldienstfähigkeit."
       />
       <DataStatusStrip />
-      <Card className="grid gap-px overflow-hidden bg-border md:grid-cols-2 xl:grid-cols-4">
+      <Card className="grid gap-px overflow-hidden table-grid-bg md:grid-cols-2 xl:grid-cols-4">
         {bankKpis.map((kpi) => (
           <div key={kpi.label} className="bg-white p-4">
             <p className="text-xs font-bold uppercase text-muted-foreground">{kpi.label}</p>
@@ -2589,7 +2589,7 @@ function Bankenreporting() {
             <thead>
               <tr>
                 {["Standort", "Gesamtleistung", "EBITDA", "Marge", "Cashflow", "Restschuld", "Tilgung", "Zins"].map((head) => (
-                  <th key={head} className="border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                  <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                     {head}
                   </th>
                 ))}
@@ -2719,7 +2719,7 @@ function AcquisitionIntegration() {
                 "Earn-Out offen",
                 "Status"
               ].map((head) => (
-                <th key={head} className="border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                   {head}
                 </th>
               ))}
@@ -2871,7 +2871,7 @@ function Uploads() {
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {checks.map((check) => (
-              <div key={check} className="flex items-center gap-2 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+              <div key={check} className="flex items-center gap-2 rounded-md table-cashflow p-3 text-sm font-semibold text-emerald-800">
                 <CheckCircle2 className="h-4 w-4" />
                 {check}
               </div>
@@ -2885,7 +2885,7 @@ function Uploads() {
           <h2 className="font-bold">Importbericht</h2>
           <p className="mt-1 text-sm text-muted-foreground">Vorschau, welche Daten nach dem Upload übernommen würden.</p>
         </div>
-        <div className="grid gap-px bg-border md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-px table-grid-bg md:grid-cols-2 xl:grid-cols-4">
           {[
             ["Zeitraum", "01.01.2026 bis 30.06.2026"],
             ["Standorte", "Kirchberg, Essen, Kehl, Ulmet, Hüttenberg"],
@@ -2899,7 +2899,7 @@ function Uploads() {
           ))}
         </div>
         <div className="grid gap-3 p-4 md:grid-cols-3">
-          <div className="rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">10 Prüfungen erfolgreich</div>
+          <div className="rounded-md table-cashflow p-3 text-sm font-semibold text-emerald-800">10 Prüfungen erfolgreich</div>
           <div className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">1 Warnung: Kassel ohne Ist-Werte</div>
           <div className="rounded-md bg-slate-50 p-3 text-sm font-semibold text-slate-700">0 blockierende Fehler</div>
         </div>
@@ -2964,7 +2964,7 @@ function AdminKpiRules() {
             <thead>
               <tr>
                 {["KPI", "Grün", "Gelb", "Rot", "Verantwortlich"].map((head) => (
-                  <th key={head} className="border-b border-r border-border bg-slate-950 p-3 text-left text-xs font-bold uppercase text-white">
+                  <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                     {head}
                   </th>
                 ))}
