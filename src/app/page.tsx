@@ -317,6 +317,16 @@ function asNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function startDateValue(value: string) {
+  const [day, month, year] = value.split(".").map((part) => Number(part));
+  if (!day || !month || !year) return Number.MAX_SAFE_INTEGER;
+  return new Date(year, month - 1, day).getTime();
+}
+
+function sortSitesByContractStart<T extends { start: string; name: string }>(sites: T[]) {
+  return [...sites].sort((a, b) => startDateValue(a.start) - startDateValue(b.start) || a.name.localeCompare(b.name, "de"));
+}
+
 function uniqueSortedText(values: unknown[], fallback: string[] = []) {
   const normalized = values.map(asText).filter(Boolean);
   const result = Array.from(new Set(normalized)).sort((a, b) => a.localeCompare(b, "de"));
@@ -630,9 +640,9 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     .filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
   const latestYear = report.jahre.filter((year) => year > 1900).at(-1) ?? new Date().getFullYear();
   const activeRows = rows.filter((row) => (rowYear(row) ?? latestYear) === latestYear);
-  const fallbackByName = new Map(standorte.map((site) => [site.name, site]));
+  const fallbackByName = new Map(sortSitesByContractStart(standorte).map((site) => [site.name, site]));
 
-  const sites = report.standorte.map((siteName) => {
+  const sites = sortSitesByContractStart(report.standorte.map((siteName) => {
     const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     const siteRows = activeRows.filter((row) => asText(row.Standortname) === siteName);
     const gesamtleistung = Math.round(
@@ -678,7 +688,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
         istEbitda: ebitda
       }
     };
-  });
+  }));
 
   const monthlyData = report.monate.map((monthNumber) => {
     const monthRows = activeRows.filter((row) => (rowMonth(row) ?? 0) === monthNumber);
@@ -852,7 +862,7 @@ export default function HomePage() {
   const [pin, setPin] = useState("");
   const [previousPage, setPreviousPage] = useState<Page | null>(null);
   const [importedData, setImportedData] = useState<ImportedDashboardData | null>(null);
-  const dashboardSites = importedData?.sites ?? standorte;
+  const dashboardSites = useMemo(() => sortSitesByContractStart(importedData?.sites ?? standorte), [importedData?.sites]);
   const dashboardMonthly = importedData?.monthly ?? monthly;
 
   const selected = useMemo(
@@ -2231,7 +2241,7 @@ function ConsolidatedBwaMatrix({
   importedData?: ImportedDashboardData | null;
   availablePeriods: string[];
 }) {
-  const sourceSites = importedData?.sites ?? standorte;
+  const sourceSites = sortSitesByContractStart(importedData?.sites ?? standorte);
   const groups = importedData?.bwaRows?.length
     ? [
         { id: "konzern", label: "Konzern", rows: buildImportedBwaLines(importedData.bwaRows, period), hasData: true },
@@ -2480,7 +2490,7 @@ function calculateImportedQuote(importedRows: ImportedBwaRow[], siteIds: string[
 
 function buildBwaRows(period: string, siteId?: string) {
   const factor = period === "Geschäftsjahr 2024" ? 0.28 : period === "Geschäftsjahr 2025" ? 0.72 : period === "Gesamte Periode" ? 1 : 0.86;
-  const sites = siteId ? standorte.filter((site) => site.id === siteId) : standorte;
+  const sites = siteId ? sortSitesByContractStart(standorte).filter((site) => site.id === siteId) : sortSitesByContractStart(standorte);
   const base = (key: keyof (typeof standorte)[number]) =>
     Math.round(sites.reduce((sum, site) => sum + Number(site[key] ?? 0), 0) * factor);
   const weightedQuote = (key: "materialquote" | "fremdlaborquote" | "sonstigeKostenquote") => {
@@ -2881,7 +2891,7 @@ function KennzahlenEntwicklung() {
     huettenberg: 63333,
     kassel: 0
   };
-  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
   const totalPerformance = activeSites.reduce((sum, site) => sum + site.gesamtleistung, 0);
   const totalEbitda = activeSites.reduce((sum, site) => sum + site.ebitda, 0);
   const totalCashflow = activeSites.reduce((sum, site) => sum + site.cashflow, 0);
@@ -2929,7 +2939,7 @@ function KennzahlTile({ label, value }: { label: string; value: string }) {
 }
 
 function KennzahlenStandortTable({ targetBySite }: { targetBySite: Record<string, number> }) {
-  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
 
   return (
     <Card className="overflow-hidden">
@@ -3006,7 +3016,7 @@ function KennzahlenStandortTable({ targetBySite }: { targetBySite: Record<string
 }
 
 function MonthlyEbitdaTable({ targetBySite }: { targetBySite: Record<string, number> }) {
-  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
   const rows = monthly.map((month, monthIndex) => {
     const siteValues = Object.fromEntries(
       activeSites.map((site, siteIndex) => {
@@ -3199,7 +3209,7 @@ function OperationalPerformanceTable() {
             </tr>
           </thead>
           <tbody>
-            {standorte.filter((site) => site.gesamtleistung > 0).map((site) => {
+            {sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0).map((site) => {
               const costs = site.materialquote + site.fremdlaborquote + site.sonstigeKostenquote;
               return (
                 <tr key={site.id}>
@@ -3231,7 +3241,7 @@ function PerformanceRevenueBlock({
   subtitle: string;
   mode: "honorar" | "pvs";
 }) {
-  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
   const current = activeSites.reduce((sum, site) => sum + performanceBase(site, mode), 0);
   const previous = Math.round(current * (mode === "honorar" ? 0.48 : 0.46));
   const qtd = Math.round(current * (mode === "honorar" ? 0.39 : 0.4));
@@ -3330,7 +3340,7 @@ function PerformanceRevenueBlock({
 }
 
 function PerformanceMonthlyTable({ title, mode }: { title: string; mode: "honorar" | "pvs" }) {
-  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
   const monthFactors = [0.192, 0.188, 0.228, 0.205, 0.186, 0, 0, 0, 0, 0, 0, 0];
 
   return (
@@ -3695,7 +3705,7 @@ function Bankenreporting() {
               </tr>
             </thead>
             <tbody>
-              {standorte.map((site) => (
+              {sortSitesByContractStart(standorte).map((site) => (
                 <tr key={site.id}>
                   <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
                   <td className="border-b border-r border-border p-3 text-right">{eur(site.gesamtleistung)}</td>
@@ -3794,7 +3804,7 @@ function BoardPack() {
 }
 
 function AcquisitionIntegration() {
-  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
+  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border p-4">
@@ -3863,7 +3873,7 @@ function Darlehen() {
         <KpiCard label="Tilgung YTD" value={251000} delta="Laufend bedient" icon={ShieldCheck} status="green" />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        {standorte.map((site) => {
+        {sortSitesByContractStart(standorte).map((site) => {
           const progress = site.darlehen.earnOutGesamt ? (site.darlehen.earnOutGezahlt / site.darlehen.earnOutGesamt) * 100 : 0;
           return (
             <Card key={site.id} className="p-4">
