@@ -17,7 +17,7 @@ export type Standort = {
   fremdlaborquote: number;
   sonstigeKostenquote: number;
   status: Status;
-  planAbweichung: number;
+  vorjahrAbweichung: number;
   darlehen: {
     kaufpreis: number;
     darlehen: number;
@@ -49,7 +49,7 @@ export const standorte: Standort[] = [
     fremdlaborquote: 13.6,
     sonstigeKostenquote: 33.1,
     status: "green",
-    planAbweichung: 4.8,
+    vorjahrAbweichung: 4.8,
     darlehen: {
       kaufpreis: 1320000,
       darlehen: 860000,
@@ -79,7 +79,7 @@ export const standorte: Standort[] = [
     fremdlaborquote: 15.9,
     sonstigeKostenquote: 39.2,
     status: "yellow",
-    planAbweichung: -3.7,
+    vorjahrAbweichung: -3.7,
     darlehen: {
       kaufpreis: 980000,
       darlehen: 710000,
@@ -109,7 +109,7 @@ export const standorte: Standort[] = [
     fremdlaborquote: 18.4,
     sonstigeKostenquote: 41.7,
     status: "yellow",
-    planAbweichung: -1.8,
+    vorjahrAbweichung: -1.8,
     darlehen: {
       kaufpreis: 820000,
       darlehen: 610000,
@@ -139,7 +139,7 @@ export const standorte: Standort[] = [
     fremdlaborquote: 12.7,
     sonstigeKostenquote: 31.8,
     status: "green",
-    planAbweichung: 7.6,
+    vorjahrAbweichung: 7.6,
     darlehen: {
       kaufpreis: 760000,
       darlehen: 520000,
@@ -169,7 +169,7 @@ export const standorte: Standort[] = [
     fremdlaborquote: 17.6,
     sonstigeKostenquote: 44.2,
     status: "red",
-    planAbweichung: -8.4,
+    vorjahrAbweichung: -8.4,
     darlehen: {
       kaufpreis: 690000,
       darlehen: 500000,
@@ -199,7 +199,7 @@ export const standorte: Standort[] = [
     fremdlaborquote: 0,
     sonstigeKostenquote: 0,
     status: "yellow",
-    planAbweichung: 0,
+    vorjahrAbweichung: 0,
     darlehen: {
       kaufpreis: 940000,
       darlehen: 690000,
@@ -215,12 +215,12 @@ export const standorte: Standort[] = [
 ];
 
 export const monthly = [
-  { month: "Jan", leistung: 480000, ebitda: 52000, marge: 10.8, cashflow: 18000, plan: 510000 },
-  { month: "Feb", leistung: 522000, ebitda: 68000, marge: 13.0, cashflow: 24000, plan: 530000 },
-  { month: "Mrz", leistung: 558000, ebitda: 76000, marge: 13.6, cashflow: 37000, plan: 550000 },
-  { month: "Apr", leistung: 602000, ebitda: 88000, marge: 14.6, cashflow: 44000, plan: 575000 },
-  { month: "Mai", leistung: 646000, ebitda: 93000, marge: 14.4, cashflow: 38000, plan: 610000 },
-  { month: "Jun", leistung: 684000, ebitda: 101000, marge: 14.8, cashflow: 51000, plan: 640000 }
+  { month: "Jan", leistung: 480000, ebitda: 52000, marge: 10.8, cashflow: 18000 },
+  { month: "Feb", leistung: 522000, ebitda: 68000, marge: 13.0, cashflow: 24000 },
+  { month: "Mrz", leistung: 558000, ebitda: 76000, marge: 13.6, cashflow: 37000 },
+  { month: "Apr", leistung: 602000, ebitda: 88000, marge: 14.6, cashflow: 44000 },
+  { month: "Mai", leistung: 646000, ebitda: 93000, marge: 14.4, cashflow: 38000 },
+  { month: "Jun", leistung: 684000, ebitda: 101000, marge: 14.8, cashflow: 51000 }
 ];
 
 export const ebitdaTakeover = [
@@ -259,6 +259,5 @@ export const uploadTypes = [
   "Cashflow",
   "Kontostände",
   "Darlehen",
-  "Earn-Out",
-  "Planwerte"
+  "Earn-Out"
 ];

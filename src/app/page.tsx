@@ -60,7 +60,6 @@ type Page =
   | "analysen"
   | "bwa"
   | "cashflow"
-  | "plan"
   | "darlehen"
   | "uploads"
   | "reports";
@@ -80,7 +79,7 @@ const periodOptions = [
   "Freier Zeitraum"
 ];
 
-const comparisonOptions = ["Ist", "Plan", "Vorjahr", "Abweichung in EUR", "Abweichung in %"];
+const comparisonOptions = ["Ist", "Vorjahr", "Abweichung in EUR", "Abweichung in %"];
 
 const bwaPeriodOptions = ["Geschäftsjahr 2024", "Geschäftsjahr 2025", "Geschäftsjahr 2026", "Gesamte Periode"];
 
@@ -97,7 +96,6 @@ const desktopNav = [
   { id: "standorte", label: "Standorte", icon: Building2 },
   { id: "bwa", label: "BWA", icon: FileBarChart },
   { id: "cashflow", label: "Cashflow", icon: Wallet },
-  { id: "plan", label: "Plan/Ist", icon: BarChart3 },
   { id: "darlehen", label: "Darlehen & Earn-Out", icon: Landmark },
   { id: "uploads", label: "Uploads", icon: FileUp },
   { id: "reports", label: "Reports", icon: FileBarChart }
@@ -133,7 +131,7 @@ export default function HomePage() {
   const [page, setPage] = useState<Page>("cockpit");
   const [selectedSite, setSelectedSite] = useState("kirchberg");
   const [period, setPeriod] = useState("YTD");
-  const [comparison, setComparison] = useState("Plan");
+  const [comparison, setComparison] = useState("Vorjahr");
   const [menuOpen, setMenuOpen] = useState(false);
   const [pin, setPin] = useState("");
 
@@ -232,7 +230,6 @@ export default function HomePage() {
           {page === "analysen" && <Analysen />}
           {page === "bwa" && <Bwa />}
           {page === "cashflow" && <Cashflow />}
-          {page === "plan" && <PlanIst />}
           {page === "darlehen" && <Darlehen />}
           {page === "uploads" && <Uploads />}
           {page === "reports" && <Reports />}
@@ -451,9 +448,9 @@ function TopFilters({
 
 function Cockpit({ setPage }: { setPage: (page: Page) => void }) {
   const kpis = [
-    { label: "Gesamtleistung gem. BWA", value: total("gesamtleistung"), delta: "+4,2 % ggü. Plan", icon: TrendingUp, status: "green" as Status },
-    { label: "Gesamtumsatz nach PVS", value: total("pvsUmsatz"), delta: "+3,6 % ggü. Plan", icon: BadgeEuro, status: "green" as Status },
-    { label: "EBITDA", value: total("ebitda"), delta: "+21 TEUR ggü. Plan", icon: Banknote, status: "green" as Status },
+    { label: "Gesamtleistung gem. BWA", value: total("gesamtleistung"), delta: "+4,2 % ggü. Vorjahr", icon: TrendingUp, status: "green" as Status },
+    { label: "Gesamtumsatz nach PVS", value: total("pvsUmsatz"), delta: "+3,6 % ggü. Vorjahr", icon: BadgeEuro, status: "green" as Status },
+    { label: "EBITDA", value: total("ebitda"), delta: "+21 TEUR ggü. Vorjahr", icon: Banknote, status: "green" as Status },
     { label: "EBITDA-Marge", value: 13.8, percent: true, delta: "+0,9 PP", icon: Gauge, status: "yellow" as Status },
     { label: "Offene Forderungen", value: total("forderungen"), delta: "+7,1 % zum Vormonat", icon: FileBarChart, status: "yellow" as Status },
     { label: "Cashflow", value: total("cashflow"), delta: "+34 TEUR netto", icon: Wallet, status: "green" as Status },
@@ -900,7 +897,7 @@ function TrafficLights() {
     ["Offene Forderungen", eur(total("forderungen")), "yellow"],
     ["Kostenquote", "69,4 %", "yellow"],
     ["Kontostände", eur(total("kontostand")), "green"],
-    ["Planabweichung", "+2,4 %", "green"]
+    ["Vorjahresabweichung", "+2,4 %", "green"]
   ] as const;
   return (
     <Card className="p-4">
@@ -926,8 +923,8 @@ function Insights({ setPage }: { setPage: (page: Page) => void }) {
     "EBITDA-Marge Ulmet liegt über Ziel und stabilisiert die Konzernmarge.",
     "Offene Forderungen sind konzernweit gestiegen; Fokus auf Essen und Kehl.",
     "Earn-Out Kirchberg bei 58 % Fortschritt.",
-    "Gesamtleistung Konzern liegt 4,2 % über Plan.",
-    "Kostenquote Kehl über Zielwert; Fremdlaborquote prüfen."
+    "Gesamtleistung Konzern liegt 4,2 % über Vorjahr.",
+    "Kostenquote Kehl auffällig; Fremdlaborquote prüfen."
   ];
   return (
     <Card className="p-4">
@@ -1017,27 +1014,21 @@ function BwaStatement({ title, siteId }: { title: string; siteId?: string }) {
       </div>
       <div className="overflow-x-auto">
         <div className="min-w-[720px]">
-          <div className="grid grid-cols-[1.4fr_1fr_1fr_1fr] gap-3 border-b border-border bg-slate-50 p-3 text-xs font-bold uppercase text-muted-foreground">
+          <div className="grid grid-cols-[1.4fr_1fr] gap-3 border-b border-border bg-slate-50 p-3 text-xs font-bold uppercase text-muted-foreground">
             <span>Position</span>
             <span className="text-right">Ist</span>
-            <span className="text-right">Plan</span>
-            <span className="text-right">Abweichung</span>
           </div>
           {rows.map((row) => (
             <div
               key={row.label}
               className={cn(
-                "grid grid-cols-[1.4fr_1fr_1fr_1fr] gap-3 border-b border-border p-3 text-sm last:border-0",
+                "grid grid-cols-[1.4fr_1fr] gap-3 border-b border-border p-3 text-sm last:border-0",
                 row.emphasis && "bg-cyan-50/55 font-bold",
                 row.kind === "cashflow" && "bg-emerald-50/45"
               )}
             >
               <span className={cn(row.indent && "pl-5 text-muted-foreground")}>{row.label}</span>
               <span className="text-right font-semibold">{row.percent ? pct(row.actual) : eur(row.actual)}</span>
-              <span className="text-right text-muted-foreground">{row.percent ? pct(row.plan) : eur(row.plan)}</span>
-              <span className={cn("text-right font-semibold", row.variance < 0 ? "text-red-700" : "text-emerald-700")}>
-                {row.percent ? `${row.variance > 0 ? "+" : ""}${pct(row.variance)}` : eur(row.variance)}
-              </span>
             </div>
           ))}
         </div>
@@ -1206,7 +1197,6 @@ function buildBwaRows(period: string, siteId?: string) {
 
   const gesamtleistung = base("gesamtleistung");
   const pvs = base("pvsUmsatz");
-  const honorar = base("honorar");
   const eigenlabor = base("eigenlabor");
   const material = Math.round(gesamtleistung * (weightedQuote("materialquote") / 100));
   const fremdlabor = Math.round(gesamtleistung * (weightedQuote("fremdlaborquote") / 100));
@@ -1217,38 +1207,70 @@ function buildBwaRows(period: string, siteId?: string) {
   const praxiseingaenge = Math.round(pvs * 0.96);
   const sonstigeEingaenge = Math.round(gesamtleistung * 0.018);
   const praxiskosten = -Math.round(material + fremdlabor + personal + weitereKosten);
-  const annuitaeten = -Math.round(sites.reduce((sum, site) => sum + site.darlehen.tilgung + site.darlehen.zins, 0) * factor);
   const umbuchen = -Math.round(gesamtleistung * 0.025);
-  const planMultiplier = 0.976;
 
   const row = (label: string, actual: number, options?: { indent?: boolean; emphasis?: boolean; percent?: boolean; kind?: "cashflow" }) => {
-    const plan = options?.percent ? actual - 0.7 : Math.round(actual * planMultiplier);
     return {
       label,
       actual,
-      plan,
-      variance: options?.percent ? actual - plan : actual - plan,
       ...options
     };
   };
 
   return [
-    row("Gesamtleistung gem. BWA", gesamtleistung, { emphasis: true }),
-    row("Gesamtumsatz nach PVS", pvs),
-    row("Honorarumsatz", honorar, { indent: true }),
-    row("Eigenlaborumsatz", eigenlabor, { indent: true }),
-    row("Materialaufwand", -material, { indent: true }),
-    row("Fremdlabor", -fremdlabor, { indent: true }),
-    row("Personalaufwand aggregiert", -personal, { indent: true }),
-    row("Weitere operative Kosten", -weitereKosten, { indent: true }),
+    row("1. Umsatz", 0, { emphasis: true }),
+    row("KZV-Umsatz", Math.round(pvs * 0.47), { indent: true }),
+    row("Privatumsatz", Math.round(pvs * 0.31), { indent: true }),
+    row("Bestandsveränderung", Math.round(gesamtleistung * 0.05), { indent: true }),
+    row("Material- und Laborumsätze", eigenlabor, { indent: true }),
+    row("Sonstige betriebliche Erlöse", Math.round(gesamtleistung * 0.01), { indent: true }),
+    row("AAG / Erstattungen", Math.round(gesamtleistung * 0.003), { indent: true }),
+    row("Summe Umsatz", gesamtleistung, { emphasis: true }),
+    row("Gesamtleistungsquote", 100, { percent: true, emphasis: true }),
+    row("2. Variable Kosten / Praxisleistung", 0, { emphasis: true }),
+    row("Fremdlabor gesamt", -fremdlabor, { indent: true }),
+    row("Materialkosten gesamt", -material, { indent: true }),
+    row("Gesamtleistung abzüglich Fremdlabor/Material", gesamtleistung - material - fremdlabor, { emphasis: true }),
+    row("Praxisleistungsquote", gesamtleistung ? ((gesamtleistung - material - fremdlabor) / gesamtleistung) * 100 : 0, { percent: true, emphasis: true }),
+    row("3. Operative Kosten / Deckungsbeitrag", 0, { emphasis: true }),
+    row("Personalkosten gesamt", -personal, { indent: true }),
+    row("Reparatur und Instandhaltung", -Math.round(gesamtleistung * 0.018), { indent: true }),
+    row("Praxisleistung abzüglich operative Kosten", gesamtleistung - material - fremdlabor - personal - Math.round(gesamtleistung * 0.018), { emphasis: true }),
+    row("Deckungsbeitragsquote", gesamtleistung ? ((gesamtleistung - material - fremdlabor - personal - Math.round(gesamtleistung * 0.018)) / gesamtleistung) * 100 : 0, { percent: true, emphasis: true }),
+    row("4. Sachkosten / EBITDA", 0, { emphasis: true }),
+    row("Miete / Nebenkosten", -Math.round(gesamtleistung * 0.04), { indent: true }),
+    row("Reise / Fortbildung / Seminare", -Math.round(gesamtleistung * 0.006), { indent: true }),
+    row("Kfz / Praxiseinrichtung", -Math.round(gesamtleistung * 0.005), { indent: true }),
+    row("Versicherungen/Beiträge", -Math.round(gesamtleistung * 0.009), { indent: true }),
+    row("KZV Verwaltungskosten", -Math.round(gesamtleistung * 0.004), { indent: true }),
+    row("BFS Factoring", -Math.round(gesamtleistung * 0.012), { indent: true }),
+    row("EC-Terminal", -Math.round(gesamtleistung * 0.001), { indent: true }),
+    row("Nicht abziehbare Vorsteuer", -Math.round(gesamtleistung * 0.012), { indent: true }),
+    row("Sonstige Kosten", -Math.max(0, weitereKosten - Math.round(gesamtleistung * 0.089)), { indent: true }),
+    row("Summe sonstige Kosten", -weitereKosten, { emphasis: true }),
     row("EBITDA", ebitda, { emphasis: true }),
     row("EBITDA-Marge", gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0, { percent: true }),
-    row("Praxiseingänge", praxiseingaenge, { kind: "cashflow" }),
-    row("Sonstige Eingänge", sonstigeEingaenge, { kind: "cashflow" }),
-    row("Praxiskosten", praxiskosten, { kind: "cashflow", indent: true }),
-    row("Annuitäten", annuitaeten, { kind: "cashflow", indent: true }),
-    row("Umbuchungen MVZ", umbuchen, { kind: "cashflow", indent: true }),
-    row("Netto-Cashflow", cashflow, { emphasis: true, kind: "cashflow" })
+    row("EBITDA Vorjahr Ist", Math.round(ebitda * 0.72), { indent: true }),
+    row("Soll-EBITDA gemäß Kaufvertrag", Math.round(ebitda * 0.84), { indent: true }),
+    row("Soll-EBITDA gemäß Übernahme", Math.round(ebitda * 0.78), { indent: true }),
+    row("Abw. Ziel-EBITDA Kaufvertrag", Math.round(ebitda * 0.16), { indent: true }),
+    row("Abw. Ziel-EBITDA Übernahme", Math.round(ebitda * 0.22), { indent: true }),
+    row("Operative Praxiskosten bis EBITDA", praxiskosten, { emphasis: true }),
+    row("5. Unter EBITDA / Vorläufiges Ergebnis", 0, { emphasis: true }),
+    row("Abschreibungen", -Math.round(gesamtleistung * 0.17), { indent: true }),
+    row("Zinsen & neutraler Aufwand", -Math.round(gesamtleistung * 0.015), { indent: true }),
+    row("Zinsertrag Abzinsung Rückstellungen", Math.round(gesamtleistung * 0.006), { indent: true }),
+    row("Steuern vom Einkommen und Ertrag", -Math.round(Math.max(0, ebitda) * 0.18), { indent: true }),
+    row("Vorläufiges Ergebnis", ebitda - Math.round(gesamtleistung * 0.17) - Math.round(gesamtleistung * 0.015) + Math.round(gesamtleistung * 0.006) - Math.round(Math.max(0, ebitda) * 0.18), { emphasis: true }),
+    row("Ergebnisquote", gesamtleistung ? ((ebitda - Math.round(gesamtleistung * 0.17) - Math.round(gesamtleistung * 0.015) + Math.round(gesamtleistung * 0.006) - Math.round(Math.max(0, ebitda) * 0.18)) / gesamtleistung) * 100 : 0, { percent: true }),
+    row("6. Cashflow-Adjustments", 0, { emphasis: true, kind: "cashflow" }),
+    row("+ Abschreibungen", Math.round(gesamtleistung * 0.17), { kind: "cashflow", indent: true }),
+    row("Investitionsausgaben", -Math.round(gesamtleistung * 0.035), { kind: "cashflow", indent: true }),
+    row("Tilgung", -Math.round(sites.reduce((sum, site) => sum + site.darlehen.tilgung, 0) * factor), { kind: "cashflow", indent: true }),
+    row("Umbuchung ZMVZ", umbuchen, { kind: "cashflow", indent: true }),
+    row("Sonstige Rückstellungen / Bestandsminderungen", Math.round(gesamtleistung * 0.008), { kind: "cashflow", indent: true }),
+    row("CashFlow Gesamt", cashflow, { emphasis: true, kind: "cashflow" }),
+    row("CashFlow-Quote", gesamtleistung ? (cashflow / gesamtleistung) * 100 : 0, { percent: true, kind: "cashflow" })
   ];
 }
 
@@ -1380,38 +1402,56 @@ function buildSiteMonthlyBwa(site: (typeof standorte)[number], year: number) {
 
   return [
     row("1. Umsatz", 0, { section: true }),
-    row("KZV-Umsatz", site.honorar * 0.44, { indent: true }),
-    row("Privatumsatz", site.honorar * 0.56, { indent: true }),
+    row("KZV-Umsatz", site.pvsUmsatz * 0.47, { indent: true }),
+    row("Privatumsatz", site.pvsUmsatz * 0.31, { indent: true }),
     row("Bestandsveränderung", site.gesamtleistung * 0.04, { indent: true }),
     row("Material- und Laborumsätze", site.eigenlabor, { indent: true }),
     row("Sonstige betriebliche Erlöse", site.gesamtleistung * 0.01, { indent: true }),
     row("Gesamtleistung", site.gesamtleistung, { emphasis: true }),
     row("Gesamtleistungsquote", 100, { percent: true, emphasis: true, contractValue: 100 }),
     row("2. Variable Kosten / Praxisleistung", 0, { section: true }),
-    row("Fremdlaborkosten", -fremdlabor, { indent: true }),
-    row("Materialkosten", -material, { indent: true }),
-    row("Praxisleistung", site.gesamtleistung - fremdlabor - material, { emphasis: true }),
+    row("Fremdlabor gesamt", -fremdlabor, { indent: true }),
+    row("Materialkosten gesamt", -material, { indent: true }),
+    row("Gesamtleistung abzüglich Fremdlabor/Material", site.gesamtleistung - fremdlabor - material, { emphasis: true }),
     row("Praxisleistungsquote", site.gesamtleistung ? ((site.gesamtleistung - fremdlabor - material) / site.gesamtleistung) * 100 : 0, { percent: true, emphasis: true }),
     row("3. Operative Kosten / Deckungsbeitrag", 0, { section: true }),
     row("Personalkosten aggregiert", -personal, { indent: true }),
-    row("Reparatur-/Instandhaltungskosten", -site.gesamtleistung * 0.018, { indent: true }),
-    row("Deckungsbeitrag", site.gesamtleistung - fremdlabor - material - personal - site.gesamtleistung * 0.018, { emphasis: true }),
+    row("Reparatur und Instandhaltung", -site.gesamtleistung * 0.018, { indent: true }),
+    row("Praxisleistung abzüglich operative Kosten", site.gesamtleistung - fremdlabor - material - personal - site.gesamtleistung * 0.018, { emphasis: true }),
     row("4. Sachkosten / EBITDA", 0, { section: true }),
-    row("Raum-/Energiekosten", -site.gesamtleistung * 0.04, { indent: true }),
-    row("Reise-/Fortbildungskosten", -site.gesamtleistung * 0.006, { indent: true }),
+    row("Miete / Nebenkosten", -site.gesamtleistung * 0.04, { indent: true }),
+    row("Reise / Fortbildung / Seminare", -site.gesamtleistung * 0.006, { indent: true }),
+    row("Kfz / Praxiseinrichtung", -site.gesamtleistung * 0.005, { indent: true }),
     row("Versicherungen / Beiträge", -site.gesamtleistung * 0.009, { indent: true }),
-    row("Abrechnungs-/Factoringkosten", -site.gesamtleistung * 0.012, { indent: true }),
-    row("Sonstige Praxiskosten", -Math.max(0, weitere - site.gesamtleistung * 0.067), { indent: true }),
+    row("KZV Verwaltungskosten", -site.gesamtleistung * 0.004, { indent: true }),
+    row("BFS Factoring", -site.gesamtleistung * 0.012, { indent: true }),
+    row("EC-Terminal", -site.gesamtleistung * 0.001, { indent: true }),
+    row("Nicht abziehbare Vorsteuer", -site.gesamtleistung * 0.012, { indent: true }),
+    row("Sonstige Kosten", -Math.max(0, weitere - site.gesamtleistung * 0.089), { indent: true }),
     row("Sonstige Kosten gesamt", -weitere, { emphasis: true }),
     row("EBITDA", site.ebitda, { emphasis: true }),
     row("EBITDA-Marge", site.ebitdaMarge, { percent: true, emphasis: true, contractValue: site.ebitdaMarge }),
-    row("5. Cashflow", 0, { section: true, kind: "cashflow" }),
-    row("Praxiseingänge", site.pvsUmsatz * 0.96, { kind: "cashflow" }),
-    row("Sonstige Eingänge", site.gesamtleistung * 0.018, { kind: "cashflow" }),
-    row("Praxiskosten", praxiskosten, { indent: true, kind: "cashflow" }),
-    row("Annuitäten", -(site.darlehen.tilgung + site.darlehen.zins), { indent: true, kind: "cashflow" }),
-    row("Umbuchungen MVZ", -site.gesamtleistung * 0.025, { indent: true, kind: "cashflow" }),
-    row("Netto-Cashflow", site.cashflow, { emphasis: true, kind: "cashflow" })
+    row("EBITDA Vorjahr Ist", site.ebitda * 0.72, { indent: true }),
+    row("Soll-EBITDA gemäß Kaufvertrag", site.ebitda * 0.84, { indent: true }),
+    row("Soll-EBITDA gemäß Übernahme", site.ebitda * 0.78, { indent: true }),
+    row("Abw. Ziel-EBITDA Kaufvertrag", site.ebitda * 0.16, { indent: true }),
+    row("Abw. Ziel-EBITDA Übernahme", site.ebitda * 0.22, { indent: true }),
+    row("Operative Praxiskosten bis EBITDA", praxiskosten, { emphasis: true }),
+    row("5. Unter EBITDA / Vorläufiges Ergebnis", 0, { section: true }),
+    row("Abschreibungen", -site.gesamtleistung * 0.17, { indent: true }),
+    row("Zinsen & neutraler Aufwand", -site.gesamtleistung * 0.015, { indent: true }),
+    row("Zinsertrag Abzinsung Rückstellungen", site.gesamtleistung * 0.006, { indent: true }),
+    row("Steuern vom Einkommen und Ertrag", -Math.max(0, site.ebitda) * 0.18, { indent: true }),
+    row("Vorläufiges Ergebnis", site.ebitda - site.gesamtleistung * 0.17 - site.gesamtleistung * 0.015 + site.gesamtleistung * 0.006 - Math.max(0, site.ebitda) * 0.18, { emphasis: true }),
+    row("Ergebnisquote", site.gesamtleistung ? ((site.ebitda - site.gesamtleistung * 0.17 - site.gesamtleistung * 0.015 + site.gesamtleistung * 0.006 - Math.max(0, site.ebitda) * 0.18) / site.gesamtleistung) * 100 : 0, { percent: true }),
+    row("6. Cashflow-Adjustments", 0, { section: true, kind: "cashflow" }),
+    row("+ Abschreibungen", site.gesamtleistung * 0.17, { indent: true, kind: "cashflow" }),
+    row("Investitionsausgaben", -site.gesamtleistung * 0.035, { indent: true, kind: "cashflow" }),
+    row("Tilgung", -site.darlehen.tilgung, { indent: true, kind: "cashflow" }),
+    row("Umbuchung ZMVZ", -site.gesamtleistung * 0.025, { indent: true, kind: "cashflow" }),
+    row("Sonstige Rückstellungen / Bestandsminderungen", site.gesamtleistung * 0.008, { indent: true, kind: "cashflow" }),
+    row("CashFlow Gesamt", site.cashflow, { emphasis: true, kind: "cashflow" }),
+    row("CashFlow-Quote", site.gesamtleistung ? (site.cashflow / site.gesamtleistung) * 100 : 0, { percent: true, kind: "cashflow" })
   ];
 }
 
@@ -1425,7 +1465,7 @@ function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
     <section className="space-y-5">
       <PageTitle title={site.name} text={`Standortdetail ab Praxisstart ${site.start}.`} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Gesamtleistung" value={site.gesamtleistung} delta={`${site.planAbweichung > 0 ? "+" : ""}${pct(site.planAbweichung)}`} icon={TrendingUp} status={site.status} />
+        <KpiCard label="Gesamtleistung" value={site.gesamtleistung} delta={`${site.vorjahrAbweichung > 0 ? "+" : ""}${pct(site.vorjahrAbweichung)} ggü. Vorjahr`} icon={TrendingUp} status={site.status} />
         <KpiCard label="PVS-Umsatz" value={site.pvsUmsatz} delta="Plausibel zur BWA" icon={BadgeEuro} status={site.status} />
         <KpiCard label="EBITDA" value={site.ebitda} delta={`${pct(site.ebitdaMarge)} Marge`} icon={Banknote} status={site.status} />
         <KpiCard label="Cashflow" value={site.cashflow} delta="Netto nach Annuitäten" icon={Wallet} status={site.status} />
@@ -1440,13 +1480,11 @@ function StandortDetail({ site }: { site: (typeof standorte)[number] }) {
               <YAxis tickFormatter={(v) => eur(Number(v), true)} tickLine={false} axisLine={false} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Area dataKey="leistung" stroke="#0f766e" fill="#ccfbf1" strokeWidth={3} />
-              <Area dataKey="plan" stroke="#0369a1" fill="#dbeafe" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
       </div>
       <SiteMonthlyBwa site={site} />
-      <SitePlanIst site={site} />
     </section>
   );
 }
@@ -1947,7 +1985,7 @@ function performanceBase(site: (typeof standorte)[number], mode: "honorar" | "pv
 function Analysen() {
   return (
     <section className="space-y-5">
-      <PageTitle title="Analysen" text="EBITDA, Gesamtleistung, Cashflow, Standortvergleich, Zeitvergleich und Plan/Ist-Abweichungen." />
+      <PageTitle title="Analysen" text="EBITDA, Gesamtleistung, Cashflow, Standortvergleich, Zeitvergleich und Vorjahresabweichungen." />
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="EBITDA-Entwicklung" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={280}>
@@ -1975,7 +2013,7 @@ function Analysen() {
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <AnalysisTile title="Zeitvergleich" value="+8,9 %" text="Leistung gegenüber Vorperiode." />
-        <AnalysisTile title="Plan/Ist-Abweichung" value="+2,4 %" text="Konzern kumuliert YTD." />
+        <AnalysisTile title="Vorjahresabweichung" value="+2,4 %" text="Konzern kumuliert YTD." />
         <AnalysisTile title="Cashflow-Qualität" value="74 %" text="Praxiseingänge nach Annuitäten." />
       </div>
     </section>
@@ -2006,7 +2044,7 @@ function Bwa() {
               <YAxis tickFormatter={(v) => eur(Number(v), true)} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="leistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
-              <Line dataKey="plan" stroke="#0369a1" strokeWidth={3} />
+              <Line dataKey="ebitda" stroke="#0369a1" strokeWidth={3} />
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -2039,74 +2077,6 @@ function Cashflow() {
   );
 }
 
-function SitePlanIst({ site }: { site: (typeof standorte)[number] }) {
-  const rows = [
-    { label: "Gesamtleistung", actual: site.gesamtleistung, plan: site.gesamtleistung / (1 + site.planAbweichung / 100) },
-    { label: "EBITDA", actual: site.ebitda, plan: site.darlehen.zielEbitda || site.ebitda / 0.96 },
-    { label: "Cashflow", actual: site.cashflow, plan: site.cashflow >= 0 ? site.cashflow / 1.04 : site.cashflow * 0.86 },
-    { label: "Offene Forderungen", actual: site.forderungen, plan: site.forderungen * 0.92 }
-  ];
-
-  return (
-    <section className="space-y-5">
-      <PageTitle title={`Plan/Ist ${site.name}`} text={`Nur Werte für ${site.name}, ohne andere Standorte.`} />
-      <Card className="overflow-hidden">
-        <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr_0.8fr] gap-2 border-b border-border bg-slate-50 p-3 text-xs font-bold uppercase text-muted-foreground">
-          <span>Kennzahl</span>
-          <span className="text-right">Ist</span>
-          <span className="text-right">Plan</span>
-          <span className="text-right">Abw. EUR</span>
-          <span className="text-right">Abw. %</span>
-        </div>
-        {rows.map((row) => {
-          const variance = row.actual - row.plan;
-          const variancePct = row.plan ? (variance / Math.abs(row.plan)) * 100 : 0;
-          return (
-            <div key={row.label} className="grid grid-cols-[1.2fr_1fr_1fr_1fr_0.8fr] gap-2 border-b border-border p-3 text-sm last:border-0">
-              <span className="font-semibold">{row.label}</span>
-              <span className="text-right">{eur(row.actual, true)}</span>
-              <span className="text-right text-muted-foreground">{eur(row.plan, true)}</span>
-              <span className={cn("text-right font-semibold", variance < 0 ? "text-red-700" : "text-emerald-700")}>{eur(variance, true)}</span>
-              <span className={cn("text-right font-semibold", variancePct < 0 ? "text-red-700" : "text-emerald-700")}>{pct(variancePct)}</span>
-            </div>
-          );
-        })}
-      </Card>
-    </section>
-  );
-}
-
-function PlanIst({ siteName = "Konzern" }: { siteName?: string }) {
-  return (
-    <section className="space-y-5">
-      <PageTitle title={`Plan/Ist ${siteName}`} text="Gesamtleistung, EBITDA und Cashflow mit Abweichungen in EUR und Prozent." />
-      <div className="grid gap-4 lg:grid-cols-3">
-        {["Gesamtleistung", "EBITDA", "Cashflow"].map((label, index) => (
-          <Card key={label} className="p-4">
-            <p className="text-sm font-semibold text-muted-foreground">{label}</p>
-            <p className="mt-2 text-2xl font-bold">{eur([total("gesamtleistung"), total("ebitda"), total("cashflow")][index], true)}</p>
-            <p className="mt-1 text-sm font-semibold text-emerald-700">+{[2.4, 4.8, 1.7][index].toLocaleString("de-DE")} % vs. Plan</p>
-          </Card>
-        ))}
-      </div>
-      <Card className="overflow-hidden">
-        <div className="grid grid-cols-5 gap-2 border-b border-border bg-slate-50 p-3 text-xs font-bold uppercase text-muted-foreground">
-          <span>Standort</span><span>Ist</span><span>Plan</span><span>Abw. EUR</span><span>Abw. %</span>
-        </div>
-        {standorte.map((site) => (
-          <div key={site.id} className="grid grid-cols-5 gap-2 border-b border-border p-3 text-sm last:border-0">
-            <span className="font-semibold">{site.name}</span>
-            <span>{eur(site.gesamtleistung, true)}</span>
-            <span>{eur(site.gesamtleistung / (1 + site.planAbweichung / 100), true)}</span>
-            <span>{eur(site.gesamtleistung - site.gesamtleistung / (1 + site.planAbweichung / 100), true)}</span>
-            <span className={cn(site.planAbweichung < 0 ? "text-red-700" : "text-emerald-700", "font-semibold")}>{pct(site.planAbweichung)}</span>
-          </div>
-        ))}
-      </Card>
-    </section>
-  );
-}
-
 function Darlehen() {
   const restschuld = standorte.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
   const earnOut = standorte.reduce((sum, site) => sum + site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt, 0);
@@ -2116,7 +2086,7 @@ function Darlehen() {
       <div className="grid gap-4 lg:grid-cols-3">
         <KpiCard label="Gesamte Restschuld" value={restschuld} delta="Konsolidiert" icon={Landmark} status="yellow" />
         <KpiCard label="Earn-Out offen" value={earnOut} delta="Verpflichtungen offen" icon={BadgeEuro} status="yellow" />
-        <KpiCard label="Tilgung YTD" value={251000} delta="Planmäßig" icon={ShieldCheck} status="green" />
+        <KpiCard label="Tilgung YTD" value={251000} delta="Laufend bedient" icon={ShieldCheck} status="green" />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         {standorte.map((site) => {
