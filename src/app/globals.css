@@ -81,3 +81,48 @@ select {
 .table-grid-bg {
   background: hsl(var(--border));
 }
+
+.data-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.data-table th,
+.data-table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.table-label-col {
+  min-width: clamp(13rem, 24vw, 20rem);
+  max-width: clamp(14rem, 30vw, 24rem);
+  white-space: normal !important;
+}
+
+.table-number-col {
+  min-width: clamp(7rem, 9vw, 9.5rem);
+}
+
+.table-small-number-col {
+  min-width: clamp(5.75rem, 7vw, 7.5rem);
+}
+
+@media (max-width: 640px) {
+  .data-table {
+    font-size: 0.78rem;
+  }
+
+  .table-label-col {
+    min-width: 11rem;
+    max-width: 13rem;
+  }
+
+  .table-number-col {
+    min-width: 7.75rem;
+  }
+
+  .table-small-number-col {
+    min-width: 6.75rem;
+  }
+}

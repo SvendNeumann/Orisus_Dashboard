@@ -1814,7 +1814,7 @@ function StandortCfoComparison({ sites = standorte }: { sites?: DashboardSite[] 
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[980px] border-separate border-spacing-0 text-sm">
+        <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
               {["Standort", "Gesamtleistung", "EBITDA", "EBITDA-Marge", "Cashflow", "Forderungen", "Kostenquote", "Ampel"].map((head) => (
@@ -2296,10 +2296,10 @@ function ConsolidatedBwaMatrix({
         </Select>
       </div>
       <div className="max-h-[72vh] overflow-auto">
-        <table className="min-w-[1180px] border-separate border-spacing-0 text-sm">
+        <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              <th className="sticky left-0 top-0 z-30 w-64 border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
+              <th className="sticky left-0 top-0 z-30 table-label-col border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                 BWA-Position
               </th>
               {groups.map((group) => (
@@ -2314,7 +2314,7 @@ function ConsolidatedBwaMatrix({
               ))}
             </tr>
             <tr>
-              <th className="sticky left-0 top-[45px] z-30 border-b border-r border-border table-subhead p-2 text-left text-xs font-semibold text-white">
+              <th className="sticky left-0 top-[45px] z-30 table-label-col border-b border-r border-border table-subhead p-2 text-left text-xs font-semibold text-white">
                 {period}
               </th>
               {groups.map((group) => (
@@ -2327,7 +2327,7 @@ function ConsolidatedBwaMatrix({
               <tr key={row.label}>
                 <td
                   className={cn(
-                    "sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-semibold",
+                    "sticky left-0 z-10 table-label-col border-b border-r border-border bg-white p-2 font-semibold",
                     row.indent && "pl-6 font-medium text-muted-foreground",
                     row.percent && "text-xs",
                     row.emphasis && "table-total text-foreground",
@@ -2364,10 +2364,10 @@ function ConsolidatedBwaMatrix({
 function FragmentHeaders() {
   return (
     <>
-      <th className="sticky top-[45px] z-20 w-32 border-b border-r border-border table-subhead p-2 text-right text-xs font-semibold text-white">
+      <th className="sticky top-[45px] z-20 table-number-col border-b border-r border-border table-subhead p-2 text-right text-xs font-semibold text-white">
         Ist
       </th>
-      <th className="sticky top-[45px] z-20 w-24 border-b border-r border-border table-subhead p-2 text-right text-xs font-semibold text-white">
+      <th className="sticky top-[45px] z-20 table-small-number-col border-b border-r border-border table-subhead p-2 text-right text-xs font-semibold text-white">
         % GL
       </th>
     </>
@@ -2386,8 +2386,8 @@ function FragmentCells({
   if (!hasData) {
     return (
       <>
-        <td className="border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground">-</td>
-        <td className="border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground">-</td>
+        <td className="table-number-col border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground">-</td>
+        <td className="table-small-number-col border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground">-</td>
       </>
     );
   }
@@ -2395,8 +2395,8 @@ function FragmentCells({
   if (isSectionRow) {
     return (
       <>
-        <td className={cn("border-b border-r border-border bg-white p-2", row.kind === "cashflow" && "table-cashflow")} />
-        <td className={cn("border-b border-r border-border bg-white p-2", row.kind === "cashflow" && "table-cashflow")} />
+        <td className={cn("table-number-col border-b border-r border-border bg-white p-2", row.kind === "cashflow" && "table-cashflow")} />
+        <td className={cn("table-small-number-col border-b border-r border-border bg-white p-2", row.kind === "cashflow" && "table-cashflow")} />
       </>
     );
   }
@@ -2404,7 +2404,7 @@ function FragmentCells({
     <>
       <td
         className={cn(
-          "border-b border-r border-border bg-white p-2 text-right font-semibold tabular-nums",
+          "table-number-col border-b border-r border-border bg-white p-2 text-right font-semibold tabular-nums",
           row.percent && "text-xs",
           row.percent && "table-ratio",
           valueToneClass(row.actual, isVarianceRow(row.label)),
@@ -2416,7 +2416,7 @@ function FragmentCells({
       </td>
       <td
         className={cn(
-          "border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums",
+          "table-small-number-col border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums",
           row.percent && "text-xs",
           row.percent && "table-ratio",
           row.emphasis && "table-total font-bold text-foreground",
@@ -2622,27 +2622,27 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
         </Select>
       </div>
       <div className="max-h-[72vh] overflow-auto">
-        <table className="min-w-[1420px] border-separate border-spacing-0 text-sm">
+        <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              <th className="sticky left-0 top-0 z-30 w-72 border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
+              <th className="sticky left-0 top-0 z-30 table-label-col border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                 BWA-Position
               </th>
               {bwaMonths.map((month) => (
-                <th key={month} className="sticky top-0 z-20 w-24 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
+                <th key={month} className="sticky top-0 z-20 table-small-number-col border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                   {month}
                 </th>
               ))}
-              <th className="sticky top-0 z-20 w-28 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
+              <th className="sticky top-0 z-20 table-number-col border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Gesamt
               </th>
-              <th className="sticky top-0 z-20 w-28 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
+              <th className="sticky top-0 z-20 table-number-col border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Vorjahr
               </th>
-              <th className="sticky top-0 z-20 w-32 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
+              <th className="sticky top-0 z-20 table-number-col border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Durchschnitt
               </th>
-              <th className="sticky top-0 z-20 w-40 border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
+              <th className="sticky top-0 z-20 table-number-col border-b border-r border-border table-head p-3 text-right text-xs font-bold uppercase text-white">
                 Vertragsperiode
               </th>
             </tr>
@@ -2655,7 +2655,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                 <tr key={row.label}>
                   <td
                     className={cn(
-                      "sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-semibold",
+                      "sticky left-0 z-10 table-label-col border-b border-r border-border bg-white p-2 font-semibold",
                       row.indent && "pl-6 font-medium text-muted-foreground",
                       row.section && "table-section font-bold text-foreground",
                       row.percent && "text-xs",
@@ -2670,7 +2670,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                     <td
                       key={`${row.label}-${bwaMonths[index]}`}
                       className={cn(
-                        "border-b border-r border-border bg-white p-2 text-right tabular-nums",
+                        "table-small-number-col border-b border-r border-border bg-white p-2 text-right tabular-nums",
                         row.percent && "text-xs",
                         row.percent && "table-ratio",
                         row.section && "table-section font-bold text-foreground",
@@ -2682,16 +2682,16 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                       {row.section ? "" : formatBwaCell(value, row.percent)}
                     </td>
                   ))}
-                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(totalValue, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(totalValue, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(totalValue, row.percent)}
                   </td>
-                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(row.previousYear, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(row.previousYear, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(row.previousYear ?? null, row.percent)}
                   </td>
-                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(average, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-slate-50 p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(average, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(average, row.percent)}
                   </td>
-                  <td className={cn("border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(row.contract, isVarianceRow(row.label)))}>
+                  <td className={cn("table-number-col border-b border-r border-border bg-slate-50 p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", valueToneClass(row.contract, isVarianceRow(row.label)))}>
                     {row.section ? "" : formatBwaCell(row.contract, row.percent)}
                   </td>
                 </tr>
@@ -2975,7 +2975,7 @@ function KennzahlenStandortTable({ targetBySite }: { targetBySite: Record<string
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-[1720px] border-separate border-spacing-0 text-xs">
+        <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
               {[
@@ -3087,7 +3087,7 @@ function MonthlyEbitdaTable({ targetBySite }: { targetBySite: Record<string, num
         Auswertung: 2026 | Ist-EBITDA je Monat und Standort | Zielabweichung kumuliert gegen Übernahme und Bank/KV
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1280px] border-separate border-spacing-0 text-xs">
+        <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
               <th className="border-b border-r border-border table-head p-2 text-white">Monat</th>
@@ -3154,7 +3154,7 @@ function TableCell({
   return (
     <td
       className={cn(
-        "border-b border-r border-border bg-white p-2 text-right tabular-nums",
+        "table-number-col border-b border-r border-border bg-white p-2 text-right tabular-nums",
         strong && "font-bold",
         tone === "green" && "text-emerald-700",
         tone === "red" && "text-red-700"
@@ -3229,7 +3229,7 @@ function OperationalPerformanceTable() {
         <h2 className="font-bold">Operative Standort-Performance</h2>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1080px] border-separate border-spacing-0 text-sm">
+        <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
               {["Standort", "Gesamtleistung", "PVS", "EBITDA", "Marge", "Cashflow", "Forderungen", "Kostenquote", "Status"].map((head) => (
@@ -3292,7 +3292,7 @@ function PerformanceRevenueBlock({
         <KennzahlTile label="Aktueller Gesamtkontostand" value={eur(total("kontostand"))} />
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1320px] border-separate border-spacing-0 text-xs">
+        <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
               {[
@@ -3378,7 +3378,7 @@ function PerformanceMonthlyTable({ title, mode }: { title: string; mode: "honora
     <Card className="overflow-hidden">
       <div className="table-head p-3 font-bold text-white">{title}</div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1120px] border-separate border-spacing-0 text-xs">
+        <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
               <th className="border-b border-r border-border table-head p-2 text-white">Standort</th>
@@ -3433,7 +3433,7 @@ function BankMovementsTable() {
     <Card className="overflow-hidden">
       <div className="table-head p-3 font-bold text-white">Bank / Geldbewegungen aus Input_Finanzen</div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1220px] border-separate border-spacing-0 text-xs">
+        <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
               <th className="border-b border-r border-border table-subhead p-2 text-white">Position</th>
@@ -3725,7 +3725,7 @@ function Bankenreporting() {
           <h2 className="font-bold">Standortbeitrag für Bankenreporting</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-[980px] border-separate border-spacing-0 text-sm">
+          <table className="data-table border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
                 {["Standort", "Gesamtleistung", "EBITDA", "Marge", "Cashflow", "Restschuld", "Tilgung", "Zins"].map((head) => (
@@ -3845,7 +3845,7 @@ function AcquisitionIntegration() {
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1180px] border-separate border-spacing-0 text-sm">
+        <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
               {[
@@ -4253,7 +4253,7 @@ function AdminKpiRules() {
       </Card>
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-[980px] border-separate border-spacing-0 text-sm">
+          <table className="data-table border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
                 {["KPI", "Grün", "Gelb", "Rot", "Verantwortlich"].map((head) => (
