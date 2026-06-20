@@ -53,6 +53,8 @@ import {
   uploadTypes
 } from "@/data/dashboard";
 
+type DashboardSite = (typeof standorte)[number];
+
 type Page =
   | "cockpit"
   | "kennzahlen"
@@ -90,6 +92,7 @@ const bwaPeriodOptions = ["Geschäftsjahr 2024", "Geschäftsjahr 2025", "Geschä
 
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
+const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
 
@@ -110,6 +113,14 @@ type ImportReport = {
   werttypen: string[];
   warnings: string[];
   errors: string[];
+};
+
+type ImportedDashboardData = {
+  importedAt: string;
+  fileName: string;
+  sites: DashboardSite[];
+  monthly: typeof monthly;
+  report: ImportReport;
 };
 
 const emptyImportReport: ImportReport = {
@@ -209,6 +220,10 @@ function total(key: keyof (typeof standorte)[number]) {
   return standorte.reduce((sum, site) => sum + Number(site[key] ?? 0), 0);
 }
 
+function totalForSites(sites: DashboardSite[], key: keyof DashboardSite) {
+  return sites.reduce((sum, site) => sum + Number(site[key] ?? 0), 0);
+}
+
 function asText(value: unknown) {
   return value == null ? "" : String(value).trim();
 }
@@ -249,6 +264,143 @@ function isAllowedTargetValue(row: Record<string, unknown>) {
 function isExcludedPlanRow(row: Record<string, unknown>) {
   const valueType = asText(row.Werttyp).toLowerCase();
   return valueType.includes("plan") && !isAllowedTargetValue(row);
+}
+
+function normalizeMetric(value: unknown) {
+  return asText(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function rowMetric(row: Record<string, unknown>) {
+  return normalizeMetric(row.Standard_Kennzahl || row.Kennzahl || row.Detailbezeichnung);
+}
+
+function rowDomain(row: Record<string, unknown>) {
+  return normalizeMetric(row.Standard_Datenbereich || row.Datenbereich);
+}
+
+function metricMatches(metric: string, candidates: string[]) {
+  return candidates.some((candidate) => {
+    if (candidate.endsWith("*")) return metric.startsWith(candidate.slice(0, -1));
+    return metric === candidate;
+  });
+}
+
+function sumRows(rows: Record<string, unknown>[], site: string | null, metrics: string[], domains?: string[]) {
+  return rows.reduce((sum, row) => {
+    if (site && asText(row.Standortname) !== site) return sum;
+    const metric = rowMetric(row);
+    const domain = rowDomain(row);
+    if (!metricMatches(metric, metrics)) return sum;
+    if (domains?.length && !metricMatches(domain, domains)) return sum;
+    return sum + (asNumber(row.Wert) ?? 0);
+  }, 0);
+}
+
+function lastRowsValue(rows: Record<string, unknown>[], site: string | null, metrics: string[], domains?: string[]) {
+  const candidates = rows
+    .filter((row) => {
+      if (site && asText(row.Standortname) !== site) return false;
+      const metric = rowMetric(row);
+      const domain = rowDomain(row);
+      return metricMatches(metric, metrics) && (!domains?.length || metricMatches(domain, domains));
+    })
+    .sort((a, b) => {
+      const yearDelta = (asNumber(b.Jahr) ?? 0) - (asNumber(a.Jahr) ?? 0);
+      if (yearDelta) return yearDelta;
+      return (asNumber(b.Monat) ?? 0) - (asNumber(a.Monat) ?? 0);
+    });
+  return asNumber(candidates[0]?.Wert) ?? 0;
+}
+
+function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, report: ImportReport): ImportedDashboardData {
+  const rows = XLSX.utils
+    .sheet_to_json<Record<string, unknown>>(workbook.Sheets.Konzern_Konsolidierung_STD, {
+      defval: null,
+      raw: true
+    })
+    .filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
+  const latestYear = report.jahre.filter((year) => year > 1900).at(-1) ?? new Date().getFullYear();
+  const activeRows = rows.filter((row) => (asNumber(row.Jahr) ?? latestYear) === latestYear);
+  const fallbackByName = new Map(standorte.map((site) => [site.name, site]));
+
+  const sites = report.standorte.map((siteName) => {
+    const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
+    const siteRows = activeRows.filter((row) => asText(row.Standortname) === siteName);
+    const gesamtleistung = Math.round(
+      sumRows(siteRows, null, ["gesamtleistung"], ["bwa"]) || fallback.gesamtleistung
+    );
+    const pvsUmsatz = Math.round(sumRows(siteRows, null, ["pvs_gesamtumsatz_inkl_fl_mat"], ["finanzen"]) || fallback.pvsUmsatz);
+    const ebitda = Math.round(sumRows(siteRows, null, ["ebitda"], ["bwa"]) || fallback.ebitda);
+    const cashflow = Math.round(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]) || fallback.cashflow);
+    const kontostand = Math.round(lastRowsValue(siteRows, null, ["kontostand"], ["kontostand"]) || fallback.kontostand);
+    const material = Math.abs(sumRows(siteRows, null, ["materialkosten"], ["bwa"]));
+    const fremdlabor = Math.abs(sumRows(siteRows, null, ["fremdlaborkosten"], ["bwa"]));
+    const personal = Math.abs(sumRows(siteRows, null, ["personalkosten"], ["bwa"]));
+    const forderungen = Math.round(lastRowsValue(siteRows, null, ["soll_forderung_pvs", "noch_ausstehend_vs_bank"], ["finanzen"]) || fallback.forderungen);
+    const darlehen = Math.round(sumRows(siteRows, null, ["darlehen*", "fremdkapital*"], ["finanzen", "darlehen"]) || fallback.darlehen.darlehen);
+    const tilgung = Math.abs(Math.round(sumRows(siteRows, null, ["tilgung"], ["finanzen", "bwa"]) || fallback.darlehen.tilgung));
+    const restschuld = Math.max(0, Math.round(lastRowsValue(siteRows, null, ["restschuld", "rest_fremdkapital"], ["finanzen", "darlehen"]) || Math.max(0, darlehen - tilgung)));
+    const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : fallback.ebitdaMarge;
+    const materialquote = gesamtleistung ? (material / gesamtleistung) * 100 : fallback.materialquote;
+    const fremdlaborquote = gesamtleistung ? (fremdlabor / gesamtleistung) * 100 : fallback.fremdlaborquote;
+    const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - (personal / gesamtleistung) * 100) : fallback.sonstigeKostenquote;
+    const status: Status = ebitdaMarge < 8 || cashflow < 0 ? "red" : ebitdaMarge < 12 ? "yellow" : "green";
+
+    return {
+      ...fallback,
+      id: normalizeMetric(siteName) || fallback.id,
+      name: siteName,
+      gesamtleistung,
+      pvsUmsatz,
+      ebitda,
+      ebitdaMarge,
+      cashflow,
+      kontostand,
+      forderungen,
+      materialquote,
+      fremdlaborquote,
+      sonstigeKostenquote,
+      status,
+      darlehen: {
+        ...fallback.darlehen,
+        darlehen,
+        restschuld,
+        tilgung,
+        istEbitda: ebitda
+      }
+    };
+  });
+
+  const monthlyData = report.monate.map((monthNumber) => {
+    const monthRows = activeRows.filter((row) => (asNumber(row.Monat) ?? 0) === monthNumber);
+    const leistung = Math.round(sumRows(monthRows, null, ["gesamtleistung"], ["bwa"]));
+    const ebitda = Math.round(sumRows(monthRows, null, ["ebitda"], ["bwa"]));
+    const cashflow = Math.round(sumRows(monthRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]));
+    return {
+      month: new Date(2026, monthNumber - 1, 1).toLocaleString("de-DE", { month: "short" }).replace(".", ""),
+      leistung,
+      ebitda,
+      marge: leistung ? (ebitda / leistung) * 100 : 0,
+      cashflow
+    };
+  });
+
+  return {
+    importedAt: new Date().toISOString(),
+    fileName,
+    sites: sites.length ? sites : standorte,
+    monthly: monthlyData.length ? monthlyData : monthly,
+    report
+  };
 }
 
 function buildImportReport(workbook: XLSX.WorkBook, fileName: string): ImportReport {
@@ -324,18 +476,18 @@ function buildImportReport(workbook: XLSX.WorkBook, fileName: string): ImportRep
   };
 }
 
-function cfoMetrics() {
-  const activeSites = standorte.filter((site) => site.gesamtleistung > 0);
-  const gesamtleistung = total("gesamtleistung");
-  const ebitda = total("ebitda");
-  const cashflow = total("cashflow");
-  const kontostand = total("kontostand");
-  const forderungen = total("forderungen");
-  const aufgenommen = standorte.reduce((sum, site) => sum + site.darlehen.darlehen, 0);
-  const restschuld = standorte.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
+function cfoMetrics(sites: DashboardSite[] = standorte, monthlyData: typeof monthly = monthly) {
+  const activeSites = sites.filter((site) => site.gesamtleistung > 0);
+  const gesamtleistung = totalForSites(sites, "gesamtleistung");
+  const ebitda = totalForSites(sites, "ebitda");
+  const cashflow = totalForSites(sites, "cashflow");
+  const kontostand = totalForSites(sites, "kontostand");
+  const forderungen = totalForSites(sites, "forderungen");
+  const aufgenommen = sites.reduce((sum, site) => sum + site.darlehen.darlehen, 0);
+  const restschuld = sites.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
   const getilgt = Math.max(0, aufgenommen - restschuld);
-  const zins = standorte.reduce((sum, site) => sum + site.darlehen.zins, 0);
-  const tilgung = standorte.reduce((sum, site) => sum + site.darlehen.tilgung, 0);
+  const zins = sites.reduce((sum, site) => sum + site.darlehen.zins, 0);
+  const tilgung = sites.reduce((sum, site) => sum + site.darlehen.tilgung, 0);
   const kapitaldienst = tilgung + zins;
   const kostenquote =
     activeSites.reduce(
@@ -343,7 +495,7 @@ function cfoMetrics() {
       0
     ) / (gesamtleistung || 1);
   const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0;
-  const runRateEbitda = monthly.length ? (ebitda / monthly.length) * 12 : 0;
+  const runRateEbitda = monthlyData.length ? (ebitda / monthlyData.length) * 12 : 0;
   const kapitaldienstfaehigkeit = kapitaldienst ? ebitda / kapitaldienst : 0;
   const kritisch = activeSites.filter(
     (site) => site.status === "red" || site.cashflow < 0 || site.ebitdaMarge < 10 || site.forderungen > site.gesamtleistung * 0.15
@@ -379,15 +531,25 @@ export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [pin, setPin] = useState("");
   const [previousPage, setPreviousPage] = useState<Page | null>(null);
+  const [importedData, setImportedData] = useState<ImportedDashboardData | null>(null);
+  const dashboardSites = importedData?.sites ?? standorte;
+  const dashboardMonthly = importedData?.monthly ?? monthly;
 
   const selected = useMemo(
-    () => standorte.find((site) => site.id === selectedSite) ?? standorte[0],
-    [selectedSite]
+    () => dashboardSites.find((site) => site.id === selectedSite) ?? dashboardSites[0],
+    [dashboardSites, selectedSite]
   );
 
   useEffect(() => {
     if (window.localStorage.getItem(authStorageKey) === "true") {
       setAuthStep("app");
+    }
+    const savedImport = window.localStorage.getItem(importDashboardStorageKey);
+    if (!savedImport) return;
+    try {
+      setImportedData(JSON.parse(savedImport) as ImportedDashboardData);
+    } catch {
+      window.localStorage.removeItem(importDashboardStorageKey);
     }
   }, []);
 
@@ -482,11 +644,12 @@ export default function HomePage() {
             onBack={() => go(previousPage ?? "cockpit")}
             onGo={go}
           />
-          {page === "cockpit" && <Cockpit setPage={go} />}
+          {page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {page === "kennzahlen" && <KennzahlenEntwicklung />}
           {page === "performance" && <OrisusPerformance />}
           {page === "standorte" && (
             <Standorte
+              sites={dashboardSites}
               onOpen={(id) => {
                 setSelectedSite(id);
                 go("standort-detail");
@@ -500,7 +663,7 @@ export default function HomePage() {
           {page === "darlehen" && <Darlehen />}
           {page === "banken" && <Bankenreporting />}
           {page === "board" && <BoardPack />}
-          {page === "uploads" && <Uploads />}
+          {page === "uploads" && <Uploads onImportConfirmed={setImportedData} />}
           {page === "reports" && <Reports />}
           {page === "admin" && <AdminKpiRules />}
         </div>
@@ -970,79 +1133,91 @@ function NavigationControls({
   );
 }
 
-function Cockpit({ setPage }: { setPage: (page: Page) => void }) {
+function Cockpit({
+  setPage,
+  sites,
+  monthlyData,
+  importedData
+}: {
+  setPage: (page: Page) => void;
+  sites: DashboardSite[];
+  monthlyData: typeof monthly;
+  importedData: ImportedDashboardData | null;
+}) {
   return (
     <section className="space-y-5">
       <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Handlungsbedarf." />
-      <DataStatusStrip />
-      <DailyCfoCockpit />
+      <DataStatusStrip importedData={importedData} />
+      <DailyCfoCockpit sites={sites} monthlyData={monthlyData} />
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard title="Ist EBITDA vs. EBITDA bei Übernahme" icon={TrendingUp}>
           <EbitdaTakeoverChart />
         </ChartCard>
         <ChartCard title="Kostenquoten am Umsatz" icon={PieIcon}>
-          <CostShareDonut />
+          <CostShareDonut sites={sites} />
         </ChartCard>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard title="Standortvergleich Gesamtleistung & EBITDA" icon={BarChart3}>
-          <SitePerformanceChart />
+          <SitePerformanceChart sites={sites} />
         </ChartCard>
         <ChartCard title="Top Behandler nach Honorarumsatz" icon={BadgeEuro}>
           <TopBehandlerChart />
         </ChartCard>
       </div>
 
-      <StandortCfoComparison />
+      <StandortCfoComparison sites={sites} />
 
       <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
         <ChartCard title="Offene Forderungen je Standort" icon={FileBarChart}>
           <ReceivablesChart />
         </ChartCard>
-        <AccountsBlock />
+        <AccountsBlock sites={sites} />
       </div>
 
-      <DebtCapitalBlock />
+      <DebtCapitalBlock sites={sites} />
 
       <div className="grid gap-5 xl:grid-cols-3">
-        <CostRatios />
-        <Ranking title="EBITDA je Standort" metric="ebitda" />
-        <Ranking title="Gesamtleistung je Standort" metric="gesamtleistung" />
+        <CostRatios sites={sites} />
+        <Ranking title="EBITDA je Standort" metric="ebitda" sites={sites} />
+        <Ranking title="Gesamtleistung je Standort" metric="gesamtleistung" sites={sites} />
       </div>
 
-      <CashflowBlock />
+      <CashflowBlock sites={sites} />
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <TrafficLights />
+        <TrafficLights sites={sites} monthlyData={monthlyData} />
         <Insights setPage={setPage} />
       </div>
     </section>
   );
 }
 
-function DataStatusStrip() {
+function DataStatusStrip({ importedData }: { importedData?: ImportedDashboardData | null }) {
   return (
     <Card className="grid gap-3 p-3 text-sm sm:grid-cols-3">
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Datenstand</p>
-        <p className="font-bold">Juni 2026 | letzter Import 20.06.2026</p>
+        <p className="font-bold">
+          {importedData ? new Date(importedData.importedAt).toLocaleString("de-DE") : "Demo-Daten | noch kein bestätigter Excel-Import"}
+        </p>
       </div>
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Datenqualität</p>
-        <div className="mt-1"><Badge tone="green">Vollständig</Badge></div>
+        <div className="mt-1"><Badge tone={importedData?.report.status === "warning" ? "yellow" : "green"}>{importedData ? "Import bestätigt" : "Demo-Modus"}</Badge></div>
       </div>
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Quelle</p>
-        <p className="font-bold">Konsolidierter Excel-/CSV-Import</p>
+        <p className="font-bold">{importedData?.fileName ?? "Interne Demo-Daten"}</p>
       </div>
     </Card>
   );
 }
 
-function DailyCfoCockpit() {
-  const metrics = cfoMetrics();
+function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; monthlyData: typeof monthly }) {
+  const metrics = cfoMetrics(sites, monthlyData);
   const riskLabel = metrics.kritisch.length ? metrics.kritisch.map((site) => site.name).join(", ") : "Keine roten Standorte";
   const criticalReceivables = [...metrics.activeSites].sort((a, b) => b.forderungen - a.forderungen).slice(0, 2);
 
@@ -1203,9 +1378,9 @@ function EbitdaTakeoverChart() {
   );
 }
 
-function CostShareDonut() {
-  const revenue = total("pvsUmsatz");
-  const metrics = cfoMetrics();
+function CostShareDonut({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const revenue = totalForSites(sites, "pvsUmsatz") || totalForSites(sites, "gesamtleistung") || 1;
+  const metrics = cfoMetrics(sites);
   const data = [
     { name: "Personal", value: Math.round(revenue * 0.278), color: "#0369a1" },
     { name: "Material", value: Math.round(revenue * 0.099), color: "#0f766e" },
@@ -1244,10 +1419,10 @@ function CostShareDonut() {
   );
 }
 
-function SitePerformanceChart() {
+function SitePerformanceChart({ sites = standorte }: { sites?: DashboardSite[] }) {
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={standorte}>
+      <BarChart data={sites}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis dataKey="name" tickLine={false} axisLine={false} />
         <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => eur(Number(v), true)} />
@@ -1259,7 +1434,7 @@ function SitePerformanceChart() {
   );
 }
 
-function StandortCfoComparison() {
+function StandortCfoComparison({ sites = standorte }: { sites?: DashboardSite[] }) {
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border p-4">
@@ -1280,7 +1455,7 @@ function StandortCfoComparison() {
             </tr>
           </thead>
           <tbody>
-            {standorte.filter((site) => site.gesamtleistung > 0).map((site) => {
+            {sites.filter((site) => site.gesamtleistung > 0).map((site) => {
               const kostenquote = site.materialquote + site.fremdlaborquote + site.sonstigeKostenquote;
               return (
                 <tr key={site.id}>
@@ -1334,15 +1509,23 @@ function ReceivablesChart() {
   );
 }
 
-function CostRatios({ site }: { site?: (typeof standorte)[number] }) {
+function CostRatios({ site, sites = standorte }: { site?: DashboardSite; sites?: DashboardSite[] }) {
   const material = site?.materialquote ?? 9.9;
   const fremdlabor = site?.fremdlaborquote ?? 15.6;
   const sonstige = site?.sonstigeKostenquote ?? 37.8;
+  const aggregate = !site && sites.length;
+  const weighted = (key: "materialquote" | "fremdlaborquote" | "sonstigeKostenquote") => {
+    const performance = totalForSites(sites, "gesamtleistung");
+    return performance ? sites.reduce((sum, current) => sum + current.gesamtleistung * current[key], 0) / performance : 0;
+  };
+  const actualMaterial = aggregate ? weighted("materialquote") : material;
+  const actualFremdlabor = aggregate ? weighted("fremdlaborquote") : fremdlabor;
+  const actualSonstige = aggregate ? weighted("sonstigeKostenquote") : sonstige;
   const rows = [
-    { label: "Materialquote", value: material, target: 10.0, status: (material <= 10 ? "green" : "yellow") as Status },
-    { label: "Fremdlaborquote", value: fremdlabor, target: 14.5, status: (fremdlabor <= 14.5 ? "green" : "yellow") as Status },
-    { label: "Sonstige Kostenquote", value: sonstige, target: 36.0, status: (sonstige <= 36 ? "green" : "yellow") as Status },
-    { label: "Gesamtkostenquote", value: material + fremdlabor + sonstige, target: 68.0, status: (material + fremdlabor + sonstige <= 68 ? "green" : "yellow") as Status }
+    { label: "Materialquote", value: actualMaterial, target: 10.0, status: (actualMaterial <= 10 ? "green" : "yellow") as Status },
+    { label: "Fremdlaborquote", value: actualFremdlabor, target: 14.5, status: (actualFremdlabor <= 14.5 ? "green" : "yellow") as Status },
+    { label: "Sonstige Kostenquote", value: actualSonstige, target: 36.0, status: (actualSonstige <= 36 ? "green" : "yellow") as Status },
+    { label: "Gesamtkostenquote", value: actualMaterial + actualFremdlabor + actualSonstige, target: 68.0, status: (actualMaterial + actualFremdlabor + actualSonstige <= 68 ? "green" : "yellow") as Status }
   ];
   return (
     <Card className="p-4">
@@ -1363,8 +1546,8 @@ function CostRatios({ site }: { site?: (typeof standorte)[number] }) {
   );
 }
 
-function Ranking({ title, metric }: { title: string; metric: "ebitda" | "gesamtleistung" }) {
-  const rows = [...standorte].sort((a, b) => b[metric] - a[metric]);
+function Ranking({ title, metric, sites = standorte }: { title: string; metric: "ebitda" | "gesamtleistung"; sites?: DashboardSite[] }) {
+  const rows = [...sites].sort((a, b) => b[metric] - a[metric]);
   return (
     <Card className="p-4">
       <h2 className="font-bold">{title}</h2>
@@ -1386,13 +1569,14 @@ function Ranking({ title, metric }: { title: string; metric: "ebitda" | "gesamtl
   );
 }
 
-function CashflowBlock() {
+function CashflowBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const totalCashflow = totalForSites(sites, "cashflow");
   const rows = [
     ["Praxiseingänge", 2962000],
     ["Praxiskosten", -2014000],
     ["Annuitäten", -251000],
     ["Umbuchungen MVZ", -104000],
-    ["Netto-Cashflow", total("cashflow")]
+    ["Netto-Cashflow", totalCashflow]
   ];
   return (
     <Card className="p-4">
@@ -1409,13 +1593,13 @@ function CashflowBlock() {
   );
 }
 
-function AccountsBlock() {
+function AccountsBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
   return (
     <Card className="p-4">
       <h2 className="font-bold">Kontostände</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Konsolidiert: {eur(total("kontostand"))}</p>
+      <p className="mt-1 text-sm text-muted-foreground">Konsolidiert: {eur(totalForSites(sites, "kontostand"))}</p>
       <div className="mt-4 space-y-3">
-        {standorte.map((site) => (
+        {sites.map((site) => (
           <div key={site.id} className="flex items-center justify-between rounded-md bg-slate-50 p-3">
             <span className="font-semibold">{site.name}</span>
             <span className="font-bold">{eur(site.kontostand)}</span>
@@ -1426,9 +1610,9 @@ function AccountsBlock() {
   );
 }
 
-function DebtCapitalBlock() {
-  const aufgenommen = standorte.reduce((sum, site) => sum + site.darlehen.darlehen, 0);
-  const rest = standorte.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
+function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const aufgenommen = sites.reduce((sum, site) => sum + site.darlehen.darlehen, 0);
+  const rest = sites.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
   const getilgt = Math.max(0, aufgenommen - rest);
   const tilgungsquote = aufgenommen ? (getilgt / aufgenommen) * 100 : 0;
 
@@ -1468,7 +1652,7 @@ function DebtCapitalBlock() {
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {standorte.map((site) => {
+        {sites.map((site) => {
           const siteGetilgt = Math.max(0, site.darlehen.darlehen - site.darlehen.restschuld);
           const siteQuote = site.darlehen.darlehen ? (siteGetilgt / site.darlehen.darlehen) * 100 : 0;
           return (
@@ -1490,8 +1674,8 @@ function DebtCapitalBlock() {
   );
 }
 
-function TrafficLights() {
-  const metrics = cfoMetrics();
+function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+  const metrics = cfoMetrics(sites, monthlyData);
   const rows = [
     {
       label: "EBITDA-Marge Konzern",
@@ -1579,12 +1763,12 @@ function Insights({ setPage }: { setPage: (page: Page) => void }) {
   );
 }
 
-function Standorte({ onOpen }: { onOpen: (id: string) => void }) {
+function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void; sites?: DashboardSite[] }) {
   return (
     <section className="space-y-5">
       <PageTitle title="Standorte" text="Alle Standorte mit Zeiträumen ab jeweiligem Praxisstart." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {standorte.map((site) => (
+        {sites.map((site) => (
           <Card key={site.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -3171,9 +3355,10 @@ function EarnOutSummary() {
   );
 }
 
-function Uploads() {
+function Uploads({ onImportConfirmed }: { onImportConfirmed?: (data: ImportedDashboardData) => void }) {
   const [report, setReport] = useState<ImportReport>(emptyImportReport);
   const [confirmedReport, setConfirmedReport] = useState<ImportReport | null>(null);
+  const [pendingDashboardData, setPendingDashboardData] = useState<ImportedDashboardData | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(importStorageKey);
@@ -3197,7 +3382,13 @@ function Uploads() {
         extension === "csv"
           ? XLSX.read(await file.text(), { type: "string", cellDates: true })
           : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-      setReport(buildImportReport(workbook, file.name));
+      const nextReport = buildImportReport(workbook, file.name);
+      setReport(nextReport);
+      if (nextReport.status === "ready" || nextReport.status === "warning") {
+        setPendingDashboardData(buildImportedDashboardData(workbook, file.name, nextReport));
+      } else {
+        setPendingDashboardData(null);
+      }
     } catch (error) {
       setReport({
         ...emptyImportReport,
@@ -3214,9 +3405,11 @@ function Uploads() {
   }
 
   function confirmImport() {
-    if (report.status !== "ready" && report.status !== "warning") return;
+    if ((report.status !== "ready" && report.status !== "warning") || !pendingDashboardData) return;
     window.localStorage.setItem(importStorageKey, JSON.stringify(report));
+    window.localStorage.setItem(importDashboardStorageKey, JSON.stringify(pendingDashboardData));
     setConfirmedReport(report);
+    onImportConfirmed?.(pendingDashboardData);
   }
 
   const activeReport = report.status === "idle" ? confirmedReport : report;
