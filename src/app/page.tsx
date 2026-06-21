@@ -87,15 +87,15 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-acquisition-terms-v5";
+const importDashboardSchemaVersion = "2026-06-21-earnout-maturity-v6";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
-const acquisitionTermsBySiteId: Record<string, { kaufpreis: number; earnOutGesamt: number }> = {
-  kirchberg: { kaufpreis: 1365000, earnOutGesamt: 735000 },
-  essen: { kaufpreis: 727200, earnOutGesamt: 391600 },
-  kehl: { kaufpreis: 601250, earnOutGesamt: 323750 },
-  ulmet: { kaufpreis: 1852500, earnOutGesamt: 997500 },
-  huettenberg: { kaufpreis: 552500, earnOutGesamt: 297500 }
+const acquisitionTermsBySiteId: Record<string, { kaufpreis: number; earnOutGesamt: number; earnOutFaelligAm: string }> = {
+  kirchberg: { kaufpreis: 1365000, earnOutGesamt: 735000, earnOutFaelligAm: "30.06.2029" },
+  essen: { kaufpreis: 727200, earnOutGesamt: 391600, earnOutFaelligAm: "31.12.2029" },
+  kehl: { kaufpreis: 601250, earnOutGesamt: 323750, earnOutFaelligAm: "30.03.2029" },
+  ulmet: { kaufpreis: 1852500, earnOutGesamt: 997500, earnOutFaelligAm: "31.12.2030" },
+  huettenberg: { kaufpreis: 552500, earnOutGesamt: 297500, earnOutFaelligAm: "31.12.2030" }
 };
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -344,6 +344,22 @@ function startDateValue(value: string) {
   return new Date(year, month - 1, day).getTime();
 }
 
+function excelSerialDateToDisplay(value: number) {
+  const date = XLSX.SSF.parse_date_code(value);
+  if (!date?.y || !date?.m || !date?.d) return "";
+  return `${String(date.d).padStart(2, "0")}.${String(date.m).padStart(2, "0")}.${date.y}`;
+}
+
+function displayDateFromUnknown(value: unknown) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value.toLocaleDateString("de-DE");
+  }
+  const numeric = asNumber(value);
+  if (numeric && numeric > 20000) return excelSerialDateToDisplay(numeric);
+  const text = asText(value);
+  return /^\d{1,2}\.\d{1,2}\.\d{4}$/.test(text) ? text : "";
+}
+
 function startPeriodValue(value: string) {
   const [day, month, year] = value.split(".").map((part) => Number(part));
   if (!day || !month || !year) return Number.MAX_SAFE_INTEGER;
@@ -416,7 +432,7 @@ function siteIdForName(siteName: string) {
 }
 
 function acquisitionTermsForSite(siteName: string) {
-  return acquisitionTermsBySiteId[siteIdForName(siteName)] ?? { kaufpreis: 0, earnOutGesamt: 0 };
+  return acquisitionTermsBySiteId[siteIdForName(siteName)] ?? { kaufpreis: 0, earnOutGesamt: 0, earnOutFaelligAm: "" };
 }
 
 function rowMetric(row: Record<string, unknown>) {
@@ -485,6 +501,31 @@ function lastRowsValue(rows: Record<string, unknown>[], site: string | null, met
       return (rowMonth(b) ?? 0) - (rowMonth(a) ?? 0);
     });
   return asNumber(candidates[0]?.Wert) ?? 0;
+}
+
+function lastRowsDisplayDate(rows: Record<string, unknown>[], site: string | null, metrics: string[], domains?: string[]) {
+  const candidates = rows
+    .filter((row) => {
+      if (site && asText(row.Standortname) !== site) return false;
+      const metric = rowMetric(row);
+      const domain = rowDomain(row);
+      return metricMatches(metric, metrics) && (!domains?.length || metricMatches(domain, domains));
+    })
+    .sort((a, b) => {
+      const yearDelta = (rowYear(b) ?? 0) - (rowYear(a) ?? 0);
+      if (yearDelta) return yearDelta;
+      return (rowMonth(b) ?? 0) - (rowMonth(a) ?? 0);
+    });
+
+  return displayDateFromUnknown(candidates[0]?.Wert);
+}
+
+function contractPeriodEndForSite(siteName: string, rows: Record<string, unknown>[], fallback: string) {
+  return (
+    lastRowsDisplayDate(rows, siteName, ["vertragsperiode_ende"], ["stammdaten"]) ||
+    lastRowsDisplayDate(rows, siteName, ["vertragsperiode_ende"], ["stammdaten", "dashboard"]) ||
+    fallback
+  );
 }
 
 function preferredRowsValue(rows: Record<string, unknown>[], metricGroups: string[][], domains?: string[]) {
@@ -1054,6 +1095,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - personalquote) : 0;
     const zielEbitdaUebernahme = Math.round(targetEbitdaForActiveRows(rows, siteName, "uebernahme", siteRows));
     const acquisitionTerms = acquisitionTermsForSite(siteName);
+    const earnOutFaelligAm = contractPeriodEndForSite(siteName, rows, acquisitionTerms.earnOutFaelligAm);
     const status: Status = ebitdaMarge < 8 || cashflow < 0 ? "red" : ebitdaMarge < 12 ? "yellow" : "green";
 
     return {
@@ -1091,6 +1133,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
         zins,
         earnOutGesamt: acquisitionTerms.earnOutGesamt,
         earnOutGezahlt: 0,
+        earnOutFaelligAm,
         zielEbitda: zielEbitdaUebernahme,
         istEbitda: ebitda
       }
@@ -4715,6 +4758,7 @@ function AcquisitionIntegration({ sites = standorte }: { sites?: DashboardSite[]
                 "Ziel-EBITDA KV",
                 "Ist-EBITDA",
                 "Zielerreichung",
+                "Earn-Out fällig",
                 "Earn-Out offen",
                 "Status"
               ].map((head) => (
@@ -4728,6 +4772,7 @@ function AcquisitionIntegration({ sites = standorte }: { sites?: DashboardSite[]
             {activeSites.map((site) => {
               const achievement = site.darlehen.zielEbitda ? (site.darlehen.istEbitda / site.darlehen.zielEbitda) * 100 : 0;
               const open = site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt;
+              const dueStatus = earnOutDueStatus(site);
               return (
                 <tr key={site.id}>
                   <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
@@ -4737,8 +4782,12 @@ function AcquisitionIntegration({ sites = standorte }: { sites?: DashboardSite[]
                   <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.zielEbitda)}</td>
                   <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.istEbitda)}</td>
                   <td className={cn("border-b border-r border-border p-3 text-right font-semibold", achievement < 100 ? "text-red-700" : "text-emerald-700")}>{pct(achievement)}</td>
+                  <td className="border-b border-r border-border p-3">
+                    <span className="block font-semibold">{site.darlehen.earnOutFaelligAm || "offen"}</span>
+                    <span className="text-xs text-muted-foreground">{dueStatus.label}</span>
+                  </td>
                   <td className="border-b border-r border-border p-3 text-right">{eur(open)}</td>
-                  <td className="border-b border-r border-border p-3"><StatusDot status={achievement >= 100 ? "green" : "yellow"} /></td>
+                  <td className="border-b border-r border-border p-3"><StatusDot status={dueStatus.status} /></td>
                 </tr>
               );
             })}
@@ -4749,9 +4798,28 @@ function AcquisitionIntegration({ sites = standorte }: { sites?: DashboardSite[]
   );
 }
 
+function displayDateValue(value: string) {
+  const [day, month, year] = value.split(".").map((part) => Number(part));
+  if (!day || !month || !year) return null;
+  return new Date(year, month - 1, day).getTime();
+}
+
+function isEarnOutDue(site: DashboardSite) {
+  const dueDate = displayDateValue(site.darlehen.earnOutFaelligAm);
+  return dueDate != null && dueDate <= Date.now();
+}
+
+function earnOutDueStatus(site: DashboardSite): { label: string; status: Status } {
+  const dueDate = displayDateValue(site.darlehen.earnOutFaelligAm);
+  if (!dueDate) return { label: "Fälligkeit offen", status: "yellow" };
+  if (dueDate > Date.now()) return { label: "noch nicht fällig", status: "green" };
+  return { label: "fällig", status: site.darlehen.earnOutGezahlt >= site.darlehen.earnOutGesamt ? "green" : "yellow" };
+}
+
 function Darlehen({ sites = standorte }: { sites?: DashboardSite[] }) {
   const restschuld = sites.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
   const earnOut = sites.reduce((sum, site) => sum + site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt, 0);
+  const earnOutDueNow = sites.reduce((sum, site) => sum + (isEarnOutDue(site) ? site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt : 0), 0);
   const tilgung = sites.reduce((sum, site) => sum + site.darlehen.tilgung, 0);
   return (
     <section className="space-y-5">
@@ -4760,12 +4828,13 @@ function Darlehen({ sites = standorte }: { sites?: DashboardSite[] }) {
       <EarnOutSummary sites={sites} />
       <div className="grid gap-4 lg:grid-cols-3">
         <KpiCard label="Gesamte Restschuld" value={restschuld} delta="Konsolidiert" icon={Landmark} status="yellow" />
-        <KpiCard label="Earn-Out offen" value={earnOut} delta="Verpflichtungen offen" icon={BadgeEuro} status="yellow" />
+        <KpiCard label="Earn-Out offen" value={earnOut} delta={`Davon aktuell fällig: ${eur(earnOutDueNow)}`} icon={BadgeEuro} status={earnOutDueNow > 0 ? "yellow" : "green"} />
         <KpiCard label="Tilgung" value={tilgung} delta="Laufend bedient" icon={ShieldCheck} status="green" />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         {sortSitesByContractStart(sites).map((site) => {
-          const progress = site.darlehen.earnOutGesamt ? (site.darlehen.earnOutGezahlt / site.darlehen.earnOutGesamt) * 100 : 0;
+          const achievement = site.darlehen.zielEbitda ? (site.darlehen.istEbitda / site.darlehen.zielEbitda) * 100 : 0;
+          const dueStatus = earnOutDueStatus(site);
           return (
             <Card key={site.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
@@ -4779,13 +4848,14 @@ function Darlehen({ sites = standorte }: { sites?: DashboardSite[] }) {
                 <Mini label="Tilgung" value={eur(site.darlehen.tilgung, true)} />
                 <Mini label="Zins" value={eur(site.darlehen.zins, true)} />
                 <Mini label="Ziel/IST EBITDA" value={`${eur(site.darlehen.zielEbitda, true)} / ${eur(site.darlehen.istEbitda, true)}`} />
+                <Mini label="Earn-Out fällig am" value={site.darlehen.earnOutFaelligAm || "offen"} />
               </div>
               <div className="mt-4">
                 <div className="mb-2 flex justify-between text-sm">
-                  <span className="font-semibold">Earn-Out Fortschritt</span>
-                  <span>{pct(progress)}</span>
+                  <span className="font-semibold">Zielerreichung bis Fälligkeit</span>
+                  <span>{dueStatus.label}</span>
                 </div>
-                <Progress value={progress} tone={progress > 50 ? "green" : "yellow"} />
+                <Progress value={achievement} tone={achievement >= 100 ? "green" : achievement >= 85 ? "yellow" : "red"} />
               </div>
             </Card>
           );
@@ -4799,6 +4869,8 @@ function EarnOutSummary({ sites = standorte }: { sites?: DashboardSite[] }) {
   const totalPotential = sites.reduce((sum, site) => sum + site.darlehen.earnOutGesamt, 0);
   const paid = sites.reduce((sum, site) => sum + site.darlehen.earnOutGezahlt, 0);
   const open = totalPotential - paid;
+  const dueNow = sites.reduce((sum, site) => sum + (isEarnOutDue(site) ? site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt : 0), 0);
+  const notYetDue = Math.max(0, open - dueNow);
   const likely = sites.reduce((sum, site) => {
     const achievement = site.darlehen.zielEbitda ? site.darlehen.istEbitda / site.darlehen.zielEbitda : 0;
     return sum + Math.max(0, site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt) * Math.min(1, achievement);
@@ -4809,15 +4881,15 @@ function EarnOutSummary({ sites = standorte }: { sites?: DashboardSite[] }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-bold">Earn-Out konsolidiert</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Gesamtpotenzial, bereits gezahlt, offen und voraussichtlich fällig.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Gesamtpotenzial, Fälligkeit nach Vertragsperiode und erwartete Verpflichtung nach Zielerreichung.</p>
         </div>
         <Badge tone={open > totalPotential * 0.5 ? "yellow" : "green"}>{pct((paid / (totalPotential || 1)) * 100)} gezahlt</Badge>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-4">
         <Mini label="Earn-Out Potenzial" value={eur(totalPotential)} />
-        <Mini label="Bereits gezahlt" value={eur(paid)} />
-        <Mini label="Offen" value={eur(open)} />
-        <Mini label="Voraussichtlich fällig" value={eur(likely)} />
+        <Mini label="Aktuell fällig" value={eur(dueNow)} />
+        <Mini label="Noch nicht fällig" value={eur(notYetDue)} />
+        <Mini label="Erwartete Verpflichtung" value={eur(likely)} />
       </div>
     </Card>
   );

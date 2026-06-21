@@ -35,6 +35,7 @@ export type Standort = {
     zins: number;
     earnOutGesamt: number;
     earnOutGezahlt: number;
+    earnOutFaelligAm: string;
     zielEbitda: number;
     istEbitda: number;
   };
@@ -67,6 +68,7 @@ export const standorte: Standort[] = [
       zins: 36000,
       earnOutGesamt: 735000,
       earnOutGezahlt: 0,
+      earnOutFaelligAm: "30.06.2029",
       zielEbitda: 205000,
       istEbitda: 213000
     }
@@ -97,6 +99,7 @@ export const standorte: Standort[] = [
       zins: 31000,
       earnOutGesamt: 391600,
       earnOutGezahlt: 0,
+      earnOutFaelligAm: "31.12.2029",
       zielEbitda: 124000,
       istEbitda: 96000
     }
@@ -127,6 +130,7 @@ export const standorte: Standort[] = [
       zins: 27000,
       earnOutGesamt: 323750,
       earnOutGezahlt: 0,
+      earnOutFaelligAm: "30.03.2029",
       zielEbitda: 92000,
       istEbitda: 79000
     }
@@ -157,6 +161,7 @@ export const standorte: Standort[] = [
       zins: 23000,
       earnOutGesamt: 997500,
       earnOutGezahlt: 0,
+      earnOutFaelligAm: "31.12.2030",
       zielEbitda: 108000,
       istEbitda: 129000
     }
@@ -187,6 +192,7 @@ export const standorte: Standort[] = [
       zins: 19000,
       earnOutGesamt: 297500,
       earnOutGezahlt: 0,
+      earnOutFaelligAm: "31.12.2030",
       zielEbitda: 64000,
       istEbitda: 36000
     }
@@ -217,6 +223,7 @@ export const standorte: Standort[] = [
       zins: 0,
       earnOutGesamt: 170000,
       earnOutGezahlt: 0,
+      earnOutFaelligAm: "31.12.2031",
       zielEbitda: 0,
       istEbitda: 0
     }
