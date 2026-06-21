@@ -2791,28 +2791,21 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                   {row.months.map((value, index) => (
                     <td
                       key={`${row.label}-${bwaMonths[index]}`}
-                      className={cn(
-                        "table-small-number-col border-b border-r border-border bg-white p-2 text-right tabular-nums",
-                        row.percent && "text-xs",
-                        row.percent && "table-ratio",
-                        row.emphasis && !row.section && "table-total font-bold text-foreground",
-                        row.kind === "cashflow" && "table-cashflow",
-                        bwaValueToneClass(value, row.label)
-                      )}
+                      className={bwaTableNumberClass(row, value, { compact: true })}
                     >
                       {row.section ? "" : formatBwaCell(value, row.percent)}
                     </td>
                   ))}
-                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total text-foreground", row.kind === "cashflow" && "table-cashflow", bwaValueToneClass(totalValue, row.label))}>
+                  <td className={bwaTableNumberClass(row, totalValue, { bold: true })}>
                     {row.section ? "" : formatBwaCell(totalValue, row.percent)}
                   </td>
-                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total font-bold text-foreground", row.kind === "cashflow" && "table-cashflow", bwaValueToneClass(row.previousYear, row.label))}>
+                  <td className={bwaTableNumberClass(row, row.previousYear, { muted: true })}>
                     {row.section ? "" : formatBwaCell(row.previousYear ?? null, row.percent)}
                   </td>
-                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right text-muted-foreground tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total font-bold text-foreground", row.kind === "cashflow" && "table-cashflow", bwaValueToneClass(average, row.label))}>
+                  <td className={bwaTableNumberClass(row, average, { muted: true })}>
                     {row.section ? "" : formatBwaCell(average, row.percent)}
                   </td>
-                  <td className={cn("table-number-col border-b border-r border-border bg-white p-2 text-right font-bold tabular-nums", row.percent && "text-xs table-ratio", row.emphasis && !row.section && "table-total text-foreground", row.kind === "cashflow" && "table-cashflow", bwaValueToneClass(row.contract, row.label))}>
+                  <td className={bwaTableNumberClass(row, row.contract, { bold: true })}>
                     {row.section ? "" : formatBwaCell(row.contract, row.percent)}
                   </td>
                 </tr>
@@ -3008,6 +3001,25 @@ function bwaValueToneClass(value: number | null | undefined, label: string) {
   if (value == null || value === 0) return "";
   if (value < 0) return "text-red-700";
   return isVarianceRow(label) ? "text-emerald-700" : "";
+}
+
+function bwaTableNumberClass(
+  row: { label: string; percent?: boolean; emphasis?: boolean; section?: boolean; kind?: "cashflow" },
+  value: number | null | undefined,
+  options: { compact?: boolean; muted?: boolean; bold?: boolean } = {}
+) {
+  const tone = bwaValueToneClass(value, row.label);
+  return cn(
+    options.compact ? "table-small-number-col" : "table-number-col",
+    "border-b border-r border-border bg-white p-2 text-right tabular-nums",
+    options.bold && "font-bold",
+    options.muted && !tone && "text-muted-foreground",
+    row.percent && "text-xs table-ratio",
+    row.emphasis && !row.section && "table-total font-bold",
+    row.emphasis && !row.section && !tone && "text-foreground",
+    row.kind === "cashflow" && "table-cashflow",
+    tone
+  );
 }
 
 function StandortDetail({ site, importedData }: { site: DashboardSite; importedData?: ImportedDashboardData | null }) {
