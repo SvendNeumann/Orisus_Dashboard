@@ -1055,7 +1055,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const gesamtleistung = Math.round(sumRows(siteRows, null, ["gesamtleistung"], ["bwa"]));
     const pvsUmsatz = Math.round(pvsTotalRevenueFromRows(siteRows) || pvsTotalRevenueFromRows(allSiteRows));
     const ebitda = Math.round(sumRows(siteRows, null, ["ebitda"], ["bwa"]));
-    const cashflow = Math.round(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]));
+    const importedCashflow = Math.round(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]));
     const vorlaeufigesErgebnis = Math.round(sumRows(siteRows, null, ["vorlaufiges_ergebnis"], ["bwa"]));
     const cashflowAbschreibungen = Math.abs(
       Math.round(sumRowsByCategory(siteRows, ["abschreibungen"], ["bwa"], ["cashflow_adjustments"]))
@@ -1090,6 +1090,24 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
       Math.round(sumRows(allSiteRows, null, ["tilgung_kredit_zins", "davon_tilgung_zins", "tilgung"], ["finanzen", "darlehen"]))
     );
     const tilgung = bwaTilgung || fallbackTilgung;
+    const hasCashflowInputs = [
+      vorlaeufigesErgebnis,
+      cashflowAbschreibungen,
+      investitionsausgaben,
+      tilgung,
+      umbuchungZmvz,
+      sonstigeRueckstellungenBestandsminderungen
+    ].some((value) => value !== 0);
+    const cashflow = hasCashflowInputs
+      ? Math.round(
+          vorlaeufigesErgebnis +
+            cashflowAbschreibungen -
+            investitionsausgaben -
+            tilgung -
+            umbuchungZmvz -
+            sonstigeRueckstellungenBestandsminderungen
+        )
+      : importedCashflow;
     const zins = Math.abs(Math.round(sumRows(siteRows, null, ["zinsen_neutraler_aufwand", "zins*", "zinsen*"], ["bwa"])));
     const explicitRestschuld = lastRowsValue(allSiteRows, null, ["restschuld", "rest_fremdkapital"], ["finanzen", "darlehen", "stammdaten"]);
     const restschuld = Math.max(0, Math.round(explicitRestschuld || Math.max(0, darlehen - tilgung)));
@@ -2188,6 +2206,25 @@ function DataStatusStrip({ importedData }: { importedData?: ImportedDashboardDat
 function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; monthlyData: typeof monthly }) {
   const metrics = cfoMetrics(sites, monthlyData);
   const riskLabel = metrics.kritisch.length ? metrics.kritisch.map((site) => site.name).join(", ") : "Keine roten Standorte";
+  const cashflowDetails = sites.reduce(
+    (sum, site) => ({
+      vorlaeufigesErgebnis: sum.vorlaeufigesErgebnis + (site.cashflowDetails?.vorlaeufigesErgebnis ?? 0),
+      abschreibungen: sum.abschreibungen + (site.cashflowDetails?.abschreibungen ?? 0),
+      investitionsausgaben: sum.investitionsausgaben + (site.cashflowDetails?.investitionsausgaben ?? 0),
+      tilgung: sum.tilgung + (site.cashflowDetails?.tilgung ?? 0),
+      umbuchungZmvz: sum.umbuchungZmvz + (site.cashflowDetails?.umbuchungZmvz ?? 0),
+      sonstigeRueckstellungenBestandsminderungen:
+        sum.sonstigeRueckstellungenBestandsminderungen + (site.cashflowDetails?.sonstigeRueckstellungenBestandsminderungen ?? 0)
+    }),
+    {
+      vorlaeufigesErgebnis: 0,
+      abschreibungen: 0,
+      investitionsausgaben: 0,
+      tilgung: 0,
+      umbuchungZmvz: 0,
+      sonstigeRueckstellungenBestandsminderungen: 0
+    }
+  );
 
   const kpis = [
     {
@@ -2202,7 +2239,21 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       value: metrics.cashflow,
       delta: "nach Tilgung, Investitionen, Umbuchungen",
       icon: Wallet,
-      status: metrics.cashflow >= 0 ? "green" : "red"
+      status: metrics.cashflow >= 0 ? "green" : "red",
+      info: (
+        <div className="space-y-1">
+          <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
+          <InfoLine label="Vorläufiges Ergebnis" value={cashflowDetails.vorlaeufigesErgebnis} />
+          <InfoLine label="+ Abschreibungen" value={cashflowDetails.abschreibungen} />
+          <InfoLine label="- Investitionsausgaben" value={-cashflowDetails.investitionsausgaben} />
+          <InfoLine label="- Tilgung" value={-cashflowDetails.tilgung} />
+          <InfoLine label="- Umbuchung ZMVZ" value={-cashflowDetails.umbuchungZmvz} />
+          <InfoLine label="- Sonstige Rückstellungen / Bestandsminderungen" value={-cashflowDetails.sonstigeRueckstellungenBestandsminderungen} />
+          <div className="mt-2 border-t border-border pt-2">
+            <InfoLine label="= CashFlow Gesamt" value={metrics.cashflow} strong />
+          </div>
+        </div>
+      )
     },
     {
       label: "EBITDA seit Start",
@@ -2240,6 +2291,7 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
     icon: React.ComponentType<{ className?: string }>;
     plain?: boolean;
     status: Status;
+    info?: React.ReactNode;
   }>;
 
   return (
@@ -2269,7 +2321,8 @@ function KpiCard({
   plain,
   delta,
   icon: Icon,
-  status
+  status,
+  info
 }: {
   label: string;
   value: number;
@@ -2278,15 +2331,29 @@ function KpiCard({
   delta: string;
   icon: React.ComponentType<{ className?: string }>;
   status: Status;
+  info?: React.ReactNode;
 }) {
   const positive = !delta.startsWith("-");
+  const [infoOpen, setInfoOpen] = useState(false);
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-md table-total text-primary">
           <Icon className="h-5 w-5" />
         </div>
-        <StatusDot status={status} />
+        <div className="flex items-center gap-2">
+          {info && (
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:text-primary"
+              type="button"
+              aria-label={`${label} erklären`}
+              onClick={() => setInfoOpen((open) => !open)}
+            >
+              <Info className="h-4 w-4" />
+            </button>
+          )}
+          <StatusDot status={status} />
+        </div>
       </div>
       <p className="mt-4 text-sm font-semibold text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-bold tracking-tight">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
@@ -2294,8 +2361,18 @@ function KpiCard({
         {positive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
         <span>{delta}</span>
       </div>
+      {infoOpen && info && <div className="mt-3 rounded-md border border-border bg-slate-50 p-3 text-xs leading-5 text-slate-700">{info}</div>}
       <p className="mt-2 text-xs text-muted-foreground">Ampelstatus nach vorläufiger CFO-Logik.</p>
     </Card>
+  );
+}
+
+function InfoLine({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
+  return (
+    <div className={cn("flex items-start justify-between gap-3", strong && "font-bold text-slate-950")}>
+      <span>{label}</span>
+      <span className={cn("whitespace-nowrap text-right", value < 0 && "text-red-700", value > 0 && strong && "text-emerald-700")}>{eur(value)}</span>
+    </div>
   );
 }
 
