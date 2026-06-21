@@ -3074,6 +3074,28 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
     if (!value) return "";
     return `${name}: ${value}`;
   };
+  const yearFromDisplayDate = (value: string) => {
+    const parts = value.split(".");
+    return Number(parts[2]) || 0;
+  };
+  const operationalRows = siteRows.map((site) => {
+    const siteEmployees = personalData.employees.filter((employee) => employee.site === site.site);
+    const activeEmployees = siteEmployees.filter((employee) => employee.status.toLowerCase() === "aktiv");
+    const exitsInLatestYear = siteEmployees.filter((employee) => {
+      const status = employee.status.toLowerCase();
+      const hasExitInYear = yearFromDisplayDate(employee.exitDate) === latestSicknessYear;
+      return hasExitInYear && ["inaktiv", "ausgetreten", "gekündigt", "gekuendigt"].some((term) => status.includes(term));
+    }).length;
+    const sicknessDaysLatestYear = sicknessBySite.find((row) => row.site === site.site)?.days ?? 0;
+    return {
+      site: site.site,
+      personnelCosts: activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0),
+      sicknessDays: sicknessDaysLatestYear,
+      activeEmployees: activeEmployees.length,
+      exitsInLatestYear,
+      fluctuation: activeEmployees.length ? (exitsInLatestYear / activeEmployees.length) * 100 : 0
+    };
+  });
 
   return (
     <section className="space-y-5">
@@ -3147,6 +3169,43 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
               <TableCell>{siteRows.reduce((sum, row) => sum + row.hours, 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
               <TableCell>{siteRows.reduce((sum, row) => sum + row.dentists, 0)}</TableCell>
               <TableCell>{eur(siteRows.reduce((sum, row) => sum + row.employerCost, 0))}</TableCell>
+            </tr>
+          </tbody>
+        </ResponsiveTable>
+      </Card>
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Kosten & operative Kennzahlen | aktueller Personalstand / Krankheit {latestSicknessYear}</h2>
+        </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <TableHead>Standort</TableHead>
+              <TableHead>Personalkosten</TableHead>
+              <TableHead>Krankheitstage</TableHead>
+              <TableHead>Fluktuation Standort</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {operationalRows.map((row) => (
+              <tr key={row.site}>
+                <TableCell strong>{row.site}</TableCell>
+                <TableCell>{eur(row.personnelCosts)}</TableCell>
+                <TableCell>{row.sicknessDays.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
+                <TableCell>{pct(row.fluctuation)}</TableCell>
+              </tr>
+            ))}
+            <tr className="summary-row">
+              <TableCell strong summary>Gesamt</TableCell>
+              <TableCell strong summary>{eur(operationalRows.reduce((sum, row) => sum + row.personnelCosts, 0))}</TableCell>
+              <TableCell strong summary>{operationalRows.reduce((sum, row) => sum + row.sicknessDays, 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
+              <TableCell strong summary>
+                {pct(
+                  (operationalRows.reduce((sum, row) => sum + row.exitsInLatestYear, 0) /
+                    Math.max(operationalRows.reduce((sum, row) => sum + row.activeEmployees, 0), 1)) *
+                    100
+                )}
+              </TableCell>
             </tr>
           </tbody>
         </ResponsiveTable>
