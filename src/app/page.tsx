@@ -87,7 +87,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-management-receivables-v1";
+const importDashboardSchemaVersion = "2026-06-21-receivables-soll-minus-cash-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -406,6 +406,10 @@ function rowDomain(row: Record<string, unknown>) {
   return normalizeMetric(row.Standard_Datenbereich || row.Datenbereich);
 }
 
+function rowCategory(row: Record<string, unknown>) {
+  return normalizeMetric(row.Standard_Kategorie || row.Kategorie);
+}
+
 function rowYear(row: Record<string, unknown>) {
   return asNumber(row.Standard_Jahr) ?? asNumber(row.Jahr);
 }
@@ -428,6 +432,18 @@ function sumRows(rows: Record<string, unknown>[], site: string | null, metrics: 
     const domain = rowDomain(row);
     if (!metricMatches(metric, metrics)) return sum;
     if (domains?.length && !metricMatches(domain, domains)) return sum;
+    return sum + (asNumber(row.Wert) ?? 0);
+  }, 0);
+}
+
+function sumRowsByCategory(rows: Record<string, unknown>[], metrics: string[], domains: string[], categories: string[]) {
+  return rows.reduce((sum, row) => {
+    const metric = rowMetric(row);
+    const domain = rowDomain(row);
+    const category = rowCategory(row);
+    if (!metricMatches(metric, metrics)) return sum;
+    if (domains.length && !metricMatches(domain, domains)) return sum;
+    if (categories.length && !metricMatches(category, categories)) return sum;
     return sum + (asNumber(row.Wert) ?? 0);
   }, 0);
 }
@@ -554,36 +570,24 @@ function latestKontostandFromWorkbook(workbook: XLSX.WorkBook, siteName: string)
   return values[0]?.value ?? null;
 }
 
-function managementReceivablesFromWorkbook(workbook: XLSX.WorkBook) {
-  const sheet = workbook.Sheets.Dashboard_Management;
-  if (!sheet) return new Map<string, number>();
-
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    defval: null,
-    raw: true,
-    blankrows: false
-  });
-  const headerPosition = rows.reduce<{ row: number; column: number } | null>((found, row, rowIndex) => {
-    if (found) return found;
-    const column = row.findIndex((cell) => normalizeMetric(cell) === "offene_forderungen_seit_start");
-    return column >= 0 ? { row: rowIndex, column } : null;
-  }, null);
-  if (!headerPosition) return new Map<string, number>();
-
-  const siteColumn = headerPosition.column;
-  const valueColumn = headerPosition.column + 1;
-  const result = new Map<string, number>();
-
-  for (let rowIndex = headerPosition.row + 1; rowIndex < rows.length; rowIndex += 1) {
-    const row = rows[rowIndex] ?? [];
-    const siteName = asText(row[siteColumn]);
-    const value = asNumber(row[valueColumn]);
-    if (!siteName && value == null) break;
-    if (siteName && value != null) result.set(normalizeSiteId(siteName), value);
+function openReceivablesSinceStart(siteName: string, siteRows: Record<string, unknown>[], allSiteRows: Record<string, unknown>[]) {
+  if (normalizeSiteId(siteName) === "ulmet") {
+    const ulmetReceivables = preferredRowsValue(allSiteRows, [["offene_forderungen_gesamt"]], ["dashboard", "bwa_dashboard"]);
+    if (ulmetReceivables) return ulmetReceivables;
   }
 
-  return result;
+  const sollForderung =
+    sumRowsByCategory(siteRows, ["soll_forderung_pvs"], ["finanzen"], ["soll"]) ||
+    sumRowsByCategory(siteRows, ["soll_forderung_pvs"], ["finanzen"], ["pvs"]);
+  const istCashGeflossen = sumRows(siteRows, null, ["ist_cash_geflossen_pvs"], ["finanzen"]);
+  const calculatedReceivables = sollForderung - istCashGeflossen;
+  if (sollForderung || istCashGeflossen) return Math.max(0, calculatedReceivables);
+
+  return preferredRowsValue(
+    allSiteRows,
+    [["offene_forderungen_gesamt"], ["noch_nicht_geflossen"], ["noch_ausstehend_vs_bank"], ["soll_forderung_pvs"]],
+    ["finanzen", "dashboard", "bwa_dashboard"]
+  );
 }
 
 function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
@@ -917,7 +921,6 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   const activeRows = rows.filter((row) => (rowYear(row) ?? latestYear) === latestYear);
   const fallbackByName = new Map(sortSitesByContractStart(standorte).map((site) => [site.name, site]));
   const consolidationRows = consolidationRowsFromWorkbook(workbook);
-  const managementReceivables = managementReceivablesFromWorkbook(workbook);
   const periodSiteNames = report.standorte.filter((siteName) => {
     const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     return rows.some(
@@ -949,15 +952,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const material = Math.abs(sumRows(siteRows, null, ["materialkosten"], ["bwa"]));
     const fremdlabor = Math.abs(sumRows(siteRows, null, ["fremdlaborkosten"], ["bwa"]));
     const personal = Math.abs(sumRows(siteRows, null, ["personalkosten"], ["bwa"]));
-    const managementForderungen = managementReceivables.get(normalizeSiteId(siteName));
-    const forderungen = Math.round(
-      managementForderungen ??
-        preferredRowsValue(
-          allSiteRows,
-          [["offene_forderungen_gesamt"], ["soll_forderung_pvs"], ["noch_nicht_geflossen"], ["noch_ausstehend_vs_bank"]],
-          ["finanzen", "dashboard", "bwa_dashboard"]
-        )
-    );
+    const forderungen = Math.round(openReceivablesSinceStart(siteName, siteRows, allSiteRows));
     const darlehen = Math.round(
       preferredRowsValue(
         allSiteRows,
