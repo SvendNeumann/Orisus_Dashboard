@@ -87,7 +87,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-receivables-soll-minus-cash-v1";
+const importDashboardSchemaVersion = "2026-06-21-performance-honorar-v2";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -120,6 +120,7 @@ type ImportedDashboardData = {
   topBehandler: TopBehandlerEntry[];
   bwaRows: ImportedBwaRow[];
   pvsRevenueRows?: ImportedPeriodValueRow[];
+  behandlerHonorarRows?: ImportedPeriodValueRow[];
   report: ImportReport;
 };
 
@@ -896,24 +897,33 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
   );
 }
 
+function isPureBehandlerHonorarRow(row: Record<string, unknown>) {
+  const datenbereich = normalizeMetric(row.Datenbereich);
+  const kategorie = normalizeMetric([row.Kategorie, row.Standard_Kategorie].map(asText).join(" "));
+  const metric = normalizeMetric(row.Kennzahl);
+  const standardMetric = normalizeMetric(row.Standard_Kennzahl);
+  if (!datenbereich.startsWith("behandler")) return false;
+  if (["ranking", "stamm"].some((term) => kategorie.includes(term))) return false;
+  if (metric !== "honorarumsatz" || standardMetric !== "honorarumsatz") return false;
+  const combinedKey = normalizeMetric(
+    [row.Kennzahl, row.Standard_Kennzahl, row.Kategorie, row.Standard_Kategorie, row.Objekt_Name, row.Werttyp, row.Standard_Werttyp]
+      .map(asText)
+      .join(" ")
+  );
+  if (["eigenlabor", "labor", "material", "pvs", "gesamtumsatz", "gesamtleistung", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return false;
+  return true;
+}
+
+function pureBehandlerHonorarFromRows(rows: Record<string, unknown>[]) {
+  return rows.filter(isPureBehandlerHonorarRow).reduce((sum, row) => sum + (asNumber(row.Wert) ?? 0), 0);
+}
+
 function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: number): TopBehandlerEntry[] {
   const grouped = new Map<string, { name: string; standort: string; honorar: number }>();
 
   rows.forEach((row) => {
     if ((rowYear(row) ?? 0) !== latestYear) return;
-    const datenbereich = normalizeMetric(row.Datenbereich);
-    const kategorie = normalizeMetric([row.Kategorie, row.Standard_Kategorie].map(asText).join(" "));
-    const metric = normalizeMetric(row.Kennzahl);
-    const standardMetric = normalizeMetric(row.Standard_Kennzahl);
-    if (!datenbereich.startsWith("behandler")) return;
-    if (["ranking", "stamm"].some((term) => kategorie.includes(term))) return;
-    if (metric !== "honorarumsatz" || standardMetric !== "honorarumsatz") return;
-    const combinedKey = normalizeMetric(
-      [row.Kennzahl, row.Standard_Kennzahl, row.Kategorie, row.Standard_Kategorie, row.Objekt_Name, row.Werttyp, row.Standard_Werttyp]
-        .map(asText)
-        .join(" ")
-    );
-    if (["eigenlabor", "labor", "material", "pvs", "gesamtumsatz", "gesamtleistung", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return;
+    if (!isPureBehandlerHonorarRow(row)) return;
 
     const name = asText(row.Objekt_Name || row.Behandler || row.Behandlername);
     const standort = asText(row.Standortname);
@@ -1072,6 +1082,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     topBehandler: topBehandlerFromRows(rows, latestYear),
     bwaRows: buildImportedBwaRows(rows, report),
     pvsRevenueRows: buildImportedPvsRevenueRows(rows, report),
+    behandlerHonorarRows: buildImportedBehandlerHonorarRows(rows, report),
     report
   };
 }
@@ -1353,7 +1364,7 @@ export default function HomePage() {
           {requiresImport && !importedData && <NoImportState onUpload={() => go("uploads")} />}
           {importedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {importedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {importedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "standorte" && (
             <Standorte
               sites={dashboardSites}
@@ -2595,6 +2606,33 @@ function buildImportedPvsRevenueRows(rows: Record<string, unknown>[], report: Im
   });
 }
 
+function buildImportedBehandlerHonorarRows(rows: Record<string, unknown>[], report: ImportReport): ImportedPeriodValueRow[] {
+  const validYears = report.jahre.filter((year) => year > 1900);
+  return report.standorte.map((siteName) => {
+    const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
+    const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
+    const valuesByYear = Object.fromEntries(
+      validYears.map((year) => [String(year), pureBehandlerHonorarFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year))])
+    );
+    const valuesByMonth = Object.fromEntries(
+      validYears.flatMap((year) =>
+        Array.from({ length: 12 }, (_, index) => {
+          const month = index + 1;
+          const value = pureBehandlerHonorarFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
+          return [`${year}-${month}`, value];
+        })
+      )
+    );
+    return {
+      siteId: siteIdForName(siteName),
+      siteName,
+      valuesByYear,
+      valuesByMonth,
+      contractValue: pureBehandlerHonorarFromRows(siteRows)
+    };
+  });
+}
+
 function bwaPeriodOptionsFor(importedData?: ImportedDashboardData | null) {
   if (!importedData?.bwaRows?.length) return bwaPeriodOptions;
   const years = importedData.report.jahre.filter((year) => year >= 1900);
@@ -3689,8 +3727,18 @@ function TableCell({
   );
 }
 
-function OrisusPerformance({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+function OrisusPerformance({
+  sites = standorte,
+  monthlyData = monthly,
+  importedData
+}: {
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
+}) {
   const metrics = cfoMetrics(sites, monthlyData);
+  const performancePeriod = importedData ? defaultBwaPeriodFor(importedData) : "Gesamte Periode";
+  const performanceSubtitle = `Auswahl: ${performancePeriod} | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD`;
   return (
     <section className="space-y-5">
       <PageTitle
@@ -3725,27 +3773,31 @@ function OrisusPerformance({ sites = standorte, monthlyData = monthly }: { sites
       <OperationalPerformanceTable sites={sites} />
       <PerformanceRevenueBlock
         title="Behandlerumsatz je Standort"
-        subtitle="Auswahl: YTD | Jahr 2026 | bis Mai 2026 | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD"
+        subtitle={performanceSubtitle}
         mode="honorar"
         sites={sites}
+        importedData={importedData}
       />
       <PerformanceMonthlyTable
-        title="Behandlerumsatz inkl. Eigenlabor | Monatsübersicht aktuelles Jahr"
+        title="Behandler-Honorarumsatz | Monatsübersicht aktuelles Jahr"
         mode="honorar"
         sites={sites}
         monthlyData={monthlyData}
+        importedData={importedData}
       />
       <PerformanceRevenueBlock
         title="PVS-Gesamtumsatz je Standort"
-        subtitle="Auswahl: YTD | Jahr 2026 | bis Mai 2026 | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD"
+        subtitle={performanceSubtitle}
         mode="pvs"
         sites={sites}
+        importedData={importedData}
       />
       <PerformanceMonthlyTable
         title="PVS-Gesamtumsatz inkl. FL + MAT | Monatsübersicht aktuelles Jahr"
         mode="pvs"
         sites={sites}
         monthlyData={monthlyData}
+        importedData={importedData}
       />
       <BankMovementsTable sites={sites} monthlyData={monthlyData} />
     </section>
@@ -3793,24 +3845,90 @@ function OperationalPerformanceTable({ sites = standorte }: { sites?: DashboardS
   );
 }
 
+function performancePeriodRows(importedData: ImportedDashboardData | null | undefined, mode: "honorar" | "pvs") {
+  return mode === "honorar" ? importedData?.behandlerHonorarRows : importedData?.pvsRevenueRows;
+}
+
+function importedPreviousPeriodValue(row: ImportedPeriodValueRow | undefined, period: string) {
+  if (!row) return 0;
+  const selection = selectedBwaPeriod(period);
+  if (!selection.year) return 0;
+  const previousYear = selection.year - 1;
+  if (selection.months?.length) {
+    return selection.months.reduce((sum, month) => sum + (row.valuesByMonth[`${previousYear}-${month}`] ?? 0), 0);
+  }
+  return row.valuesByYear[String(previousYear)] ?? 0;
+}
+
+function importedQuarterToDateValue(row: ImportedPeriodValueRow | undefined, period: string, yearOffset = 0) {
+  if (!row) return 0;
+  const selection = selectedBwaPeriod(period);
+  if (!selection.year) return 0;
+  const latestMonth = selection.months?.at(-1) ?? 12;
+  const quarterStart = Math.floor((latestMonth - 1) / 3) * 3 + 1;
+  return Array.from({ length: latestMonth - quarterStart + 1 }, (_, index) => quarterStart + index).reduce(
+    (sum, month) => sum + (row.valuesByMonth[`${selection.year + yearOffset}-${month}`] ?? 0),
+    0
+  );
+}
+
+function importedLatestMonthValue(row: ImportedPeriodValueRow | undefined, period: string, yearOffset = 0) {
+  if (!row) return 0;
+  const selection = selectedBwaPeriod(period);
+  if (!selection.year) return 0;
+  const latestMonth = selection.months?.at(-1) ?? 12;
+  return row.valuesByMonth[`${selection.year + yearOffset}-${latestMonth}`] ?? 0;
+}
+
+function pctDelta(current: number, previous: number) {
+  if (!previous) return current ? "100 %" : "0 %";
+  return pct(((current - previous) / Math.abs(previous)) * 100);
+}
+
+function monthsSinceStartForPeriod(site: DashboardSite, period: string) {
+  const selection = selectedBwaPeriod(period);
+  const [day, month, year] = site.start.split(".").map(Number);
+  const today = new Date();
+  const endYear = selection.year ?? today.getFullYear();
+  const endMonth = selection.months?.at(-1) ?? 12;
+  return Math.max(1, (endYear - year) * 12 + endMonth - month + 1);
+}
+
 function PerformanceRevenueBlock({
   title,
   subtitle,
   mode,
-  sites = standorte
+  sites = standorte,
+  importedData
 }: {
   title: string;
   subtitle: string;
   mode: "honorar" | "pvs";
   sites?: DashboardSite[];
+  importedData?: ImportedDashboardData | null;
 }) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
-  const current = activeSites.reduce((sum, site) => sum + performanceBase(site, mode), 0);
-  const previous = Math.round(current * (mode === "honorar" ? 0.48 : 0.46));
-  const qtd = Math.round(current * (mode === "honorar" ? 0.39 : 0.4));
-  const qtdPrevious = Math.round(qtd * (mode === "honorar" ? 0.64 : 0.61));
-  const sinceTakeover = Math.round(current * (mode === "honorar" ? 2.83 : 2.79));
-  const lastMonth = Math.round(current * 0.185);
+  const period = importedData ? defaultBwaPeriodFor(importedData) : "Gesamte Periode";
+  const periodRows = performancePeriodRows(importedData, mode) ?? [];
+  const rowBySite = new Map(periodRows.map((row) => [row.siteId, row]));
+  const valueForSite = (site: DashboardSite, reader: (row: ImportedPeriodValueRow | undefined) => number, fallback: number) => {
+    const row = rowBySite.get(site.id);
+    return Math.round(row ? reader(row) : fallback);
+  };
+  const periodValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedPeriodValue(row, period), performanceBase(site, mode));
+  const previousValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedPreviousPeriodValue(row, period), 0);
+  const qtdValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedQuarterToDateValue(row, period), 0);
+  const qtdPreviousValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedQuarterToDateValue(row, period, -1), 0);
+  const monthValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedLatestMonthValue(row, period), 0);
+  const monthPreviousValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedLatestMonthValue(row, period, -1), 0);
+  const takeoverValueForSite = (site: DashboardSite) => valueForSite(site, (row) => row?.contractValue ?? 0, performanceBase(site, mode));
+  const current = activeSites.reduce((sum, site) => sum + periodValueForSite(site), 0);
+  const previous = activeSites.reduce((sum, site) => sum + previousValueForSite(site), 0);
+  const qtd = activeSites.reduce((sum, site) => sum + qtdValueForSite(site), 0);
+  const qtdPrevious = activeSites.reduce((sum, site) => sum + qtdPreviousValueForSite(site), 0);
+  const sinceTakeover = activeSites.reduce((sum, site) => sum + takeoverValueForSite(site), 0);
+  const lastMonth = activeSites.reduce((sum, site) => sum + monthValueForSite(site), 0);
+  const lastMonthPrevious = activeSites.reduce((sum, site) => sum + monthPreviousValueForSite(site), 0);
 
   return (
     <Card className="overflow-hidden">
@@ -3818,12 +3936,12 @@ function PerformanceRevenueBlock({
       <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">{subtitle}</div>
       <div className="grid gap-px table-grid-bg md:grid-cols-5">
         <KennzahlTile label={`${mode === "honorar" ? "Behandlerumsatz" : "PVS Umsatz"} Zeitraum`} value={eur(current)} />
-        <KennzahlTile label="YoY Zeitraum" value={pct(((current - previous) / previous) * 100)} />
-        <KennzahlTile label="QTD YoY" value={pct(((qtd - qtdPrevious) / qtdPrevious) * 100)} />
+        <KennzahlTile label="YoY Zeitraum" value={pctDelta(current, previous)} />
+        <KennzahlTile label="QTD YoY" value={pctDelta(qtd, qtdPrevious)} />
         <KennzahlTile label="Umsatz seit Übernahme" value={eur(sinceTakeover)} />
         <KennzahlTile label="Aktueller Gesamtkontostand" value={eur(totalForSites(activeSites, "kontostand"))} />
       </div>
-      <div className="overflow-x-auto">
+      <div className="mt-4 overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
@@ -3851,15 +3969,15 @@ function PerformanceRevenueBlock({
           </thead>
           <tbody>
             {activeSites.map((site, index) => {
-              const currentSite = performanceBase(site, mode);
-              const prevSite = Math.round(currentSite * (0.72 - index * 0.06));
+              const currentSite = periodValueForSite(site);
+              const prevSite = previousValueForSite(site);
               const delta = currentSite - prevSite;
-              const qtdSite = Math.round(currentSite * (0.36 + index * 0.02));
-              const qtdPrev = Math.round(qtdSite * (0.8 - index * 0.04));
-              const month = Math.round(currentSite * (0.17 + index * 0.01));
-              const monthPrev = Math.round(month * (0.88 + index * 0.03));
-              const takeover = Math.round(currentSite * (2.4 + index * 0.18));
-              const monthsSince = site.id === "kirchberg" ? 18 : site.id === "essen" ? 12 : site.id === "kehl" ? 9 : site.id === "ulmet" ? 6 : site.id === "huettenberg" ? 6 : 1;
+              const qtdSite = qtdValueForSite(site);
+              const qtdPrev = qtdPreviousValueForSite(site);
+              const month = monthValueForSite(site);
+              const monthPrev = monthPreviousValueForSite(site);
+              const takeover = takeoverValueForSite(site);
+              const monthsSince = monthsSinceStartForPeriod(site, period);
               return (
                 <tr key={site.id}>
                   <TableCell strong>{site.name}</TableCell>
@@ -3867,13 +3985,13 @@ function PerformanceRevenueBlock({
                   <TableCell>{eur(currentSite)}</TableCell>
                   <TableCell>{eur(prevSite)}</TableCell>
                   <TableCell tone={delta < 0 ? "red" : "green"}>{eur(delta)}</TableCell>
-                  <TableCell tone={delta < 0 ? "red" : "green"}>{pct((delta / prevSite) * 100)}</TableCell>
+                  <TableCell tone={delta < 0 ? "red" : "green"}>{pctDelta(currentSite, prevSite)}</TableCell>
                   <TableCell>{eur(qtdSite)}</TableCell>
                   <TableCell>{eur(qtdPrev)}</TableCell>
-                  <TableCell tone={qtdSite - qtdPrev < 0 ? "red" : "green"}>{pct(((qtdSite - qtdPrev) / qtdPrev) * 100)}</TableCell>
+                  <TableCell tone={qtdSite - qtdPrev < 0 ? "red" : "green"}>{pctDelta(qtdSite, qtdPrev)}</TableCell>
                   <TableCell>{eur(month)}</TableCell>
                   <TableCell>{eur(monthPrev)}</TableCell>
-                  <TableCell tone={month - monthPrev < 0 ? "red" : "green"}>{pct(((month - monthPrev) / monthPrev) * 100)}</TableCell>
+                  <TableCell tone={month - monthPrev < 0 ? "red" : "green"}>{pctDelta(month, monthPrev)}</TableCell>
                   <TableCell>{eur(takeover)}</TableCell>
                   <TableCell>{eur(takeover / monthsSince)}</TableCell>
                 </tr>
@@ -3884,16 +4002,16 @@ function PerformanceRevenueBlock({
               <TableCell>{""}</TableCell>
               <TableCell strong>{eur(current)}</TableCell>
               <TableCell strong>{eur(previous)}</TableCell>
-              <TableCell strong tone="green">{eur(current - previous)}</TableCell>
-              <TableCell strong tone="green">{pct(((current - previous) / previous) * 100)}</TableCell>
+              <TableCell strong tone={current - previous < 0 ? "red" : "green"}>{eur(current - previous)}</TableCell>
+              <TableCell strong tone={current - previous < 0 ? "red" : "green"}>{pctDelta(current, previous)}</TableCell>
               <TableCell strong>{eur(qtd)}</TableCell>
               <TableCell strong>{eur(qtdPrevious)}</TableCell>
-              <TableCell strong tone="green">{pct(((qtd - qtdPrevious) / qtdPrevious) * 100)}</TableCell>
+              <TableCell strong tone={qtd - qtdPrevious < 0 ? "red" : "green"}>{pctDelta(qtd, qtdPrevious)}</TableCell>
               <TableCell strong>{eur(lastMonth)}</TableCell>
-              <TableCell strong>{eur(Math.round(lastMonth * 0.72))}</TableCell>
-              <TableCell strong tone="green">{pct(38.8)}</TableCell>
+              <TableCell strong>{eur(lastMonthPrevious)}</TableCell>
+              <TableCell strong tone={lastMonth - lastMonthPrevious < 0 ? "red" : "green"}>{pctDelta(lastMonth, lastMonthPrevious)}</TableCell>
               <TableCell strong>{eur(sinceTakeover)}</TableCell>
-              <TableCell strong>{eur(sinceTakeover / 73)}</TableCell>
+              <TableCell strong>{eur(sinceTakeover / Math.max(activeSites.reduce((sum, site) => sum + monthsSinceStartForPeriod(site, period), 0), 1))}</TableCell>
             </tr>
           </tbody>
         </table>
@@ -3906,15 +4024,26 @@ function PerformanceMonthlyTable({
   title,
   mode,
   sites = standorte,
-  monthlyData = monthly
+  monthlyData = monthly,
+  importedData
 }: {
   title: string;
   mode: "honorar" | "pvs";
   sites?: DashboardSite[];
   monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
 }) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
-  const monthlyValuesForSite = (site: DashboardSite) => allocateByMonthlyStructure(performanceBase(site, mode), monthlyData);
+  const period = importedData ? defaultBwaPeriodFor(importedData) : "Gesamte Periode";
+  const year = selectedBwaPeriod(period).year ?? importedData?.report.jahre.filter((entry) => entry >= 1900).at(-1) ?? new Date().getFullYear();
+  const rowBySite = new Map((performancePeriodRows(importedData, mode) ?? []).map((row) => [row.siteId, row]));
+  const monthlyValuesForSite = (site: DashboardSite) => {
+    const importedRow = rowBySite.get(site.id);
+    if (importedRow) {
+      return fillTwelveMonths(Array.from({ length: 12 }, (_, index) => Math.round(importedRow.valuesByMonth[`${year}-${index + 1}`] ?? 0)));
+    }
+    return allocateByMonthlyStructure(performanceBase(site, mode), monthlyData);
+  };
 
   return (
     <Card className="overflow-hidden">
