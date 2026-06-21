@@ -3325,12 +3325,9 @@ function KennzahlenStandortTable({ targetBySite, sites = standorte, monthlyData 
 function MonthlyEbitdaTable({ targetBySite, sites = standorte, monthlyData = monthly }: { targetBySite: Record<string, number>; sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
   const rows = monthlyData.map((month, monthIndex) => {
+    const totalPositiveEbitda = activeSites.reduce((sum, site) => sum + Math.max(0, site.ebitda), 0) || 1;
     const siteValues = Object.fromEntries(
-      activeSites.map((site, siteIndex) => {
-        const weight = [0.18, 0.15, 0.24, 0.17, 0.14, 0.12][monthIndex] ?? 0.12;
-        const modifier = 0.86 + siteIndex * 0.05;
-        return [site.id, Math.round(site.ebitda * weight * modifier)];
-      })
+      activeSites.map((site) => [site.id, Math.round(month.ebitda * (Math.max(0, site.ebitda) / totalPositiveEbitda))])
     ) as Record<string, number>;
     const totalValue = Object.values(siteValues).reduce((sum, value) => sum + value, 0);
     const targetTakeover = Math.round(Object.values(targetBySite).reduce((sum, value) => sum + value, 0) * ((monthIndex + 1) / Math.max(monthlyData.length, 1)));
@@ -3485,6 +3482,7 @@ function OrisusPerformance({ sites = standorte, monthlyData = monthly }: { sites
         title="Behandlerumsatz inkl. Eigenlabor | Monatsübersicht aktuelles Jahr"
         mode="honorar"
         sites={sites}
+        monthlyData={monthlyData}
       />
       <PerformanceRevenueBlock
         title="PVS-Gesamtumsatz je Standort"
@@ -3496,8 +3494,9 @@ function OrisusPerformance({ sites = standorte, monthlyData = monthly }: { sites
         title="PVS-Gesamtumsatz inkl. FL + MAT | Monatsübersicht aktuelles Jahr"
         mode="pvs"
         sites={sites}
+        monthlyData={monthlyData}
       />
-      <BankMovementsTable />
+      <BankMovementsTable sites={sites} monthlyData={monthlyData} />
     </section>
   );
 }
@@ -3652,9 +3651,19 @@ function PerformanceRevenueBlock({
   );
 }
 
-function PerformanceMonthlyTable({ title, mode, sites = standorte }: { title: string; mode: "honorar" | "pvs"; sites?: DashboardSite[] }) {
+function PerformanceMonthlyTable({
+  title,
+  mode,
+  sites = standorte,
+  monthlyData = monthly
+}: {
+  title: string;
+  mode: "honorar" | "pvs";
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+}) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
-  const monthFactors = [0.192, 0.188, 0.228, 0.205, 0.186, 0, 0, 0, 0, 0, 0, 0];
+  const monthlyValuesForSite = (site: DashboardSite) => allocateByMonthlyStructure(performanceBase(site, mode), monthlyData);
 
   return (
     <Card className="overflow-hidden">
@@ -3672,9 +3681,9 @@ function PerformanceMonthlyTable({ title, mode, sites = standorte }: { title: st
             </tr>
           </thead>
           <tbody>
-            <PerformanceMonthRow label="Gesamt" values={bwaMonths.map((_, index) => activeSites.reduce((sum, site) => sum + Math.round(performanceBase(site, mode) * monthFactors[index]), 0))} />
+            <PerformanceMonthRow label="Gesamt" values={bwaMonths.map((_, index) => activeSites.reduce((sum, site) => sum + monthlyValuesForSite(site)[index], 0))} />
             {activeSites.map((site) => (
-              <PerformanceMonthRow key={site.id} label={site.name} values={bwaMonths.map((_, index) => Math.round(performanceBase(site, mode) * monthFactors[index]))} />
+              <PerformanceMonthRow key={site.id} label={site.name} values={monthlyValuesForSite(site)} />
             ))}
           </tbody>
         </table>
@@ -3698,17 +3707,31 @@ function PerformanceMonthRow({ label, values }: { label: string; values: number[
   );
 }
 
-function BankMovementsTable() {
+function BankMovementsTable({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+  const monthlyPerformance = fillTwelveMonths(monthlyData.map((entry) => entry.leistung));
+  const monthlyEbitda = fillTwelveMonths(monthlyData.map((entry) => entry.ebitda));
+  const monthlyCashflow = fillTwelveMonths(monthlyData.map((entry) => entry.cashflow));
+  const totalTilgungZins = sites.reduce((sum, site) => sum + site.darlehen.tilgung + site.darlehen.zins, 0);
+  const tilgungZins = allocateByMonthlyStructure(totalTilgungZins, monthlyData).map((value) => -value);
+  const praxisCosts = monthlyPerformance.map((value, index) => -(value - monthlyEbitda[index]));
+  const cashAdjustments = monthlyCashflow.map((value, index) => value - monthlyEbitda[index] - tilgungZins[index]);
+  const endingKontostand = totalForSites(sites, "kontostand");
+  const cashflowAfterMonth = monthlyCashflow.map((_, index) => monthlyCashflow.slice(index + 1).reduce((sum, value) => sum + value, 0));
+  const kontostandMonths = monthlyCashflow.map((value, index) => (value || index < monthlyData.length ? endingKontostand - cashflowAfterMonth[index] : 0));
   const rows = [
-    { label: "Geldeingang Bank gesamt", values: [692723, 639715, 932514, 786139, 758133], contract: 10355654 },
-    { label: "davon Praxisumsatz", values: [647483, 634414, 875494, 778864, 755615], contract: 10051134, indent: true },
-    { label: "davon sonstiges", values: [45240, 5302, 57020, 7275, 2518], contract: 304520, indent: true },
-    { label: "Geldausgang Bank inkl. Kredit", values: [-746265, -605887, -1048656, -845770, -650471], contract: -10163268 },
-    { label: "davon Praxisausgaben", values: [-628743, -584887, -748587, -741998, -625971], contract: -8615161, indent: true },
-    { label: "davon Tilgung + Zins", values: [-78522, 0, -280069, -85778, 0], contract: -1269060, indent: true },
-    { label: "davon Umbuchungen an Orisus ZMVZ", values: [-39000, -21000, -20000, -18000, -24500], contract: -278500, indent: true },
-    { label: "Cashflow gesamt im Monat", values: [-53542, 33828, -116142, -59631, 107662], contract: 192385 },
-    { label: "Kontostand Monatsende", values: [1029641, 1063469, 947329, 887698, 995355], contract: 944338 }
+    { label: "Geldeingang Bank gesamt", values: monthlyPerformance, contract: totalForSites(sites, "gesamtleistung") },
+    { label: "davon Praxisumsatz", values: monthlyPerformance, contract: totalForSites(sites, "gesamtleistung"), indent: true },
+    { label: "davon sonstiges", values: monthlyPerformance.map(() => 0), contract: 0, indent: true },
+    {
+      label: "Geldausgang Bank inkl. Kredit",
+      values: praxisCosts.map((value, index) => value + tilgungZins[index] + cashAdjustments[index]),
+      contract: -Math.abs(totalForSites(sites, "gesamtleistung") - totalForSites(sites, "cashflow"))
+    },
+    { label: "davon Praxisausgaben", values: praxisCosts, contract: praxisCosts.reduce((sum, value) => sum + value, 0), indent: true },
+    { label: "davon Tilgung + Zins", values: tilgungZins, contract: -totalTilgungZins, indent: true },
+    { label: "davon Cashflow-Adjustments", values: cashAdjustments, contract: cashAdjustments.reduce((sum, value) => sum + value, 0), indent: true },
+    { label: "Cashflow gesamt im Monat", values: monthlyCashflow, contract: totalForSites(sites, "cashflow") },
+    { label: "Kontostand Monatsende", values: kontostandMonths, contract: endingKontostand }
   ];
 
   return (
@@ -3730,8 +3753,9 @@ function BankMovementsTable() {
           </thead>
           <tbody>
             {rows.map((row) => {
-              const fullValues = [...row.values, ...Array(7).fill(0)];
+              const fullValues = fillTwelveMonths(row.values);
               const totalValue = row.values.reduce((sum, value) => sum + value, 0);
+              const activeMonths = row.values.filter((value) => value !== 0).length || 1;
               return (
                 <tr key={row.label}>
                   <TableCell strong={!row.indent}>{row.indent ? `  ${row.label}` : row.label}</TableCell>
@@ -3739,9 +3763,9 @@ function BankMovementsTable() {
                     <TableCell key={`${row.label}-${index}`} tone={value < 0 ? "red" : undefined}>{value ? eur(value) : ""}</TableCell>
                   ))}
                   <TableCell strong tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue)}</TableCell>
-                  <TableCell strong tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue / row.values.length)}</TableCell>
+                  <TableCell strong tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue / activeMonths)}</TableCell>
                   <TableCell strong tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract)}</TableCell>
-                  <TableCell strong tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract / 114)}</TableCell>
+                  <TableCell strong tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract / activeMonths)}</TableCell>
                 </tr>
               );
             })}
@@ -3754,6 +3778,21 @@ function BankMovementsTable() {
 
 function performanceBase(site: DashboardSite, mode: "honorar" | "pvs") {
   return mode === "honorar" ? site.honorar + site.eigenlabor : site.pvsUmsatz + site.eigenlabor + site.gesamtleistung * 0.06;
+}
+
+function fillTwelveMonths(values: number[]) {
+  return Array.from({ length: 12 }, (_, index) => Math.round(values[index] ?? 0));
+}
+
+function allocateByMonthlyStructure(totalValue: number, monthlyData: typeof monthly) {
+  const activeMonthlyData = monthlyData.filter((entry) => entry.leistung || entry.ebitda || entry.cashflow);
+  const basis = activeMonthlyData.reduce((sum, entry) => sum + Math.max(0, entry.leistung), 0);
+  const activeValues = activeMonthlyData.map((entry) =>
+    basis ? Math.round((totalValue * Math.max(0, entry.leistung)) / basis) : Math.round(totalValue / Math.max(activeMonthlyData.length, 1))
+  );
+  const delta = Math.round(totalValue - activeValues.reduce((sum, value) => sum + value, 0));
+  if (activeValues.length) activeValues[activeValues.length - 1] += delta;
+  return fillTwelveMonths(activeValues);
 }
 
 function Analysen({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
