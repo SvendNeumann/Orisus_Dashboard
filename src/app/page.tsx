@@ -1827,7 +1827,6 @@ function DataStatusStrip({ importedData }: { importedData?: ImportedDashboardDat
 function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; monthlyData: typeof monthly }) {
   const metrics = cfoMetrics(sites, monthlyData);
   const riskLabel = metrics.kritisch.length ? metrics.kritisch.map((site) => site.name).join(", ") : "Keine roten Standorte";
-  const criticalReceivables = [...metrics.activeSites].sort((a, b) => b.forderungen - a.forderungen).slice(0, 2);
 
   const kpis = [
     {
@@ -1859,9 +1858,9 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       status: metrics.kritisch.length ? "yellow" : "green"
     },
     {
-      label: "Offene Forderungen kritisch",
+      label: "Offene Forderungen",
       value: metrics.forderungen,
-      delta: criticalReceivables.map((site) => site.name).join(" / "),
+      delta: "Konsolidiert seit Vertragsstart",
       icon: FileBarChart,
       status: metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green"
     },
