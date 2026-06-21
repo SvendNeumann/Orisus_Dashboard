@@ -3172,6 +3172,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
             <tr>
               <TableHead>Standort</TableHead>
               <TableHead>Aktiv</TableHead>
+              <TableHead>FTE</TableHead>
               <TableHead>Gesamt</TableHead>
               <TableHead>Wochenstunden</TableHead>
               <TableHead>Behandler</TableHead>
@@ -3183,6 +3184,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
               <tr key={row.site}>
                 <TableCell strong>{row.site}</TableCell>
                 <TableCell>{row.active}</TableCell>
+                <TableCell>{(row.hours / 40).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</TableCell>
                 <TableCell>{row.employees}</TableCell>
                 <TableCell>{row.hours.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
                 <TableCell>{row.dentists}</TableCell>
@@ -3192,6 +3194,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
             <tr className="table-total font-bold">
               <TableCell>Gesamt</TableCell>
               <TableCell>{siteRows.reduce((sum, row) => sum + row.active, 0)}</TableCell>
+              <TableCell>{(siteRows.reduce((sum, row) => sum + row.hours, 0) / 40).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</TableCell>
               <TableCell>{siteRows.reduce((sum, row) => sum + row.employees, 0)}</TableCell>
               <TableCell>{siteRows.reduce((sum, row) => sum + row.hours, 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
               <TableCell>{siteRows.reduce((sum, row) => sum + row.dentists, 0)}</TableCell>
