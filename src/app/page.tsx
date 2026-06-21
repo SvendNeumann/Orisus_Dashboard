@@ -1011,11 +1011,17 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const ebitda = Math.round(sumRows(siteRows, null, ["ebitda"], ["bwa"]));
     const cashflow = Math.round(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]));
     const vorlaeufigesErgebnis = Math.round(sumRows(siteRows, null, ["vorlaufiges_ergebnis"], ["bwa"]));
-    const cashflowAbschreibungen = Math.round(sumRows(siteRows, null, ["plus_abschreibungen"], ["bwa"]));
-    const investitionsausgaben = Math.abs(Math.round(sumRows(siteRows, null, ["investitionsausgaben"], ["bwa"])));
-    const umbuchungZmvz = Math.abs(Math.round(sumRows(siteRows, null, ["umbuchung_zmvz"], ["bwa"])));
-    const sonstigeRueckstellungenBestandsminderungen = Math.round(
-      sumRows(siteRows, null, ["sonstige_ruckstellungen_bestandsminderungen"], ["bwa"])
+    const cashflowAbschreibungen = Math.abs(
+      Math.round(sumRowsByCategory(siteRows, ["abschreibungen"], ["bwa"], ["cashflow_adjustments"]))
+    );
+    const investitionsausgaben = Math.abs(
+      Math.round(sumRowsByCategory(siteRows, ["investitionsausgaben"], ["bwa"], ["cashflow_adjustments"]))
+    );
+    const umbuchungZmvz = Math.abs(
+      Math.round(sumRowsByCategory(siteRows, ["umbuchung_zmvz"], ["bwa"], ["cashflow_adjustments"]))
+    );
+    const sonstigeRueckstellungenBestandsminderungen = Math.abs(
+      Math.round(sumRowsByCategory(siteRows, ["sonstige_ruckstellungen_bestandsminderungen"], ["bwa"], ["cashflow_adjustments"]))
     );
     const inputKontostand = latestKontostandFromWorkbook(workbook, siteName);
     const kontostand = Math.round(
@@ -1033,7 +1039,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
         ["stammdaten", "finanzen", "darlehen"]
       )
     );
-    const bwaTilgung = Math.abs(Math.round(sumRows(siteRows, null, ["tilgung"], ["bwa"])));
+    const bwaTilgung = Math.abs(Math.round(sumRowsByCategory(siteRows, ["tilgung"], ["bwa"], ["cashflow_adjustments"])));
     const fallbackTilgung = Math.abs(
       Math.round(sumRows(allSiteRows, null, ["tilgung_kredit_zins", "davon_tilgung_zins", "tilgung"], ["finanzen", "darlehen"]))
     );
