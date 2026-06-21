@@ -251,6 +251,7 @@ type ImportHistoryEntry = {
 type PersonalImportHistoryEntry = ImportHistoryEntry;
 
 type BwaLine = {
+  metricKey?: string;
   label: string;
   actual: number;
   indent?: boolean;
@@ -945,6 +946,59 @@ const bwaMetricDefinitions = [
   { key: "cashflow_gesamt", label: "CashFlow Gesamt", section: "6. Cashflow-Adjustments", order: 760, source: ["cashflow_gesamt"], emphasis: true, kind: "cashflow" as const },
   { key: "cashflow_quote", label: "CashFlow-Quote", section: "6. Cashflow-Adjustments", order: 770, source: [], percent: true, derived: "cashflow_quote", kind: "cashflow" as const }
 ] as const;
+
+const bwaDeductionMetricKeys = new Set([
+  "fremdlabor_gesamt",
+  "materialkosten_gesamt",
+  "personalkosten_gesamt",
+  "reparatur_instandhaltung",
+  "miete_nebenkosten",
+  "reise_fortbildung_seminare",
+  "kfz_praxiseinrichtung",
+  "versicherungen_beitraege",
+  "kzv_verwaltungskosten",
+  "bfs_factoring",
+  "ec_terminal",
+  "nicht_abziehbare_vorsteuer",
+  "sonstige_kosten",
+  "summe_sonstige_kosten",
+  "operative_praxiskosten_bis_ebitda",
+  "abschreibungen",
+  "zinsen_neutraler_aufwand",
+  "steuern_einkommen_ertrag",
+  "investitionsausgaben",
+  "tilgung",
+  "umbuchung_zmvz",
+  "sonstige_rueckstellungen_bestandsminderungen"
+]);
+
+const bwaDeductionLabelKeys = new Set([
+  "fremdlabor_gesamt",
+  "materialkosten_gesamt",
+  "personalkosten_gesamt",
+  "personalkosten_aggregiert",
+  "reparatur_und_instandhaltung",
+  "miete_nebenkosten",
+  "reise_fortbildung_seminare",
+  "kfz_praxiseinrichtung",
+  "versicherungen_beitraege",
+  "versicherungen_beitrage",
+  "kzv_verwaltungskosten",
+  "bfs_factoring",
+  "ec_terminal",
+  "nicht_abziehbare_vorsteuer",
+  "sonstige_kosten",
+  "sonstige_kosten_gesamt",
+  "summe_sonstige_kosten",
+  "operative_praxiskosten_bis_ebitda",
+  "abschreibungen",
+  "zinsen_neutraler_aufwand",
+  "steuern_vom_einkommen_und_ertrag",
+  "investitionsausgaben",
+  "tilgung",
+  "umbuchung_zmvz",
+  "sonstige_ruckstellungen_bestandsminderungen"
+]);
 
 const statusMap: Record<Status, { label: string; dot: string; tone: "green" | "yellow" | "red" }> = {
   green: { label: "Stabil", dot: "bg-emerald-500", tone: "green" },
@@ -5084,10 +5138,10 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
                 )}
               >
                 <span className={cn(row.indent && "pl-5 text-muted-foreground")}>{row.label}</span>
-                <span className={cn("text-right font-semibold", bwaValueToneClass(row.actual, row.label))}>
+                <span className={cn("text-right font-semibold", bwaValueToneClass(row.actual, row))}>
                   {isSectionRow ? "" : row.percent ? pct(row.actual) : eur(row.actual)}
                 </span>
-                <span className={cn("text-right font-semibold", bwaValueToneClass(contractRow.actual, contractRow.label))}>
+                <span className={cn("text-right font-semibold", bwaValueToneClass(contractRow.actual, contractRow))}>
                   {isSectionRow ? "" : contractRow.percent ? pct(contractRow.actual) : eur(contractRow.actual)}
                 </span>
               </div>
@@ -5258,9 +5312,9 @@ function FragmentCells({
           "table-number-col border-b border-r border-border bg-white p-2 text-right font-semibold tabular-nums",
           row.percent && "text-xs",
           row.percent && "table-ratio",
-          bwaValueToneClass(row.actual, row.label),
           row.emphasis && "table-total font-bold text-foreground",
-          row.kind === "cashflow" && "table-cashflow"
+          row.kind === "cashflow" && "table-cashflow",
+          bwaValueToneClass(row.actual, row)
         )}
       >
         {row.percent ? pct(row.actual) : eur(row.actual)}
@@ -5271,7 +5325,8 @@ function FragmentCells({
           row.percent && "text-xs",
           row.percent && "table-ratio",
           row.emphasis && "table-total font-bold text-foreground",
-          row.kind === "cashflow" && "table-cashflow"
+          row.kind === "cashflow" && "table-cashflow",
+          bwaValueToneClass(quote, row)
         )}
       >
         {pct(quote)}
@@ -5496,6 +5551,7 @@ function buildImportedBwaLines(importedRows: ImportedBwaRow[], period: string, s
       return sum + (isPercent ? 0 : row.contractValue);
     }, 0);
     return {
+      metricKey: definition.key,
       label: definition.label,
       actual: isPercent ? quoteActual : actual,
       indent: !isEmphasis && !definition.key.startsWith("section_"),
@@ -5839,6 +5895,7 @@ function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: str
       ? calculateImportedQuote(importedRows, [siteId], definition.key)
       : sourceRows.reduce((sum, row) => sum + row.contractValue, 0);
     return {
+      metricKey: definition.key,
       label: definition.label,
       months,
       previousYear: previousYearValue,
@@ -5900,18 +5957,27 @@ function valueToneClass(value: number | null | undefined, active = true) {
   return value > 0 ? "text-emerald-700" : "text-red-700";
 }
 
-function bwaValueToneClass(value: number | null | undefined, label: string) {
+function isBwaDeductionRow(rowOrLabel: string | { label: string; metricKey?: string; percent?: boolean; section?: boolean }) {
+  if (typeof rowOrLabel !== "string" && (rowOrLabel.percent || rowOrLabel.section)) return false;
+  const metricKey = typeof rowOrLabel === "string" ? "" : normalizeMetric(rowOrLabel.metricKey);
+  const labelKey = normalizeMetric(typeof rowOrLabel === "string" ? rowOrLabel : rowOrLabel.label);
+  return Boolean((metricKey && bwaDeductionMetricKeys.has(metricKey)) || bwaDeductionLabelKeys.has(labelKey));
+}
+
+function bwaValueToneClass(value: number | null | undefined, rowOrLabel: string | { label: string; metricKey?: string; percent?: boolean; section?: boolean }) {
   if (value == null || value === 0) return "";
+  if (isBwaDeductionRow(rowOrLabel)) return "text-red-700";
   if (value < 0) return "text-red-700";
+  const label = typeof rowOrLabel === "string" ? rowOrLabel : rowOrLabel.label;
   return isVarianceRow(label) ? "text-emerald-700" : "";
 }
 
 function bwaTableNumberClass(
-  row: { label: string; percent?: boolean; emphasis?: boolean; section?: boolean; kind?: "cashflow" },
+  row: { label: string; metricKey?: string; percent?: boolean; emphasis?: boolean; section?: boolean; kind?: "cashflow" },
   value: number | null | undefined,
   options: { compact?: boolean; muted?: boolean; bold?: boolean } = {}
 ) {
-  const tone = bwaValueToneClass(value, row.label);
+  const tone = bwaValueToneClass(value, row);
   return cn(
     options.compact ? "table-small-number-col" : "table-number-col",
     "border-b border-r border-border bg-white p-2 text-right tabular-nums",
