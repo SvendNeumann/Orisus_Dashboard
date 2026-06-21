@@ -2273,13 +2273,18 @@ function Ranking({ title, metric, sites = standorte }: { title: string; metric: 
     if (site.ebitdaMarge >= 8) return "yellow";
     return "red";
   };
+  const performanceRankingStatus = (site: DashboardSite): Status => {
+    if (site.gesamtleistung > 0) return "green";
+    if (site.gesamtleistung === 0) return "yellow";
+    return "red";
+  };
 
   return (
     <Card className="p-4">
       <h2 className="font-bold">{title}</h2>
       <div className="mt-4 space-y-3">
         {rows.map((site) => {
-          const status = metric === "ebitda" ? ebitdaRankingStatus(site) : site.status;
+          const status = metric === "ebitda" ? ebitdaRankingStatus(site) : performanceRankingStatus(site);
           const ebitdaProgress = site.darlehen.zielEbitda > 0 ? (site.ebitda / site.darlehen.zielEbitda) * 100 : site.ebitdaMarge * 4;
           return (
             <button key={site.id} className="w-full rounded-md bg-slate-50 p-3 text-left">
