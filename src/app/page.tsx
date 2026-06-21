@@ -87,7 +87,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-top-behandler-honorar-only-v1";
+const importDashboardSchemaVersion = "2026-06-21-receivables-source-refresh-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
