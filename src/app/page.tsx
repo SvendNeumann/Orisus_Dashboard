@@ -32,6 +32,7 @@ import {
   FileUp,
   Gauge,
   Home,
+  Info,
   Landmark,
   Lock,
   Menu,
@@ -4379,10 +4380,69 @@ function Analysen({ sites = standorte, monthlyData = monthly }: { sites?: Dashbo
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <AnalysisTile title="EBITDA-Marge" value={pct(metrics.ebitdaMarge)} text="Konzern über die aktuell importierte Datenbasis." />
-        <AnalysisTile title="Kapitaldienstfähigkeit" value={`${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`} text="EBITDA im Verhältnis zu Tilgung und Zins." />
+        <DebtServiceCoverageTile value={metrics.kapitaldienstfaehigkeit} />
         <AnalysisTile title="Cashflow-Qualität" value={pct(metrics.gesamtleistung ? (metrics.cashflow / metrics.gesamtleistung) * 100 : 0)} text="Cashflow im Verhältnis zur Gesamtleistung." />
       </div>
     </section>
+  );
+}
+
+function debtServiceStatus(value: number): { status: Status; tone: string; label: string; hint: string } {
+  if (value >= 1.5) {
+    return {
+      status: "green",
+      tone: "text-emerald-700",
+      label: "Stabil",
+      hint: "Komfortabler Puffer für Banken: EBITDA deckt Kapitaldienst deutlich."
+    };
+  }
+  if (value >= 1) {
+    return {
+      status: "yellow",
+      tone: "text-amber-700",
+      label: "Beobachten",
+      hint: "Kapitaldienst ist gedeckt, aber mit begrenztem Puffer."
+    };
+  }
+  return {
+    status: "red",
+    tone: "text-red-700",
+    label: "Kritisch",
+    hint: "EBITDA reicht nicht aus, um Tilgung und Zins vollständig zu decken."
+  };
+}
+
+function DebtServiceCoverageTile({ value }: { value: number }) {
+  const [open, setOpen] = useState(false);
+  const state = debtServiceStatus(value);
+  return (
+    <Card className="relative p-4">
+      <button
+        type="button"
+        aria-label="Kapitaldienstfähigkeit erklären"
+        className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white text-muted-foreground shadow-sm"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <Info className="h-4 w-4" />
+      </button>
+      <div className="pr-10">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-muted-foreground">Kapitaldienstfähigkeit</p>
+          <StatusDot status={state.status} />
+        </div>
+        <p className={cn("mt-2 text-3xl font-bold", state.tone)}>{value.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x</p>
+        <p className={cn("mt-2 text-sm font-semibold", state.tone)}>{state.label}: {state.hint}</p>
+      </div>
+      {open && (
+        <div className="mt-4 rounded-lg border border-border bg-slate-50 p-3 text-sm text-muted-foreground">
+          <p className="font-semibold text-foreground">Was bedeutet das?</p>
+          <p className="mt-1">
+            EBITDA geteilt durch Tilgung plus Zins. 1,79x heißt: Das EBITDA deckt den Kapitaldienst 1,79-mal.
+          </p>
+          <p className="mt-2">Ampel: grün ab 1,50x, orange ab 1,00x, rot unter 1,00x.</p>
+        </div>
+      )}
+    </Card>
   );
 }
 
