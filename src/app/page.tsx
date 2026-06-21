@@ -3323,6 +3323,25 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
     };
   });
   const monthlyTotals = bwaMonths.map((_, index) => monthlySiteRows.reduce((sum, row) => sum + row.monthlyValues[index], 0));
+  const relativeMonthlyRows = monthlySiteRows.map((row) => {
+    const activeEmployees = siteRows.find((site) => site.site === row.site)?.active ?? 0;
+    return {
+      ...row,
+      activeEmployees,
+      relativeValues: row.monthlyValues.map((value) => (activeEmployees ? value / activeEmployees : 0)),
+      relativeTotal: activeEmployees ? row.total / activeEmployees : 0
+    };
+  });
+  const highestRelativeRow = relativeMonthlyRows.reduce(
+    (highest, row) => (row.relativeTotal > highest.relativeTotal ? row : highest),
+    { site: "", activeEmployees: 0, monthlyValues: [], relativeValues: [], total: 0, relativeTotal: 0 }
+  );
+  const maxRelativeMonth = Math.max(...relativeMonthlyRows.flatMap((row) => row.relativeValues), 0);
+  const relativeHeatTone = (value: number) => {
+    if (!value || !maxRelativeMonth) return undefined;
+    const intensity = Math.max(0.15, Math.min(value / maxRelativeMonth, 1));
+    return `rgba(15, 118, 110, ${0.12 + intensity * 0.34})`;
+  };
 
   return (
     <section className="space-y-5">
@@ -3414,6 +3433,49 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
                 <TableCell key={`gesamt-${bwaMonths[index]}`} strong summary>{value ? formatOneDecimal(value) : ""}</TableCell>
               ))}
               <TableCell strong summary>{formatOneDecimal(monthlyTotals.reduce((sum, value) => sum + value, 0))}</TableCell>
+            </tr>
+          </tbody>
+        </ResponsiveTable>
+      </Card>
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Vergleichbar: Krankheitstage je aktivem Mitarbeiter | {selectedYear}</h2>
+        </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <TableHead>Standort</TableHead>
+              <TableHead>Aktive MA</TableHead>
+              {bwaMonths.map((month) => (
+                <TableHead key={month}>{month}</TableHead>
+              ))}
+              <TableHead>Gesamt</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {relativeMonthlyRows.map((row) => (
+              <tr key={row.site}>
+                <TableCell strong>{row.site}</TableCell>
+                <TableCell>{row.activeEmployees || ""}</TableCell>
+                {row.relativeValues.map((value, index) => (
+                  <td
+                    key={`${row.site}-relative-${bwaMonths[index]}`}
+                    className="table-number-col border-b border-r border-border p-2 text-right tabular-nums"
+                    style={{ backgroundColor: relativeHeatTone(value) ?? "white" }}
+                  >
+                    {value ? formatOneDecimal(value) : ""}
+                  </td>
+                ))}
+                <TableCell strong summary>{row.relativeTotal ? formatOneDecimal(row.relativeTotal) : ""}</TableCell>
+              </tr>
+            ))}
+            <tr className="summary-row">
+              <TableCell strong summary>Höchster Standort vergleichbar</TableCell>
+              <TableCell strong summary>{highestRelativeRow.site || ""}</TableCell>
+              {bwaMonths.map((month) => (
+                <TableCell key={`highest-relative-${month}`} summary>{""}</TableCell>
+              ))}
+              <TableCell strong summary>{highestRelativeRow.relativeTotal ? formatOneDecimal(highestRelativeRow.relativeTotal) : ""}</TableCell>
             </tr>
           </tbody>
         </ResponsiveTable>
