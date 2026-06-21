@@ -87,8 +87,16 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-performance-behandler-total-v4";
+const importDashboardSchemaVersion = "2026-06-21-acquisition-terms-v5";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
+
+const acquisitionTermsBySiteId: Record<string, { kaufpreis: number; earnOutGesamt: number }> = {
+  kirchberg: { kaufpreis: 1365000, earnOutGesamt: 735000 },
+  essen: { kaufpreis: 727200, earnOutGesamt: 391600 },
+  kehl: { kaufpreis: 601250, earnOutGesamt: 323750 },
+  ulmet: { kaufpreis: 1852500, earnOutGesamt: 997500 },
+  huettenberg: { kaufpreis: 552500, earnOutGesamt: 297500 }
+};
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
 
@@ -405,6 +413,10 @@ function normalizeSiteId(value: unknown) {
 
 function siteIdForName(siteName: string) {
   return standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase())?.id ?? normalizeSiteId(siteName);
+}
+
+function acquisitionTermsForSite(siteName: string) {
+  return acquisitionTermsBySiteId[siteIdForName(siteName)] ?? { kaufpreis: 0, earnOutGesamt: 0 };
 }
 
 function rowMetric(row: Record<string, unknown>) {
@@ -1035,6 +1047,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const personalquote = gesamtleistung ? (personal / gesamtleistung) * 100 : 0;
     const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - personalquote) : 0;
     const zielEbitdaUebernahme = Math.round(targetEbitdaForActiveRows(rows, siteName, "uebernahme", siteRows));
+    const acquisitionTerms = acquisitionTermsForSite(siteName);
     const status: Status = ebitdaMarge < 8 || cashflow < 0 ? "red" : ebitdaMarge < 12 ? "yellow" : "green";
 
     return {
@@ -1065,12 +1078,12 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
       status,
       vorjahrAbweichung: 0,
       darlehen: {
-        kaufpreis: 0,
+        kaufpreis: acquisitionTerms.kaufpreis,
         darlehen,
         restschuld,
         tilgung,
         zins,
-        earnOutGesamt: 0,
+        earnOutGesamt: acquisitionTerms.earnOutGesamt,
         earnOutGezahlt: 0,
         zielEbitda: zielEbitdaUebernahme,
         istEbitda: ebitda

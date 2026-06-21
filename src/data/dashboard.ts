@@ -60,13 +60,13 @@ export const standorte: Standort[] = [
     status: "green",
     vorjahrAbweichung: 4.8,
     darlehen: {
-      kaufpreis: 1320000,
+      kaufpreis: 1365000,
       darlehen: 860000,
       restschuld: 704000,
       tilgung: 96000,
       zins: 36000,
-      earnOutGesamt: 260000,
-      earnOutGezahlt: 151000,
+      earnOutGesamt: 735000,
+      earnOutGezahlt: 0,
       zielEbitda: 205000,
       istEbitda: 213000
     }
@@ -90,13 +90,13 @@ export const standorte: Standort[] = [
     status: "yellow",
     vorjahrAbweichung: -3.7,
     darlehen: {
-      kaufpreis: 980000,
+      kaufpreis: 727200,
       darlehen: 710000,
       restschuld: 642000,
       tilgung: 62000,
       zins: 31000,
-      earnOutGesamt: 190000,
-      earnOutGezahlt: 52000,
+      earnOutGesamt: 391600,
+      earnOutGezahlt: 0,
       zielEbitda: 124000,
       istEbitda: 96000
     }
@@ -120,13 +120,13 @@ export const standorte: Standort[] = [
     status: "yellow",
     vorjahrAbweichung: -1.8,
     darlehen: {
-      kaufpreis: 820000,
+      kaufpreis: 601250,
       darlehen: 610000,
       restschuld: 574000,
       tilgung: 44000,
       zins: 27000,
-      earnOutGesamt: 150000,
-      earnOutGezahlt: 38000,
+      earnOutGesamt: 323750,
+      earnOutGezahlt: 0,
       zielEbitda: 92000,
       istEbitda: 79000
     }
@@ -150,13 +150,13 @@ export const standorte: Standort[] = [
     status: "green",
     vorjahrAbweichung: 7.6,
     darlehen: {
-      kaufpreis: 760000,
+      kaufpreis: 1852500,
       darlehen: 520000,
       restschuld: 493000,
       tilgung: 31000,
       zins: 23000,
-      earnOutGesamt: 120000,
-      earnOutGezahlt: 82000,
+      earnOutGesamt: 997500,
+      earnOutGezahlt: 0,
       zielEbitda: 108000,
       istEbitda: 129000
     }
@@ -180,13 +180,13 @@ export const standorte: Standort[] = [
     status: "red",
     vorjahrAbweichung: -8.4,
     darlehen: {
-      kaufpreis: 690000,
+      kaufpreis: 552500,
       darlehen: 500000,
       restschuld: 486000,
       tilgung: 18000,
       zins: 19000,
-      earnOutGesamt: 110000,
-      earnOutGezahlt: 14000,
+      earnOutGesamt: 297500,
+      earnOutGezahlt: 0,
       zielEbitda: 64000,
       istEbitda: 36000
     }
