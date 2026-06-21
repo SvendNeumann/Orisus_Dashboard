@@ -3034,14 +3034,20 @@ function personalActiveEmployees(data: PersonalDashboardData) {
   return data.employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
 }
 
+function personalIsInactive(employee: PersonalEmployee) {
+  const status = employee.status.toLowerCase();
+  return ["inaktiv", "ausgetreten", "gekündigt", "gekuendigt"].some((term) => status.includes(term));
+}
+
 function personalEmployeesBySite(data: PersonalDashboardData) {
   const sites = data.settings.sites.length ? data.settings.sites : uniqueSortedText(data.employees.map((employee) => employee.site));
   return sites.map((site) => {
     const employees = data.employees.filter((employee) => employee.site === site);
+    const countedEmployees = employees.filter((employee) => !personalIsInactive(employee));
     const active = employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
     return {
       site,
-      employees: employees.length,
+      employees: countedEmployees.length,
       active: active.length,
       hours: active.reduce((sum, employee) => sum + employee.weeklyHours, 0),
       employerCost: active.reduce((sum, employee) => sum + employee.employerCost, 0),
