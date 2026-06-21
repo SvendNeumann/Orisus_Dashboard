@@ -87,7 +87,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-receivables-source-refresh-v1";
+const importDashboardSchemaVersion = "2026-06-21-pvs-receivables-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -357,7 +357,8 @@ function isAllowedTargetValue(row: Record<string, unknown>) {
   const relatesToEbitdaTarget =
     text.includes("ebitda") &&
     ["ziel", "soll", "kaufvertrag", "übernahme", "uebernahme"].some((term) => text.includes(term));
-  return relatesToEbitdaTarget || text.includes("earn-out");
+  const isReceivablesSource = text.includes("soll") && text.includes("forderung") && text.includes("pvs");
+  return relatesToEbitdaTarget || text.includes("earn-out") || isReceivablesSource;
 }
 
 function isExcludedPlanRow(row: Record<string, unknown>) {
