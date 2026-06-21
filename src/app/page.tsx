@@ -3068,6 +3068,12 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
     name: status,
     value: personalData.employees.filter((employee) => employee.status === status).length
   }));
+  const statusColors = ["#0f766e", "#0891b2", "#f59e0b", "#ef4444"];
+  const statusTotal = statusRows.reduce((sum, row) => sum + row.value, 0);
+  const renderStatusLabel = ({ name, value }: { name?: string; value?: number }) => {
+    if (!value) return "";
+    return `${name}: ${value}`;
+  };
 
   return (
     <section className="space-y-5">
@@ -3148,14 +3154,35 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
       <ChartCard title="Statusverteilung | aktueller Personalstand" icon={PieIcon}>
         <ResponsiveContainer width="100%" height={260}>
           <PieChart>
-            <Pie data={statusRows} dataKey="value" nameKey="name" innerRadius={58} outerRadius={92}>
+            <Pie
+              data={statusRows}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={58}
+              outerRadius={92}
+              label={renderStatusLabel}
+              labelLine={false}
+            >
               {statusRows.map((_, index) => (
-                <Cell key={index} fill={["#0f766e", "#0891b2", "#f59e0b", "#ef4444"][index % 4]} />
+                <Cell key={index} fill={statusColors[index % statusColors.length]} />
               ))}
             </Pie>
             <Tooltip formatter={(value, name) => [`${value}`, name]} />
           </PieChart>
         </ResponsiveContainer>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {statusRows.map((row, index) => (
+            <div key={row.name} className="rounded-md bg-slate-50 p-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColors[index % statusColors.length] }} />
+                <span className="text-sm font-semibold">{row.name}</span>
+              </div>
+              <p className="mt-1 text-lg font-bold">
+                {row.value} <span className="text-xs font-semibold text-muted-foreground">({statusTotal ? pct((row.value / statusTotal) * 100) : "0 %"})</span>
+              </p>
+            </div>
+          ))}
+        </div>
       </ChartCard>
     </section>
   );
