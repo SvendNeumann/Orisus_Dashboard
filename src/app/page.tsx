@@ -2027,13 +2027,19 @@ function KpiCard({
   );
 }
 
-function StatusDot({ status }: { status: Status }) {
+function StatusDot({ status, label }: { status: Status; label?: string }) {
   return (
     <Badge tone={statusMap[status].tone}>
       <span className={cn("h-2 w-2 rounded-full", statusMap[status].dot)} />
-      {statusMap[status].label}
+      {label ?? statusMap[status].label}
     </Badge>
   );
+}
+
+function siteStatusLabel(site: DashboardSite) {
+  if (site.status === "red" && site.cashflow < 0) return "Handlungsbedarf: Cashflow negativ";
+  if (site.status === "red" && site.ebitdaMarge < 8) return "Handlungsbedarf: Marge niedrig";
+  return statusMap[site.status].label;
 }
 
 function ChartCard({
@@ -2523,7 +2529,7 @@ function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void
                 <h2 className="text-xl font-bold">{site.name}</h2>
                 <p className="text-sm text-muted-foreground">Start in der Gruppe: {site.start}</p>
               </div>
-              <StatusDot status={site.status} />
+              <StatusDot status={site.status} label={siteStatusLabel(site)} />
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <Mini label="Gesamtleistung seit Start" value={eur(site.gesamtleistung, true)} />
