@@ -3113,6 +3113,34 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
     if (!value) return "";
     return `${name}: ${eur(value)}`;
   };
+  const costOverviewRows = siteRows.map((site) => {
+    const activeEmployees = personalData.employees.filter((employee) => employee.site === site.site && employee.status.toLowerCase() === "aktiv");
+    const teamEmployees = activeEmployees.filter((employee) => !employee.isDentist);
+    const employerCost = activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0);
+    const teamCost = teamEmployees.reduce((sum, employee) => sum + employee.employerCost, 0);
+    const averageHourlyWage = teamEmployees.length ? teamEmployees.reduce((sum, employee) => sum + employee.hourlyWage, 0) / teamEmployees.length : 0;
+    return {
+      site: site.site,
+      active: activeEmployees.length,
+      team: teamEmployees.length,
+      employerCost,
+      averagePerEmployee: activeEmployees.length ? employerCost / activeEmployees.length : 0,
+      teamCost,
+      averagePerTeam: teamEmployees.length ? teamCost / teamEmployees.length : 0,
+      averageHourlyWage,
+      teamShare: employerCost ? (teamCost / employerCost) * 100 : 0
+    };
+  });
+  const costOverviewTotals = {
+    active: costOverviewRows.reduce((sum, row) => sum + row.active, 0),
+    team: costOverviewRows.reduce((sum, row) => sum + row.team, 0),
+    employerCost: costOverviewRows.reduce((sum, row) => sum + row.employerCost, 0),
+    teamCost: costOverviewRows.reduce((sum, row) => sum + row.teamCost, 0),
+    hourlyWageSum: costOverviewRows.reduce((sum, row) => {
+      const teamEmployees = personalData.employees.filter((employee) => employee.site === row.site && employee.status.toLowerCase() === "aktiv" && !employee.isDentist);
+      return sum + teamEmployees.reduce((subtotal, employee) => subtotal + employee.hourlyWage, 0);
+    }, 0)
+  };
 
   return (
     <section className="space-y-5">
@@ -3202,6 +3230,55 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
             </tr>
           </tbody>
         </ResponsiveTable>
+      </Card>
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Kostenübersicht je Standort | aktiver Personalstand</h2>
+        </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <TableHead>Standort</TableHead>
+              <TableHead>Aktive</TableHead>
+              <TableHead>Team</TableHead>
+              <TableHead>AG-Kosten</TableHead>
+              <TableHead>Ø / MA</TableHead>
+              <TableHead>Teamkosten</TableHead>
+              <TableHead>Ø / Team</TableHead>
+              <TableHead>Ø Std.-Lohn AN-Brutto</TableHead>
+              <TableHead>Team-Anteil</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {costOverviewRows.map((row) => (
+              <tr key={row.site}>
+                <TableCell strong>{row.site}</TableCell>
+                <TableCell>{row.active}</TableCell>
+                <TableCell>{row.team}</TableCell>
+                <TableCell>{eur(row.employerCost)}</TableCell>
+                <TableCell>{row.averagePerEmployee ? eur(row.averagePerEmployee) : ""}</TableCell>
+                <TableCell>{eur(row.teamCost)}</TableCell>
+                <TableCell>{row.averagePerTeam ? eur(row.averagePerTeam) : ""}</TableCell>
+                <TableCell>{row.averageHourlyWage ? eur(row.averageHourlyWage) : ""}</TableCell>
+                <TableCell>{pct(row.teamShare)}</TableCell>
+              </tr>
+            ))}
+            <tr className="summary-row">
+              <TableCell strong summary>Gesamt</TableCell>
+              <TableCell strong summary>{costOverviewTotals.active}</TableCell>
+              <TableCell strong summary>{costOverviewTotals.team}</TableCell>
+              <TableCell strong summary>{eur(costOverviewTotals.employerCost)}</TableCell>
+              <TableCell strong summary>{costOverviewTotals.active ? eur(costOverviewTotals.employerCost / costOverviewTotals.active) : ""}</TableCell>
+              <TableCell strong summary>{eur(costOverviewTotals.teamCost)}</TableCell>
+              <TableCell strong summary>{costOverviewTotals.team ? eur(costOverviewTotals.teamCost / costOverviewTotals.team) : ""}</TableCell>
+              <TableCell strong summary>{costOverviewTotals.team ? eur(costOverviewTotals.hourlyWageSum / costOverviewTotals.team) : ""}</TableCell>
+              <TableCell strong summary>{costOverviewTotals.employerCost ? pct((costOverviewTotals.teamCost / costOverviewTotals.employerCost) * 100) : "0 %"}</TableCell>
+            </tr>
+          </tbody>
+        </ResponsiveTable>
+        <p className="border-t border-border bg-slate-50 p-3 text-xs text-muted-foreground">
+          Basis: aktive Mitarbeitende; Team-MA = aktive Mitarbeitende ohne Behandler; AG-Kosten = AG_Aufwand aus dem Personal-Upload.
+        </p>
       </Card>
       <Card className="overflow-hidden">
         <div className="table-head p-4 text-white">
