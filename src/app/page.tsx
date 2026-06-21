@@ -3905,8 +3905,17 @@ function OrisusPerformance({
   importedData?: ImportedDashboardData | null;
 }) {
   const metrics = cfoMetrics(sites, monthlyData);
-  const performancePeriod = importedData ? defaultBwaPeriodFor(importedData) : "Gesamte Periode";
-  const performanceSubtitle = `Auswahl: ${performancePeriod} | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD`;
+  const availablePeriods = bwaPeriodOptionsFor(importedData);
+  const [honorarPeriod, setHonorarPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const [pvsPeriod, setPvsPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  useEffect(() => {
+    if (!availablePeriods.includes(honorarPeriod)) {
+      setHonorarPeriod(defaultBwaPeriodFor(importedData));
+    }
+    if (!availablePeriods.includes(pvsPeriod)) {
+      setPvsPeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [availablePeriods, honorarPeriod, importedData, pvsPeriod]);
   return (
     <section className="space-y-5">
       <PageTitle
@@ -3940,8 +3949,10 @@ function OrisusPerformance({
       </div>
       <OperationalPerformanceTable sites={sites} />
       <PerformanceRevenueBlock
-        title="Behandlerumsatz je Standort"
-        subtitle={performanceSubtitle}
+        title="Behandler-Honorarumsatz je Standort"
+        period={honorarPeriod}
+        setPeriod={setHonorarPeriod}
+        availablePeriods={availablePeriods}
         mode="honorar"
         sites={sites}
         importedData={importedData}
@@ -3955,7 +3966,9 @@ function OrisusPerformance({
       />
       <PerformanceRevenueBlock
         title="PVS-Gesamtumsatz je Standort"
-        subtitle={performanceSubtitle}
+        period={pvsPeriod}
+        setPeriod={setPvsPeriod}
+        availablePeriods={availablePeriods}
         mode="pvs"
         sites={sites}
         importedData={importedData}
@@ -4021,6 +4034,10 @@ function performanceMonthlyRows(importedData: ImportedDashboardData | null | und
   return mode === "honorar" ? importedData?.behandlerTotalRows : importedData?.pvsRevenueRows;
 }
 
+function performancePeriodLabel(period: string) {
+  return period === "Gesamte Periode" ? "Seit Vertragsstart" : period;
+}
+
 function importedPreviousPeriodValue(row: ImportedPeriodValueRow | undefined, period: string) {
   if (!row) return 0;
   const selection = selectedBwaPeriod(period);
@@ -4068,19 +4085,23 @@ function monthsSinceStartForPeriod(site: DashboardSite, period: string) {
 
 function PerformanceRevenueBlock({
   title,
-  subtitle,
+  period,
+  setPeriod,
+  availablePeriods,
   mode,
   sites = standorte,
   importedData
 }: {
   title: string;
-  subtitle: string;
+  period: string;
+  setPeriod: (period: string) => void;
+  availablePeriods: string[];
   mode: "honorar" | "pvs";
   sites?: DashboardSite[];
   importedData?: ImportedDashboardData | null;
 }) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
-  const period = importedData ? defaultBwaPeriodFor(importedData) : "Gesamte Periode";
+  const subtitle = `Auswahl: ${performancePeriodLabel(period)} | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD`;
   const periodRows = performancePeriodRows(importedData, mode) ?? [];
   const rowBySite = new Map(periodRows.map((row) => [row.siteId, row]));
   const valueForSite = (site: DashboardSite, reader: (row: ImportedPeriodValueRow | undefined) => number, fallback: number) => {
@@ -4104,10 +4125,23 @@ function PerformanceRevenueBlock({
 
   return (
     <Card className="overflow-hidden">
-      <div className="table-head p-3 font-bold text-white">{title}</div>
+      <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-bold">{title}</span>
+        <Select
+          className="w-full bg-white text-foreground sm:w-64"
+          value={period}
+          onChange={(event) => setPeriod(event.target.value)}
+        >
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>
+              {performancePeriodLabel(option)}
+            </option>
+          ))}
+        </Select>
+      </div>
       <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">{subtitle}</div>
       <div className="grid gap-px table-grid-bg md:grid-cols-5">
-        <KennzahlTile label={`${mode === "honorar" ? "Behandlerumsatz" : "PVS Umsatz"} Zeitraum`} value={eur(current)} />
+        <KennzahlTile label={`${mode === "honorar" ? "Honorarumsatz" : "PVS Umsatz"} Zeitraum`} value={eur(current)} />
         <KennzahlTile label="YoY Zeitraum" value={pctDelta(current, previous)} />
         <KennzahlTile label="QTD YoY" value={pctDelta(qtd, qtdPrevious)} />
         <KennzahlTile label="Umsatz seit Übernahme" value={eur(sinceTakeover)} />
