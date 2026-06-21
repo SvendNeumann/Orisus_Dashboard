@@ -47,11 +47,11 @@ import {
   monthly,
   standorte,
   Status,
-  topBehandlerHonorar,
   uploadTypes
 } from "@/data/dashboard";
 
 type DashboardSite = (typeof standorte)[number];
+type TopBehandlerEntry = { name: string; standort: string; honorar: number };
 
 type Page =
   | "cockpit"
@@ -87,7 +87,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-cockpit-wave-two-v1";
+const importDashboardSchemaVersion = "2026-06-21-no-demo-values-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -117,7 +117,7 @@ type ImportedDashboardData = {
   fileName: string;
   sites: DashboardSite[];
   monthly: typeof monthly;
-  topBehandler: typeof topBehandlerHonorar;
+  topBehandler: TopBehandlerEntry[];
   bwaRows: ImportedBwaRow[];
   report: ImportReport;
 };
@@ -829,7 +829,7 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
   );
 }
 
-function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: number): typeof topBehandlerHonorar {
+function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: number): TopBehandlerEntry[] {
   const grouped = new Map<string, { name: string; standort: string; honorar: number }>();
 
   rows.forEach((row) => {
@@ -884,50 +884,45 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const allSiteRows = consolidationRows.filter(
       (row) => asText(row.Standortname) === siteName && ((rowYear(row) ?? 0) < 1900 || isOnOrAfterStart(row, fallback.start))
     );
-    const hasImportedSiteRows = siteRows.length > 0;
-    const importedOrFallback = (value: number, fallbackValue: number) => (hasImportedSiteRows ? value : fallbackValue);
-    const gesamtleistung = Math.round(importedOrFallback(sumRows(siteRows, null, ["gesamtleistung"], ["bwa"]), fallback.gesamtleistung));
-    const pvsUmsatz = Math.round(importedOrFallback(sumRows(siteRows, null, ["pvs_gesamtumsatz_inkl_fl_mat"], ["finanzen"]), fallback.pvsUmsatz));
-    const ebitda = Math.round(importedOrFallback(sumRows(siteRows, null, ["ebitda"], ["bwa"]), fallback.ebitda));
-    const cashflow = Math.round(importedOrFallback(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]), fallback.cashflow));
+    const gesamtleistung = Math.round(sumRows(siteRows, null, ["gesamtleistung"], ["bwa"]));
+    const pvsUmsatz = Math.round(sumRows(siteRows, null, ["pvs_gesamtumsatz_inkl_fl_mat"], ["finanzen"]));
+    const ebitda = Math.round(sumRows(siteRows, null, ["ebitda"], ["bwa"]));
+    const cashflow = Math.round(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]));
     const inputKontostand = latestKontostandFromWorkbook(workbook, siteName);
     const kontostand = Math.round(
-      importedOrFallback(
-        inputKontostand ??
-          lastRowsValue(allSiteRows, null, ["kontostand", "kontostand_monatsende", "kontostand_per_stichtag"], ["kontostand", "dashboard", "finanzen", "input_kontostand", "bwa_dashboard"]),
-        fallback.kontostand
-      )
+      inputKontostand ??
+        lastRowsValue(allSiteRows, null, ["kontostand", "kontostand_monatsende", "kontostand_per_stichtag"], ["kontostand", "dashboard", "finanzen", "input_kontostand", "bwa_dashboard"])
     );
     const material = Math.abs(sumRows(siteRows, null, ["materialkosten"], ["bwa"]));
     const fremdlabor = Math.abs(sumRows(siteRows, null, ["fremdlaborkosten"], ["bwa"]));
     const personal = Math.abs(sumRows(siteRows, null, ["personalkosten"], ["bwa"]));
     const forderungen = Math.round(
-      importedOrFallback(
-        preferredRowsValue(
-          allSiteRows,
-          [["offene_forderungen_gesamt"], ["soll_forderung_pvs"], ["noch_nicht_geflossen"], ["noch_ausstehend_vs_bank"]],
-          ["finanzen", "dashboard", "bwa_dashboard"]
-        ),
-        fallback.forderungen
+      preferredRowsValue(
+        allSiteRows,
+        [["offene_forderungen_gesamt"], ["soll_forderung_pvs"], ["noch_nicht_geflossen"], ["noch_ausstehend_vs_bank"]],
+        ["finanzen", "dashboard", "bwa_dashboard"]
       )
     );
-    const darlehen = Math.round(importedOrFallback(sumRows(siteRows, null, ["darlehen*", "fremdkapital*"], ["finanzen", "darlehen"]), fallback.darlehen.darlehen));
-    const tilgung = Math.abs(Math.round(importedOrFallback(sumRows(siteRows, null, ["tilgung"], ["finanzen", "bwa"]), fallback.darlehen.tilgung)));
-    const restschuld = Math.max(0, Math.round(importedOrFallback(lastRowsValue(siteRows, null, ["restschuld", "rest_fremdkapital"], ["finanzen", "darlehen"]), Math.max(0, darlehen - tilgung))));
-    const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : fallback.ebitdaMarge;
-    const materialquote = gesamtleistung ? (material / gesamtleistung) * 100 : fallback.materialquote;
-    const fremdlaborquote = gesamtleistung ? (fremdlabor / gesamtleistung) * 100 : fallback.fremdlaborquote;
-    const personalquote = gesamtleistung ? (personal / gesamtleistung) * 100 : fallback.personalquote ?? 0;
-    const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - personalquote) : fallback.sonstigeKostenquote;
-    const zielEbitdaUebernahme = Math.round(targetEbitdaForActiveRows(rows, siteName, "uebernahme", siteRows) || fallback.darlehen.zielEbitda);
+    const darlehen = Math.round(sumRows(siteRows, null, ["darlehen*", "fremdkapital*"], ["finanzen", "darlehen"]));
+    const tilgung = Math.abs(Math.round(sumRows(siteRows, null, ["tilgung"], ["finanzen", "bwa"])));
+    const zins = Math.abs(Math.round(sumRows(siteRows, null, ["zins*", "zinsen*"], ["finanzen", "darlehen", "bwa"])));
+    const restschuld = Math.max(0, Math.round(lastRowsValue(siteRows, null, ["restschuld", "rest_fremdkapital"], ["finanzen", "darlehen"]) || Math.max(0, darlehen - tilgung)));
+    const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0;
+    const materialquote = gesamtleistung ? (material / gesamtleistung) * 100 : 0;
+    const fremdlaborquote = gesamtleistung ? (fremdlabor / gesamtleistung) * 100 : 0;
+    const personalquote = gesamtleistung ? (personal / gesamtleistung) * 100 : 0;
+    const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - personalquote) : 0;
+    const zielEbitdaUebernahme = Math.round(targetEbitdaForActiveRows(rows, siteName, "uebernahme", siteRows));
     const status: Status = ebitdaMarge < 8 || cashflow < 0 ? "red" : ebitdaMarge < 12 ? "yellow" : "green";
 
     return {
-      ...fallback,
       id: siteIdForName(siteName) || fallback.id,
       name: siteName,
+      start: fallback.start,
       gesamtleistung,
       pvsUmsatz,
+      honorar: 0,
+      eigenlabor: 0,
       ebitda,
       ebitdaMarge,
       cashflow,
@@ -938,11 +933,15 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
       personalquote,
       sonstigeKostenquote,
       status,
+      vorjahrAbweichung: 0,
       darlehen: {
-        ...fallback.darlehen,
+        kaufpreis: 0,
         darlehen,
         restschuld,
         tilgung,
+        zins,
+        earnOutGesamt: 0,
+        earnOutGezahlt: 0,
         zielEbitda: zielEbitdaUebernahme,
         istEbitda: ebitda
       }
@@ -970,8 +969,8 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     schemaVersion: importDashboardSchemaVersion,
     importedAt: new Date().toISOString(),
     fileName,
-    sites: sites.length ? sites : standorte,
-    monthly: monthlyData.length ? monthlyData : monthly,
+    sites,
+    monthly: monthlyData,
     topBehandler: topBehandlerFromRows(rows, latestYear),
     bwaRows: buildImportedBwaRows(rows, report),
     report
@@ -1117,11 +1116,11 @@ export default function HomePage() {
   const [pin, setPin] = useState("");
   const [previousPage, setPreviousPage] = useState<Page | null>(null);
   const [importedData, setImportedData] = useState<ImportedDashboardData | null>(null);
-  const dashboardSites = useMemo(() => sortSitesByContractStart(importedData?.sites ?? standorte), [importedData?.sites]);
-  const dashboardMonthly = importedData?.monthly ?? monthly;
+  const dashboardSites = useMemo(() => sortSitesByContractStart(importedData?.sites ?? []), [importedData?.sites]);
+  const dashboardMonthly = importedData?.monthly ?? [];
 
   const selected = useMemo(
-    () => dashboardSites.find((site) => site.id === selectedSite) ?? dashboardSites[0],
+    () => dashboardSites.find((site) => site.id === selectedSite) ?? dashboardSites[0] ?? standorte[0],
     [dashboardSites, selectedSite]
   );
 
@@ -1169,6 +1168,7 @@ export default function HomePage() {
     setPage(target);
     setMenuOpen(false);
   };
+  const requiresImport = !["uploads", "admin", "reports"].includes(page);
 
   return (
     <div className="min-h-screen lg:flex">
@@ -1251,10 +1251,11 @@ export default function HomePage() {
             onBack={() => go(previousPage ?? "cockpit")}
             onGo={go}
           />
-          {page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} />}
-          {page === "standorte" && (
+          {requiresImport && !importedData && <NoImportState onUpload={() => go("uploads")} />}
+          {importedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {importedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {importedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {importedData && page === "standorte" && (
             <Standorte
               sites={dashboardSites}
               onOpen={(id) => {
@@ -1263,13 +1264,13 @@ export default function HomePage() {
               }}
             />
           )}
-          {page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} monthlyData={dashboardMonthly} />}
-          {page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} />}
-          {page === "bwa" && <Bwa importedData={importedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
-          {page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} />}
-          {page === "darlehen" && <Darlehen sites={dashboardSites} />}
-          {page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {importedData && page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} monthlyData={dashboardMonthly} />}
+          {importedData && page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {importedData && page === "bwa" && <Bwa importedData={importedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {importedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {importedData && page === "darlehen" && <Darlehen sites={dashboardSites} />}
+          {importedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {importedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {page === "uploads" && <Uploads onImportConfirmed={setImportedData} onImportReset={() => setImportedData(null)} />}
           {page === "reports" && <Reports />}
           {page === "admin" && <AdminKpiRules />}
@@ -1363,7 +1364,7 @@ function AuthFlow({
             </>
           )}
           {step === "login" && (
-            <FormShell title="Anmelden" text="Interner Demo-Zugang für Svend Neumann.">
+            <FormShell title="Anmelden" text="Interner Zugang für Svend Neumann.">
               <Input defaultValue="svend.neumann@orisus.de" type="email" aria-label="E-Mail" />
               <Input placeholder="Passwort" type="password" aria-label="Passwort" />
               <Button className="w-full" onClick={() => setStep("first-password")}>
@@ -1722,6 +1723,24 @@ function NavigationControls({
   );
 }
 
+function NoImportState({ onUpload }: { onUpload: () => void }) {
+  return (
+    <Card className="p-6">
+      <div className="max-w-2xl">
+        <Badge tone="yellow">Kein bestätigter Import</Badge>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight">Noch keine Excel-Daten aktiv</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          Die App zeigt keine Demo- oder Beispielwerte mehr. Lade zuerst die konsolidierte Orisus-Arbeitsmappe hoch und bestätige den Import.
+          Danach werden Cockpit, BWA, Standorte, Cashflow, Darlehen, Bankenreporting und Board-Pack aus dieser Datenbasis befüllt.
+        </p>
+        <Button className="mt-5" onClick={onUpload}>
+          Zum Upload
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function Cockpit({
   setPage,
   sites,
@@ -1753,7 +1772,7 @@ function Cockpit({
           <SitePerformanceChart sites={sites} />
         </ChartCard>
         <ChartCard title="Top Behandler nach Honorarumsatz" icon={BadgeEuro}>
-          <TopBehandlerChart data={importedData?.topBehandler?.length ? importedData.topBehandler : topBehandlerHonorar} />
+          <TopBehandlerChart data={importedData?.topBehandler ?? []} />
         </ChartCard>
       </div>
 
@@ -1790,16 +1809,16 @@ function DataStatusStrip({ importedData }: { importedData?: ImportedDashboardDat
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Datenstand</p>
         <p className="font-bold">
-          {importedData ? new Date(importedData.importedAt).toLocaleString("de-DE") : "Demo-Daten | noch kein bestätigter Excel-Import"}
+          {importedData ? new Date(importedData.importedAt).toLocaleString("de-DE") : "Noch kein bestätigter Excel-Import"}
         </p>
       </div>
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Datenqualität</p>
-        <div className="mt-1"><Badge tone={importedData?.report.status === "warning" ? "yellow" : "green"}>{importedData ? "Import bestätigt" : "Demo-Modus"}</Badge></div>
+        <div className="mt-1"><Badge tone={importedData?.report.status === "warning" ? "yellow" : importedData ? "green" : "red"}>{importedData ? "Import bestätigt" : "Keine aktiven Daten"}</Badge></div>
       </div>
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Quelle</p>
-        <p className="font-bold">{importedData?.fileName ?? "Interne Demo-Daten"}</p>
+        <p className="font-bold">{importedData?.fileName ?? "Kein Upload bestätigt"}</p>
       </div>
     </Card>
   );
@@ -2080,7 +2099,15 @@ function StandortCfoComparison({ sites = standorte }: { sites?: DashboardSite[] 
   );
 }
 
-function TopBehandlerChart({ data = topBehandlerHonorar }: { data?: typeof topBehandlerHonorar }) {
+function TopBehandlerChart({ data = [] }: { data?: TopBehandlerEntry[] }) {
+  if (!data.length) {
+    return (
+      <div className="flex h-[300px] items-center justify-center rounded-md bg-slate-50 text-center text-sm font-semibold text-muted-foreground">
+        Keine Behandlerdaten im bestätigten Import erkannt.
+      </div>
+    );
+  }
+
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={data} layout="vertical" margin={{ left: 16, right: 12 }}>
@@ -2445,8 +2472,8 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
     return <ConsolidatedBwaMatrix title={title} period={period} setPeriod={setPeriod} importedData={importedData} availablePeriods={availablePeriods} />;
   }
 
-  const rows = importedData?.bwaRows?.length ? buildImportedBwaLines(importedData.bwaRows, period, siteId) : buildBwaRows(period, siteId);
-  const activeSites = siteId ? (importedData?.sites ?? standorte).filter((site) => site.id === siteId) : (importedData?.sites ?? standorte);
+  const rows = importedData?.bwaRows?.length ? buildImportedBwaLines(importedData.bwaRows, period, siteId) : [];
+  const activeSites = siteId ? (importedData?.sites ?? []).filter((site) => site.id === siteId) : (importedData?.sites ?? []);
 
   return (
     <Card className="overflow-hidden">
@@ -2454,7 +2481,7 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
         <div>
           <h2 className="font-bold">{title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {importedData ? "Aus bestätigtem Excel-Import abgeleitet." : "Enthält Dummy-Werte ab jeweiligem Praxisstart; Kassel erscheint erst ab Geschäftsjahr 2026."}
+            Aus bestätigtem Excel-Import abgeleitet.
           </p>
         </div>
         <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
@@ -2487,7 +2514,7 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
       <div className="grid gap-3 border-t border-border bg-slate-50 p-4 text-sm sm:grid-cols-3">
         <Mini label="Ausgewählte Standorte" value={activeSites.map((site) => site.name).join(", ")} />
         <Mini label="Periode" value={period} />
-        <Mini label="Datenstatus" value={importedData ? "Excel-Import bestätigt" : "Dummy / Phase 1"} />
+        <Mini label="Datenstatus" value={importedData ? "Excel-Import bestätigt" : "Kein Import aktiv"} />
       </div>
     </Card>
   );
@@ -2506,7 +2533,7 @@ function ConsolidatedBwaMatrix({
   importedData?: ImportedDashboardData | null;
   availablePeriods: string[];
 }) {
-  const sourceSites = sortSitesByContractStart(importedData?.sites ?? standorte);
+  const sourceSites = sortSitesByContractStart(importedData?.sites ?? []);
   const groups = importedData?.bwaRows?.length
     ? [
         { id: "konzern", label: "Konzern", rows: buildImportedBwaLines(importedData.bwaRows, period), hasData: true },
@@ -2517,15 +2544,7 @@ function ConsolidatedBwaMatrix({
           hasData: hasImportedBwaPeriodData(importedData.bwaRows, period, site.id)
         }))
       ]
-    : [
-        { id: "konzern", label: "Konzern", rows: buildBwaRows(period), hasData: true },
-        ...sourceSites.map((site) => ({
-          id: site.id,
-          label: site.name,
-          rows: buildBwaRows(period, site.id),
-          hasData: true
-        }))
-      ];
+    : [];
   const rowTemplate = groups[0].rows;
 
   return (
@@ -3219,7 +3238,7 @@ function KennzahlenEntwicklung({
       <Card className="overflow-hidden">
         <div className="table-head p-3 text-lg font-bold text-white">Standort-Performance | BWA-Kennzahlen je Standort</div>
         <div className="border-b border-border bg-slate-50 p-3 text-sm italic text-muted-foreground">
-          Auswertung: bestätigter Import | Standorte seit jeweiligem Vertragsstart | Quelle: {importedData?.fileName ?? "Demo-Daten"}
+          Auswertung: bestätigter Import | Standorte seit jeweiligem Vertragsstart | Quelle: {importedData?.fileName ?? "Kein Upload bestätigt"}
         </div>
         <div className="grid gap-px table-grid-bg md:grid-cols-3 xl:grid-cols-6">
           <KennzahlTile label="Gesamtleistung | Vertragsperioden" value={eur(totalPerformance, true)} />
@@ -4548,7 +4567,7 @@ function Reports() {
           <Card key={report} className="p-4">
             <FileBarChart className="h-8 w-8 text-primary" />
             <h2 className="mt-4 text-xl font-bold">{report}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Berichtsvorlage mit Dummy-Status. Exportlogik folgt in Phase 2.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Berichtsvorlage ohne aktive Exportlogik. Exportlogik folgt in Phase 2.</p>
             <Button className="mt-4 w-full" variant="secondary">
               Vorschau öffnen
             </Button>
