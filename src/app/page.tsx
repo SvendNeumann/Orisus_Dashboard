@@ -104,7 +104,7 @@ const importPersistenceDbName = "orisus-cfo-dashboard";
 const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
-const importDashboardSchemaVersion = "2026-06-21-bank-movements-source-v10";
+const importDashboardSchemaVersion = "2026-06-22-site-bank-cashflow-v11";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const personalImportPersistenceReportKey = "personal-report";
 const personalImportPersistenceDashboardKey = "personal-dashboard";
@@ -287,6 +287,8 @@ type ImportedPeriodValueRow = {
 };
 
 type ImportedBankMovementRow = {
+  siteId?: string;
+  siteName?: string;
   label: string;
   indent: boolean;
   valuesByMonth: Record<string, number>;
@@ -2143,7 +2145,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     pvsRevenueRows: buildImportedPvsRevenueRows(workbook, rows, report, latestYear),
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(rows, report),
     behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
-    bankMovementRows: buildImportedBankMovementRows(workbook, rows, latestYear),
+    bankMovementRows: buildImportedBankMovementRows(workbook, rows, latestYear, report),
     report
   };
 }
@@ -4788,7 +4790,12 @@ function dashboardBankMovementRows(workbook: XLSX.WorkBook, latestYear: number) 
   return result;
 }
 
-function buildImportedBankMovementRows(workbook: XLSX.WorkBook, rows: Record<string, unknown>[], latestYear: number): ImportedBankMovementRow[] {
+function buildImportedBankMovementRows(
+  workbook: XLSX.WorkBook,
+  rows: Record<string, unknown>[],
+  latestYear: number,
+  report: ImportReport
+): ImportedBankMovementRow[] {
   const definitions = [
     { label: "Geldeingang Bank gesamt", keys: ["geldeingang_bank_gesamt"] },
     { label: "davon Praxisumsatz", keys: ["davon_praxisumsatz"] },
@@ -4804,59 +4811,71 @@ function buildImportedBankMovementRows(workbook: XLSX.WorkBook, rows: Record<str
   const dashboardRows = dashboardBankMovementRows(workbook, latestYear);
   const keyForRow = (row: Record<string, unknown>) => normalizeMetric(row.Kennzahl || row.Standard_Kennzahl || row.Detailbezeichnung);
   const matches = (key: string, candidates: string[]) => candidates.some((candidate) => key === candidate || key.startsWith(`${candidate}_`));
-  const yearsByMonth = new Map<string, { year: number; month: number; value: number; key: string }[]>();
 
-  definitions.forEach((definition) => yearsByMonth.set(definition.label, []));
-  rows.forEach((row) => {
-    const year = rowYear(row);
-    const month = rowMonth(row);
-    const value = asNumber(row.Wert);
-    if (!year || year < 1900 || !month || month < 1 || month > 12 || value == null) return;
-    const metricKey = keyForRow(row);
-    const definition = definitions.find((entry) => matches(metricKey, entry.keys));
-    if (!definition) return;
-    yearsByMonth.get(definition.label)?.push({ year, month, value, key: `${year}-${month}` });
-  });
+  const buildRowsForSite = (siteName?: string): ImportedBankMovementRow[] => {
+    const yearsByMonth = new Map<string, { year: number; month: number; value: number; key: string }[]>();
+    definitions.forEach((definition) => yearsByMonth.set(definition.label, []));
 
-  return definitions.map((definition) => {
-    const sourceValues = yearsByMonth.get(definition.label) ?? [];
-    const valuesByMonth: Record<string, number> = {};
-    const hasValueByMonth: Record<string, boolean> = {};
-    sourceValues.forEach(({ key, value }) => {
-      valuesByMonth[key] = (valuesByMonth[key] ?? 0) + value;
-      if (value !== 0) hasValueByMonth[key] = true;
+    rows.forEach((row) => {
+      if (siteName && asText(row.Standortname) !== siteName) return;
+      const year = rowYear(row);
+      const month = rowMonth(row);
+      const value = asNumber(row.Wert);
+      if (!year || year < 1900 || !month || month < 1 || month > 12 || value == null) return;
+      const metricKey = keyForRow(row);
+      const definition = definitions.find((entry) => matches(metricKey, entry.keys));
+      if (!definition) return;
+      yearsByMonth.get(definition.label)?.push({ year, month, value, key: `${year}-${month}` });
     });
 
-    const dashboardRow = dashboardRows.get(normalizeMetric(definition.label));
-    if (dashboardRow) {
-      Object.entries(dashboardRow.valuesByMonth).forEach(([key, value]) => {
-        valuesByMonth[key] = value;
+    return definitions.map((definition) => {
+      const sourceValues = yearsByMonth.get(definition.label) ?? [];
+      const valuesByMonth: Record<string, number> = {};
+      const hasValueByMonth: Record<string, boolean> = {};
+      sourceValues.forEach(({ key, value }) => {
+        valuesByMonth[key] = (valuesByMonth[key] ?? 0) + value;
         if (value !== 0) hasValueByMonth[key] = true;
       });
-    }
 
-    const activeValues = Object.entries(valuesByMonth).filter(([key, value]) => Boolean(hasValueByMonth[key]) && value !== 0);
-    const latestValue = activeValues
-      .sort(([a], [b]) => {
-        const [yearA, monthA] = a.split("-").map(Number);
-        const [yearB, monthB] = b.split("-").map(Number);
-        return yearA - yearB || monthA - monthB;
-      })
-      .at(-1)?.[1] ?? 0;
-    const contractValue = definition.snapshot ? latestValue : Object.values(valuesByMonth).reduce((sum, value) => sum + value, 0);
-    const activeMonthCount = Math.max(activeValues.length, 1);
+      const dashboardRow = siteName ? undefined : dashboardRows.get(normalizeMetric(definition.label));
+      if (dashboardRow) {
+        Object.entries(dashboardRow.valuesByMonth).forEach(([key, value]) => {
+          valuesByMonth[key] = value;
+          if (value !== 0) hasValueByMonth[key] = true;
+        });
+      }
 
-    return {
-      label: definition.label,
-      indent: normalizeMetric(definition.label).startsWith("davon_"),
-      valuesByMonth,
-      hasValueByMonth,
-      total: dashboardRow?.total ?? 0,
-      averageMonth: dashboardRow?.averageMonth ?? 0,
-      contractValue: dashboardRow?.contractValue ?? contractValue,
-      averageContract: dashboardRow?.averageContract ?? contractValue / activeMonthCount
-    };
-  });
+      const activeValues = Object.entries(valuesByMonth).filter(([key, value]) => Boolean(hasValueByMonth[key]) && value !== 0);
+      const latestValue = activeValues
+        .sort(([a], [b]) => {
+          const [yearA, monthA] = a.split("-").map(Number);
+          const [yearB, monthB] = b.split("-").map(Number);
+          return yearA - yearB || monthA - monthB;
+        })
+        .at(-1)?.[1] ?? 0;
+      const contractValue = definition.snapshot ? latestValue : Object.values(valuesByMonth).reduce((sum, value) => sum + value, 0);
+      const activeMonthCount = Math.max(activeValues.length, 1);
+
+      return {
+        siteId: siteName ? siteIdForName(siteName) : "konzern",
+        siteName: siteName ?? "Konzern",
+        label: definition.label,
+        indent: normalizeMetric(definition.label).startsWith("davon_"),
+        valuesByMonth,
+        hasValueByMonth,
+        total: dashboardRow?.total ?? 0,
+        averageMonth: dashboardRow?.averageMonth ?? 0,
+        contractValue: dashboardRow?.contractValue ?? contractValue,
+        averageContract: dashboardRow?.averageContract ?? contractValue / activeMonthCount
+      };
+    });
+  };
+
+  const siteNames = sortSitesByContractStart(
+    report.standorte.map((siteName) => standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? { ...standorte[0], id: siteIdForName(siteName), name: siteName })
+  ).map((site) => site.name);
+
+  return [...buildRowsForSite(), ...siteNames.flatMap((siteName) => buildRowsForSite(siteName))];
 }
 
 function dashboardPerformanceBehandlerMonthlyValues(workbook: XLSX.WorkBook) {
@@ -6735,7 +6754,7 @@ function BankMovementsTable({
 }) {
   const visibleMonths = monthSelectionForPeriod(period);
   const selection = selectedBwaPeriod(period);
-  const importedRows = importedData?.bankMovementRows ?? [];
+  const importedRows = (importedData?.bankMovementRows ?? []).filter((row) => !row.siteId || row.siteId === "konzern");
   const selectedMonthKeys = Array.from(visibleMonths).map((month) => `${selection.year ?? ""}-${month}`);
   const isSnapshotRow = (row: ImportedBankMovementRow) => normalizeMetric(row.label) === "kontostand_monatsende";
   const monthValueFor = (row: ImportedBankMovementRow, month: number) => {
@@ -7171,7 +7190,142 @@ function Cashflow({
         </ChartCard>
       </div>
       <Ranking title="Standortvergleich Cashflow | seit Vertragsstart" metric="cashflow" sites={sites} />
+      <SiteBankCashflowSection sites={sites} importedData={importedData} />
     </section>
+  );
+}
+
+function bankMovementValueForPeriod(row: ImportedBankMovementRow | undefined, period: string) {
+  if (!row) return 0;
+  const selection = selectedBwaPeriod(period);
+  if (!selection.year) return row.contractValue;
+  const months = selection.months?.length
+    ? selection.months
+    : Array.from({ length: 12 }, (_, index) => index + 1).filter((month) => row.hasValueByMonth[`${selection.year}-${month}`]);
+  return months.reduce((sum, month) => sum + (row.valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
+}
+
+function bankMovementMonthlyValue(row: ImportedBankMovementRow | undefined, period: string, month: number) {
+  if (!row) return null;
+  const selection = selectedBwaPeriod(period);
+  if (!selection.year) return null;
+  const key = `${selection.year}-${month}`;
+  return row.hasValueByMonth[key] ? row.valuesByMonth[key] ?? 0 : null;
+}
+
+function SiteBankCashflowSection({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
+  const siteRows = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId && row.siteId !== "konzern");
+  const sitesWithRows = sortSitesByContractStart(
+    sites.filter((site) => siteRows.some((row) => row.siteId === site.id && normalizeMetric(row.label) === "cashflow_gesamt_im_monat"))
+  );
+
+  if (!siteRows.length) {
+    return (
+      <Card className="p-4">
+        <h2 className="font-bold">Bank-Cashflow je Standort</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Nach dem nächsten bestätigten Excel-Import werden hier die Bank-/Geldbewegungen monatlich je Standort dargestellt.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold">Bank-Cashflow je Standort</h2>
+        <p className="text-sm text-muted-foreground">
+          Monatlicher Cashflow aus Bank / Geldbewegungen aus Input_Finanzen, je Standort mit eigener Zeitraumfilterung.
+        </p>
+      </div>
+      {sitesWithRows.map((site) => (
+        <SiteBankCashflowCard key={site.id} site={site} rows={siteRows.filter((row) => row.siteId === site.id)} />
+      ))}
+    </div>
+  );
+}
+
+function SiteBankCashflowCard({ site, rows }: { site: DashboardSite; rows: ImportedBankMovementRow[] }) {
+  const availablePeriods = periodOptionsFromBankMovements(rows);
+  const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) setPeriod(defaultPeriodFromOptions(availablePeriods));
+  }, [availablePeriods, period]);
+
+  const selection = selectedBwaPeriod(period);
+  const visibleMonths = monthSelectionForPeriod(period);
+  const cashflowRow = rows.find((row) => normalizeMetric(row.label) === "cashflow_gesamt_im_monat");
+  const preIntercompanyRow = rows.find((row) => normalizeMetric(row.label) === "cashflow_vor_intercompany");
+  const kontostandRow = rows.find((row) => normalizeMetric(row.label) === "kontostand_monatsende");
+  const selectedCashflow = bankMovementValueForPeriod(cashflowRow, period);
+  const selectedPreIntercompany = bankMovementValueForPeriod(preIntercompanyRow, period);
+  const selectedMonths = selection.year ? Array.from(visibleMonths).filter((month) => cashflowRow?.hasValueByMonth[`${selection.year}-${month}`]) : [];
+  const selectedAverage = selectedMonths.length ? selectedCashflow / selectedMonths.length : cashflowRow?.averageContract ?? 0;
+  const latestKontostand = selection.year
+    ? Array.from(visibleMonths)
+        .map((month) => bankMovementMonthlyValue(kontostandRow, period, month))
+        .filter((value): value is number => value != null)
+        .at(-1) ?? kontostandRow?.contractValue ?? 0
+    : kontostandRow?.contractValue ?? 0;
+
+  const rowsToDisplay = [
+    { label: "Cashflow gesamt im Monat", row: cashflowRow, total: selectedCashflow, average: selectedAverage, emphasis: true },
+    { label: "Cashflow vor Intercompany", row: preIntercompanyRow, total: selectedPreIntercompany, average: selectedMonths.length ? selectedPreIntercompany / selectedMonths.length : preIntercompanyRow?.averageContract ?? 0 },
+    { label: "Kontostand Monatsende", row: kontostandRow, total: latestKontostand, average: kontostandRow?.averageMonth ?? 0, snapshot: true }
+  ];
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-bold">{site.name} | Bank-Cashflow | {performancePeriodLabel(period)}</span>
+        <Select className="w-full bg-white text-foreground sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>
+              {performancePeriodLabel(option)}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div className="grid gap-3 border-b border-border p-3 sm:grid-cols-3">
+        <Mini label="Cashflow Zeitraum" value={eur(selectedCashflow)} />
+        <Mini label="Ø Monat" value={eur(selectedAverage)} />
+        <Mini label="Kontostand Monatsende" value={eur(latestKontostand)} />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="data-table border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-20 border-b border-r border-border table-subhead p-2 text-left text-white">Position</th>
+              {bwaMonths.map((month) => (
+                <th key={month} className="border-b border-r border-border table-subhead p-2 text-white">{month}</th>
+              ))}
+              <th className="border-b border-r border-border table-subhead p-2 text-white">Gesamt</th>
+              <th className="border-b border-r border-border table-subhead p-2 text-white">Ø Monat</th>
+              <th className="border-b border-r border-border table-subhead p-2 text-white">Gesamte Vertragsperiode</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rowsToDisplay.map((entry) => (
+              <tr key={entry.label} className={cn(entry.emphasis && "summary-row")}>
+                <TableCell strong={entry.emphasis} summary={entry.emphasis}>{entry.label}</TableCell>
+                {bwaMonths.map((month, index) => {
+                  const value = bankMovementMonthlyValue(entry.row, period, index + 1);
+                  const visible = !selection.year || visibleMonths.has(index + 1);
+                  return (
+                    <TableCell key={`${entry.label}-${month}`} summary={entry.emphasis} tone={(value ?? 0) < 0 ? "red" : undefined}>
+                      {visible && value != null ? eur(value) : ""}
+                    </TableCell>
+                  );
+                })}
+                <TableCell strong summary={entry.emphasis} tone={entry.total < 0 ? "red" : undefined}>{eur(entry.total)}</TableCell>
+                <TableCell strong summary={entry.emphasis} tone={entry.average < 0 ? "red" : undefined}>{entry.snapshot ? "" : eur(entry.average)}</TableCell>
+                <TableCell strong summary={entry.emphasis} tone={(entry.row?.contractValue ?? 0) < 0 ? "red" : undefined}>{eur(entry.row?.contractValue ?? 0)}</TableCell>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
