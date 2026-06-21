@@ -15,6 +15,7 @@ export type Standort = {
   forderungen: number;
   materialquote: number;
   fremdlaborquote: number;
+  personalquote?: number;
   sonstigeKostenquote: number;
   status: Status;
   vorjahrAbweichung: number;

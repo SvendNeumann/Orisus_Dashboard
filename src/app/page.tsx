@@ -44,9 +44,7 @@ import {
 import { Badge, Button, Card, Input, Progress, Select } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import {
-  ebitdaTakeover,
   monthly,
-  receivablesTrend,
   standorte,
   Status,
   topBehandlerHonorar,
@@ -89,7 +87,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-site-card-export-kpis-v1";
+const importDashboardSchemaVersion = "2026-06-21-cockpit-wave-two-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -119,6 +117,7 @@ type ImportedDashboardData = {
   fileName: string;
   sites: DashboardSite[];
   monthly: typeof monthly;
+  topBehandler: typeof topBehandlerHonorar;
   bwaRows: ImportedBwaRow[];
   report: ImportReport;
 };
@@ -690,6 +689,24 @@ function targetEbitdaValue(rows: Record<string, unknown>[], siteName: string, mo
   return activeMonths.size ? annualTarget * (activeMonths.size / 12) : 0;
 }
 
+function targetEbitdaForActiveRows(rows: Record<string, unknown>[], siteName: string, mode: "kv" | "uebernahme", activeRows: Record<string, unknown>[]) {
+  const periods = new Set(
+    activeRows
+      .filter((row) => rowDomain(row) === "bwa" && Math.abs(asNumber(row.Wert) ?? 0) > 0)
+      .map((row) => {
+        const year = rowYear(row);
+        const month = rowMonth(row);
+        return year && month ? `${year}-${month}` : "";
+      })
+      .filter(Boolean)
+  );
+
+  return [...periods].reduce((sum, period) => {
+    const [year, month] = period.split("-").map(Number);
+    return sum + targetEbitdaValue(rows, siteName, mode, year, month);
+  }, 0);
+}
+
 function definitionDerivedKey(definition: (typeof bwaMetricDefinitions)[number]) {
   return "derived" in definition ? definition.derived : null;
 }
@@ -812,6 +829,31 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
   );
 }
 
+function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: number): typeof topBehandlerHonorar {
+  const grouped = new Map<string, { name: string; standort: string; honorar: number }>();
+
+  rows.forEach((row) => {
+    if ((rowYear(row) ?? 0) !== latestYear) return;
+    if (!rowDomain(row).includes("behandler")) return;
+    if (!metricMatches(rowMetric(row), ["honorarumsatz"])) return;
+
+    const name = asText(row.Objekt_Name || row.Behandler || row.Behandlername);
+    const standort = asText(row.Standortname);
+    const honorar = asNumber(row.Wert) ?? 0;
+    if (!name || !standort || !honorar || normalizeMetric(name) === "standort") return;
+
+    const key = `${siteIdForName(standort)}::${normalizeMetric(name)}`;
+    const current = grouped.get(key) ?? { name, standort, honorar: 0 };
+    current.honorar += honorar;
+    grouped.set(key, current);
+  });
+
+  return [...grouped.values()]
+    .filter((entry) => entry.honorar > 0)
+    .sort((a, b) => b.honorar - a.honorar)
+    .slice(0, 6);
+}
+
 function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, report: ImportReport): ImportedDashboardData {
   const rows = XLSX.utils
     .sheet_to_json<Record<string, unknown>>(workbook.Sheets[importSourceSheetName], {
@@ -875,7 +917,9 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : fallback.ebitdaMarge;
     const materialquote = gesamtleistung ? (material / gesamtleistung) * 100 : fallback.materialquote;
     const fremdlaborquote = gesamtleistung ? (fremdlabor / gesamtleistung) * 100 : fallback.fremdlaborquote;
-    const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - (personal / gesamtleistung) * 100) : fallback.sonstigeKostenquote;
+    const personalquote = gesamtleistung ? (personal / gesamtleistung) * 100 : fallback.personalquote ?? 0;
+    const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - personalquote) : fallback.sonstigeKostenquote;
+    const zielEbitdaUebernahme = Math.round(targetEbitdaForActiveRows(rows, siteName, "uebernahme", siteRows) || fallback.darlehen.zielEbitda);
     const status: Status = ebitdaMarge < 8 || cashflow < 0 ? "red" : ebitdaMarge < 12 ? "yellow" : "green";
 
     return {
@@ -891,6 +935,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
       forderungen,
       materialquote,
       fremdlaborquote,
+      personalquote,
       sonstigeKostenquote,
       status,
       darlehen: {
@@ -898,6 +943,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
         darlehen,
         restschuld,
         tilgung,
+        zielEbitda: zielEbitdaUebernahme,
         istEbitda: ebitda
       }
     };
@@ -926,6 +972,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     fileName,
     sites: sites.length ? sites : standorte,
     monthly: monthlyData.length ? monthlyData : monthly,
+    topBehandler: topBehandlerFromRows(rows, latestYear),
     bwaRows: buildImportedBwaRows(rows, report),
     report
   };
@@ -1030,7 +1077,8 @@ function cfoMetrics(sites: DashboardSite[] = standorte, monthlyData: typeof mont
   const kapitaldienst = tilgung + zins;
   const kostenquote =
     activeSites.reduce(
-      (sum, site) => sum + site.gesamtleistung * (site.materialquote + site.fremdlaborquote + site.sonstigeKostenquote),
+      (sum, site) =>
+        sum + site.gesamtleistung * (site.materialquote + site.fremdlaborquote + (site.personalquote ?? 0) + site.sonstigeKostenquote),
       0
     ) / (gesamtleistung || 1);
   const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0;
@@ -1693,7 +1741,7 @@ function Cockpit({
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard title="Ist EBITDA vs. EBITDA bei Übernahme" icon={TrendingUp}>
-          <EbitdaTakeoverChart />
+          <EbitdaTakeoverChart sites={sites} />
         </ChartCard>
         <ChartCard title="Kostenquoten am Umsatz" icon={PieIcon}>
           <CostShareDonut sites={sites} />
@@ -1705,7 +1753,7 @@ function Cockpit({
           <SitePerformanceChart sites={sites} />
         </ChartCard>
         <ChartCard title="Top Behandler nach Honorarumsatz" icon={BadgeEuro}>
-          <TopBehandlerChart />
+          <TopBehandlerChart data={importedData?.topBehandler?.length ? importedData.topBehandler : topBehandlerHonorar} />
         </ChartCard>
       </div>
 
@@ -1713,7 +1761,7 @@ function Cockpit({
 
       <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
         <ChartCard title="Offene Forderungen je Standort" icon={FileBarChart}>
-          <ReceivablesChart />
+          <ReceivablesChart sites={sites} />
         </ChartCard>
         <AccountsBlock sites={sites} />
       </div>
@@ -1778,7 +1826,7 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       status: metrics.cashflow >= 0 ? "green" : "red"
     },
     {
-      label: "EBITDA YTD",
+      label: "EBITDA seit Start",
       value: metrics.ebitda,
       delta: `${pct(metrics.ebitdaMarge)} Marge | Run-Rate ${eur(metrics.runRateEbitda, true)}`,
       icon: Banknote,
@@ -1897,10 +1945,18 @@ function ChartCard({
   );
 }
 
-function EbitdaTakeoverChart() {
+function EbitdaTakeoverChart({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const chartData = sites
+    .filter((site) => site.gesamtleistung > 0 || site.ebitda !== 0 || site.darlehen.zielEbitda !== 0)
+    .map((site) => ({
+      name: site.name,
+      ebitda: site.ebitda,
+      uebernahmeEbitda: site.darlehen.zielEbitda
+    }));
+
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <ComposedChart data={ebitdaTakeover}>
+      <ComposedChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis dataKey="name" tickLine={false} axisLine={false} />
         <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => eur(Number(v), true)} />
@@ -1920,13 +1976,19 @@ function EbitdaTakeoverChart() {
 }
 
 function CostShareDonut({ sites = standorte }: { sites?: DashboardSite[] }) {
-  const revenue = totalForSites(sites, "pvsUmsatz") || totalForSites(sites, "gesamtleistung") || 1;
+  const revenue = totalForSites(sites, "gesamtleistung") || totalForSites(sites, "pvsUmsatz") || 1;
   const metrics = cfoMetrics(sites);
+  const weightedValue = (key: "materialquote" | "fremdlaborquote" | "personalquote" | "sonstigeKostenquote") =>
+    sites.reduce((sum, site) => sum + (site.gesamtleistung * Number(site[key] ?? 0)) / 100, 0);
+  const personal = weightedValue("personalquote");
+  const material = weightedValue("materialquote");
+  const fremdlabor = weightedValue("fremdlaborquote");
+  const weitereKosten = Math.max(0, revenue - totalForSites(sites, "ebitda") - personal - material - fremdlabor);
   const data = [
-    { name: "Personal", value: Math.round(revenue * 0.278), color: "#0369a1" },
-    { name: "Material", value: Math.round(revenue * 0.099), color: "#0f766e" },
-    { name: "Fremdlabor", value: Math.round(revenue * 0.156), color: "#0891b2" },
-    { name: "Weitere operative Kosten", value: Math.round(revenue * 0.161), color: "#64748b" }
+    { name: "Personal", value: Math.round(personal), color: "#0369a1" },
+    { name: "Material", value: Math.round(material), color: "#0f766e" },
+    { name: "Fremdlabor", value: Math.round(fremdlabor), color: "#0891b2" },
+    { name: "Weitere operative Kosten", value: Math.round(weitereKosten), color: "#64748b" }
   ];
 
   return (
@@ -2018,10 +2080,10 @@ function StandortCfoComparison({ sites = standorte }: { sites?: DashboardSite[] 
   );
 }
 
-function TopBehandlerChart() {
+function TopBehandlerChart({ data = topBehandlerHonorar }: { data?: typeof topBehandlerHonorar }) {
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={topBehandlerHonorar} layout="vertical" margin={{ left: 16, right: 12 }}>
+      <BarChart data={data} layout="vertical" margin={{ left: 16, right: 12 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis type="number" tickFormatter={(v) => eur(Number(v), true)} />
         <YAxis type="category" dataKey="name" width={92} tickLine={false} axisLine={false} />
@@ -2032,20 +2094,20 @@ function TopBehandlerChart() {
   );
 }
 
-function ReceivablesChart() {
+function ReceivablesChart({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const chartData = sites
+    .filter((site) => site.gesamtleistung > 0 || site.forderungen > 0)
+    .map((site) => ({ name: site.name, forderungen: site.forderungen }));
+
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <ComposedChart data={receivablesTrend}>
+      <BarChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="month" tickLine={false} axisLine={false} />
+        <XAxis dataKey="name" tickLine={false} axisLine={false} />
         <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => eur(Number(v), true)} />
         <Tooltip formatter={(v) => eur(Number(v))} />
-        <Bar dataKey="kirchberg" name="Kirchberg" stackId="forderungen" fill="#0f766e" />
-        <Bar dataKey="essen" name="Essen" stackId="forderungen" fill="#0891b2" />
-        <Bar dataKey="kehl" name="Kehl" stackId="forderungen" fill="#0369a1" />
-        <Bar dataKey="ulmet" name="Ulmet" stackId="forderungen" fill="#64748b" />
-        <Bar dataKey="huettenberg" name="Hüttenberg" stackId="forderungen" fill="#94a3b8" radius={[5, 5, 0, 0]} />
-      </ComposedChart>
+        <Bar dataKey="forderungen" name="Offene Forderungen" fill="#0f766e" radius={[5, 5, 0, 0]} />
+      </BarChart>
     </ResponsiveContainer>
   );
 }
@@ -2111,13 +2173,17 @@ function Ranking({ title, metric, sites = standorte }: { title: string; metric: 
 }
 
 function CashflowBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const gesamtleistung = totalForSites(sites, "gesamtleistung");
+  const ebitda = totalForSites(sites, "ebitda");
   const totalCashflow = totalForSites(sites, "cashflow");
+  const operativeCosts = -(gesamtleistung - ebitda);
+  const adjustments = totalCashflow - ebitda;
   const rows = [
-    ["Praxiseingänge", 2962000],
-    ["Praxiskosten", -2014000],
-    ["Annuitäten", -251000],
-    ["Umbuchungen MVZ", -104000],
-    ["Netto-Cashflow", totalCashflow]
+    ["Gesamtleistung", gesamtleistung],
+    ["Operative Praxiskosten bis EBITDA", operativeCosts],
+    ["EBITDA", ebitda],
+    ["Cashflow-Adjustments", adjustments],
+    ["Cashflow Gesamt", totalCashflow]
   ];
   return (
     <Card className="p-4">
