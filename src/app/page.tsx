@@ -1252,8 +1252,8 @@ export default function HomePage() {
             onGo={go}
           />
           {page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {page === "kennzahlen" && <KennzahlenEntwicklung />}
-          {page === "performance" && <OrisusPerformance />}
+          {page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} />}
           {page === "standorte" && (
             <Standorte
               sites={dashboardSites}
@@ -1263,13 +1263,13 @@ export default function HomePage() {
               }}
             />
           )}
-          {page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} />}
-          {page === "analysen" && <Analysen />}
-          {page === "bwa" && <Bwa importedData={importedData} />}
-          {page === "cashflow" && <Cashflow />}
-          {page === "darlehen" && <Darlehen />}
-          {page === "banken" && <Bankenreporting />}
-          {page === "board" && <BoardPack />}
+          {page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} monthlyData={dashboardMonthly} />}
+          {page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {page === "bwa" && <Bwa importedData={importedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {page === "darlehen" && <Darlehen sites={dashboardSites} />}
+          {page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {page === "uploads" && <Uploads onImportConfirmed={setImportedData} onImportReset={() => setImportedData(null)} />}
           {page === "reports" && <Reports />}
           {page === "admin" && <AdminKpiRules />}
@@ -3152,7 +3152,15 @@ function bwaTableNumberClass(
   );
 }
 
-function StandortDetail({ site, importedData }: { site: DashboardSite; importedData?: ImportedDashboardData | null }) {
+function StandortDetail({
+  site,
+  importedData,
+  monthlyData = monthly
+}: {
+  site: DashboardSite;
+  importedData?: ImportedDashboardData | null;
+  monthlyData?: typeof monthly;
+}) {
   return (
     <section className="space-y-5">
       <PageTitle title={site.name} text={`Standortdetail ab Praxisstart ${site.start}.`} />
@@ -3166,7 +3174,7 @@ function StandortDetail({ site, importedData }: { site: DashboardSite; importedD
         <CostRatios site={site} />
         <ChartCard title="Entwicklung über Zeit" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={monthly}>
+            <AreaChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" tickLine={false} axisLine={false} />
               <Tooltip formatter={(v) => eur(Number(v))} />
@@ -3181,16 +3189,17 @@ function StandortDetail({ site, importedData }: { site: DashboardSite; importedD
   );
 }
 
-function KennzahlenEntwicklung() {
-  const targetBySite: Record<string, number> = {
-    kirchberg: 150000,
-    essen: 75000,
-    kehl: 70000,
-    ulmet: 170000,
-    huettenberg: 63333,
-    kassel: 0
-  };
-  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
+function KennzahlenEntwicklung({
+  sites = standorte,
+  monthlyData = monthly,
+  importedData
+}: {
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
+}) {
+  const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
+  const targetBySite = Object.fromEntries(activeSites.map((site) => [site.id, site.darlehen.zielEbitda])) as Record<string, number>;
   const totalPerformance = activeSites.reduce((sum, site) => sum + site.gesamtleistung, 0);
   const totalEbitda = activeSites.reduce((sum, site) => sum + site.ebitda, 0);
   const totalCashflow = activeSites.reduce((sum, site) => sum + site.cashflow, 0);
@@ -3210,20 +3219,20 @@ function KennzahlenEntwicklung() {
       <Card className="overflow-hidden">
         <div className="table-head p-3 text-lg font-bold text-white">Standort-Performance | BWA-Kennzahlen je Standort</div>
         <div className="border-b border-border bg-slate-50 p-3 text-sm italic text-muted-foreground">
-          Auswertung: 2026 | Periodenende 30.06.2026 | Alle freigegebenen Standorte inkl. Ulmet | Quelle: Konzern_Konsolidierung_STD
+          Auswertung: bestätigter Import | Standorte seit jeweiligem Vertragsstart | Quelle: {importedData?.fileName ?? "Demo-Daten"}
         </div>
         <div className="grid gap-px table-grid-bg md:grid-cols-3 xl:grid-cols-6">
-          <KennzahlTile label="Gesamtleistung | 2026 bis 06.2026" value={eur(totalPerformance, true)} />
-          <KennzahlTile label="EBITDA | 2026 bis 06.2026" value={eur(totalEbitda, true)} />
-          <KennzahlTile label="EBITDA-Marge | 2026 bis 06.2026" value={pct((totalEbitda / totalPerformance) * 100)} />
-          <KennzahlTile label="Cashflow | 2026 bis 06.2026" value={eur(totalCashflow, true)} />
-          <KennzahlTile label="Ø Zielerreichung | 2026 bis 06.2026" value={pct(averageTargetAchievement)} />
-          <KennzahlTile label="Schwächster Standort | 2026 bis 06.2026" value={`${weakest.site.name} (${pct(weakest.achievement)})`} />
+          <KennzahlTile label="Gesamtleistung | Vertragsperioden" value={eur(totalPerformance, true)} />
+          <KennzahlTile label="EBITDA | Vertragsperioden" value={eur(totalEbitda, true)} />
+          <KennzahlTile label="EBITDA-Marge | Vertragsperioden" value={pct((totalEbitda / totalPerformance) * 100)} />
+          <KennzahlTile label="Cashflow | Vertragsperioden" value={eur(totalCashflow, true)} />
+          <KennzahlTile label="Ø Zielerreichung | Übernahme" value={pct(averageTargetAchievement)} />
+          <KennzahlTile label="Schwächster Standort" value={weakest ? `${weakest.site.name} (${pct(weakest.achievement)})` : "n/a"} />
         </div>
       </Card>
 
-      <KennzahlenStandortTable targetBySite={targetBySite} />
-      <MonthlyEbitdaTable targetBySite={targetBySite} />
+      <KennzahlenStandortTable targetBySite={targetBySite} sites={activeSites} monthlyData={monthlyData} />
+      <MonthlyEbitdaTable targetBySite={targetBySite} sites={activeSites} monthlyData={monthlyData} />
     </section>
   );
 }
@@ -3237,9 +3246,8 @@ function KennzahlTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function KennzahlenStandortTable({ targetBySite }: { targetBySite: Record<string, number> }) {
-  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
-
+function KennzahlenStandortTable({ targetBySite, sites = standorte, monthlyData = monthly }: { targetBySite: Record<string, number>; sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+  const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
@@ -3279,7 +3287,7 @@ function KennzahlenStandortTable({ targetBySite }: { targetBySite: Record<string
               const target = targetBySite[site.id] ?? 0;
               const deviation = site.ebitda - target;
               const achievement = target ? (site.ebitda / target) * 100 : 0;
-              const monthsInPeriod = monthly.length;
+              const monthsInPeriod = monthlyData.length;
               const monthsSinceJoin = site.id === "kirchberg" ? 12 : site.id === "essen" ? 6 : site.id === "kehl" ? 3 : site.id === "ulmet" ? 1 : site.id === "huettenberg" ? 6 : 0;
               const runRate = monthsInPeriod ? (site.ebitda / monthsInPeriod) * 12 : 0;
               return (
@@ -3314,9 +3322,9 @@ function KennzahlenStandortTable({ targetBySite }: { targetBySite: Record<string
   );
 }
 
-function MonthlyEbitdaTable({ targetBySite }: { targetBySite: Record<string, number> }) {
-  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
-  const rows = monthly.map((month, monthIndex) => {
+function MonthlyEbitdaTable({ targetBySite, sites = standorte, monthlyData = monthly }: { targetBySite: Record<string, number>; sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+  const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
+  const rows = monthlyData.map((month, monthIndex) => {
     const siteValues = Object.fromEntries(
       activeSites.map((site, siteIndex) => {
         const weight = [0.18, 0.15, 0.24, 0.17, 0.14, 0.12][monthIndex] ?? 0.12;
@@ -3325,7 +3333,7 @@ function MonthlyEbitdaTable({ targetBySite }: { targetBySite: Record<string, num
       })
     ) as Record<string, number>;
     const totalValue = Object.values(siteValues).reduce((sum, value) => sum + value, 0);
-    const targetTakeover = Math.round(Object.values(targetBySite).reduce((sum, value) => sum + value, 0) * ((monthIndex + 1) / monthly.length));
+    const targetTakeover = Math.round(Object.values(targetBySite).reduce((sum, value) => sum + value, 0) * ((monthIndex + 1) / Math.max(monthlyData.length, 1)));
     const targetBank = Math.round(targetTakeover * 0.885);
     return {
       month: `${month.month} 26`,
@@ -3433,8 +3441,8 @@ function TableCell({
   );
 }
 
-function OrisusPerformance() {
-  const metrics = cfoMetrics();
+function OrisusPerformance({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+  const metrics = cfoMetrics(sites, monthlyData);
   return (
     <section className="space-y-5">
       <PageTitle
@@ -3443,7 +3451,7 @@ function OrisusPerformance() {
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <Mini label="Gesamtleistung" value={eur(metrics.gesamtleistung)} />
-        <Mini label="PVS-Umsatz" value={eur(total("pvsUmsatz"))} />
+        <Mini label="PVS-Umsatz" value={eur(totalForSites(sites, "pvsUmsatz"))} />
         <Mini label="EBITDA-Marge" value={pct(metrics.ebitdaMarge)} />
         <Mini label="Cashflow" value={eur(metrics.cashflow)} />
         <Mini label="Offene Forderungen" value={eur(metrics.forderungen)} />
@@ -3451,7 +3459,7 @@ function OrisusPerformance() {
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard title="Operative Entwicklung" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={monthly}>
+            <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
               <YAxis tickFormatter={(v) => eur(Number(v), true)} />
@@ -3463,34 +3471,38 @@ function OrisusPerformance() {
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Forderungen nach Standort" icon={FileBarChart}>
-          <ReceivablesChart />
+          <ReceivablesChart sites={sites} />
         </ChartCard>
       </div>
-      <OperationalPerformanceTable />
+      <OperationalPerformanceTable sites={sites} />
       <PerformanceRevenueBlock
         title="Behandlerumsatz je Standort"
         subtitle="Auswahl: YTD | Jahr 2026 | bis Mai 2026 | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD"
         mode="honorar"
+        sites={sites}
       />
       <PerformanceMonthlyTable
         title="Behandlerumsatz inkl. Eigenlabor | Monatsübersicht aktuelles Jahr"
         mode="honorar"
+        sites={sites}
       />
       <PerformanceRevenueBlock
         title="PVS-Gesamtumsatz je Standort"
         subtitle="Auswahl: YTD | Jahr 2026 | bis Mai 2026 | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD"
         mode="pvs"
+        sites={sites}
       />
       <PerformanceMonthlyTable
         title="PVS-Gesamtumsatz inkl. FL + MAT | Monatsübersicht aktuelles Jahr"
         mode="pvs"
+        sites={sites}
       />
       <BankMovementsTable />
     </section>
   );
 }
 
-function OperationalPerformanceTable() {
+function OperationalPerformanceTable({ sites = standorte }: { sites?: DashboardSite[] }) {
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border p-4">
@@ -3508,8 +3520,8 @@ function OperationalPerformanceTable() {
             </tr>
           </thead>
           <tbody>
-            {sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0).map((site) => {
-              const costs = site.materialquote + site.fremdlaborquote + site.sonstigeKostenquote;
+            {sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0).map((site) => {
+              const costs = site.materialquote + site.fremdlaborquote + (site.personalquote ?? 0) + site.sonstigeKostenquote;
               return (
                 <tr key={site.id}>
                   <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
@@ -3534,13 +3546,15 @@ function OperationalPerformanceTable() {
 function PerformanceRevenueBlock({
   title,
   subtitle,
-  mode
+  mode,
+  sites = standorte
 }: {
   title: string;
   subtitle: string;
   mode: "honorar" | "pvs";
+  sites?: DashboardSite[];
 }) {
-  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
+  const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
   const current = activeSites.reduce((sum, site) => sum + performanceBase(site, mode), 0);
   const previous = Math.round(current * (mode === "honorar" ? 0.48 : 0.46));
   const qtd = Math.round(current * (mode === "honorar" ? 0.39 : 0.4));
@@ -3557,7 +3571,7 @@ function PerformanceRevenueBlock({
         <KennzahlTile label="YoY Zeitraum" value={pct(((current - previous) / previous) * 100)} />
         <KennzahlTile label="QTD YoY" value={pct(((qtd - qtdPrevious) / qtdPrevious) * 100)} />
         <KennzahlTile label="Umsatz seit Übernahme" value={eur(sinceTakeover)} />
-        <KennzahlTile label="Aktueller Gesamtkontostand" value={eur(total("kontostand"))} />
+        <KennzahlTile label="Aktueller Gesamtkontostand" value={eur(totalForSites(activeSites, "kontostand"))} />
       </div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
@@ -3638,8 +3652,8 @@ function PerformanceRevenueBlock({
   );
 }
 
-function PerformanceMonthlyTable({ title, mode }: { title: string; mode: "honorar" | "pvs" }) {
-  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
+function PerformanceMonthlyTable({ title, mode, sites = standorte }: { title: string; mode: "honorar" | "pvs"; sites?: DashboardSite[] }) {
+  const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
   const monthFactors = [0.192, 0.188, 0.228, 0.205, 0.186, 0, 0, 0, 0, 0, 0, 0];
 
   return (
@@ -3738,18 +3752,19 @@ function BankMovementsTable() {
   );
 }
 
-function performanceBase(site: (typeof standorte)[number], mode: "honorar" | "pvs") {
+function performanceBase(site: DashboardSite, mode: "honorar" | "pvs") {
   return mode === "honorar" ? site.honorar + site.eigenlabor : site.pvsUmsatz + site.eigenlabor + site.gesamtleistung * 0.06;
 }
 
-function Analysen() {
+function Analysen({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+  const metrics = cfoMetrics(sites, monthlyData);
   return (
     <section className="space-y-5">
       <PageTitle title="Analysen" text="EBITDA, Gesamtleistung, Cashflow, Standortvergleich, Zeitvergleich und Vorjahresabweichungen." />
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="EBITDA-Entwicklung" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={monthly}>
+            <AreaChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
               <Tooltip formatter={(v) => eur(Number(v))} />
@@ -3759,7 +3774,7 @@ function Analysen() {
         </ChartCard>
         <ChartCard title="Standortvergleich" icon={BarChart3}>
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={standorte}>
+            <BarChart data={sites}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="name" />
               <YAxis tickFormatter={(v) => eur(Number(v), true)} />
@@ -3771,9 +3786,9 @@ function Analysen() {
         </ChartCard>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        <AnalysisTile title="Zeitvergleich" value="+8,9 %" text="Leistung gegenüber Vorperiode." />
-        <AnalysisTile title="Vorjahresabweichung" value="+2,4 %" text="Konzern kumuliert YTD." />
-        <AnalysisTile title="Cashflow-Qualität" value="74 %" text="Praxiseingänge nach Annuitäten." />
+        <AnalysisTile title="EBITDA-Marge" value={pct(metrics.ebitdaMarge)} text="Konzern über die aktuell importierte Datenbasis." />
+        <AnalysisTile title="Kapitaldienstfähigkeit" value={`${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`} text="EBITDA im Verhältnis zu Tilgung und Zins." />
+        <AnalysisTile title="Cashflow-Qualität" value={pct(metrics.gesamtleistung ? (metrics.cashflow / metrics.gesamtleistung) * 100 : 0)} text="Cashflow im Verhältnis zur Gesamtleistung." />
       </div>
     </section>
   );
@@ -3789,19 +3804,19 @@ function AnalysisTile({ title, value, text }: { title: string; value: string; te
   );
 }
 
-function Bwa({ importedData }: { importedData?: ImportedDashboardData | null }) {
+function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { importedData?: ImportedDashboardData | null; sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
   return (
     <section className="space-y-5">
       <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow, dynamisch nach Jahren und gesamter Periode auswählbar." />
       <BwaStatement title="Konsolidierte BWA bis Cashflow" importedData={importedData} />
       <div className="grid gap-5 xl:grid-cols-2">
-        <EbitdaBridge />
-        <CashflowBridge />
+        <EbitdaBridge sites={sites} />
+        <CashflowBridge sites={sites} />
       </div>
       <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
         <ChartCard title="Gesamtleistungsentwicklung" icon={FileBarChart}>
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={monthly}>
+            <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
               <YAxis tickFormatter={(v) => eur(Number(v), true)} />
@@ -3811,17 +3826,17 @@ function Bwa({ importedData }: { importedData?: ImportedDashboardData | null }) 
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
-        <CostRatios />
+        <CostRatios sites={sites} />
       </div>
     </section>
   );
 }
 
-function EbitdaBridge() {
-  const metrics = cfoMetrics();
-  const personal = Math.round(metrics.gesamtleistung * 0.278);
-  const material = Math.round(total("pvsUmsatz") * 0.099);
-  const fremdlabor = Math.round(total("pvsUmsatz") * 0.156);
+function EbitdaBridge({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const metrics = cfoMetrics(sites);
+  const personal = Math.round(sites.reduce((sum, site) => sum + (site.gesamtleistung * (site.personalquote ?? 0)) / 100, 0));
+  const material = Math.round(sites.reduce((sum, site) => sum + (site.gesamtleistung * site.materialquote) / 100, 0));
+  const fremdlabor = Math.round(sites.reduce((sum, site) => sum + (site.gesamtleistung * site.fremdlaborquote) / 100, 0));
   const sonstige = Math.max(0, metrics.gesamtleistung - personal - material - fremdlabor - metrics.ebitda);
   const rows: BridgeRow[] = [
     { label: "Summe Umsatz", value: metrics.gesamtleistung, tone: "green" },
@@ -3835,8 +3850,8 @@ function EbitdaBridge() {
   return <BridgeCard title="EBITDA-Brücke" rows={rows} />;
 }
 
-function CashflowBridge() {
-  const metrics = cfoMetrics();
+function CashflowBridge({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const metrics = cfoMetrics(sites);
   const abschreibungen = Math.round(metrics.gesamtleistung * 0.17);
   const investitionen = -Math.round(metrics.gesamtleistung * 0.035);
   const umbuchen = -Math.round(metrics.gesamtleistung * 0.025);
@@ -3896,15 +3911,15 @@ function BridgeCard({
   );
 }
 
-function Cashflow() {
+function Cashflow({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
   return (
     <section className="space-y-5">
       <PageTitle title="Cashflow" text="Praxiseingänge, Kosten, Annuitäten, Umbuchungen MVZ und Netto-Cashflow." />
       <div className="grid gap-5 xl:grid-cols-2">
-        <CashflowBlock />
+        <CashflowBlock sites={sites} />
         <ChartCard title="Monatlicher Verlauf" icon={Wallet}>
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={monthly}>
+            <AreaChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
               <Tooltip formatter={(v) => eur(Number(v))} />
@@ -3913,13 +3928,21 @@ function Cashflow() {
           </ResponsiveContainer>
         </ChartCard>
       </div>
-      <Ranking title="Standortvergleich Cashflow" metric="ebitda" />
+      <Ranking title="Standortvergleich Cashflow" metric="ebitda" sites={sites} />
     </section>
   );
 }
 
-function Bankenreporting() {
-  const metrics = cfoMetrics();
+function Bankenreporting({
+  sites = standorte,
+  monthlyData = monthly,
+  importedData
+}: {
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
+}) {
+  const metrics = cfoMetrics(sites, monthlyData);
   const bankKpis = [
     { label: "Gesamtleistung YTD", value: eur(metrics.gesamtleistung), detail: "+4,2 % ggü. Vorjahr" },
     { label: "EBITDA YTD", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} EBITDA-Marge` },
@@ -3941,7 +3964,7 @@ function Bankenreporting() {
         title="Bankenreporting"
         text="Kompakte Bankenübersicht mit Ergebnisentwicklung, Cashflow, Fremdkapital und Kapitaldienstfähigkeit."
       />
-      <DataStatusStrip />
+      <DataStatusStrip importedData={importedData} />
       <Card className="grid gap-px overflow-hidden table-grid-bg md:grid-cols-2 xl:grid-cols-4">
         {bankKpis.map((kpi) => (
           <div key={kpi.label} className="bg-white p-4">
@@ -3955,7 +3978,7 @@ function Bankenreporting() {
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard title="Gesamtleistung & EBITDA Entwicklung" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={monthly}>
+            <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
               <YAxis tickFormatter={(v) => eur(Number(v), true)} />
@@ -4002,7 +4025,7 @@ function Bankenreporting() {
               </tr>
             </thead>
             <tbody>
-              {sortSitesByContractStart(standorte).map((site) => (
+              {sortSitesByContractStart(sites).map((site) => (
                 <tr key={site.id}>
                   <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
                   <td className="border-b border-r border-border p-3 text-right">{eur(site.gesamtleistung)}</td>
@@ -4022,8 +4045,16 @@ function Bankenreporting() {
   );
 }
 
-function BoardPack() {
-  const metrics = cfoMetrics();
+function BoardPack({
+  sites = standorte,
+  monthlyData = monthly,
+  importedData
+}: {
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
+}) {
+  const metrics = cfoMetrics(sites, monthlyData);
   const summary = [
     `Gesamtleistung YTD liegt bei ${eur(metrics.gesamtleistung, true)}; die Gruppe bleibt auf Wachstumskurs.`,
     `EBITDA YTD beträgt ${eur(metrics.ebitda, true)} bei einer Marge von ${pct(metrics.ebitdaMarge)}.`,
@@ -4039,7 +4070,7 @@ function BoardPack() {
         title="Investor / Board-Pack"
         text="Monatliche Management-Übersicht für Gesellschafter: Executive Summary, KPI-Entwicklung, Standortbeiträge, Risiken und Akquisitionen."
       />
-      <DataStatusStrip />
+      <DataStatusStrip importedData={importedData} />
 
       <Card className="p-4">
         <h2 className="font-bold">Executive Summary</h2>
@@ -4062,7 +4093,7 @@ function BoardPack() {
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard title="Board KPI Entwicklung" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={monthly}>
+            <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
               <YAxis tickFormatter={(v) => eur(Number(v), true)} />
@@ -4094,14 +4125,14 @@ function BoardPack() {
         </Card>
       </div>
 
-      <StandortCfoComparison />
-      <AcquisitionIntegration />
+      <StandortCfoComparison sites={sites} />
+      <AcquisitionIntegration sites={sites} />
     </section>
   );
 }
 
-function AcquisitionIntegration() {
-  const activeSites = sortSitesByContractStart(standorte).filter((site) => site.gesamtleistung > 0);
+function AcquisitionIntegration({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border p-4">
@@ -4156,21 +4187,22 @@ function AcquisitionIntegration() {
   );
 }
 
-function Darlehen() {
-  const restschuld = standorte.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
-  const earnOut = standorte.reduce((sum, site) => sum + site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt, 0);
+function Darlehen({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const restschuld = sites.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
+  const earnOut = sites.reduce((sum, site) => sum + site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt, 0);
+  const tilgung = sites.reduce((sum, site) => sum + site.darlehen.tilgung, 0);
   return (
     <section className="space-y-5">
       <PageTitle title="Darlehen & Earn-Out" text="Kaufpreise, Restschulden, Zins, Tilgung und Earn-Out-Fortschritt je Standort." />
-      <DebtCapitalBlock />
-      <EarnOutSummary />
+      <DebtCapitalBlock sites={sites} />
+      <EarnOutSummary sites={sites} />
       <div className="grid gap-4 lg:grid-cols-3">
         <KpiCard label="Gesamte Restschuld" value={restschuld} delta="Konsolidiert" icon={Landmark} status="yellow" />
         <KpiCard label="Earn-Out offen" value={earnOut} delta="Verpflichtungen offen" icon={BadgeEuro} status="yellow" />
-        <KpiCard label="Tilgung YTD" value={251000} delta="Laufend bedient" icon={ShieldCheck} status="green" />
+        <KpiCard label="Tilgung" value={tilgung} delta="Laufend bedient" icon={ShieldCheck} status="green" />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        {sortSitesByContractStart(standorte).map((site) => {
+        {sortSitesByContractStart(sites).map((site) => {
           const progress = site.darlehen.earnOutGesamt ? (site.darlehen.earnOutGezahlt / site.darlehen.earnOutGesamt) * 100 : 0;
           return (
             <Card key={site.id} className="p-4">
@@ -4201,11 +4233,11 @@ function Darlehen() {
   );
 }
 
-function EarnOutSummary() {
-  const totalPotential = standorte.reduce((sum, site) => sum + site.darlehen.earnOutGesamt, 0);
-  const paid = standorte.reduce((sum, site) => sum + site.darlehen.earnOutGezahlt, 0);
+function EarnOutSummary({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const totalPotential = sites.reduce((sum, site) => sum + site.darlehen.earnOutGesamt, 0);
+  const paid = sites.reduce((sum, site) => sum + site.darlehen.earnOutGezahlt, 0);
   const open = totalPotential - paid;
-  const likely = standorte.reduce((sum, site) => {
+  const likely = sites.reduce((sum, site) => {
     const achievement = site.darlehen.zielEbitda ? site.darlehen.istEbitda / site.darlehen.zielEbitda : 0;
     return sum + Math.max(0, site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt) * Math.min(1, achievement);
   }, 0);
