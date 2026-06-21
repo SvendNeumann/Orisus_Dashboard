@@ -97,6 +97,12 @@ const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
 const importDashboardSchemaVersion = "2026-06-21-performance-behandler-total-v8";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
+const supabaseAccessTokenKey = "orisus-cfo-supabase-access-token";
+const supabaseRefreshTokenKey = "orisus-cfo-supabase-refresh-token";
+const supabaseUserEmailKey = "orisus-cfo-supabase-user-email";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const supabaseImportTableName = "orisus_confirmed_imports";
 
 const acquisitionTermsBySiteId: Record<string, { kaufpreis: number; earnOutGesamt: number; earnOutFaelligAm: string }> = {
   kirchberg: { kaufpreis: 1365000, earnOutGesamt: 735000, earnOutFaelligAm: "30.06.2029" },
@@ -139,6 +145,16 @@ type ImportedDashboardData = {
   behandlerHonorarRows?: ImportedPeriodValueRow[];
   behandlerTotalRows?: ImportedPeriodValueRow[];
   report: ImportReport;
+};
+
+type SupabaseAuthResponse = {
+  access_token?: string;
+  refresh_token?: string;
+  user?: {
+    email?: string;
+  };
+  error?: string;
+  msg?: string;
 };
 
 type BwaLine = {
@@ -251,7 +267,149 @@ function deletePersistentValue(key: string): Promise<void> {
     .catch(() => undefined);
 }
 
+function isSupabaseConfigured() {
+  return Boolean(supabaseUrl && supabaseAnonKey);
+}
+
+function currentSupabaseAccessToken() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(supabaseAccessTokenKey) ?? "";
+}
+
+function supabaseHeaders(token = currentSupabaseAccessToken()) {
+  return {
+    apikey: supabaseAnonKey,
+    Authorization: `Bearer ${token || supabaseAnonKey}`,
+    "Content-Type": "application/json"
+  };
+}
+
+async function supabaseFetch<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
+  const response = await fetch(`${supabaseUrl}${path}`, {
+    ...init,
+    headers: {
+      ...supabaseHeaders(token),
+      ...(init?.headers ?? {})
+    }
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Supabase request failed with ${response.status}`);
+  }
+  if (response.status === 204) return null as T;
+  return (await response.json()) as T;
+}
+
+function rememberSupabaseSession(session: SupabaseAuthResponse, fallbackEmail: string) {
+  if (!session.access_token) return false;
+  window.localStorage.setItem(supabaseAccessTokenKey, session.access_token);
+  if (session.refresh_token) window.localStorage.setItem(supabaseRefreshTokenKey, session.refresh_token);
+  window.localStorage.setItem(supabaseUserEmailKey, session.user?.email ?? fallbackEmail);
+  window.localStorage.setItem(authStorageKey, "true");
+  return true;
+}
+
+async function signInOrCreateSupabaseUser(email: string, password: string) {
+  const loginResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: supabaseHeaders(""),
+    body: JSON.stringify({ email, password })
+  });
+
+  if (loginResponse.ok) {
+    const session = (await loginResponse.json()) as SupabaseAuthResponse;
+    return rememberSupabaseSession(session, email);
+  }
+
+  const signupResponse = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+    method: "POST",
+    headers: supabaseHeaders(""),
+    body: JSON.stringify({ email, password })
+  });
+
+  if (!signupResponse.ok) {
+    const text = await signupResponse.text();
+    throw new Error(text || "Supabase Auth fehlgeschlagen.");
+  }
+
+  const signupSession = (await signupResponse.json()) as SupabaseAuthResponse;
+  return rememberSupabaseSession(signupSession, email);
+}
+
+function clearSupabaseSession() {
+  window.localStorage.removeItem(supabaseAccessTokenKey);
+  window.localStorage.removeItem(supabaseRefreshTokenKey);
+  window.localStorage.removeItem(supabaseUserEmailKey);
+}
+
+async function loadSupabaseConfirmedImport() {
+  if (!isSupabaseConfigured()) return null;
+  const token = currentSupabaseAccessToken();
+  if (!token) return null;
+  const rows = await supabaseFetch<Array<{ payload: ImportedDashboardData }>>(
+    `/rest/v1/${supabaseImportTableName}?select=payload&active=eq.true&order=imported_at.desc&limit=1`,
+    undefined,
+    token
+  );
+  const importedData = rows[0]?.payload ?? null;
+  if (!importedData) return null;
+  if (importedData.schemaVersion !== importDashboardSchemaVersion) return null;
+  return repairImportedCashflowData(importedData);
+}
+
+async function saveSupabaseConfirmedImport(report: ImportReport, dashboardData: ImportedDashboardData) {
+  if (!isSupabaseConfigured()) return false;
+  const token = currentSupabaseAccessToken();
+  if (!token) return false;
+  await supabaseFetch(
+    `/rest/v1/${supabaseImportTableName}?id=eq.current`,
+    {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ active: false })
+    },
+    token
+  ).catch(() => undefined);
+  await supabaseFetch(
+    `/rest/v1/${supabaseImportTableName}`,
+    {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({
+        id: "current",
+        active: true,
+        file_name: dashboardData.fileName,
+        imported_at: dashboardData.importedAt,
+        schema_version: dashboardData.schemaVersion,
+        report,
+        payload: dashboardData
+      })
+    },
+    token
+  );
+  return true;
+}
+
+async function clearSupabaseConfirmedImport() {
+  if (!isSupabaseConfigured()) return;
+  const token = currentSupabaseAccessToken();
+  if (!token) return;
+  await supabaseFetch(
+    `/rest/v1/${supabaseImportTableName}?id=eq.current`,
+    {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" }
+    },
+    token
+  ).catch(() => undefined);
+}
+
 async function loadConfirmedImportData() {
+  const supabaseDashboard = await loadSupabaseConfirmedImport();
+  if (supabaseDashboard) {
+    await saveConfirmedImport(supabaseDashboard.report, supabaseDashboard);
+    return supabaseDashboard;
+  }
   const persistentDashboard = await readPersistentValue<ImportedDashboardData>(importPersistenceDashboardKey);
   const localDashboard = !persistentDashboard ? window.localStorage.getItem(importDashboardStorageKey) : null;
   const parsedDashboard = persistentDashboard ?? (localDashboard ? (JSON.parse(localDashboard) as ImportedDashboardData) : null);
@@ -267,6 +425,7 @@ async function loadConfirmedImportData() {
 }
 
 async function saveConfirmedImport(report: ImportReport, dashboardData: ImportedDashboardData) {
+  await saveSupabaseConfirmedImport(report, dashboardData);
   const savedReport = await writePersistentValue(importPersistenceReportKey, report);
   const savedDashboard = await writePersistentValue(importPersistenceDashboardKey, dashboardData);
   window.localStorage.setItem(importStorageKey, JSON.stringify(report));
@@ -278,6 +437,7 @@ async function saveConfirmedImport(report: ImportReport, dashboardData: Imported
 }
 
 async function clearConfirmedImport() {
+  await clearSupabaseConfirmedImport();
   await Promise.all([
     deletePersistentValue(importPersistenceReportKey),
     deletePersistentValue(importPersistenceDashboardKey)
@@ -1464,6 +1624,10 @@ export default function HomePage() {
     if (window.localStorage.getItem(authStorageKey) === "true") {
       setAuthStep("app");
     }
+  }, []);
+
+  useEffect(() => {
+    if (authStep !== "app") return;
     let isMounted = true;
     loadConfirmedImportData()
       .then((savedImport) => {
@@ -1473,7 +1637,7 @@ export default function HomePage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [authStep]);
 
   const setPersistentAuthStep = (step: AuthStep) => {
     if (step === "app") {
@@ -1484,6 +1648,7 @@ export default function HomePage() {
 
   const logout = () => {
     window.localStorage.removeItem(authStorageKey);
+    clearSupabaseSession();
     setMenuOpen(false);
     setAuthStep("welcome");
   };
@@ -1747,7 +1912,7 @@ function AuthFlow({
     }
   };
 
-  const handlePasswordLogin = () => {
+  const handlePasswordLogin = async () => {
     setLoginMessage("");
     const normalizedEmail = email.trim();
     if (!normalizedEmail || !normalizedEmail.includes("@")) {
@@ -1758,6 +1923,24 @@ function AuthFlow({
       setLoginMessage("Bitte ein Passwort mit mindestens 6 Zeichen eingeben.");
       return;
     }
+
+    if (isSupabaseConfigured()) {
+      try {
+        const isAuthenticated = await signInOrCreateSupabaseUser(normalizedEmail, password);
+        if (!isAuthenticated) {
+          setLoginMessage("Bitte bestätige den Zugang über die Supabase-E-Mail oder prüfe die Login-Daten.");
+          return;
+        }
+        window.localStorage.setItem(authPasswordConfiguredKey, "true");
+        setPasswordConfigured(true);
+        setStep("app");
+        return;
+      } catch {
+        setLoginMessage("Login nicht möglich. Bitte Passwort prüfen oder Passwort zurücksetzen.");
+        return;
+      }
+    }
+
     if (!passwordConfigured) {
       window.localStorage.setItem(authPasswordConfiguredKey, "true");
       setPasswordConfigured(true);
