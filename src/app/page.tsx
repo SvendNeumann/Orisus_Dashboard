@@ -72,6 +72,7 @@ type Page =
   | "admin";
 
 type AuthStep = "welcome" | "forgot" | "app";
+type UserRole = "admin" | "info";
 
 const bwaPeriodOptions = [
   "Geschäftsjahr 2024",
@@ -100,6 +101,12 @@ const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const supabaseAccessTokenKey = "orisus-cfo-supabase-access-token";
 const supabaseRefreshTokenKey = "orisus-cfo-supabase-refresh-token";
 const supabaseUserEmailKey = "orisus-cfo-supabase-user-email";
+const adminEmails = [
+  "svend.neumann@orisus.de",
+  "sven.neumann@orisus.de",
+  "sven.neumann@resos.de",
+  "svend.neumann@resos.de"
+];
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const supabaseImportTableName = "orisus_confirmed_imports";
@@ -292,6 +299,25 @@ function isSupabaseConfigured() {
   return Boolean(supabaseUrl && supabaseAnonKey);
 }
 
+function roleForEmail(email: string | null | undefined): UserRole {
+  const normalizedEmail = (email ?? "").trim().toLowerCase();
+  return adminEmails.includes(normalizedEmail) ? "admin" : "info";
+}
+
+function currentUserEmail() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(supabaseUserEmailKey) ?? "";
+}
+
+function currentUserRole() {
+  if (typeof window === "undefined") return "info";
+  return roleForEmail(currentUserEmail());
+}
+
+function canModifyData(role: UserRole) {
+  return role === "admin";
+}
+
 function currentSupabaseAccessToken() {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(supabaseAccessTokenKey) ?? "";
@@ -394,6 +420,7 @@ function importHistoryId(fileName: string) {
 }
 
 async function saveSupabaseConfirmedImport(report: ImportReport, dashboardData: ImportedDashboardData) {
+  if (!canModifyData(currentUserRole())) return false;
   if (!isSupabaseConfigured()) return false;
   const token = currentSupabaseAccessToken();
   if (!token) return false;
@@ -427,6 +454,7 @@ async function saveSupabaseConfirmedImport(report: ImportReport, dashboardData: 
 }
 
 async function clearSupabaseConfirmedImport() {
+  if (!canModifyData(currentUserRole())) return;
   if (!isSupabaseConfigured()) return;
   const token = currentSupabaseAccessToken();
   if (!token) return;
@@ -1653,8 +1681,13 @@ export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [previousPage, setPreviousPage] = useState<Page | null>(null);
   const [importedData, setImportedData] = useState<ImportedDashboardData | null>(null);
+  const [userEmail, setUserEmail] = useState("");
   const dashboardSites = useMemo(() => sortSitesByContractStart(importedData?.sites ?? []), [importedData?.sites]);
   const dashboardMonthly = importedData?.monthly ?? [];
+  const userRole = roleForEmail(userEmail);
+  const isAdmin = userRole === "admin";
+  const visibleDesktopNav = desktopNav.filter((item) => isAdmin || (item.id !== "uploads" && item.id !== "admin"));
+  const visibleMobileNav = mobileNav.filter((item) => isAdmin || item.id !== "uploads");
 
   const selected = useMemo(
     () => dashboardSites.find((site) => site.id === selectedSite) ?? dashboardSites[0] ?? standorte[0],
@@ -1663,9 +1696,16 @@ export default function HomePage() {
 
   useEffect(() => {
     if (window.localStorage.getItem(authStorageKey) === "true") {
+      setUserEmail(currentUserEmail());
       setAuthStep("app");
     }
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin && (page === "uploads" || page === "admin")) {
+      setPage("cockpit");
+    }
+  }, [isAdmin, page]);
 
   useEffect(() => {
     if (authStep !== "app") return;
@@ -1683,6 +1723,7 @@ export default function HomePage() {
   const setPersistentAuthStep = (step: AuthStep) => {
     if (step === "app") {
       window.localStorage.setItem(authStorageKey, "true");
+      setUserEmail(currentUserEmail());
     }
     setAuthStep(step);
   };
@@ -1690,6 +1731,7 @@ export default function HomePage() {
   const logout = () => {
     window.localStorage.removeItem(authStorageKey);
     clearSupabaseSession();
+    setUserEmail("");
     setMenuOpen(false);
     setAuthStep("welcome");
   };
@@ -1712,7 +1754,7 @@ export default function HomePage() {
       <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 border-r border-border bg-white/92 px-5 py-6 backdrop-blur lg:block">
         <Brand onClick={() => go("cockpit")} />
         <nav className="mt-8 space-y-1">
-          {desktopNav.map((item) => (
+          {visibleDesktopNav.map((item) => (
             <NavButton
               key={item.id}
               active={page === item.id || (item.id === "standorte" && page === "standort-detail")}
@@ -1725,7 +1767,7 @@ export default function HomePage() {
         <div className="absolute bottom-6 left-5 right-5 rounded-lg border border-border bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Nutzer</p>
           <p className="mt-1 font-semibold">Svend Neumann</p>
-          <p className="text-sm text-muted-foreground">Interner CFO-Zugang</p>
+          <p className="text-sm text-muted-foreground">{isAdmin ? "Admin-Zugang" : "Info-Zugang"}</p>
           <Button className="mt-4 w-full" variant="secondary" onClick={logout}>
             Abmelden
           </Button>
@@ -1760,7 +1802,7 @@ export default function HomePage() {
             </div>
             <div className="mt-7 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-24 pr-1">
               <nav className="space-y-1">
-                {desktopNav.map((item) => (
+                {visibleDesktopNav.map((item) => (
                   <NavButton
                     key={item.id}
                     active={page === item.id || (item.id === "standorte" && page === "standort-detail")}
@@ -1790,7 +1832,7 @@ export default function HomePage() {
             onBack={() => go(previousPage ?? "cockpit")}
             onGo={go}
           />
-          {requiresImport && !importedData && <NoImportState onUpload={() => go("uploads")} />}
+          {requiresImport && !importedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
           {importedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
@@ -1810,15 +1852,21 @@ export default function HomePage() {
           {importedData && page === "darlehen" && <Darlehen sites={dashboardSites} importedData={importedData} />}
           {importedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {page === "uploads" && <Uploads onImportConfirmed={(data) => setImportedData(repairImportedCashflowData(data))} onImportReset={() => setImportedData(null)} />}
+          {page === "uploads" && isAdmin && (
+            <Uploads
+              userRole={userRole}
+              onImportConfirmed={(data) => setImportedData(repairImportedCashflowData(data))}
+              onImportReset={() => setImportedData(null)}
+            />
+          )}
           {page === "reports" && <Reports />}
-          {page === "admin" && <AdminKpiRules />}
+          {page === "admin" && isAdmin && <AdminKpiRules />}
         </div>
       </main>
 
       <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-white/95 px-2 pt-2 backdrop-blur lg:hidden">
-        <div className="grid grid-cols-5 gap-1">
-          {mobileNav.map((item) => (
+        <div className={cn("grid gap-1", visibleMobileNav.length === 5 ? "grid-cols-5" : "grid-cols-4")}>
+          {visibleMobileNav.map((item) => (
             <button
               key={item.id}
               className={cn(
@@ -2377,7 +2425,7 @@ function NavigationControls({
   );
 }
 
-function NoImportState({ onUpload }: { onUpload: () => void }) {
+function NoImportState({ canUpload, onUpload }: { canUpload: boolean; onUpload: () => void }) {
   return (
     <Card className="p-6">
       <div className="max-w-2xl">
@@ -2387,9 +2435,15 @@ function NoImportState({ onUpload }: { onUpload: () => void }) {
           Die App zeigt keine Demo- oder Beispielwerte mehr. Lade zuerst die konsolidierte Orisus-Arbeitsmappe hoch und bestätige den Import.
           Danach werden Cockpit, BWA, Standorte, Cashflow, Darlehen, Bankenreporting und Board-Pack aus dieser Datenbasis befüllt.
         </p>
-        <Button className="mt-5" onClick={onUpload}>
-          Zum Upload
-        </Button>
+        {canUpload ? (
+          <Button className="mt-5" onClick={onUpload}>
+            Zum Upload
+          </Button>
+        ) : (
+          <p className="mt-5 rounded-md bg-slate-50 p-3 text-sm font-semibold text-muted-foreground">
+            Bitte einen Admin bitten, den aktuellen Datenstand zu importieren.
+          </p>
+        )}
       </div>
     </Card>
   );
@@ -6203,9 +6257,11 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
 }
 
 function Uploads({
+  userRole,
   onImportConfirmed,
   onImportReset
 }: {
+  userRole: UserRole;
   onImportConfirmed?: (data: ImportedDashboardData) => void;
   onImportReset?: () => void;
 }) {
@@ -6213,6 +6269,7 @@ function Uploads({
   const [confirmedReport, setConfirmedReport] = useState<ImportReport | null>(null);
   const [pendingDashboardData, setPendingDashboardData] = useState<ImportedDashboardData | null>(null);
   const [importHistory, setImportHistory] = useState<ImportHistoryEntry[]>([]);
+  const canEdit = canModifyData(userRole);
 
   const refreshImportHistory = () => {
     loadSupabaseImportHistory().then(setImportHistory);
@@ -6237,6 +6294,7 @@ function Uploads({
   }, []);
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    if (!canEdit) return;
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -6272,6 +6330,7 @@ function Uploads({
   }
 
   async function confirmImport() {
+    if (!canEdit) return;
     if ((report.status !== "ready" && report.status !== "warning") || !pendingDashboardData) return;
     const repairedDashboardData = repairImportedCashflowData(pendingDashboardData);
     await saveConfirmedImport(report, repairedDashboardData);
@@ -6281,6 +6340,7 @@ function Uploads({
   }
 
   async function resetImport() {
+    if (!canEdit) return;
     await clearConfirmedImport();
     setReport(emptyImportReport);
     setConfirmedReport(null);
@@ -6314,6 +6374,11 @@ function Uploads({
   return (
     <section className="space-y-5">
       <PageTitle title="Uploads & Datenstand" text="Zentraler Excel-Import aus der konsolidierten Orisus-Arbeitsmappe mit Blatt-, Zeitraum-, Standort- und Plausibilitätsprüfung." />
+      {!canEdit && (
+        <Card className="border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+          Info-Rolle: Du kannst Importstatus und Historie lesen, aber keine Dateien hochladen, bestätigen oder zurücksetzen.
+        </Card>
+      )}
       <DataStatusStrip />
       <Card className="grid gap-3 p-4 md:grid-cols-3">
         <Mini label="Aktueller Importstatus" value={statusLabel} />
@@ -6360,11 +6425,16 @@ function Uploads({
               <option key={type}>{type}</option>
             ))}
           </Select>
-          <label className="mt-4 block cursor-pointer rounded-lg border-2 border-dashed border-border bg-slate-50 p-8 text-center transition hover:border-primary hover:bg-cyan-50/60">
+          <label
+            className={cn(
+              "mt-4 block rounded-lg border-2 border-dashed border-border bg-slate-50 p-8 text-center transition",
+              canEdit ? "cursor-pointer hover:border-primary hover:bg-cyan-50/60" : "cursor-not-allowed opacity-60"
+            )}
+          >
             <FileUp className="mx-auto h-10 w-10 text-primary" />
             <p className="mt-3 font-bold">{report.status === "reading" ? "Datei wird gelesen ..." : "Excel-Datei auswählen"}</p>
             <p className="mt-1 text-sm text-muted-foreground">Empfohlen: +BWA_Controlling_Orisus_Dashboard+.xlsx</p>
-            <input className="sr-only" type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} />
+            <input className="sr-only" type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} disabled={!canEdit} />
           </label>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {[
@@ -6380,10 +6450,10 @@ function Uploads({
             ))}
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <Button className="w-full" disabled={report.status !== "ready" && report.status !== "warning"} onClick={confirmImport}>
+            <Button className="w-full" disabled={!canEdit || (report.status !== "ready" && report.status !== "warning")} onClick={confirmImport}>
               Importbericht bestätigen
             </Button>
-            <Button className="w-full" variant="secondary" disabled={!confirmedReport && report.status === "idle"} onClick={resetImport}>
+            <Button className="w-full" variant="secondary" disabled={!canEdit || (!confirmedReport && report.status === "idle")} onClick={resetImport}>
               Import zurücksetzen
             </Button>
           </div>
