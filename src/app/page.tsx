@@ -2214,7 +2214,7 @@ function ReceivablesChart({ sites = standorte }: { sites?: DashboardSite[] }) {
       <BarChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis dataKey="name" tickLine={false} axisLine={false} />
-        <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => eur(Number(v), true)} />
+        <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
         <Tooltip formatter={(v) => eur(Number(v))} />
         <Bar dataKey="forderungen" name="Offene Forderungen" fill="#0f766e" radius={[5, 5, 0, 0]} />
       </BarChart>
