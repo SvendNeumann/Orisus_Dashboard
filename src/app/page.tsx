@@ -2591,7 +2591,7 @@ function CostRatios({ site, sites = standorte, periodLabel = "seit Vertragsstart
   );
 }
 
-function Ranking({ title, metric, sites = standorte }: { title: string; metric: "ebitda" | "gesamtleistung"; sites?: DashboardSite[] }) {
+function Ranking({ title, metric, sites = standorte }: { title: string; metric: "ebitda" | "gesamtleistung" | "cashflow"; sites?: DashboardSite[] }) {
   const rows = [...sites].sort((a, b) => b[metric] - a[metric]);
   const ebitdaTarget = (site: DashboardSite) => site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda;
   const ebitdaRankingStatus = (site: DashboardSite): Status => {
@@ -2611,15 +2611,28 @@ function Ranking({ title, metric, sites = standorte }: { title: string; metric: 
     if (site.gesamtleistung === 0) return "yellow";
     return "red";
   };
+  const cashflowRankingStatus = (site: DashboardSite): Status => (site.cashflow >= 0 ? "green" : "red");
+  const maxValue = Math.max(...rows.map((site) => Math.abs(site[metric])), 1);
+  const statusFor = (site: DashboardSite): Status => {
+    if (metric === "ebitda") return ebitdaRankingStatus(site);
+    if (metric === "cashflow") return cashflowRankingStatus(site);
+    return performanceRankingStatus(site);
+  };
+  const progressFor = (site: DashboardSite) => {
+    if (metric === "ebitda") {
+      const target = ebitdaTarget(site);
+      return target > 0 ? (site.ebitda / target) * 100 : site.ebitdaMarge * 4;
+    }
+    if (metric === "cashflow") return (Math.abs(site.cashflow) / maxValue) * 100;
+    return (site.gesamtleistung / maxValue) * 100;
+  };
 
   return (
     <Card className="p-4">
       <h2 className="font-bold">{title}</h2>
       <div className="mt-4 space-y-3">
         {rows.map((site) => {
-          const status = metric === "ebitda" ? ebitdaRankingStatus(site) : performanceRankingStatus(site);
-          const target = ebitdaTarget(site);
-          const ebitdaProgress = target > 0 ? (site.ebitda / target) * 100 : site.ebitdaMarge * 4;
+          const status = statusFor(site);
           return (
             <button key={site.id} className="w-full rounded-md bg-slate-50 p-3 text-left">
               <div className="mb-2 flex items-center justify-between">
@@ -2627,8 +2640,8 @@ function Ranking({ title, metric, sites = standorte }: { title: string; metric: 
                 <StatusDot status={status} />
               </div>
               <div className="flex items-center gap-3">
-                <Progress value={metric === "ebitda" ? ebitdaProgress : site.gesamtleistung / 13000} tone={statusMap[status].tone} />
-                <span className="min-w-20 text-right text-sm font-bold">{eur(site[metric], true)}</span>
+                <Progress value={progressFor(site)} tone={statusMap[status].tone} />
+                <span className={cn("min-w-20 text-right text-sm font-bold", site[metric] < 0 && "text-red-700")}>{eur(site[metric], true)}</span>
               </div>
             </button>
           );
@@ -5085,7 +5098,7 @@ function Cashflow({
           </ResponsiveContainer>
         </ChartCard>
       </div>
-      <Ranking title="Standortvergleich Cashflow | seit Vertragsstart" metric="ebitda" sites={sites} />
+      <Ranking title="Standortvergleich Cashflow | seit Vertragsstart" metric="cashflow" sites={sites} />
     </section>
   );
 }
