@@ -4341,16 +4341,33 @@ function OrisusPerformance({
   const metrics = cfoMetrics(sites, monthlyData);
   const availablePeriods = bwaPeriodOptionsFor(importedData);
   const performancePeriod = defaultBwaPeriodFor(importedData);
+  const [operationalPeriod, setOperationalPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   const [honorarPeriod, setHonorarPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const [honorarMonthlyPeriod, setHonorarMonthlyPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   const [pvsPeriod, setPvsPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const [pvsMonthlyPeriod, setPvsMonthlyPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const [bankPeriod, setBankPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   useEffect(() => {
+    if (!availablePeriods.includes(operationalPeriod)) {
+      setOperationalPeriod(defaultBwaPeriodFor(importedData));
+    }
     if (!availablePeriods.includes(honorarPeriod)) {
       setHonorarPeriod(defaultBwaPeriodFor(importedData));
+    }
+    if (!availablePeriods.includes(honorarMonthlyPeriod)) {
+      setHonorarMonthlyPeriod(defaultBwaPeriodFor(importedData));
     }
     if (!availablePeriods.includes(pvsPeriod)) {
       setPvsPeriod(defaultBwaPeriodFor(importedData));
     }
-  }, [availablePeriods, honorarPeriod, importedData, pvsPeriod]);
+    if (!availablePeriods.includes(pvsMonthlyPeriod)) {
+      setPvsMonthlyPeriod(defaultBwaPeriodFor(importedData));
+    }
+    if (!availablePeriods.includes(bankPeriod)) {
+      setBankPeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [availablePeriods, bankPeriod, honorarMonthlyPeriod, honorarPeriod, importedData, operationalPeriod, pvsMonthlyPeriod, pvsPeriod]);
+  const operationalSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, operationalPeriod)) : sites;
   return (
     <section className="space-y-5">
       <PageTitle
@@ -4382,7 +4399,12 @@ function OrisusPerformance({
           <ReceivablesChart sites={sites} />
         </ChartCard>
       </div>
-      <OperationalPerformanceTable sites={sites} />
+      <OperationalPerformanceTable
+        sites={operationalSites}
+        period={operationalPeriod}
+        setPeriod={setOperationalPeriod}
+        availablePeriods={availablePeriods}
+      />
       <PerformanceRevenueBlock
         title="Behandlerumsatz inkl. Eigenlabor je Standort"
         period={honorarPeriod}
@@ -4398,6 +4420,9 @@ function OrisusPerformance({
         sites={sites}
         monthlyData={monthlyData}
         importedData={importedData}
+        period={honorarMonthlyPeriod}
+        setPeriod={setHonorarMonthlyPeriod}
+        availablePeriods={availablePeriods}
       />
       <PerformanceRevenueBlock
         title="PVS-Gesamtumsatz je Standort"
@@ -4414,17 +4439,47 @@ function OrisusPerformance({
         sites={sites}
         monthlyData={monthlyData}
         importedData={importedData}
+        period={pvsMonthlyPeriod}
+        setPeriod={setPvsMonthlyPeriod}
+        availablePeriods={availablePeriods}
       />
-      <BankMovementsTable sites={sites} monthlyData={monthlyData} />
+      <BankMovementsTable
+        sites={sites}
+        monthlyData={monthlyData}
+        period={bankPeriod}
+        setPeriod={setBankPeriod}
+        availablePeriods={availablePeriods}
+      />
     </section>
   );
 }
 
-function OperationalPerformanceTable({ sites = standorte }: { sites?: DashboardSite[] }) {
+function OperationalPerformanceTable({
+  sites = standorte,
+  period,
+  setPeriod,
+  availablePeriods
+}: {
+  sites?: DashboardSite[];
+  period: string;
+  setPeriod: (period: string) => void;
+  availablePeriods: string[];
+}) {
   return (
     <Card className="overflow-hidden">
-      <div className="border-b border-border p-4">
-        <h2 className="font-bold">Operative Standort-Performance | seit Vertragsstart</h2>
+      <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="font-bold">Operative Standort-Performance | {performancePeriodLabel(period)}</h2>
+        <Select
+          className="w-full sm:w-64"
+          value={period}
+          onChange={(event) => setPeriod(event.target.value)}
+        >
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>
+              {performancePeriodLabel(option)}
+            </option>
+          ))}
+        </Select>
       </div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-sm">
@@ -4516,6 +4571,11 @@ function monthsSinceStartForPeriod(site: DashboardSite, period: string) {
   const endYear = selection.year ?? today.getFullYear();
   const endMonth = selection.months?.at(-1) ?? 12;
   return Math.max(1, (endYear - year) * 12 + endMonth - month + 1);
+}
+
+function monthSelectionForPeriod(period: string) {
+  const selection = selectedBwaPeriod(period);
+  return new Set(selection.months?.length ? selection.months : Array.from({ length: 12 }, (_, index) => index + 1));
 }
 
 function PerformanceRevenueBlock({
@@ -4666,29 +4726,48 @@ function PerformanceMonthlyTable({
   mode,
   sites = standorte,
   monthlyData = monthly,
-  importedData
+  importedData,
+  period,
+  setPeriod,
+  availablePeriods
 }: {
   title: string;
   mode: "honorar" | "pvs";
   sites?: DashboardSite[];
   monthlyData?: typeof monthly;
   importedData?: ImportedDashboardData | null;
+  period: string;
+  setPeriod: (period: string) => void;
+  availablePeriods: string[];
 }) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
-  const period = importedData ? defaultBwaPeriodFor(importedData) : "Gesamte Periode";
   const year = selectedBwaPeriod(period).year ?? importedData?.report.jahre.filter((entry) => entry >= 1900).at(-1) ?? new Date().getFullYear();
+  const visibleMonths = monthSelectionForPeriod(period);
   const rowBySite = new Map((performanceMonthlyRows(importedData, mode) ?? []).map((row) => [row.siteId, row]));
   const monthlyValuesForSite = (site: DashboardSite) => {
     const importedRow = rowBySite.get(site.id);
-    if (importedRow) {
-      return fillTwelveMonths(Array.from({ length: 12 }, (_, index) => Math.round(importedRow.valuesByMonth[`${year}-${index + 1}`] ?? 0)));
-    }
-    return allocateByMonthlyStructure(performanceBase(site, mode), monthlyData);
+    const values = importedRow
+      ? fillTwelveMonths(Array.from({ length: 12 }, (_, index) => Math.round(importedRow.valuesByMonth[`${year}-${index + 1}`] ?? 0)))
+      : allocateByMonthlyStructure(performanceBase(site, mode), monthlyData);
+    return values.map((value, index) => (visibleMonths.has(index + 1) ? value : 0));
   };
 
   return (
     <Card className="overflow-hidden">
-      <div className="table-head p-3 font-bold text-white">{title} | Geschäftsjahr {year}</div>
+      <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-bold">{title} | {performancePeriodLabel(period)}</span>
+        <Select
+          className="w-full bg-white text-foreground sm:w-64"
+          value={period}
+          onChange={(event) => setPeriod(event.target.value)}
+        >
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>
+              {performancePeriodLabel(option)}
+            </option>
+          ))}
+        </Select>
+      </div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
@@ -4729,7 +4808,21 @@ function PerformanceMonthRow({ label, values }: { label: string; values: number[
   );
 }
 
-function BankMovementsTable({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+function BankMovementsTable({
+  sites = standorte,
+  monthlyData = monthly,
+  period,
+  setPeriod,
+  availablePeriods
+}: {
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+  period: string;
+  setPeriod: (period: string) => void;
+  availablePeriods: string[];
+}) {
+  const visibleMonths = monthSelectionForPeriod(period);
+  const applyPeriod = (values: number[]) => fillTwelveMonths(values).map((value, index) => (visibleMonths.has(index + 1) ? value : 0));
   const monthlyPerformance = fillTwelveMonths(monthlyData.map((entry) => entry.leistung));
   const monthlyEbitda = fillTwelveMonths(monthlyData.map((entry) => entry.ebitda));
   const monthlyCashflow = fillTwelveMonths(monthlyData.map((entry) => entry.cashflow));
@@ -4741,24 +4834,37 @@ function BankMovementsTable({ sites = standorte, monthlyData = monthly }: { site
   const cashflowAfterMonth = monthlyCashflow.map((_, index) => monthlyCashflow.slice(index + 1).reduce((sum, value) => sum + value, 0));
   const kontostandMonths = monthlyCashflow.map((value, index) => (value || index < monthlyData.length ? endingKontostand - cashflowAfterMonth[index] : 0));
   const rows = [
-    { label: "Geldeingang Bank gesamt", values: monthlyPerformance, contract: totalForSites(sites, "gesamtleistung") },
-    { label: "davon Praxisumsatz", values: monthlyPerformance, contract: totalForSites(sites, "gesamtleistung"), indent: true },
-    { label: "davon sonstiges", values: monthlyPerformance.map(() => 0), contract: 0, indent: true },
+    { label: "Geldeingang Bank gesamt", values: applyPeriod(monthlyPerformance), contract: totalForSites(sites, "gesamtleistung") },
+    { label: "davon Praxisumsatz", values: applyPeriod(monthlyPerformance), contract: totalForSites(sites, "gesamtleistung"), indent: true },
+    { label: "davon sonstiges", values: applyPeriod(monthlyPerformance.map(() => 0)), contract: 0, indent: true },
     {
       label: "Geldausgang Bank inkl. Kredit",
-      values: praxisCosts.map((value, index) => value + tilgungZins[index] + cashAdjustments[index]),
+      values: applyPeriod(praxisCosts.map((value, index) => value + tilgungZins[index] + cashAdjustments[index])),
       contract: -Math.abs(totalForSites(sites, "gesamtleistung") - totalForSites(sites, "cashflow"))
     },
-    { label: "davon Praxisausgaben", values: praxisCosts, contract: praxisCosts.reduce((sum, value) => sum + value, 0), indent: true },
-    { label: "davon Tilgung + Zins", values: tilgungZins, contract: -totalTilgungZins, indent: true },
-    { label: "davon Cashflow-Adjustments", values: cashAdjustments, contract: cashAdjustments.reduce((sum, value) => sum + value, 0), indent: true },
-    { label: "Cashflow gesamt im Monat", values: monthlyCashflow, contract: totalForSites(sites, "cashflow") },
-    { label: "Kontostand Monatsende", values: kontostandMonths, contract: endingKontostand }
+    { label: "davon Praxisausgaben", values: applyPeriod(praxisCosts), contract: praxisCosts.reduce((sum, value) => sum + value, 0), indent: true },
+    { label: "davon Tilgung + Zins", values: applyPeriod(tilgungZins), contract: -totalTilgungZins, indent: true },
+    { label: "davon Cashflow-Adjustments", values: applyPeriod(cashAdjustments), contract: cashAdjustments.reduce((sum, value) => sum + value, 0), indent: true },
+    { label: "Cashflow gesamt im Monat", values: applyPeriod(monthlyCashflow), contract: totalForSites(sites, "cashflow") },
+    { label: "Kontostand Monatsende", values: applyPeriod(kontostandMonths), contract: endingKontostand }
   ];
 
   return (
     <Card className="overflow-hidden">
-      <div className="table-head p-3 font-bold text-white">Bank / Geldbewegungen aus Input_Finanzen | aktuelles Importjahr</div>
+      <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-bold">Bank / Geldbewegungen aus Input_Finanzen | {performancePeriodLabel(period)}</span>
+        <Select
+          className="w-full bg-white text-foreground sm:w-64"
+          value={period}
+          onChange={(event) => setPeriod(event.target.value)}
+        >
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>
+              {performancePeriodLabel(option)}
+            </option>
+          ))}
+        </Select>
+      </div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
