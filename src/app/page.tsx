@@ -5219,7 +5219,19 @@ function Bankenreporting({
   importedData?: ImportedDashboardData | null;
 }) {
   const metrics = cfoMetrics(sites, monthlyData);
-  const bankPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
+  const availablePeriods = bwaPeriodOptionsFor(importedData);
+  const [bankChartPeriod, setBankChartPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const [bankTablePeriod, setBankTablePeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  useEffect(() => {
+    if (!availablePeriods.includes(bankChartPeriod)) {
+      setBankChartPeriod(defaultBwaPeriodFor(importedData));
+    }
+    if (!availablePeriods.includes(bankTablePeriod)) {
+      setBankTablePeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [availablePeriods, bankChartPeriod, bankTablePeriod, importedData]);
+  const bankChartData = bwaChartDataForPeriod(importedData, monthlyData, bankChartPeriod);
+  const bankTableSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, bankTablePeriod)) : sites;
   const bankKpis = [
     { label: "Gesamtleistung YTD", value: eur(metrics.gesamtleistung), detail: "+4,2 % ggü. Vorjahr" },
     { label: "EBITDA YTD", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} EBITDA-Marge` },
@@ -5253,9 +5265,21 @@ function Bankenreporting({
       </Card>
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <ChartCard title={`Gesamtleistung & EBITDA Entwicklung | ${bankPeriod}`} icon={TrendingUp}>
+        <ChartCard title={`Gesamtleistung & EBITDA Entwicklung | ${performancePeriodLabel(bankChartPeriod)}`} icon={TrendingUp}>
+          <div className="mb-3">
+            <Select
+              value={bankChartPeriod}
+              onChange={(event) => setBankChartPeriod(event.target.value)}
+            >
+              {availablePeriods.map((option) => (
+                <option key={option} value={option}>
+                  {performancePeriodLabel(option)}
+                </option>
+              ))}
+            </Select>
+          </div>
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={monthlyData}>
+            <ComposedChart data={bankChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
@@ -5287,8 +5311,19 @@ function Bankenreporting({
       </div>
 
       <Card className="overflow-hidden">
-        <div className="border-b border-border p-4">
-          <h2 className="font-bold">Standortbeitrag für Bankenreporting | seit Vertragsstart</h2>
+        <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="font-bold">Standortbeitrag für Bankenreporting | {performancePeriodLabel(bankTablePeriod)}</h2>
+          <Select
+            className="w-full sm:w-64"
+            value={bankTablePeriod}
+            onChange={(event) => setBankTablePeriod(event.target.value)}
+          >
+            {availablePeriods.map((option) => (
+              <option key={option} value={option}>
+                {performancePeriodLabel(option)}
+              </option>
+            ))}
+          </Select>
         </div>
         <div className="overflow-x-auto">
           <table className="data-table border-separate border-spacing-0 text-sm">
@@ -5302,7 +5337,7 @@ function Bankenreporting({
               </tr>
             </thead>
             <tbody>
-              {sortSitesByContractStart(sites).map((site) => (
+              {sortSitesByContractStart(bankTableSites).map((site) => (
                 <tr key={site.id}>
                   <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
                   <td className="border-b border-r border-border p-3 text-right">{eur(site.gesamtleistung)}</td>
