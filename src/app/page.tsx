@@ -2299,9 +2299,11 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen lg:flex">
-      <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 border-r border-border bg-white/92 px-5 py-6 backdrop-blur lg:block">
-        <Brand onClick={() => go("cockpit")} />
-        <nav className="mt-8 space-y-1">
+      <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 flex-col border-r border-border bg-white/92 px-5 py-6 backdrop-blur lg:flex">
+        <div className="shrink-0">
+          <Brand onClick={() => go("cockpit")} />
+        </div>
+        <nav className="mt-8 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pb-4 pr-1">
           {visibleDesktopNav.map((item) => (
             <NavButton
               key={item.id}
@@ -2312,7 +2314,7 @@ export default function HomePage() {
             />
           ))}
         </nav>
-        <div className="absolute bottom-6 left-5 right-5 rounded-lg border border-border bg-slate-50 p-4">
+        <div className="shrink-0 rounded-lg border border-border bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Nutzer</p>
           <p className="mt-1 font-semibold">Svend Neumann</p>
           <p className="text-sm text-muted-foreground">{isAdmin ? "Admin-Zugang" : "Info-Zugang"}</p>
