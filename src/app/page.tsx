@@ -1574,9 +1574,26 @@ function AuthFlow({
 }) {
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   const [passkeyMessage, setPasskeyMessage] = useState("");
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+
+  useEffect(() => {
+    const updateDeviceMode = () => {
+      const hasTouch = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+      const isSmallScreen = window.matchMedia("(max-width: 768px)").matches;
+      setIsMobileDevice(hasTouch && isSmallScreen);
+    };
+
+    updateDeviceMode();
+    window.addEventListener("resize", updateDeviceMode);
+    return () => window.removeEventListener("resize", updateDeviceMode);
+  }, []);
 
   const handlePasskeyLogin = async () => {
     setPasskeyMessage("");
+    if (!isMobileDevice) {
+      setPasskeyMessage("Face ID ist nur für den mobilen Login vorgesehen.");
+      return;
+    }
     if (!window.PublicKeyCredential || !navigator.credentials) {
       setPasskeyMessage("Face ID wird von diesem Browser oder Gerät nicht unterstützt.");
       return;
@@ -1688,10 +1705,12 @@ function AuthFlow({
               <Button className="w-full" onClick={() => setStep("login")}>
                 Anmelden
               </Button>
-              <Button className="w-full gap-2" variant="secondary" onClick={handlePasskeyLogin} disabled={passkeyBusy}>
-                <Fingerprint className="h-4 w-4" />
-                {passkeyBusy ? "Face ID wird geprüft ..." : "Mit Face ID anmelden"}
-              </Button>
+              {isMobileDevice && (
+                <Button className="w-full gap-2" variant="secondary" onClick={handlePasskeyLogin} disabled={passkeyBusy}>
+                  <Fingerprint className="h-4 w-4" />
+                  {passkeyBusy ? "Face ID wird geprüft ..." : "Mit Face ID anmelden"}
+                </Button>
+              )}
               <Button className="w-full" variant="secondary" onClick={() => setStep("forgot")}>
                 Passwort vergessen
               </Button>
@@ -1705,10 +1724,12 @@ function AuthFlow({
               <Button className="w-full" onClick={() => setStep("first-password")}>
                 Einloggen
               </Button>
-              <Button className="w-full gap-2" variant="secondary" onClick={handlePasskeyLogin} disabled={passkeyBusy}>
-                <Fingerprint className="h-4 w-4" />
-                {passkeyBusy ? "Face ID wird geprüft ..." : "Mit Face ID anmelden"}
-              </Button>
+              {isMobileDevice && (
+                <Button className="w-full gap-2" variant="secondary" onClick={handlePasskeyLogin} disabled={passkeyBusy}>
+                  <Fingerprint className="h-4 w-4" />
+                  {passkeyBusy ? "Face ID wird geprüft ..." : "Mit Face ID anmelden"}
+                </Button>
+              )}
               <Button className="w-full" variant="ghost" onClick={() => setStep("forgot")}>
                 Passwort vergessen
               </Button>
