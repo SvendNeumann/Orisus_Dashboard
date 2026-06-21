@@ -944,6 +944,13 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const pvsUmsatz = Math.round(sumRows(siteRows, null, ["pvs_gesamtumsatz_inkl_fl_mat"], ["finanzen"]));
     const ebitda = Math.round(sumRows(siteRows, null, ["ebitda"], ["bwa"]));
     const cashflow = Math.round(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]));
+    const vorlaeufigesErgebnis = Math.round(sumRows(siteRows, null, ["vorlaufiges_ergebnis"], ["bwa"]));
+    const cashflowAbschreibungen = Math.round(sumRows(siteRows, null, ["plus_abschreibungen"], ["bwa"]));
+    const investitionsausgaben = Math.abs(Math.round(sumRows(siteRows, null, ["investitionsausgaben"], ["bwa"])));
+    const umbuchungZmvz = Math.abs(Math.round(sumRows(siteRows, null, ["umbuchung_zmvz"], ["bwa"])));
+    const sonstigeRueckstellungenBestandsminderungen = Math.round(
+      sumRows(siteRows, null, ["sonstige_ruckstellungen_bestandsminderungen"], ["bwa"])
+    );
     const inputKontostand = latestKontostandFromWorkbook(workbook, siteName);
     const kontostand = Math.round(
       inputKontostand ??
@@ -987,6 +994,14 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
       ebitda,
       ebitdaMarge,
       cashflow,
+      cashflowDetails: {
+        vorlaeufigesErgebnis,
+        abschreibungen: cashflowAbschreibungen,
+        investitionsausgaben,
+        tilgung,
+        umbuchungZmvz,
+        sonstigeRueckstellungenBestandsminderungen
+      },
       kontostand,
       forderungen,
       materialquote,
@@ -3974,17 +3989,32 @@ function EbitdaBridge({ sites = standorte }: { sites?: DashboardSite[] }) {
 
 function CashflowBridge({ sites = standorte }: { sites?: DashboardSite[] }) {
   const metrics = cfoMetrics(sites);
-  const abschreibungen = Math.round(metrics.gesamtleistung * 0.17);
-  const investitionen = -Math.round(metrics.gesamtleistung * 0.035);
-  const umbuchen = -Math.round(metrics.gesamtleistung * 0.025);
-  const sonstigeAdjustments = metrics.cashflow - metrics.ebitda - abschreibungen - investitionen + metrics.tilgung - umbuchen;
+  const hasImportedDetails = sites.some((site) => site.cashflowDetails);
+  const abschreibungen = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.abschreibungen ?? 0), 0)
+    : Math.round(metrics.gesamtleistung * 0.17);
+  const investitionen = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.investitionsausgaben ?? 0), 0)
+    : Math.round(metrics.gesamtleistung * 0.035);
+  const tilgung = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.tilgung ?? site.darlehen.tilgung), 0)
+    : metrics.tilgung;
+  const umbuchen = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.umbuchungZmvz ?? 0), 0)
+    : Math.round(metrics.gesamtleistung * 0.025);
+  const sonstigeRueckstellungen = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.sonstigeRueckstellungenBestandsminderungen ?? 0), 0)
+    : 0;
+  const vorlaeufigesErgebnis = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.vorlaeufigesErgebnis ?? 0), 0)
+    : metrics.cashflow - abschreibungen + investitionen + tilgung + umbuchen + sonstigeRueckstellungen;
   const rows: BridgeRow[] = [
-    { label: "EBITDA", value: metrics.ebitda, tone: "blue" },
+    { label: "Vorläufiges Ergebnis", value: vorlaeufigesErgebnis, tone: vorlaeufigesErgebnis >= 0 ? "blue" : "red" },
     { label: "+ Abschreibungen", value: abschreibungen },
-    { label: "Investitionsausgaben", value: investitionen },
-    { label: "Tilgung", value: -metrics.tilgung },
-    { label: "Umbuchung ZMVZ", value: umbuchen },
-    { label: "Sonstige Adjustments", value: sonstigeAdjustments },
+    { label: "Investitionsausgaben", value: -investitionen },
+    { label: "Tilgung", value: -tilgung },
+    { label: "Umbuchung ZMVZ", value: -umbuchen },
+    { label: "Sonstige Rückstellungen / Bestandsminderungen", value: -sonstigeRueckstellungen },
     { label: "CashFlow Gesamt", value: metrics.cashflow, tone: metrics.cashflow >= 0 ? "green" : "red" }
   ];
 

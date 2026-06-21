@@ -11,6 +11,14 @@ export type Standort = {
   ebitda: number;
   ebitdaMarge: number;
   cashflow: number;
+  cashflowDetails?: {
+    vorlaeufigesErgebnis: number;
+    abschreibungen: number;
+    investitionsausgaben: number;
+    tilgung: number;
+    umbuchungZmvz: number;
+    sonstigeRueckstellungenBestandsminderungen: number;
+  };
   kontostand: number;
   forderungen: number;
   materialquote: number;
