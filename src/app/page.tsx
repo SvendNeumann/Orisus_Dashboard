@@ -2132,8 +2132,8 @@ function Cockpit({
 
       <div className="grid gap-5 xl:grid-cols-3">
         <CostRatios sites={sites} />
-        <Ranking title="EBITDA je Standort" metric="ebitda" sites={sites} />
-        <Ranking title="Gesamtleistung je Standort" metric="gesamtleistung" sites={sites} />
+        <Ranking title="EBITDA je Standort | seit Vertragsstart" metric="ebitda" sites={sites} />
+        <Ranking title="Gesamtleistung je Standort | seit Vertragsstart" metric="gesamtleistung" sites={sites} />
       </div>
 
       <CashflowBlock sites={sites} />
