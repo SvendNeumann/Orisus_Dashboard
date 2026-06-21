@@ -1405,8 +1405,8 @@ export default function HomePage() {
 
       {menuOpen && (
         <div className="fixed inset-0 z-40 bg-slate-950/35 lg:hidden">
-          <div className="ml-auto h-full w-80 max-w-[86vw] bg-white p-5 shadow-soft">
-            <div className="flex items-center justify-between">
+          <div className="ml-auto flex h-dvh max-h-dvh w-80 max-w-[86vw] flex-col overflow-hidden bg-white p-5 shadow-soft">
+            <div className="shrink-0 flex items-center justify-between">
               <Brand compact onClick={() => go("cockpit")} />
               <button
                 aria-label="Menü schließen"
@@ -1416,23 +1416,25 @@ export default function HomePage() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <nav className="mt-7 space-y-1">
-              {desktopNav.map((item) => (
-                <NavButton
-                  key={item.id}
-                  active={page === item.id || (item.id === "standorte" && page === "standort-detail")}
-                  icon={item.icon}
-                  label={item.label}
-                  onClick={() => go(item.id as Page)}
-                />
-              ))}
-            </nav>
-            <div className="mt-6 rounded-lg border border-border bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase text-muted-foreground">Sitzung</p>
-              <p className="mt-1 text-sm text-muted-foreground">Du bleibst angemeldet, bis du dich aktiv abmeldest.</p>
-              <Button className="mt-4 w-full" variant="secondary" onClick={logout}>
-                Abmelden
-              </Button>
+            <div className="mt-7 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-24 pr-1">
+              <nav className="space-y-1">
+                {desktopNav.map((item) => (
+                  <NavButton
+                    key={item.id}
+                    active={page === item.id || (item.id === "standorte" && page === "standort-detail")}
+                    icon={item.icon}
+                    label={item.label}
+                    onClick={() => go(item.id as Page)}
+                  />
+                ))}
+              </nav>
+              <div className="mt-6 rounded-lg border border-border bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Sitzung</p>
+                <p className="mt-1 text-sm text-muted-foreground">Du bleibst angemeldet, bis du dich aktiv abmeldest.</p>
+                <Button className="mt-4 w-full" variant="secondary" onClick={logout}>
+                  Abmelden
+                </Button>
+              </div>
             </div>
           </div>
         </div>
