@@ -3131,9 +3131,9 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
           ))}
         </Select>
       </div>
-      <div className="overflow-x-auto">
+      <div className="max-h-[72vh] overflow-auto">
         <div className="min-w-[840px]">
-          <div className="grid grid-cols-[1.35fr_1fr_1fr] gap-3 border-b border-border bg-slate-50 p-3 text-xs font-bold uppercase text-muted-foreground">
+          <div className="sticky top-0 z-20 grid grid-cols-[1.35fr_1fr_1fr] gap-3 border-b border-border bg-slate-50 p-3 text-xs font-bold uppercase text-muted-foreground shadow-sm">
             <span>Position</span>
             <span className="text-right">{period}</span>
             <span className="text-right">Vertragsperiode seit Start</span>
@@ -3591,7 +3591,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
           <option>2026</option>
         </Select>
       </div>
-      <div className="overflow-x-auto">
+      <div className="max-h-[72vh] overflow-auto">
         <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
