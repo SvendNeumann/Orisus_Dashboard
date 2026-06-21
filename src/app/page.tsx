@@ -1360,7 +1360,9 @@ export default function HomePage() {
         window.localStorage.removeItem(importStorageKey);
         return;
       }
-      setImportedData(parsedImport);
+      const repairedImport = repairImportedCashflowData(parsedImport);
+      window.localStorage.setItem(importDashboardStorageKey, JSON.stringify(repairedImport));
+      setImportedData(repairedImport);
     } catch {
       window.localStorage.removeItem(importDashboardStorageKey);
     }
@@ -1496,7 +1498,7 @@ export default function HomePage() {
           {importedData && page === "darlehen" && <Darlehen sites={dashboardSites} />}
           {importedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {page === "uploads" && <Uploads onImportConfirmed={setImportedData} onImportReset={() => setImportedData(null)} />}
+          {page === "uploads" && <Uploads onImportConfirmed={(data) => setImportedData(repairImportedCashflowData(data))} onImportReset={() => setImportedData(null)} />}
           {page === "reports" && <Reports />}
           {page === "admin" && <AdminKpiRules />}
         </div>
@@ -3386,6 +3388,77 @@ function importedPeriodValue(row: Pick<ImportedBwaRow, "valuesByYear" | "valuesB
 
 function importedBwaMetricValue(importedRows: ImportedBwaRow[] | undefined, siteId: string, metricKey: string, period: string) {
   return importedPeriodValue(importedRows?.find((row) => row.siteId === siteId && row.metricKey === metricKey), period);
+}
+
+function repairImportedCashflowData(importedData: ImportedDashboardData): ImportedDashboardData {
+  if (!importedData.bwaRows?.length) return importedData;
+  const rowsBySiteMetric = new Map(importedData.bwaRows.map((row) => [`${row.siteId}:${row.metricKey}`, row]));
+  const rowFor = (siteId: string, metricKey: string) => rowsBySiteMetric.get(`${siteId}:${metricKey}`);
+  const cashflowValue = (siteId: string, periodKey?: string) => {
+    const valueFrom = (metricKey: string) => {
+      const row = rowFor(siteId, metricKey);
+      if (!row) return 0;
+      if (!periodKey) return row.contractValue;
+      if (periodKey.includes("-")) return row.valuesByMonth[periodKey] ?? 0;
+      return row.valuesByYear[periodKey] ?? 0;
+    };
+    const abschreibungen = valueFrom("cf_abschreibungen") || valueFrom("abschreibungen");
+    return (
+      valueFrom("vorlaeufiges_ergebnis") +
+      Math.abs(abschreibungen) -
+      Math.abs(valueFrom("investitionsausgaben")) -
+      Math.abs(valueFrom("tilgung")) -
+      Math.abs(valueFrom("umbuchung_zmvz")) -
+      Math.abs(valueFrom("sonstige_rueckstellungen_bestandsminderungen"))
+    );
+  };
+
+  const bwaRows = importedData.bwaRows.map((row) => {
+    if (row.metricKey !== "cashflow_gesamt") return row;
+    const valuesByYear = Object.fromEntries(Object.keys(row.valuesByYear).map((periodKey) => [periodKey, cashflowValue(row.siteId, periodKey)]));
+    const valuesByMonth = Object.fromEntries(Object.keys(row.valuesByMonth).map((periodKey) => [periodKey, cashflowValue(row.siteId, periodKey)]));
+    return {
+      ...row,
+      valuesByYear,
+      valuesByMonth,
+      contractValue: cashflowValue(row.siteId)
+    };
+  });
+
+  const sites = importedData.sites.map((site) => {
+    const details = {
+      vorlaeufigesErgebnis: Math.round(rowFor(site.id, "vorlaeufiges_ergebnis")?.contractValue ?? site.cashflowDetails?.vorlaeufigesErgebnis ?? 0),
+      abschreibungen: Math.abs(
+        Math.round(
+          rowFor(site.id, "cf_abschreibungen")?.contractValue ??
+            rowFor(site.id, "abschreibungen")?.contractValue ??
+            site.cashflowDetails?.abschreibungen ??
+            0
+        )
+      ),
+      investitionsausgaben: Math.abs(Math.round(rowFor(site.id, "investitionsausgaben")?.contractValue ?? site.cashflowDetails?.investitionsausgaben ?? 0)),
+      tilgung: Math.abs(Math.round(rowFor(site.id, "tilgung")?.contractValue ?? site.cashflowDetails?.tilgung ?? site.darlehen.tilgung ?? 0)),
+      umbuchungZmvz: Math.abs(Math.round(rowFor(site.id, "umbuchung_zmvz")?.contractValue ?? site.cashflowDetails?.umbuchungZmvz ?? 0)),
+      sonstigeRueckstellungenBestandsminderungen: Math.abs(
+        Math.round(
+          rowFor(site.id, "sonstige_rueckstellungen_bestandsminderungen")?.contractValue ??
+            site.cashflowDetails?.sonstigeRueckstellungenBestandsminderungen ??
+            0
+        )
+      )
+    };
+    const cashflow = Math.round(
+      details.vorlaeufigesErgebnis +
+        details.abschreibungen -
+        details.investitionsausgaben -
+        details.tilgung -
+        details.umbuchungZmvz -
+        details.sonstigeRueckstellungenBestandsminderungen
+    );
+    return { ...site, cashflow, cashflowDetails: details };
+  });
+
+  return { ...importedData, sites, bwaRows };
 }
 
 function filteredSiteForPeriod(site: DashboardSite, importedData: ImportedDashboardData | null | undefined, period: string): DashboardSite {
@@ -5339,10 +5412,11 @@ function Uploads({
 
   function confirmImport() {
     if ((report.status !== "ready" && report.status !== "warning") || !pendingDashboardData) return;
+    const repairedDashboardData = repairImportedCashflowData(pendingDashboardData);
     window.localStorage.setItem(importStorageKey, JSON.stringify(report));
-    window.localStorage.setItem(importDashboardStorageKey, JSON.stringify(pendingDashboardData));
+    window.localStorage.setItem(importDashboardStorageKey, JSON.stringify(repairedDashboardData));
     setConfirmedReport(report);
-    onImportConfirmed?.(pendingDashboardData);
+    onImportConfirmed?.(repairedDashboardData);
   }
 
   function resetImport() {
