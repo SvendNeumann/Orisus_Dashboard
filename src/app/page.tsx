@@ -89,7 +89,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-site-cards-consolidated-balances-v1";
+const importDashboardSchemaVersion = "2026-06-21-site-cards-contract-period-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -317,6 +317,12 @@ function startDateValue(value: string) {
   const [day, month, year] = value.split(".").map((part) => Number(part));
   if (!day || !month || !year) return Number.MAX_SAFE_INTEGER;
   return new Date(year, month - 1, day).getTime();
+}
+
+function startPeriodValue(value: string) {
+  const [day, month, year] = value.split(".").map((part) => Number(part));
+  if (!day || !month || !year) return Number.MAX_SAFE_INTEGER;
+  return year * 100 + month;
 }
 
 function sortSitesByContractStart<T extends { start: string; name: string }>(sites: T[]) {
@@ -608,6 +614,13 @@ function latestActiveBwaYear(rows: Record<string, unknown>[], siteNames: string[
   );
 }
 
+function isOnOrAfterStart(row: Record<string, unknown>, start: string) {
+  const year = rowYear(row);
+  const month = rowMonth(row);
+  if (!year || year < 1900) return false;
+  return year * 100 + (month && month >= 1 ? month : 1) >= startPeriodValue(start);
+}
+
 function targetEbitdaValue(rows: Record<string, unknown>[], siteName: string, mode: "kv" | "uebernahme", year?: number, month?: number) {
   const monthlyMetric = mode === "kv" ? "ziel_ebitda_kv" : "ziel_ebitda_ubernahme";
   const annualMetric = mode === "kv" ? "ziel_ebitda_kaufvertrag_p_a" : "ziel_ebitda_ubernahme_p_a";
@@ -758,17 +771,27 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     .filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
   const latestYear = latestActiveBwaYear(rows, report.standorte) ?? report.jahre.filter((year) => year > 1900).at(-1) ?? new Date().getFullYear();
   const activeRows = rows.filter((row) => (rowYear(row) ?? latestYear) === latestYear);
-  const activeSiteNames = report.standorte.filter((siteName) =>
-    Array.from({ length: 12 }, (_, index) => index + 1).some((month) => hasActiveBwaMonth(rows, siteName, latestYear, month))
-  );
-  const siteNamesForCards = activeSiteNames.length ? activeSiteNames : report.standorte;
   const fallbackByName = new Map(sortSitesByContractStart(standorte).map((site) => [site.name, site]));
   const consolidationRows = consolidationRowsFromWorkbook(workbook);
+  const periodSiteNames = report.standorte.filter((siteName) => {
+    const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
+    return rows.some(
+      (row) =>
+        asText(row.Standortname) === siteName &&
+        rowDomain(row) === "bwa" &&
+        isOnOrAfterStart(row, fallback.start) &&
+        metricMatches(rowMetric(row), ["gesamtleistung", "ebitda"]) &&
+        Math.abs(asNumber(row.Wert) ?? 0) > 0
+    );
+  });
+  const siteNamesForCards = periodSiteNames.length ? periodSiteNames : report.standorte;
 
   const sites = sortSitesByContractStart(siteNamesForCards.map((siteName) => {
     const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
-    const siteRows = activeRows.filter((row) => asText(row.Standortname) === siteName);
-    const allSiteRows = consolidationRows.filter((row) => asText(row.Standortname) === siteName);
+    const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
+    const allSiteRows = consolidationRows.filter(
+      (row) => asText(row.Standortname) === siteName && ((rowYear(row) ?? 0) < 1900 || isOnOrAfterStart(row, fallback.start))
+    );
     const hasImportedSiteRows = siteRows.length > 0;
     const importedOrFallback = (value: number, fallbackValue: number) => (hasImportedSiteRows ? value : fallbackValue);
     const gesamtleistung = Math.round(importedOrFallback(sumRows(siteRows, null, ["gesamtleistung"], ["bwa"]), fallback.gesamtleistung));
