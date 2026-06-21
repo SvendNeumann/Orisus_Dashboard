@@ -37,6 +37,7 @@ import {
   Lock,
   Menu,
   PieChart as PieIcon,
+  Fingerprint,
   ShieldCheck,
   TrendingUp,
   Wallet,
@@ -86,6 +87,7 @@ const bwaPeriodOptions = [
 ];
 
 const authStorageKey = "orisus-cfo-authenticated";
+const passkeyStorageKey = "orisus-cfo-passkey-id";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
 const importDashboardSchemaVersion = "2026-06-21-performance-behandler-total-v8";
@@ -1497,6 +1499,21 @@ export default function HomePage() {
   );
 }
 
+function randomChallenge(length = 32) {
+  const bytes = new Uint8Array(length);
+  window.crypto.getRandomValues(bytes);
+  return bytes;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  return window.btoa(String.fromCharCode(...Array.from(new Uint8Array(buffer))));
+}
+
+function base64ToArrayBuffer(value: string) {
+  const binary = window.atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0)).buffer;
+}
+
 function AuthFlow({
   step,
   setStep,
@@ -1508,6 +1525,74 @@ function AuthFlow({
   pin: string;
   setPin: (pin: string) => void;
 }) {
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [passkeyMessage, setPasskeyMessage] = useState("");
+
+  const handlePasskeyLogin = async () => {
+    setPasskeyMessage("");
+    if (!window.PublicKeyCredential || !navigator.credentials) {
+      setPasskeyMessage("Face ID wird von diesem Browser oder Gerät nicht unterstützt.");
+      return;
+    }
+
+    setPasskeyBusy(true);
+    try {
+      const existingCredentialId = window.localStorage.getItem(passkeyStorageKey);
+
+      if (existingCredentialId) {
+        const credential = (await navigator.credentials.get({
+          publicKey: {
+            challenge: randomChallenge(),
+            allowCredentials: [
+              {
+                id: base64ToArrayBuffer(existingCredentialId),
+                type: "public-key"
+              }
+            ],
+            timeout: 60000,
+            userVerification: "required"
+          }
+        })) as PublicKeyCredential | null;
+
+        if (!credential) throw new Error("no-passkey");
+        setStep("app");
+        return;
+      }
+
+      const credential = (await navigator.credentials.create({
+        publicKey: {
+          challenge: randomChallenge(),
+          rp: {
+            name: "Orisus CFO Dashboard"
+          },
+          user: {
+            id: new TextEncoder().encode("svend.neumann@orisus.de"),
+            name: "svend.neumann@orisus.de",
+            displayName: "Svend Neumann"
+          },
+          pubKeyCredParams: [
+            { alg: -7, type: "public-key" },
+            { alg: -257, type: "public-key" }
+          ],
+          authenticatorSelection: {
+            residentKey: "preferred",
+            userVerification: "required"
+          },
+          timeout: 60000,
+          attestation: "none"
+        }
+      })) as PublicKeyCredential | null;
+
+      if (!credential) throw new Error("no-passkey");
+      window.localStorage.setItem(passkeyStorageKey, arrayBufferToBase64(credential.rawId));
+      setStep("app");
+    } catch {
+      setPasskeyMessage("Face ID konnte nicht bestätigt werden. Bitte erneut versuchen oder normal anmelden.");
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#eef3f4] px-4 py-5 sm:px-6 sm:py-8">
       <div className="mx-auto grid max-w-7xl gap-6 lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.18fr_0.82fr]">
@@ -1556,9 +1641,14 @@ function AuthFlow({
               <Button className="w-full" onClick={() => setStep("login")}>
                 Anmelden
               </Button>
+              <Button className="w-full gap-2" variant="secondary" onClick={handlePasskeyLogin} disabled={passkeyBusy}>
+                <Fingerprint className="h-4 w-4" />
+                {passkeyBusy ? "Face ID wird geprüft ..." : "Mit Face ID anmelden"}
+              </Button>
               <Button className="w-full" variant="secondary" onClick={() => setStep("forgot")}>
                 Passwort vergessen
               </Button>
+              {passkeyMessage && <p className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">{passkeyMessage}</p>}
             </>
           )}
           {step === "login" && (
@@ -1568,9 +1658,14 @@ function AuthFlow({
               <Button className="w-full" onClick={() => setStep("first-password")}>
                 Einloggen
               </Button>
+              <Button className="w-full gap-2" variant="secondary" onClick={handlePasskeyLogin} disabled={passkeyBusy}>
+                <Fingerprint className="h-4 w-4" />
+                {passkeyBusy ? "Face ID wird geprüft ..." : "Mit Face ID anmelden"}
+              </Button>
               <Button className="w-full" variant="ghost" onClick={() => setStep("forgot")}>
                 Passwort vergessen
               </Button>
+              {passkeyMessage && <p className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">{passkeyMessage}</p>}
             </FormShell>
           )}
           {step === "first-password" && (
