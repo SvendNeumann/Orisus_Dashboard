@@ -2910,13 +2910,13 @@ function ConsolidatedBwaMatrix({
           </thead>
           <tbody>
             {rowTemplate.map((row, rowIndex) => (
-              <tr key={row.label}>
+              <tr key={row.label} className={cn(row.emphasis && "summary-row")}>
                 <td
                   className={cn(
                     "sticky left-0 z-10 table-label-col border-b border-r border-border bg-white p-2 font-semibold",
                     row.indent && "pl-6 font-medium text-muted-foreground",
                     row.percent && "text-xs",
-                    row.emphasis && "table-total text-foreground",
+                    row.emphasis && "table-total font-bold text-foreground",
                     row.kind === "cashflow" && "table-cashflow"
                   )}
                 >
@@ -2994,7 +2994,7 @@ function FragmentCells({
           row.percent && "text-xs",
           row.percent && "table-ratio",
           bwaValueToneClass(row.actual, row.label),
-          row.emphasis && "table-total text-foreground",
+          row.emphasis && "table-total font-bold text-foreground",
           row.kind === "cashflow" && "table-cashflow"
         )}
       >
@@ -3290,14 +3290,14 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
               const totalValue = row.months.reduce<number>((sum, value) => sum + (value ?? 0), 0);
               const average = totalValue / activeMonthCount;
               return (
-                <tr key={row.label}>
+                <tr key={row.label} className={cn(row.emphasis && !row.section && "summary-row")}>
                   <td
                     className={cn(
                       "sticky left-0 z-10 table-label-col border-b border-r border-border bg-white p-2 font-semibold",
                       row.indent && "pl-6 font-medium text-muted-foreground",
                       row.section && "table-total font-bold text-foreground",
                       row.percent && "text-xs",
-                      row.emphasis && "table-total text-foreground",
+                      row.emphasis && "table-total font-bold text-foreground",
                       row.kind === "cashflow" && "table-cashflow"
                     )}
                   >
@@ -3796,19 +3796,19 @@ function MonthlyEbitdaTable({ targetBySite, sites = standorte, monthlyData = mon
                 <TableCell>{pct((row.cumulative / row.targetBank) * 100)}</TableCell>
               </tr>
             ))}
-            <tr>
-              <TableCell strong>YTD / Gesamt</TableCell>
+            <tr className="summary-row">
+              <TableCell strong summary>YTD / Gesamt</TableCell>
               {ytdBySite.map((value, index) => (
-                <TableCell key={activeSites[index].id} strong>{eur(value)}</TableCell>
+                <TableCell key={activeSites[index].id} strong summary>{eur(value)}</TableCell>
               ))}
-              <TableCell strong>{eur(ytdTotal)}</TableCell>
-              <TableCell strong>{eur(ytdTotal)}</TableCell>
-              <TableCell strong>{eur(ytdTarget)}</TableCell>
-              <TableCell strong tone={ytdTotal - ytdTarget < 0 ? "red" : "green"}>{eur(ytdTotal - ytdTarget)}</TableCell>
-              <TableCell strong>{eur(ytdBankTarget)}</TableCell>
-              <TableCell strong tone={ytdTotal - ytdBankTarget < 0 ? "red" : "green"}>{eur(ytdTotal - ytdBankTarget)}</TableCell>
-              <TableCell strong>{pct((ytdTotal / ytdTarget) * 100)}</TableCell>
-              <TableCell strong>{pct((ytdTotal / ytdBankTarget) * 100)}</TableCell>
+              <TableCell strong summary>{eur(ytdTotal)}</TableCell>
+              <TableCell strong summary>{eur(ytdTotal)}</TableCell>
+              <TableCell strong summary>{eur(ytdTarget)}</TableCell>
+              <TableCell strong summary tone={ytdTotal - ytdTarget < 0 ? "red" : "green"}>{eur(ytdTotal - ytdTarget)}</TableCell>
+              <TableCell strong summary>{eur(ytdBankTarget)}</TableCell>
+              <TableCell strong summary tone={ytdTotal - ytdBankTarget < 0 ? "red" : "green"}>{eur(ytdTotal - ytdBankTarget)}</TableCell>
+              <TableCell strong summary>{pct((ytdTotal / ytdTarget) * 100)}</TableCell>
+              <TableCell strong summary>{pct((ytdTotal / ytdBankTarget) * 100)}</TableCell>
             </tr>
           </tbody>
         </table>
@@ -3820,17 +3820,20 @@ function MonthlyEbitdaTable({ targetBySite, sites = standorte, monthlyData = mon
 function TableCell({
   children,
   strong,
-  tone
+  tone,
+  summary
 }: {
   children: React.ReactNode;
   strong?: boolean;
   tone?: "green" | "red";
+  summary?: boolean;
 }) {
   return (
     <td
       className={cn(
         "table-number-col border-b border-r border-border bg-white p-2 text-right tabular-nums",
         strong && "font-bold",
+        summary && "table-total font-bold",
         tone === "green" && "text-emerald-700",
         tone === "red" && "text-red-700"
       )}
@@ -4114,21 +4117,21 @@ function PerformanceRevenueBlock({
                 </tr>
               );
             })}
-            <tr>
-              <TableCell strong>Gesamt</TableCell>
-              <TableCell>{""}</TableCell>
-              <TableCell strong>{eur(current)}</TableCell>
-              <TableCell strong>{eur(previous)}</TableCell>
-              <TableCell strong tone={current - previous < 0 ? "red" : "green"}>{eur(current - previous)}</TableCell>
-              <TableCell strong tone={current - previous < 0 ? "red" : "green"}>{pctDelta(current, previous)}</TableCell>
-              <TableCell strong>{eur(qtd)}</TableCell>
-              <TableCell strong>{eur(qtdPrevious)}</TableCell>
-              <TableCell strong tone={qtd - qtdPrevious < 0 ? "red" : "green"}>{pctDelta(qtd, qtdPrevious)}</TableCell>
-              <TableCell strong>{eur(lastMonth)}</TableCell>
-              <TableCell strong>{eur(lastMonthPrevious)}</TableCell>
-              <TableCell strong tone={lastMonth - lastMonthPrevious < 0 ? "red" : "green"}>{pctDelta(lastMonth, lastMonthPrevious)}</TableCell>
-              <TableCell strong>{eur(sinceTakeover)}</TableCell>
-              <TableCell strong>{eur(sinceTakeover / Math.max(activeSites.reduce((sum, site) => sum + monthsSinceStartForPeriod(site, period), 0), 1))}</TableCell>
+            <tr className="summary-row">
+              <TableCell strong summary>Gesamt</TableCell>
+              <TableCell summary>{""}</TableCell>
+              <TableCell strong summary>{eur(current)}</TableCell>
+              <TableCell strong summary>{eur(previous)}</TableCell>
+              <TableCell strong summary tone={current - previous < 0 ? "red" : "green"}>{eur(current - previous)}</TableCell>
+              <TableCell strong summary tone={current - previous < 0 ? "red" : "green"}>{pctDelta(current, previous)}</TableCell>
+              <TableCell strong summary>{eur(qtd)}</TableCell>
+              <TableCell strong summary>{eur(qtdPrevious)}</TableCell>
+              <TableCell strong summary tone={qtd - qtdPrevious < 0 ? "red" : "green"}>{pctDelta(qtd, qtdPrevious)}</TableCell>
+              <TableCell strong summary>{eur(lastMonth)}</TableCell>
+              <TableCell strong summary>{eur(lastMonthPrevious)}</TableCell>
+              <TableCell strong summary tone={lastMonth - lastMonthPrevious < 0 ? "red" : "green"}>{pctDelta(lastMonth, lastMonthPrevious)}</TableCell>
+              <TableCell strong summary>{eur(sinceTakeover)}</TableCell>
+              <TableCell strong summary>{eur(sinceTakeover / Math.max(activeSites.reduce((sum, site) => sum + monthsSinceStartForPeriod(site, period), 0), 1))}</TableCell>
             </tr>
           </tbody>
         </table>
@@ -4192,14 +4195,15 @@ function PerformanceMonthlyTable({
 function PerformanceMonthRow({ label, values }: { label: string; values: number[] }) {
   const totalValue = values.reduce((sum, value) => sum + value, 0);
   const activeMonths = values.filter((value) => value !== 0).length || 1;
+  const isSummary = label === "Gesamt";
   return (
-    <tr>
-      <TableCell strong={label === "Gesamt"}>{label}</TableCell>
+    <tr className={cn(isSummary && "summary-row")}>
+      <TableCell strong={isSummary} summary={isSummary}>{label}</TableCell>
       {values.map((value, index) => (
-        <TableCell key={`${label}-${index}`}>{value ? eur(value) : ""}</TableCell>
+        <TableCell key={`${label}-${index}`} summary={isSummary}>{value ? eur(value) : ""}</TableCell>
       ))}
-      <TableCell strong>{eur(totalValue)}</TableCell>
-      <TableCell strong>{eur(totalValue / activeMonths)}</TableCell>
+      <TableCell strong summary={isSummary}>{eur(totalValue)}</TableCell>
+      <TableCell strong summary={isSummary}>{eur(totalValue / activeMonths)}</TableCell>
     </tr>
   );
 }
@@ -4253,16 +4257,17 @@ function BankMovementsTable({ sites = standorte, monthlyData = monthly }: { site
               const fullValues = fillTwelveMonths(row.values);
               const totalValue = row.values.reduce((sum, value) => sum + value, 0);
               const activeMonths = row.values.filter((value) => value !== 0).length || 1;
+              const isSummary = !row.indent;
               return (
-                <tr key={row.label}>
-                  <TableCell strong={!row.indent}>{row.indent ? `  ${row.label}` : row.label}</TableCell>
+                <tr key={row.label} className={cn(isSummary && "summary-row")}>
+                  <TableCell strong={isSummary} summary={isSummary}>{row.indent ? `  ${row.label}` : row.label}</TableCell>
                   {fullValues.map((value, index) => (
-                    <TableCell key={`${row.label}-${index}`} tone={value < 0 ? "red" : undefined}>{value ? eur(value) : ""}</TableCell>
+                    <TableCell key={`${row.label}-${index}`} summary={isSummary} tone={value < 0 ? "red" : undefined}>{value ? eur(value) : ""}</TableCell>
                   ))}
-                  <TableCell strong tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue)}</TableCell>
-                  <TableCell strong tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue / activeMonths)}</TableCell>
-                  <TableCell strong tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract)}</TableCell>
-                  <TableCell strong tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract / activeMonths)}</TableCell>
+                  <TableCell strong summary={isSummary} tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue)}</TableCell>
+                  <TableCell strong summary={isSummary} tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue / activeMonths)}</TableCell>
+                  <TableCell strong summary={isSummary} tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract)}</TableCell>
+                  <TableCell strong summary={isSummary} tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract / activeMonths)}</TableCell>
                 </tr>
               );
             })}
