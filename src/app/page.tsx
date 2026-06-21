@@ -3499,11 +3499,17 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
 function PersonalEmployees({ personalData }: { personalData: PersonalDashboardData }) {
   const [site, setSite] = useState("Alle Standorte");
   const [status, setStatus] = useState("Alle Status");
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
   const activeEmployees = personalData.employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
   const rows = personalData.employees.filter((employee) => {
     const siteMatch = site === "Alle Standorte" || employee.site === site;
     const statusMatch = status === "Alle Status" || employee.status === status;
-    return siteMatch && statusMatch;
+    const searchable = [employee.name, employee.firstName, employee.lastName, employee.id, employee.site, employee.functionName]
+      .join(" ")
+      .toLowerCase();
+    const searchMatch = !normalizedSearch || searchable.includes(normalizedSearch);
+    return siteMatch && statusMatch && searchMatch;
   });
 
   return (
@@ -3529,6 +3535,11 @@ function PersonalEmployees({ personalData }: { personalData: PersonalDashboardDa
         <KpiCard label="Gefilterte Zeilen" value={rows.length} plain delta="aktuelle Tabellenansicht" icon={UserRound} status="green" />
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Mitarbeiter suchen..."
+        />
         <Select value={site} onChange={(event) => setSite(event.target.value)}>
           <option>Alle Standorte</option>
           {personalData.settings.sites.map((item) => <option key={item}>{item}</option>)}
