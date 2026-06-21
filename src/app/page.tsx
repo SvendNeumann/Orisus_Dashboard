@@ -89,7 +89,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-site-export-balances-v1";
+const importDashboardSchemaVersion = "2026-06-21-site-card-export-kpis-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -441,6 +441,27 @@ function lastRowsValue(rows: Record<string, unknown>[], site: string | null, met
   return asNumber(candidates[0]?.Wert) ?? 0;
 }
 
+function preferredRowsValue(rows: Record<string, unknown>[], metricGroups: string[][], domains?: string[]) {
+  for (const metrics of metricGroups) {
+    const candidates = rows
+      .filter((row) => {
+        const value = asNumber(row.Wert);
+        if (value == null || value === 0) return false;
+        const metric = rowMetric(row);
+        const domain = rowDomain(row);
+        return metricMatches(metric, metrics) && (!domains?.length || metricMatches(domain, domains));
+      })
+      .sort((a, b) => {
+        const yearDelta = (rowYear(b) ?? 0) - (rowYear(a) ?? 0);
+        if (yearDelta) return yearDelta;
+        return (rowMonth(b) ?? 0) - (rowMonth(a) ?? 0);
+      });
+    const value = asNumber(candidates[0]?.Wert);
+    if (value != null) return value;
+  }
+  return 0;
+}
+
 function monthNumberFromHeader(value: unknown) {
   const key = normalizeMetric(value);
   const months: Record<string, number> = {
@@ -548,7 +569,15 @@ function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
       })
       .filter((row) => {
         if (isExcludedPlanRow(row) || !asText(row.Kennzahl) || !asText(row.Standortname)) return false;
-        return metricMatches(rowMetric(row), ["kontostand", "kontostand_monatsende", "kontostand_per_stichtag"]);
+        return metricMatches(rowMetric(row), [
+          "kontostand",
+          "kontostand_monatsende",
+          "kontostand_per_stichtag",
+          "offene_forderungen_gesamt",
+          "soll_forderung_pvs",
+          "noch_nicht_geflossen",
+          "noch_ausstehend_vs_bank"
+        ]);
       });
   });
 }
@@ -814,12 +843,25 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const cashflow = Math.round(importedOrFallback(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]), fallback.cashflow));
     const inputKontostand = latestKontostandFromWorkbook(workbook, siteName);
     const kontostand = Math.round(
-      importedOrFallback(inputKontostand ?? lastRowsValue(allSiteRows, null, ["kontostand", "kontostand_monatsende", "kontostand_per_stichtag"], ["kontostand", "dashboard"]), fallback.kontostand)
+      importedOrFallback(
+        inputKontostand ??
+          lastRowsValue(allSiteRows, null, ["kontostand", "kontostand_monatsende", "kontostand_per_stichtag"], ["kontostand", "dashboard", "finanzen", "input_kontostand", "bwa_dashboard"]),
+        fallback.kontostand
+      )
     );
     const material = Math.abs(sumRows(siteRows, null, ["materialkosten"], ["bwa"]));
     const fremdlabor = Math.abs(sumRows(siteRows, null, ["fremdlaborkosten"], ["bwa"]));
     const personal = Math.abs(sumRows(siteRows, null, ["personalkosten"], ["bwa"]));
-    const forderungen = Math.round(importedOrFallback(lastRowsValue(siteRows, null, ["soll_forderung_pvs", "noch_ausstehend_vs_bank"], ["finanzen"]), fallback.forderungen));
+    const forderungen = Math.round(
+      importedOrFallback(
+        preferredRowsValue(
+          allSiteRows,
+          [["offene_forderungen_gesamt"], ["soll_forderung_pvs"], ["noch_nicht_geflossen"], ["noch_ausstehend_vs_bank"]],
+          ["finanzen", "dashboard", "bwa_dashboard"]
+        ),
+        fallback.forderungen
+      )
+    );
     const darlehen = Math.round(importedOrFallback(sumRows(siteRows, null, ["darlehen*", "fremdkapital*"], ["finanzen", "darlehen"]), fallback.darlehen.darlehen));
     const tilgung = Math.abs(Math.round(importedOrFallback(sumRows(siteRows, null, ["tilgung"], ["finanzen", "bwa"]), fallback.darlehen.tilgung)));
     const restschuld = Math.max(0, Math.round(importedOrFallback(lastRowsValue(siteRows, null, ["restschuld", "rest_fremdkapital"], ["finanzen", "darlehen"]), Math.max(0, darlehen - tilgung))));
