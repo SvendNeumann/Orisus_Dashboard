@@ -76,7 +76,6 @@ type Page =
   | "personal-cockpit"
   | "personal-krankheit"
   | "personal-mitarbeiter"
-  | "personal-gehalt"
   | "personal-massnahmen"
   | "personal-upload";
 
@@ -906,7 +905,6 @@ const desktopNav = [
   { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users },
   { id: "personal-krankheit", label: "Krankheit / Fehlzeiten", icon: Stethoscope },
   { id: "personal-mitarbeiter", label: "Mitarbeiterübersicht", icon: UserRound },
-  { id: "personal-gehalt", label: "Gehaltshistorie", icon: BadgeEuro },
   { id: "personal-massnahmen", label: "Personalmaßnahmen", icon: CheckCircle2 },
   { id: "personal-upload", label: "Personal-Upload", icon: FileUp },
   { id: "reports", label: "Reports", icon: FileBarChart },
@@ -2218,7 +2216,7 @@ export default function HomePage() {
   const userRole = roleForEmail(userEmail);
   const isAdmin = userRole === "admin";
   const adminOnlyPages: Page[] = ["uploads", "admin", "personal-upload"];
-  const personalPages: Page[] = ["personal-cockpit", "personal-krankheit", "personal-mitarbeiter", "personal-gehalt", "personal-massnahmen", "personal-upload"];
+  const personalPages: Page[] = ["personal-cockpit", "personal-krankheit", "personal-mitarbeiter", "personal-massnahmen", "personal-upload"];
   const personalContentPages = personalPages.filter((item) => item !== "personal-upload") as Page[];
   const visibleDesktopNav = desktopNav.filter((item) => isAdmin || !adminOnlyPages.includes(item.id as Page));
   const visibleMobileNav = mobileNav.filter((item) => isAdmin || !adminOnlyPages.includes(item.id as Page));
@@ -2413,7 +2411,6 @@ export default function HomePage() {
           {personalData && page === "personal-cockpit" && <PersonalCockpit personalData={personalData} />}
           {personalData && page === "personal-krankheit" && <PersonalSickness personalData={personalData} />}
           {personalData && page === "personal-mitarbeiter" && <PersonalEmployees personalData={personalData} />}
-          {personalData && page === "personal-gehalt" && <PersonalSalaryHistory personalData={personalData} />}
           {personalData && page === "personal-massnahmen" && <PersonalActions personalData={personalData} />}
           {page === "personal-upload" && isAdmin && (
             <PersonalUpload
