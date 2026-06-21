@@ -1855,6 +1855,7 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       value: metrics.kritisch.length,
       delta: riskLabel,
       icon: Building2,
+      plain: true,
       status: metrics.kritisch.length ? "yellow" : "green"
     },
     {
@@ -1876,6 +1877,7 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
     value: number;
     delta: string;
     icon: React.ComponentType<{ className?: string }>;
+    plain?: boolean;
     status: Status;
   }>;
 
@@ -1903,6 +1905,7 @@ function KpiCard({
   label,
   value,
   percent,
+  plain,
   delta,
   icon: Icon,
   status
@@ -1910,6 +1913,7 @@ function KpiCard({
   label: string;
   value: number;
   percent?: boolean;
+  plain?: boolean;
   delta: string;
   icon: React.ComponentType<{ className?: string }>;
   status: Status;
@@ -1924,7 +1928,7 @@ function KpiCard({
         <StatusDot status={status} />
       </div>
       <p className="mt-4 text-sm font-semibold text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-bold tracking-tight">{percent ? pct(value) : eur(value, true)}</p>
+      <p className="mt-1 text-2xl font-bold tracking-tight">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
       <div className={cn("mt-3 flex items-center gap-1 text-sm font-semibold", positive ? "text-emerald-700" : "text-red-700")}>
         {positive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
         <span>{delta}</span>
