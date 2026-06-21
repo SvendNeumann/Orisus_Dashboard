@@ -3941,7 +3941,7 @@ function PerformanceRevenueBlock({
         <KennzahlTile label="Umsatz seit Übernahme" value={eur(sinceTakeover)} />
         <KennzahlTile label="Aktueller Gesamtkontostand" value={eur(totalForSites(activeSites, "kontostand"))} />
       </div>
-      <div className="mt-4 overflow-x-auto">
+      <div className="mt-5 overflow-x-auto border-t border-border pt-4">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
