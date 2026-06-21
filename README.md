@@ -20,7 +20,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://<projekt>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-public-key>
 ```
 
-In Supabase wird diese Tabelle benoetigt:
+In Supabase wird diese Tabelle benoetigt. Jeder bestaetigte Import wird als eigener Historienstand gespeichert; der aktuell genutzte Stand hat `active = true`.
 
 ```sql
 create table if not exists public.orisus_confirmed_imports (

@@ -157,6 +157,15 @@ type SupabaseAuthResponse = {
   msg?: string;
 };
 
+type ImportHistoryEntry = {
+  id: string;
+  file_name: string | null;
+  imported_at: string | null;
+  schema_version: string | null;
+  active: boolean;
+  created_at: string | null;
+};
+
 type BwaLine = {
   label: string;
   actual: number;
@@ -357,12 +366,27 @@ async function loadSupabaseConfirmedImport() {
   return repairImportedCashflowData(importedData);
 }
 
+async function loadSupabaseImportHistory() {
+  if (!isSupabaseConfigured()) return [];
+  const token = currentSupabaseAccessToken();
+  if (!token) return [];
+  return supabaseFetch<ImportHistoryEntry[]>(
+    `/rest/v1/${supabaseImportTableName}?select=id,file_name,imported_at,schema_version,active,created_at&order=created_at.desc&limit=8`,
+    undefined,
+    token
+  ).catch(() => []);
+}
+
+function importHistoryId(fileName: string) {
+  return `${Date.now()}-${fileName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "import"}`;
+}
+
 async function saveSupabaseConfirmedImport(report: ImportReport, dashboardData: ImportedDashboardData) {
   if (!isSupabaseConfigured()) return false;
   const token = currentSupabaseAccessToken();
   if (!token) return false;
   await supabaseFetch(
-    `/rest/v1/${supabaseImportTableName}?id=eq.current`,
+    `/rest/v1/${supabaseImportTableName}?active=eq.true`,
     {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
@@ -374,9 +398,9 @@ async function saveSupabaseConfirmedImport(report: ImportReport, dashboardData: 
     `/rest/v1/${supabaseImportTableName}`,
     {
       method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      headers: { Prefer: "return=minimal" },
       body: JSON.stringify({
-        id: "current",
+        id: importHistoryId(dashboardData.fileName),
         active: true,
         file_name: dashboardData.fileName,
         imported_at: dashboardData.importedAt,
@@ -395,7 +419,7 @@ async function clearSupabaseConfirmedImport() {
   const token = currentSupabaseAccessToken();
   if (!token) return;
   await supabaseFetch(
-    `/rest/v1/${supabaseImportTableName}?id=eq.current`,
+    `/rest/v1/${supabaseImportTableName}?active=eq.true`,
     {
       method: "DELETE",
       headers: { Prefer: "return=minimal" }
@@ -407,7 +431,7 @@ async function clearSupabaseConfirmedImport() {
 async function loadConfirmedImportData() {
   const supabaseDashboard = await loadSupabaseConfirmedImport();
   if (supabaseDashboard) {
-    await saveConfirmedImport(supabaseDashboard.report, supabaseDashboard);
+    await saveLocalConfirmedImport(supabaseDashboard.report, supabaseDashboard);
     return supabaseDashboard;
   }
   const persistentDashboard = await readPersistentValue<ImportedDashboardData>(importPersistenceDashboardKey);
@@ -424,8 +448,7 @@ async function loadConfirmedImportData() {
   return repairedImport;
 }
 
-async function saveConfirmedImport(report: ImportReport, dashboardData: ImportedDashboardData) {
-  await saveSupabaseConfirmedImport(report, dashboardData);
+async function saveLocalConfirmedImport(report: ImportReport, dashboardData: ImportedDashboardData) {
   const savedReport = await writePersistentValue(importPersistenceReportKey, report);
   const savedDashboard = await writePersistentValue(importPersistenceDashboardKey, dashboardData);
   window.localStorage.setItem(importStorageKey, JSON.stringify(report));
@@ -434,6 +457,11 @@ async function saveConfirmedImport(report: ImportReport, dashboardData: Imported
     return;
   }
   window.localStorage.setItem(importDashboardStorageKey, JSON.stringify(dashboardData));
+}
+
+async function saveConfirmedImport(report: ImportReport, dashboardData: ImportedDashboardData) {
+  await saveSupabaseConfirmedImport(report, dashboardData);
+  await saveLocalConfirmedImport(report, dashboardData);
 }
 
 async function clearConfirmedImport() {
@@ -5927,6 +5955,11 @@ function Uploads({
   const [report, setReport] = useState<ImportReport>(emptyImportReport);
   const [confirmedReport, setConfirmedReport] = useState<ImportReport | null>(null);
   const [pendingDashboardData, setPendingDashboardData] = useState<ImportedDashboardData | null>(null);
+  const [importHistory, setImportHistory] = useState<ImportHistoryEntry[]>([]);
+
+  const refreshImportHistory = () => {
+    loadSupabaseImportHistory().then(setImportHistory);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -5940,6 +5973,10 @@ function Uploads({
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    refreshImportHistory();
   }, []);
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
@@ -5982,6 +6019,7 @@ function Uploads({
     const repairedDashboardData = repairImportedCashflowData(pendingDashboardData);
     await saveConfirmedImport(report, repairedDashboardData);
     setConfirmedReport(report);
+    refreshImportHistory();
     onImportConfirmed?.(repairedDashboardData);
   }
 
@@ -5990,6 +6028,7 @@ function Uploads({
     setReport(emptyImportReport);
     setConfirmedReport(null);
     setPendingDashboardData(null);
+    refreshImportHistory();
     onImportReset?.();
   }
 
@@ -6026,6 +6065,11 @@ function Uploads({
           label="Datenstand"
           value={confirmedReport?.importedAt ? new Date(confirmedReport.importedAt).toLocaleString("de-DE") : "Noch offen"}
         />
+      </Card>
+      <Card className="grid gap-3 p-4 md:grid-cols-3">
+        <Mini label="Zentrale Speicherung" value={isSupabaseConfigured() ? "Supabase verbunden" : "Lokal aktiv"} />
+        <Mini label="Supabase-Sitzung" value={currentSupabaseAccessToken() ? "Angemeldet" : "Nicht aktiv"} />
+        <Mini label="Import-Historie" value={importHistory.length ? `${importHistory.length} Einträge erkannt` : "Noch keine Historie"} />
       </Card>
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="p-4">
@@ -6141,6 +6185,45 @@ function Uploads({
                 ))}
               </div>
             </div>
+          </div>
+        )}
+      </Card>
+      <Card className="overflow-hidden">
+        <div className="border-b border-border p-4">
+          <h2 className="font-bold">Import-Historie</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Supabase speichert bestätigte Importstände. Der aktive Stand ist die aktuell genutzte Datenbasis der App.
+          </p>
+        </div>
+        {importHistory.length ? (
+          <div className="overflow-x-auto">
+            <table className="data-table border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr>
+                  {["Status", "Datei", "Bestätigt am", "Schema"].map((head) => (
+                    <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
+                      {head}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {importHistory.map((entry) => (
+                  <tr key={entry.id} className={entry.active ? "table-total" : undefined}>
+                    <td className="border-b border-r border-border p-3 font-bold">{entry.active ? "Aktiv" : "Historie"}</td>
+                    <td className="border-b border-r border-border p-3">{entry.file_name ?? "Unbekannte Datei"}</td>
+                    <td className="border-b border-r border-border p-3">
+                      {entry.imported_at ? new Date(entry.imported_at).toLocaleString("de-DE") : "Ohne Zeitstempel"}
+                    </td>
+                    <td className="border-b border-r border-border p-3 text-xs">{entry.schema_version ?? "offen"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-4 text-sm text-muted-foreground">
+            Noch keine zentrale Historie erkannt. Nach dem nächsten bestätigten Import erscheint hier der aktive Supabase-Datenstand.
           </div>
         )}
       </Card>
