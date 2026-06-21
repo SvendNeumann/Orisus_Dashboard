@@ -87,7 +87,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-pvs-receivables-v1";
+const importDashboardSchemaVersion = "2026-06-21-debt-source-refresh-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -583,7 +583,19 @@ function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
           "offene_forderungen_gesamt",
           "soll_forderung_pvs",
           "noch_nicht_geflossen",
-          "noch_ausstehend_vs_bank"
+          "noch_ausstehend_vs_bank",
+          "aufgenommenes_fremdkapital",
+          "davon_aufgenommenes_fremdkapital_nicht_bankwirksam",
+          "darlehen*",
+          "fremdkapital*",
+          "restschuld",
+          "rest_fremdkapital",
+          "tilgung",
+          "tilgung_kredit_zins",
+          "davon_tilgung_zins",
+          "zins*",
+          "zinsen*",
+          "zinsen_neutraler_aufwand"
         ]);
       });
   });
@@ -911,10 +923,21 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
         ["finanzen", "dashboard", "bwa_dashboard"]
       )
     );
-    const darlehen = Math.round(sumRows(siteRows, null, ["darlehen*", "fremdkapital*"], ["finanzen", "darlehen"]));
-    const tilgung = Math.abs(Math.round(sumRows(siteRows, null, ["tilgung"], ["finanzen", "bwa"])));
-    const zins = Math.abs(Math.round(sumRows(siteRows, null, ["zins*", "zinsen*"], ["finanzen", "darlehen", "bwa"])));
-    const restschuld = Math.max(0, Math.round(lastRowsValue(siteRows, null, ["restschuld", "rest_fremdkapital"], ["finanzen", "darlehen"]) || Math.max(0, darlehen - tilgung)));
+    const darlehen = Math.round(
+      preferredRowsValue(
+        allSiteRows,
+        [["aufgenommenes_fremdkapital"], ["davon_aufgenommenes_fremdkapital_nicht_bankwirksam"], ["darlehen*"], ["fremdkapital*"]],
+        ["stammdaten", "finanzen", "darlehen"]
+      )
+    );
+    const bwaTilgung = Math.abs(Math.round(sumRows(siteRows, null, ["tilgung"], ["bwa"])));
+    const fallbackTilgung = Math.abs(
+      Math.round(sumRows(allSiteRows, null, ["tilgung_kredit_zins", "davon_tilgung_zins", "tilgung"], ["finanzen", "darlehen"]))
+    );
+    const tilgung = bwaTilgung || fallbackTilgung;
+    const zins = Math.abs(Math.round(sumRows(siteRows, null, ["zinsen_neutraler_aufwand", "zins*", "zinsen*"], ["bwa"])));
+    const explicitRestschuld = lastRowsValue(allSiteRows, null, ["restschuld", "rest_fremdkapital"], ["finanzen", "darlehen", "stammdaten"]);
+    const restschuld = Math.max(0, Math.round(explicitRestschuld || Math.max(0, darlehen - tilgung)));
     const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0;
     const materialquote = gesamtleistung ? (material / gesamtleistung) * 100 : 0;
     const fremdlaborquote = gesamtleistung ? (fremdlabor / gesamtleistung) * 100 : 0;
