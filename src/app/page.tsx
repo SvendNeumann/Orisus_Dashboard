@@ -1495,7 +1495,7 @@ export default function HomePage() {
           {importedData && page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "bwa" && <Bwa importedData={importedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
           {importedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {importedData && page === "darlehen" && <Darlehen sites={dashboardSites} />}
+          {importedData && page === "darlehen" && <Darlehen sites={dashboardSites} importedData={importedData} />}
           {importedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {page === "uploads" && <Uploads onImportConfirmed={(data) => setImportedData(repairImportedCashflowData(data))} onImportReset={() => setImportedData(null)} />}
@@ -5358,6 +5358,19 @@ function displayDateValue(value: string) {
   return new Date(year, month - 1, day).getTime();
 }
 
+function germanDateParts(value: string) {
+  const [day, month, year] = value.split(".").map((part) => Number(part));
+  if (!day || !month || !year) return null;
+  return { day, month, year };
+}
+
+function monthsBetweenGermanDates(startValue: string, endValue: string) {
+  const start = germanDateParts(startValue);
+  const end = germanDateParts(endValue);
+  if (!start || !end) return 1;
+  return Math.max(1, (end.year - start.year) * 12 + end.month - start.month + 1);
+}
+
 function isEarnOutDue(site: DashboardSite) {
   const dueDate = displayDateValue(site.darlehen.earnOutFaelligAm);
   return dueDate != null && dueDate <= Date.now();
@@ -5370,16 +5383,35 @@ function earnOutDueStatus(site: DashboardSite): { label: string; status: Status 
   return { label: "fällig", status: site.darlehen.earnOutGezahlt >= site.darlehen.earnOutGesamt ? "green" : "yellow" };
 }
 
-function Darlehen({ sites = standorte }: { sites?: DashboardSite[] }) {
+function projectedEarnOutForSite(site: DashboardSite, period: string) {
+  const open = Math.max(0, site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt);
+  const target = site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda;
+  if (!open || !target || !site.darlehen.earnOutFaelligAm) {
+    return { projectedEbitda: 0, projectedEarnOut: 0, achievement: 0 };
+  }
+  const elapsedMonths = monthsSinceStartForPeriod(site, period);
+  const contractMonths = monthsBetweenGermanDates(site.start, site.darlehen.earnOutFaelligAm);
+  const averageMonthlyEbitda = site.ebitda / Math.max(elapsedMonths, 1);
+  const projectedEbitda = Math.round(averageMonthlyEbitda * contractMonths);
+  const achievement = target ? projectedEbitda / target : 0;
+  return {
+    projectedEbitda,
+    projectedEarnOut: Math.round(open * Math.min(1, Math.max(0, achievement))),
+    achievement
+  };
+}
+
+function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
   const restschuld = sites.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
   const earnOut = sites.reduce((sum, site) => sum + site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt, 0);
   const earnOutDueNow = sites.reduce((sum, site) => sum + (isEarnOutDue(site) ? site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt : 0), 0);
   const tilgung = sites.reduce((sum, site) => sum + site.darlehen.tilgung, 0);
+  const earnOutPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
   return (
     <section className="space-y-5">
       <PageTitle title="Darlehen & Earn-Out" text="Kaufpreise, Restschulden, Zins, Tilgung und Earn-Out-Fortschritt je Standort." />
       <DebtCapitalBlock sites={sites} />
-      <EarnOutSummary sites={sites} />
+      <EarnOutSummary sites={sites} period={earnOutPeriod} />
       <div className="grid gap-4 lg:grid-cols-3">
         <KpiCard label="Gesamte Restschuld" value={restschuld} delta="Konsolidiert" icon={Landmark} status="yellow" />
         <KpiCard label="Earn-Out offen" value={earnOut} delta={`Davon aktuell fällig: ${eur(earnOutDueNow)}`} icon={BadgeEuro} status={earnOutDueNow > 0 ? "yellow" : "green"} />
@@ -5389,6 +5421,7 @@ function Darlehen({ sites = standorte }: { sites?: DashboardSite[] }) {
         {sortSitesByContractStart(sites).map((site) => {
           const achievement = site.darlehen.zielEbitda ? (site.darlehen.istEbitda / site.darlehen.zielEbitda) * 100 : 0;
           const dueStatus = earnOutDueStatus(site);
+          const projectedEarnOut = projectedEarnOutForSite(site, earnOutPeriod);
           return (
             <Card key={site.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
@@ -5403,6 +5436,7 @@ function Darlehen({ sites = standorte }: { sites?: DashboardSite[] }) {
                 <Mini label="Zins" value={eur(site.darlehen.zins, true)} />
                 <Mini label="Ziel/IST EBITDA" value={`${eur(site.darlehen.zielEbitda, true)} / ${eur(site.darlehen.istEbitda, true)}`} />
                 <Mini label="Earn-Out fällig am" value={site.darlehen.earnOutFaelligAm || "offen"} />
+                <Mini label="Run-Rate Earn-Out" value={eur(projectedEarnOut.projectedEarnOut, true)} />
               </div>
               <div className="mt-4">
                 <div className="mb-2 flex justify-between text-sm">
@@ -5419,7 +5453,7 @@ function Darlehen({ sites = standorte }: { sites?: DashboardSite[] }) {
   );
 }
 
-function EarnOutSummary({ sites = standorte }: { sites?: DashboardSite[] }) {
+function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]; period: string }) {
   const totalPotential = sites.reduce((sum, site) => sum + site.darlehen.earnOutGesamt, 0);
   const paid = sites.reduce((sum, site) => sum + site.darlehen.earnOutGezahlt, 0);
   const open = totalPotential - paid;
@@ -5429,22 +5463,30 @@ function EarnOutSummary({ sites = standorte }: { sites?: DashboardSite[] }) {
     const achievement = site.darlehen.zielEbitda ? site.darlehen.istEbitda / site.darlehen.zielEbitda : 0;
     return sum + Math.max(0, site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt) * Math.min(1, achievement);
   }, 0);
+  const runRateProvision = sites.reduce((sum, site) => sum + projectedEarnOutForSite(site, period).projectedEarnOut, 0);
+  const runRateAchievement = totalPotential ? (runRateProvision / totalPotential) * 100 : 0;
 
   return (
     <Card className="p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="font-bold">Earn-Out konsolidiert | Vertragsperioden</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Gesamtpotenzial, Fälligkeit nach Vertragsperiode und erwartete Verpflichtung nach Zielerreichung.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Gesamtpotenzial, Fälligkeit nach Vertragsperiode und Run-Rate-Vorsorge auf Basis {period}.
+          </p>
         </div>
         <Badge tone={open > totalPotential * 0.5 ? "yellow" : "green"}>{pct((paid / (totalPotential || 1)) * 100)} gezahlt</Badge>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
+      <div className="mt-4 grid gap-3 md:grid-cols-5">
         <Mini label="Earn-Out Potenzial" value={eur(totalPotential)} />
         <Mini label="Aktuell fällig" value={eur(dueNow)} />
         <Mini label="Noch nicht fällig" value={eur(notYetDue)} />
         <Mini label="Erwartete Verpflichtung" value={eur(likely)} />
+        <Mini label="Run-Rate fällig" value={eur(runRateProvision)} />
       </div>
+      <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-muted-foreground">
+        Run-Rate-Logik: aktuelles Ø EBITDA seit Praxisstart wird bis zur jeweiligen Earn-Out-Fälligkeit hochgerechnet und proportional gegen das Ziel-EBITDA gespiegelt. Aktuelle Vorsorgequote: {pct(runRateAchievement)} des Gesamtpotenzials.
+      </p>
     </Card>
   );
 }
