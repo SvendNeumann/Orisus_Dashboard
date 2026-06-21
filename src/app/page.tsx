@@ -1492,9 +1492,9 @@ export default function HomePage() {
             />
           )}
           {importedData && page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} monthlyData={dashboardMonthly} />}
-          {importedData && page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {importedData && page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "bwa" && <Bwa importedData={importedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
-          {importedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {importedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "darlehen" && <Darlehen sites={dashboardSites} />}
           {importedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
@@ -2809,7 +2809,7 @@ function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: D
   ] satisfies Array<{ label: string; value: string; status: Status; rule: string }>;
   return (
     <Card className="p-4">
-      <h2 className="font-bold">Ampel-Center</h2>
+      <h2 className="font-bold">Ampel-Center | aktueller Stand</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {rows.map((row) => (
           <div key={row.label} className="rounded-md border border-border p-3">
@@ -2838,7 +2838,7 @@ function Insights({ setPage }: { setPage: (page: Page) => void }) {
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-bold">CFO Insights</h2>
+        <h2 className="font-bold">CFO Insights | aktueller Stand</h2>
         <Badge tone="blue">Regelbereit</Badge>
       </div>
       <div className="mt-4 space-y-3">
@@ -3710,7 +3710,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
     <Card className="overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-bold">Monatliche BWA bis Cashflow {site.name}</h2>
+          <h2 className="font-bold">Monatliche BWA bis Cashflow {site.name} | Geschäftsjahr {year}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Jan bis Dez, Gesamt, Vorjahr, Durchschnitt und gesamte Vertragsperiode seit {site.start}.
           </p>
@@ -4036,7 +4036,7 @@ function StandortDetail({
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <CostRatios site={filteredSite} periodLabel={periodLabel} />
-        <ChartCard title="Entwicklung über Zeit" icon={TrendingUp}>
+        <ChartCard title={`Entwicklung über Zeit | ${periodLabel}`} icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -4069,6 +4069,7 @@ function KennzahlenEntwicklung({
   const totalCashflow = activeSites.reduce((sum, site) => sum + site.cashflow, 0);
   const totalTarget = activeSites.reduce((sum, site) => sum + (targetBySite[site.id] ?? 0), 0);
   const averageTargetAchievement = totalTarget ? (totalEbitda / totalTarget) * 100 : 0;
+  const monthlyPeriod = defaultBwaPeriodFor(importedData);
   const weakest = activeSites
     .map((site) => ({ site, achievement: (site.ebitda / (targetBySite[site.id] || 1)) * 100 }))
     .sort((a, b) => a.achievement - b.achievement)[0];
@@ -4081,7 +4082,7 @@ function KennzahlenEntwicklung({
       />
 
       <Card className="overflow-hidden">
-        <div className="table-head p-3 text-lg font-bold text-white">Standort-Performance | BWA-Kennzahlen je Standort</div>
+        <div className="table-head p-3 text-lg font-bold text-white">Standort-Performance | BWA-Kennzahlen je Standort | seit Vertragsstart</div>
         <div className="border-b border-border bg-slate-50 p-3 text-sm italic text-muted-foreground">
           Auswertung: bestätigter Import | Standorte seit jeweiligem Vertragsstart | Quelle: {importedData?.fileName ?? "Kein Upload bestätigt"}
         </div>
@@ -4096,7 +4097,7 @@ function KennzahlenEntwicklung({
       </Card>
 
       <KennzahlenStandortTable targetBySite={targetBySite} sites={activeSites} monthlyData={monthlyData} />
-      <MonthlyEbitdaTable targetBySite={targetBySite} sites={activeSites} monthlyData={monthlyData} />
+      <MonthlyEbitdaTable targetBySite={targetBySite} sites={activeSites} monthlyData={monthlyData} periodLabel={monthlyPeriod} />
     </section>
   );
 }
@@ -4186,7 +4187,17 @@ function KennzahlenStandortTable({ targetBySite, sites = standorte, monthlyData 
   );
 }
 
-function MonthlyEbitdaTable({ targetBySite, sites = standorte, monthlyData = monthly }: { targetBySite: Record<string, number>; sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+function MonthlyEbitdaTable({
+  targetBySite,
+  sites = standorte,
+  monthlyData = monthly,
+  periodLabel
+}: {
+  targetBySite: Record<string, number>;
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+  periodLabel: string;
+}) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
   const rows = monthlyData.map((month, monthIndex) => {
     const totalPositiveEbitda = activeSites.reduce((sum, site) => sum + Math.max(0, site.ebitda), 0) || 1;
@@ -4219,7 +4230,7 @@ function MonthlyEbitdaTable({ targetBySite, sites = standorte, monthlyData = mon
 
   return (
     <Card className="overflow-hidden">
-      <div className="table-head p-3 font-bold text-white">MONATLICHE EBITDA-ÜBERSICHT JE STANDORT</div>
+      <div className="table-head p-3 font-bold text-white">MONATLICHE EBITDA-ÜBERSICHT JE STANDORT | {periodLabel}</div>
       <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">
         Auswertung: 2026 | Ist-EBITDA je Monat und Standort | Zielabweichung kumuliert gegen Übernahme und Bank/KV
       </div>
@@ -4316,6 +4327,7 @@ function OrisusPerformance({
 }) {
   const metrics = cfoMetrics(sites, monthlyData);
   const availablePeriods = bwaPeriodOptionsFor(importedData);
+  const performancePeriod = defaultBwaPeriodFor(importedData);
   const [honorarPeriod, setHonorarPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   const [pvsPeriod, setPvsPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   useEffect(() => {
@@ -4340,7 +4352,7 @@ function OrisusPerformance({
         <Mini label="Offene Forderungen" value={eur(metrics.forderungen)} />
       </div>
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <ChartCard title="Operative Entwicklung" icon={TrendingUp}>
+        <ChartCard title={`Operative Entwicklung | ${performancePeriod}`} icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -4353,7 +4365,7 @@ function OrisusPerformance({
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="Forderungen nach Standort" icon={FileBarChart}>
+        <ChartCard title="Forderungen nach Standort | aktueller Stand" icon={FileBarChart}>
           <ReceivablesChart sites={sites} />
         </ChartCard>
       </div>
@@ -4399,7 +4411,7 @@ function OperationalPerformanceTable({ sites = standorte }: { sites?: DashboardS
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border p-4">
-        <h2 className="font-bold">Operative Standort-Performance</h2>
+        <h2 className="font-bold">Operative Standort-Performance | seit Vertragsstart</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-sm">
@@ -4663,7 +4675,7 @@ function PerformanceMonthlyTable({
 
   return (
     <Card className="overflow-hidden">
-      <div className="table-head p-3 font-bold text-white">{title}</div>
+      <div className="table-head p-3 font-bold text-white">{title} | Geschäftsjahr {year}</div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
@@ -4733,7 +4745,7 @@ function BankMovementsTable({ sites = standorte, monthlyData = monthly }: { site
 
   return (
     <Card className="overflow-hidden">
-      <div className="table-head p-3 font-bold text-white">Bank / Geldbewegungen aus Input_Finanzen</div>
+      <div className="table-head p-3 font-bold text-white">Bank / Geldbewegungen aus Input_Finanzen | aktuelles Importjahr</div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
@@ -4793,13 +4805,22 @@ function allocateByMonthlyStructure(totalValue: number, monthlyData: typeof mont
   return fillTwelveMonths(activeValues);
 }
 
-function Analysen({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+function Analysen({
+  sites = standorte,
+  monthlyData = monthly,
+  importedData
+}: {
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
+}) {
   const metrics = cfoMetrics(sites, monthlyData);
+  const analysisPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
   return (
     <section className="space-y-5">
       <PageTitle title="Analysen" text="EBITDA, Gesamtleistung, Cashflow, Standortvergleich, Zeitvergleich und Vorjahresabweichungen." />
       <div className="grid gap-5 xl:grid-cols-2">
-        <ChartCard title="EBITDA-Entwicklung" icon={TrendingUp}>
+        <ChartCard title={`EBITDA-Entwicklung | ${analysisPeriod}`} icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -4809,7 +4830,7 @@ function Analysen({ sites = standorte, monthlyData = monthly }: { sites?: Dashbo
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="Standortvergleich" icon={BarChart3}>
+        <ChartCard title="Standortvergleich | seit Vertragsstart" icon={BarChart3}>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={sites}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -4823,9 +4844,9 @@ function Analysen({ sites = standorte, monthlyData = monthly }: { sites?: Dashbo
         </ChartCard>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        <AnalysisTile title="EBITDA-Marge" value={pct(metrics.ebitdaMarge)} text="Konzern über die aktuell importierte Datenbasis." />
+        <AnalysisTile title="EBITDA-Marge | seit Vertragsstart" value={pct(metrics.ebitdaMarge)} text="Konzern über die aktuell importierte Datenbasis." />
         <DebtServiceCoverageTile value={metrics.kapitaldienstfaehigkeit} />
-        <AnalysisTile title="Cashflow-Qualität" value={pct(metrics.gesamtleistung ? (metrics.cashflow / metrics.gesamtleistung) * 100 : 0)} text="Cashflow im Verhältnis zur Gesamtleistung." />
+        <AnalysisTile title="Cashflow-Qualität | seit Vertragsstart" value={pct(metrics.gesamtleistung ? (metrics.cashflow / metrics.gesamtleistung) * 100 : 0)} text="Cashflow im Verhältnis zur Gesamtleistung." />
       </div>
     </section>
   );
@@ -4871,7 +4892,7 @@ function DebtServiceCoverageTile({ value }: { value: number }) {
       </button>
       <div className="pr-10">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-muted-foreground">Kapitaldienstfähigkeit</p>
+          <p className="text-sm font-semibold text-muted-foreground">Kapitaldienstfähigkeit | seit Vertragsstart</p>
           <StatusDot status={state.status} />
         </div>
         <p className={cn("mt-2 text-3xl font-bold", state.tone)}>{value.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x</p>
@@ -4959,7 +4980,7 @@ function EbitdaBridge({ sites = standorte }: { sites?: DashboardSite[] }) {
     { label: "EBITDA", value: metrics.ebitda, tone: "blue" }
   ];
 
-  return <BridgeCard title="EBITDA-Brücke" rows={rows} />;
+  return <BridgeCard title="EBITDA-Brücke | seit Vertragsstart" rows={rows} />;
 }
 
 function CashflowBridge({ sites = standorte }: { sites?: DashboardSite[] }) {
@@ -4993,7 +5014,7 @@ function CashflowBridge({ sites = standorte }: { sites?: DashboardSite[] }) {
     { label: "CashFlow Gesamt", value: metrics.cashflow, tone: metrics.cashflow >= 0 ? "green" : "red" }
   ];
 
-  return <BridgeCard title="Cashflow-Brücke" rows={rows} />;
+  return <BridgeCard title="Cashflow-Brücke | seit Vertragsstart" rows={rows} />;
 }
 
 type BridgeRow = { label: string; value: number; tone?: "green" | "blue" | "red" };
@@ -5038,13 +5059,22 @@ function BridgeCard({
   );
 }
 
-function Cashflow({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+function Cashflow({
+  sites = standorte,
+  monthlyData = monthly,
+  importedData
+}: {
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
+}) {
+  const cashflowPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
   return (
     <section className="space-y-5">
       <PageTitle title="Cashflow" text="Praxiseingänge, Kosten, Annuitäten, Umbuchungen MVZ und Netto-Cashflow." />
       <div className="grid gap-5 xl:grid-cols-2">
         <CashflowBlock sites={sites} />
-        <ChartCard title="Monatlicher Verlauf" icon={Wallet}>
+        <ChartCard title={`Monatlicher Verlauf | ${cashflowPeriod}`} icon={Wallet}>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -5055,7 +5085,7 @@ function Cashflow({ sites = standorte, monthlyData = monthly }: { sites?: Dashbo
           </ResponsiveContainer>
         </ChartCard>
       </div>
-      <Ranking title="Standortvergleich Cashflow" metric="ebitda" sites={sites} />
+      <Ranking title="Standortvergleich Cashflow | seit Vertragsstart" metric="ebitda" sites={sites} />
     </section>
   );
 }
@@ -5070,6 +5100,7 @@ function Bankenreporting({
   importedData?: ImportedDashboardData | null;
 }) {
   const metrics = cfoMetrics(sites, monthlyData);
+  const bankPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
   const bankKpis = [
     { label: "Gesamtleistung YTD", value: eur(metrics.gesamtleistung), detail: "+4,2 % ggü. Vorjahr" },
     { label: "EBITDA YTD", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} EBITDA-Marge` },
@@ -5103,7 +5134,7 @@ function Bankenreporting({
       </Card>
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <ChartCard title="Gesamtleistung & EBITDA Entwicklung" icon={TrendingUp}>
+        <ChartCard title={`Gesamtleistung & EBITDA Entwicklung | ${bankPeriod}`} icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -5116,7 +5147,7 @@ function Bankenreporting({
           </ResponsiveContainer>
         </ChartCard>
         <Card className="p-4">
-          <h2 className="font-bold">Bankenampel</h2>
+          <h2 className="font-bold">Bankenampel | aktueller Stand</h2>
           <div className="mt-4 space-y-3">
             {[
               ["EBITDA-Marge", pct(metrics.ebitdaMarge), metrics.ebitdaMarge >= 12 ? "green" : "yellow"],
@@ -5138,7 +5169,7 @@ function Bankenreporting({
 
       <Card className="overflow-hidden">
         <div className="border-b border-border p-4">
-          <h2 className="font-bold">Standortbeitrag für Bankenreporting</h2>
+          <h2 className="font-bold">Standortbeitrag für Bankenreporting | seit Vertragsstart</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="data-table border-separate border-spacing-0 text-sm">
@@ -5182,6 +5213,7 @@ function BoardPack({
   importedData?: ImportedDashboardData | null;
 }) {
   const metrics = cfoMetrics(sites, monthlyData);
+  const boardPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
   const summary = [
     `Gesamtleistung YTD liegt bei ${eur(metrics.gesamtleistung, true)}; die Gruppe bleibt auf Wachstumskurs.`,
     `EBITDA YTD beträgt ${eur(metrics.ebitda, true)} bei einer Marge von ${pct(metrics.ebitdaMarge)}.`,
@@ -5200,7 +5232,7 @@ function BoardPack({
       <DataStatusStrip importedData={importedData} />
 
       <Card className="p-4">
-        <h2 className="font-bold">Executive Summary</h2>
+        <h2 className="font-bold">Executive Summary | aktueller Stand</h2>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {summary.map((item) => (
             <div key={item} className="rounded-md bg-slate-50 p-3 text-sm leading-6">
@@ -5218,7 +5250,7 @@ function BoardPack({
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <ChartCard title="Board KPI Entwicklung" icon={TrendingUp}>
+        <ChartCard title={`Board KPI Entwicklung | ${boardPeriod}`} icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -5232,7 +5264,7 @@ function BoardPack({
           </ResponsiveContainer>
         </ChartCard>
         <Card className="p-4">
-          <h2 className="font-bold">Risiken & Fokus</h2>
+          <h2 className="font-bold">Risiken & Fokus | aktueller Stand</h2>
           <div className="mt-4 space-y-3">
             {[
               ["Forderungen", `${eur(metrics.forderungen, true)} offen`, metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green"],
@@ -5263,7 +5295,7 @@ function AcquisitionIntegration({ sites = standorte }: { sites?: DashboardSite[]
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border p-4">
-        <h2 className="font-bold">Akquisitionen & Integration</h2>
+        <h2 className="font-bold">Akquisitionen & Integration | seit Vertragsstart</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Kaufpreis, Startdatum, Übernahmeziele, Earn-Out und Zielerreichung je Standort.
         </p>
@@ -5360,7 +5392,7 @@ function Darlehen({ sites = standorte }: { sites?: DashboardSite[] }) {
           return (
             <Card key={site.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
-                <h2 className="text-xl font-bold">{site.name}</h2>
+                <h2 className="text-xl font-bold">{site.name} | seit Vertragsstart</h2>
                 <StatusDot status={site.status} />
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -5402,7 +5434,7 @@ function EarnOutSummary({ sites = standorte }: { sites?: DashboardSite[] }) {
     <Card className="p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="font-bold">Earn-Out konsolidiert</h2>
+          <h2 className="font-bold">Earn-Out konsolidiert | Vertragsperioden</h2>
           <p className="mt-1 text-sm text-muted-foreground">Gesamtpotenzial, Fälligkeit nach Vertragsperiode und erwartete Verpflichtung nach Zielerreichung.</p>
         </div>
         <Badge tone={open > totalPotential * 0.5 ? "yellow" : "green"}>{pct((paid / (totalPotential || 1)) * 100)} gezahlt</Badge>
