@@ -2307,7 +2307,7 @@ function Insights({ setPage }: { setPage: (page: Page) => void }) {
 function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void; sites?: DashboardSite[] }) {
   return (
     <section className="space-y-5">
-      <PageTitle title="Standorte" text="Alle Standorte mit Zeiträumen ab jeweiligem Praxisstart." />
+      <PageTitle title="Standorte" text="Kumulierte Standortwerte seit jeweiligem Vertragsstart; Kontostand und Forderungen als aktueller Stand." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sites.map((site) => (
           <Card key={site.id} className="p-4">
@@ -2319,12 +2319,12 @@ function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void
               <StatusDot status={site.status} />
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <Mini label="Gesamtleistung" value={eur(site.gesamtleistung, true)} />
-              <Mini label="EBITDA" value={eur(site.ebitda, true)} />
+              <Mini label="Gesamtleistung seit Start" value={eur(site.gesamtleistung, true)} />
+              <Mini label="EBITDA seit Start" value={eur(site.ebitda, true)} />
               <Mini label="Marge" value={pct(site.ebitdaMarge)} />
-              <Mini label="Cashflow" value={eur(site.cashflow, true)} />
-              <Mini label="Kontostand" value={eur(site.kontostand, true)} />
-              <Mini label="Forderungen" value={eur(site.forderungen, true)} />
+              <Mini label="Cashflow seit Start" value={eur(site.cashflow, true)} />
+              <Mini label="Kontostand aktuell" value={eur(site.kontostand, true)} />
+              <Mini label="Forderungen aktuell" value={eur(site.forderungen, true)} />
             </div>
             <Button className="mt-4 w-full" variant="secondary" onClick={() => onOpen(site.id)}>
               Standort öffnen
