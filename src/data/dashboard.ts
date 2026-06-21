@@ -37,6 +37,8 @@ export type Standort = {
     earnOutGezahlt: number;
     earnOutFaelligAm: string;
     zielEbitda: number;
+    zielEbitdaKaufvertrag?: number;
+    zielEbitdaUebernahme?: number;
     istEbitda: number;
   };
 };

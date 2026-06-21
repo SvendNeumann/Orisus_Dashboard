@@ -1114,6 +1114,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const fremdlaborquote = gesamtleistung ? (fremdlabor / gesamtleistung) * 100 : 0;
     const personalquote = gesamtleistung ? (personal / gesamtleistung) * 100 : 0;
     const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - personalquote) : 0;
+    const zielEbitdaKaufvertrag = Math.round(targetEbitdaForActiveRows(rows, siteName, "kv", siteRows));
     const zielEbitdaUebernahme = Math.round(targetEbitdaForActiveRows(rows, siteName, "uebernahme", siteRows));
     const acquisitionTerms = acquisitionTermsForSite(siteName);
     const earnOutFaelligAm = contractPeriodEndForSite(siteName, rows, acquisitionTerms.earnOutFaelligAm);
@@ -1155,7 +1156,9 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
         earnOutGesamt: acquisitionTerms.earnOutGesamt,
         earnOutGezahlt: 0,
         earnOutFaelligAm,
-        zielEbitda: zielEbitdaUebernahme,
+        zielEbitda: zielEbitdaKaufvertrag,
+        zielEbitdaKaufvertrag,
+        zielEbitdaUebernahme,
         istEbitda: ebitda
       }
     };
@@ -2367,11 +2370,11 @@ function ChartCard({
 
 function EbitdaTakeoverChart({ sites = standorte }: { sites?: DashboardSite[] }) {
   const chartData = sites
-    .filter((site) => site.gesamtleistung > 0 || site.ebitda !== 0 || site.darlehen.zielEbitda !== 0)
+    .filter((site) => site.gesamtleistung > 0 || site.ebitda !== 0 || (site.darlehen.zielEbitdaUebernahme ?? site.darlehen.zielEbitda) !== 0)
     .map((site) => ({
       name: site.name,
       ebitda: site.ebitda,
-      uebernahmeEbitda: site.darlehen.zielEbitda
+      uebernahmeEbitda: site.darlehen.zielEbitdaUebernahme ?? site.darlehen.zielEbitda
     }));
 
   return (
@@ -2579,8 +2582,9 @@ function CostRatios({ site, sites = standorte }: { site?: DashboardSite; sites?:
 
 function Ranking({ title, metric, sites = standorte }: { title: string; metric: "ebitda" | "gesamtleistung"; sites?: DashboardSite[] }) {
   const rows = [...sites].sort((a, b) => b[metric] - a[metric]);
+  const ebitdaTarget = (site: DashboardSite) => site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda;
   const ebitdaRankingStatus = (site: DashboardSite): Status => {
-    const target = site.darlehen.zielEbitda;
+    const target = ebitdaTarget(site);
     if (target > 0) {
       const achievement = (site.ebitda / target) * 100;
       if (achievement >= 100) return "green";
@@ -2603,7 +2607,8 @@ function Ranking({ title, metric, sites = standorte }: { title: string; metric: 
       <div className="mt-4 space-y-3">
         {rows.map((site) => {
           const status = metric === "ebitda" ? ebitdaRankingStatus(site) : performanceRankingStatus(site);
-          const ebitdaProgress = site.darlehen.zielEbitda > 0 ? (site.ebitda / site.darlehen.zielEbitda) * 100 : site.ebitdaMarge * 4;
+          const target = ebitdaTarget(site);
+          const ebitdaProgress = target > 0 ? (site.ebitda / target) * 100 : site.ebitdaMarge * 4;
           return (
             <button key={site.id} className="w-full rounded-md bg-slate-50 p-3 text-left">
               <div className="mb-2 flex items-center justify-between">
