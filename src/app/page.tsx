@@ -1076,7 +1076,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen lg:flex">
       <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 border-r border-border bg-white/92 px-5 py-6 backdrop-blur lg:block">
-        <Brand />
+        <Brand onClick={() => go("cockpit")} />
         <nav className="mt-8 space-y-1">
           {desktopNav.map((item) => (
             <NavButton
@@ -1100,7 +1100,7 @@ export default function HomePage() {
 
       <header className="sticky top-0 z-20 border-b border-border bg-white/88 px-4 py-3 backdrop-blur lg:hidden">
         <div className="flex items-center justify-between">
-          <Brand compact />
+          <Brand compact onClick={() => go("cockpit")} />
           <button
             aria-label="Menü öffnen"
             className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-white"
@@ -1115,7 +1115,7 @@ export default function HomePage() {
         <div className="fixed inset-0 z-40 bg-slate-950/35 lg:hidden">
           <div className="ml-auto h-full w-80 max-w-[86vw] bg-white p-5 shadow-soft">
             <div className="flex items-center justify-between">
-              <Brand compact />
+              <Brand compact onClick={() => go("cockpit")} />
               <button
                 aria-label="Menü schließen"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border"
@@ -1530,17 +1530,32 @@ function FormShell({ title, text, children }: { title: string; text: string; chi
   );
 }
 
-function Brand({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className="flex items-center gap-3">
+function Brand({ compact = false, onClick }: { compact?: boolean; onClick?: () => void }) {
+  const content = (
+    <>
       <img
         src="/orisus-logo.png"
         alt="Orisus Zahnmedizin"
         className={cn("h-auto object-contain", compact ? "w-32" : "w-44")}
       />
       {!compact && <span className="sr-only">Orisus CFO Dashboard</span>}
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        className="flex items-center gap-3 rounded-md text-left transition hover:opacity-85 focus:outline-none focus:ring-2 focus:ring-primary/30"
+        onClick={onClick}
+        aria-label="Zum Cockpit"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className="flex items-center gap-3">{content}</div>;
 }
 
 function NavButton({
