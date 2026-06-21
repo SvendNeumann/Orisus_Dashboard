@@ -883,15 +883,19 @@ function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: numbe
 
   rows.forEach((row) => {
     if ((rowYear(row) ?? 0) !== latestYear) return;
-    if (!rowDomain(row).includes("behandler")) return;
-    const metric = rowMetric(row);
-    if (!metricMatches(metric, ["honorarumsatz"])) return;
+    const datenbereich = normalizeMetric(row.Datenbereich);
+    const kategorie = normalizeMetric([row.Kategorie, row.Standard_Kategorie].map(asText).join(" "));
+    const metric = normalizeMetric(row.Kennzahl);
+    const standardMetric = normalizeMetric(row.Standard_Kennzahl);
+    if (!datenbereich.startsWith("behandler")) return;
+    if (["ranking", "stamm"].some((term) => kategorie.includes(term))) return;
+    if (metric !== "honorarumsatz" || standardMetric !== "honorarumsatz") return;
     const combinedKey = normalizeMetric(
       [row.Kennzahl, row.Standard_Kennzahl, row.Kategorie, row.Standard_Kategorie, row.Objekt_Name, row.Werttyp, row.Standard_Werttyp]
         .map(asText)
         .join(" ")
     );
-    if (["eigenlabor", "labor", "material", "pvs", "gesamtumsatz", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return;
+    if (["eigenlabor", "labor", "material", "pvs", "gesamtumsatz", "gesamtleistung", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return;
 
     const name = asText(row.Objekt_Name || row.Behandler || row.Behandlername);
     const standort = asText(row.Standortname);
