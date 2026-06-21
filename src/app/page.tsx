@@ -2429,16 +2429,33 @@ function Ranking({ title, metric, sites = standorte }: { title: string; metric: 
 }
 
 function CashflowBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
-  const gesamtleistung = totalForSites(sites, "gesamtleistung");
-  const ebitda = totalForSites(sites, "ebitda");
   const totalCashflow = totalForSites(sites, "cashflow");
-  const operativeCosts = -(gesamtleistung - ebitda);
-  const adjustments = totalCashflow - ebitda;
+  const hasImportedDetails = sites.some((site) => site.cashflowDetails);
+  const abschreibungen = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.abschreibungen ?? 0), 0)
+    : Math.round(totalForSites(sites, "gesamtleistung") * 0.17);
+  const investitionen = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.investitionsausgaben ?? 0), 0)
+    : Math.round(totalForSites(sites, "gesamtleistung") * 0.035);
+  const tilgung = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.tilgung ?? site.darlehen.tilgung), 0)
+    : sites.reduce((sum, site) => sum + site.darlehen.tilgung, 0);
+  const umbuchen = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.umbuchungZmvz ?? 0), 0)
+    : Math.round(totalForSites(sites, "gesamtleistung") * 0.025);
+  const sonstigeRueckstellungen = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.sonstigeRueckstellungenBestandsminderungen ?? 0), 0)
+    : 0;
+  const vorlaeufigesErgebnis = hasImportedDetails
+    ? sites.reduce((sum, site) => sum + (site.cashflowDetails?.vorlaeufigesErgebnis ?? 0), 0)
+    : totalCashflow - abschreibungen + investitionen + tilgung + umbuchen + sonstigeRueckstellungen;
   const rows = [
-    ["Gesamtleistung", gesamtleistung],
-    ["Operative Praxiskosten bis EBITDA", operativeCosts],
-    ["EBITDA", ebitda],
-    ["Cashflow-Adjustments", adjustments],
+    ["Vorläufiges Ergebnis", vorlaeufigesErgebnis],
+    ["+ Abschreibungen", abschreibungen],
+    ["Investitionsausgaben", -investitionen],
+    ["Tilgung", -tilgung],
+    ["Umbuchung ZMVZ", -umbuchen],
+    ["Sonstige Rückstellungen / Bestandsminderungen", -sonstigeRueckstellungen],
     ["Cashflow Gesamt", totalCashflow]
   ];
   return (
