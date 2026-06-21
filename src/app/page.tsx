@@ -87,7 +87,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-performance-behandler-total-v3";
+const importDashboardSchemaVersion = "2026-06-21-performance-behandler-total-v4";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -919,25 +919,25 @@ function pureBehandlerHonorarFromRows(rows: Record<string, unknown>[]) {
   return rows.filter(isPureBehandlerHonorarRow).reduce((sum, row) => sum + (asNumber(row.Wert) ?? 0), 0);
 }
 
-function isBehandlerTotalRevenueRow(row: Record<string, unknown>) {
+function isPureBehandlerEigenlaborRow(row: Record<string, unknown>) {
   const datenbereich = normalizeMetric(row.Datenbereich);
   const kategorie = normalizeMetric([row.Kategorie, row.Standard_Kategorie].map(asText).join(" "));
   const metric = normalizeMetric(row.Kennzahl);
   const standardMetric = normalizeMetric(row.Standard_Kennzahl);
   if (!datenbereich.startsWith("behandler")) return false;
   if (["ranking", "stamm"].some((term) => kategorie.includes(term))) return false;
-  if (metric !== "umsatz_gesamt" || standardMetric !== "gesamtleistung") return false;
+  if (metric !== "eigenlaborumsatz" || standardMetric !== "eigenlaborumsatz") return false;
   const combinedKey = normalizeMetric(
     [row.Kennzahl, row.Standard_Kennzahl, row.Kategorie, row.Standard_Kategorie, row.Objekt_Name, row.Werttyp, row.Standard_Werttyp]
       .map(asText)
       .join(" ")
   );
-  if (["pvs", "material"].some((term) => combinedKey.includes(term))) return false;
+  if (["pvs", "gesamtumsatz", "gesamtleistung", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return false;
   return true;
 }
 
 function behandlerTotalRevenueFromRows(rows: Record<string, unknown>[]) {
-  return rows.filter(isBehandlerTotalRevenueRow).reduce((sum, row) => sum + (asNumber(row.Wert) ?? 0), 0);
+  return pureBehandlerHonorarFromRows(rows) + rows.filter(isPureBehandlerEigenlaborRow).reduce((sum, row) => sum + (asNumber(row.Wert) ?? 0), 0);
 }
 
 function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: number): TopBehandlerEntry[] {
@@ -1105,7 +1105,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     bwaRows: buildImportedBwaRows(rows, report),
     pvsRevenueRows: buildImportedPvsRevenueRows(rows, report),
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(rows, report),
-    behandlerTotalRows: buildImportedBehandlerTotalRows(rows, report),
+    behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
     report
   };
 }
@@ -2656,25 +2656,75 @@ function buildImportedBehandlerHonorarRows(rows: Record<string, unknown>[], repo
   });
 }
 
-function buildImportedBehandlerTotalRows(rows: Record<string, unknown>[], report: ImportReport): ImportedPeriodValueRow[] {
+function dashboardPerformanceBehandlerMonthlyValues(workbook: XLSX.WorkBook) {
+  const sheet = workbook.Sheets["Dashboard_Performance"];
+  if (!sheet) return new Map<string, Record<number, number>>();
+
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: null,
+    raw: true,
+    blankrows: false
+  });
+  const titleRowIndex = rows.findIndex((row) =>
+    row.some((cell) => normalizeMetric(cell).includes("behandlerumsatz_inkl_eigenlabor") && normalizeMetric(cell).includes("monatsuebersicht"))
+  );
+  if (titleRowIndex < 0) return new Map<string, Record<number, number>>();
+
+  const headerRowIndex = rows.findIndex((row, index) => index > titleRowIndex && row.some((cell) => normalizeMetric(cell) === "standort"));
+  if (headerRowIndex < 0) return new Map<string, Record<number, number>>();
+
+  const headerRow = rows[headerRowIndex] ?? [];
+  const siteColumn = headerRow.findIndex((cell) => normalizeMetric(cell) === "standort");
+  const monthColumns = headerRow
+    .map((cell, column) => ({ column, month: monthNumberFromHeader(cell) }))
+    .filter((entry): entry is { column: number; month: number } => entry.month != null);
+  const valuesBySite = new Map<string, Record<number, number>>();
+
+  for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex] ?? [];
+    const siteName = asText(row[siteColumn]);
+    if (!siteName || normalizeMetric(siteName) === "gesamt") continue;
+    if (!standorte.some((site) => site.name.toLowerCase() === siteName.toLowerCase())) break;
+    const values = Object.fromEntries(
+      monthColumns
+        .map(({ column, month }) => [month, asNumber(row[column])])
+        .filter((entry): entry is [number, number] => entry[1] != null)
+    );
+    valuesBySite.set(siteIdForName(siteName), values);
+  }
+
+  return valuesBySite;
+}
+
+function buildImportedBehandlerTotalRows(workbook: XLSX.WorkBook, rows: Record<string, unknown>[], report: ImportReport, latestYear: number): ImportedPeriodValueRow[] {
   const validYears = report.jahre.filter((year) => year > 1900);
+  const dashboardMonthlyValues = dashboardPerformanceBehandlerMonthlyValues(workbook);
   return report.standorte.map((siteName) => {
     const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
+    const siteId = siteIdForName(siteName);
+    const dashboardValuesForSite = dashboardMonthlyValues.get(siteId);
     const valuesByYear = Object.fromEntries(
       validYears.map((year) => [String(year), behandlerTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year))])
     );
-    const valuesByMonth = Object.fromEntries(
+    const valuesByMonth: Record<string, number> = Object.fromEntries(
       validYears.flatMap((year) =>
         Array.from({ length: 12 }, (_, index) => {
           const month = index + 1;
-          const value = behandlerTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
+          const dashboardValue = year === latestYear ? dashboardValuesForSite?.[month] : undefined;
+          const value =
+            dashboardValue ??
+            behandlerTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
           return [`${year}-${month}`, value];
         })
       )
     );
+    if (dashboardValuesForSite) {
+      valuesByYear[String(latestYear)] = Object.values(dashboardValuesForSite).reduce((sum, value) => sum + value, 0);
+    }
     return {
-      siteId: siteIdForName(siteName),
+      siteId,
       siteName,
       valuesByYear,
       valuesByMonth,
