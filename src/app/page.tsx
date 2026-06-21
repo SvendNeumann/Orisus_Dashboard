@@ -3461,6 +3461,49 @@ function repairImportedCashflowData(importedData: ImportedDashboardData): Import
   return { ...importedData, sites, bwaRows };
 }
 
+function bwaChartDataForPeriod(importedData: ImportedDashboardData | null | undefined, fallbackMonthlyData: typeof monthly, period: string) {
+  if (!importedData?.bwaRows?.length) return fallbackMonthlyData;
+  const siteIds = new Set(importedData.sites.map((site) => site.id));
+  const rowsForMetric = (metricKey: string) => importedData.bwaRows.filter((row) => row.metricKey === metricKey && siteIds.has(row.siteId));
+  const valueFor = (metricKey: string, periodKey: string, yearOnly = false) => {
+    return rowsForMetric(metricKey).reduce((sum, row) => sum + (yearOnly ? row.valuesByYear[periodKey] ?? 0 : row.valuesByMonth[periodKey] ?? 0), 0);
+  };
+  const selection = selectedBwaPeriod(period);
+
+  if (!selection.year) {
+    return importedData.report.jahre
+      .filter((year) => year >= 1900)
+      .map((year) => ({
+        month: String(year),
+        leistung: valueFor("summe_umsatz", String(year), true),
+        ebitda: valueFor("ebitda", String(year), true),
+        marge: 0,
+        cashflow: valueFor("cashflow_gesamt", String(year), true)
+      }))
+      .filter((entry) => entry.leistung || entry.ebitda || entry.cashflow);
+  }
+
+  const months =
+    selection.months?.length
+      ? selection.months
+      : Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+          importedData.bwaRows.some((row) => row.hasDataByMonth[`${selection.year}-${month}`])
+        );
+
+  return months.map((month) => {
+    const periodKey = `${selection.year}-${month}`;
+    const leistung = valueFor("summe_umsatz", periodKey);
+    const ebitda = valueFor("ebitda", periodKey);
+    return {
+      month: bwaMonths[month - 1] ?? String(month),
+      leistung,
+      ebitda,
+      marge: leistung ? (ebitda / leistung) * 100 : 0,
+      cashflow: valueFor("cashflow_gesamt", periodKey)
+    };
+  });
+}
+
 function filteredSiteForPeriod(site: DashboardSite, importedData: ImportedDashboardData | null | undefined, period: string): DashboardSite {
   if (!importedData?.bwaRows?.length) return site;
   const siteId = site.id;
@@ -4844,6 +4887,15 @@ function AnalysisTile({ title, value, text }: { title: string; value: string; te
 }
 
 function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { importedData?: ImportedDashboardData | null; sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+  const chartPeriods = bwaPeriodOptionsFor(importedData);
+  const [chartPeriod, setChartPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  useEffect(() => {
+    if (!chartPeriods.includes(chartPeriod)) {
+      setChartPeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [chartPeriod, chartPeriods, importedData]);
+  const chartData = bwaChartDataForPeriod(importedData, monthlyData, chartPeriod);
+
   return (
     <section className="space-y-5">
       <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow, dynamisch nach Jahren und gesamter Periode auswählbar." />
@@ -4853,9 +4905,16 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
         <CashflowBridge sites={sites} />
       </div>
       <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
-        <ChartCard title="Gesamtleistungsentwicklung" icon={FileBarChart}>
+        <ChartCard title={`Gesamtleistungsentwicklung | ${chartPeriod}`} icon={FileBarChart}>
+          <div className="mb-3">
+            <Select value={chartPeriod} onChange={(event) => setChartPeriod(event.target.value)}>
+              {chartPeriods.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </Select>
+          </div>
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={monthlyData}>
+            <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
