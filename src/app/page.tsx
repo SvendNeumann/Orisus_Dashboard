@@ -2549,27 +2549,31 @@ function ReceivablesChart({ sites = standorte }: { sites?: DashboardSite[] }) {
   );
 }
 
-function CostRatios({ site, sites = standorte }: { site?: DashboardSite; sites?: DashboardSite[] }) {
+function CostRatios({ site, sites = standorte, periodLabel = "seit Vertragsstart" }: { site?: DashboardSite; sites?: DashboardSite[]; periodLabel?: string }) {
   const material = site?.materialquote ?? 9.9;
   const fremdlabor = site?.fremdlaborquote ?? 15.6;
+  const personal = site?.personalquote ?? 0;
   const sonstige = site?.sonstigeKostenquote ?? 37.8;
   const aggregate = !site && sites.length;
-  const weighted = (key: "materialquote" | "fremdlaborquote" | "sonstigeKostenquote") => {
+  const weighted = (key: "materialquote" | "fremdlaborquote" | "personalquote" | "sonstigeKostenquote") => {
     const performance = totalForSites(sites, "gesamtleistung");
-    return performance ? sites.reduce((sum, current) => sum + current.gesamtleistung * current[key], 0) / performance : 0;
+    return performance ? sites.reduce((sum, current) => sum + current.gesamtleistung * (current[key] ?? 0), 0) / performance : 0;
   };
   const actualMaterial = aggregate ? weighted("materialquote") : material;
   const actualFremdlabor = aggregate ? weighted("fremdlaborquote") : fremdlabor;
+  const actualPersonal = aggregate ? weighted("personalquote") : personal;
   const actualSonstige = aggregate ? weighted("sonstigeKostenquote") : sonstige;
+  const totalCostRatio = actualMaterial + actualFremdlabor + actualPersonal + actualSonstige;
   const rows = [
+    { label: "Personalkostenquote", value: actualPersonal, target: 43.0, status: (actualPersonal <= 43 ? "green" : "yellow") as Status },
     { label: "Materialquote", value: actualMaterial, target: 10.0, status: (actualMaterial <= 10 ? "green" : "yellow") as Status },
     { label: "Fremdlaborquote", value: actualFremdlabor, target: 14.5, status: (actualFremdlabor <= 14.5 ? "green" : "yellow") as Status },
     { label: "Sonstige Kostenquote", value: actualSonstige, target: 36.0, status: (actualSonstige <= 36 ? "green" : "yellow") as Status },
-    { label: "Gesamtkostenquote", value: actualMaterial + actualFremdlabor + actualSonstige, target: 68.0, status: (actualMaterial + actualFremdlabor + actualSonstige <= 68 ? "green" : "yellow") as Status }
+    { label: "Gesamtkostenquote", value: totalCostRatio, target: 68.0, status: (totalCostRatio <= 68 ? "green" : "yellow") as Status }
   ];
   return (
     <Card className="p-4">
-      <h2 className="font-bold">{site ? `Kostenquoten ${site.name} | seit Vertragsstart` : "Kostenquoten | seit Vertragsstart"}</h2>
+      <h2 className="font-bold">{site ? `Kostenquoten ${site.name} | ${periodLabel}` : `Kostenquoten | ${periodLabel}`}</h2>
       <div className="mt-4 space-y-4">
         {rows.map((row) => (
           <div key={row.label}>
@@ -4021,7 +4025,7 @@ function StandortDetail({
         <KpiCard label="Cashflow" value={filteredSite.cashflow} delta="nach vorläufigem Ergebnis" icon={Wallet} status={filteredSite.status} />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
-        <CostRatios site={filteredSite} />
+        <CostRatios site={filteredSite} periodLabel={periodLabel} />
         <ChartCard title="Entwicklung über Zeit" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={monthlyData}>
@@ -4924,7 +4928,7 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
-        <CostRatios sites={sites} />
+        <CostRatios sites={importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, chartPeriod)) : sites} periodLabel={chartPeriod === "Gesamte Periode" ? "seit Vertragsstart" : chartPeriod} />
       </div>
     </section>
   );
