@@ -2131,6 +2131,7 @@ function Cockpit({
   monthlyData: typeof monthly;
   importedData: ImportedDashboardData | null;
 }) {
+  const cockpitPeriod = defaultBwaPeriodFor(importedData);
   return (
     <section className="space-y-5">
       <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Handlungsbedarf." />
@@ -2138,19 +2139,19 @@ function Cockpit({
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} />
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <ChartCard title="Ist EBITDA vs. EBITDA bei Übernahme" icon={TrendingUp}>
+        <ChartCard title={`Ist EBITDA vs. EBITDA bei Übernahme | ${cockpitPeriod}`} icon={TrendingUp}>
           <EbitdaTakeoverChart sites={sites} />
         </ChartCard>
-        <ChartCard title="Kostenquoten am Umsatz" icon={PieIcon}>
+        <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
           <CostShareDonut sites={sites} />
         </ChartCard>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <ChartCard title="Standortvergleich Gesamtleistung & EBITDA" icon={BarChart3}>
+        <ChartCard title="Standortvergleich Gesamtleistung & EBITDA | seit Vertragsstart" icon={BarChart3}>
           <SitePerformanceChart sites={sites} />
         </ChartCard>
-        <ChartCard title="Top Behandler nach Honorarumsatz" icon={BadgeEuro}>
+        <ChartCard title={`Top Behandler nach Honorarumsatz | ${cockpitPeriod}`} icon={BadgeEuro}>
           <TopBehandlerChart data={importedData?.topBehandler ?? []} />
         </ChartCard>
       </div>
@@ -2158,7 +2159,7 @@ function Cockpit({
       <StandortCfoComparison sites={sites} />
 
       <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
-        <ChartCard title="Offene Forderungen je Standort" icon={FileBarChart}>
+        <ChartCard title="Offene Forderungen je Standort | aktueller Stand" icon={FileBarChart}>
           <ReceivablesChart sites={sites} />
         </ChartCard>
         <AccountsBlock sites={sites} />
@@ -2228,14 +2229,14 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
 
   const kpis = [
     {
-      label: "Aktuelle Liquidität",
+      label: "Aktuelle Liquidität | aktueller Stand",
       value: metrics.kontostand,
       delta: "Konsolidierter Kontostand",
       icon: CircleDollarSign,
       status: metrics.kontostand > 500000 ? "green" : "yellow"
     },
     {
-      label: "Free Cashflow",
+      label: "Free Cashflow | seit Vertragsstart",
       value: metrics.cashflow,
       delta: "nach Tilgung, Investitionen, Umbuchungen",
       icon: Wallet,
@@ -2256,14 +2257,14 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       )
     },
     {
-      label: "EBITDA seit Start",
+      label: "EBITDA | seit Vertragsstart",
       value: metrics.ebitda,
       delta: `${pct(metrics.ebitdaMarge)} Marge | Run-Rate ${eur(metrics.runRateEbitda, true)}`,
       icon: Banknote,
       status: metrics.ebitdaMarge >= 12 ? "green" : "yellow"
     },
     {
-      label: "Kritische Standorte",
+      label: "Kritische Standorte | aktueller Stand",
       value: metrics.kritisch.length,
       delta: riskLabel,
       icon: Building2,
@@ -2271,14 +2272,14 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       status: metrics.kritisch.length ? "yellow" : "green"
     },
     {
-      label: "Offene Forderungen",
+      label: "Offene Forderungen | aktueller Stand",
       value: metrics.forderungen,
       delta: "Konsolidiert seit Vertragsstart",
       icon: FileBarChart,
       status: metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green"
     },
     {
-      label: "Fremdkapital",
+      label: "Fremdkapital | seit Vertragsstart",
       value: Math.max(0, metrics.aufgenommen - metrics.tilgung),
       delta: `${eur(metrics.aufgenommen, true)} aufgenommen | ${eur(metrics.tilgung, true)} getilgt`,
       icon: Landmark,
@@ -2507,7 +2508,7 @@ function StandortCfoComparison({ sites = standorte }: { sites?: DashboardSite[] 
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border p-4">
-        <h2 className="font-bold">Standortvergleich CFO-Kennzahlen</h2>
+        <h2 className="font-bold">Standortvergleich CFO-Kennzahlen | seit Vertragsstart</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Konsolidierte Steuerungssicht je Standort seit Vertragsstart: Ergebnisqualität, Cashflow, Forderungen und Kostenquote.
         </p>
@@ -2606,7 +2607,7 @@ function CostRatios({ site, sites = standorte }: { site?: DashboardSite; sites?:
   ];
   return (
     <Card className="p-4">
-      <h2 className="font-bold">{site ? `Kostenquoten ${site.name}` : "Kostenquoten"}</h2>
+      <h2 className="font-bold">{site ? `Kostenquoten ${site.name} | seit Vertragsstart` : "Kostenquoten | seit Vertragsstart"}</h2>
       <div className="mt-4 space-y-4">
         {rows.map((row) => (
           <div key={row.label}>
@@ -2716,7 +2717,7 @@ function CashflowBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
 function AccountsBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
   return (
     <Card className="p-4">
-      <h2 className="font-bold">Kontostände</h2>
+      <h2 className="font-bold">Kontostände | aktueller Stand</h2>
       <p className="mt-1 text-sm text-muted-foreground">Konsolidiert: {eur(totalForSites(sites, "kontostand"))}</p>
       <div className="mt-4 space-y-3">
         {sites.map((site) => (
@@ -2740,7 +2741,7 @@ function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
     <Card className="p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="font-bold">Fremdkapital & Tilgung</h2>
+          <h2 className="font-bold">Fremdkapital & Tilgung | seit Vertragsstart</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Aufgenommenes Fremdkapital, bereits getilgter Anteil und verbleibende Restschuld.
           </p>
