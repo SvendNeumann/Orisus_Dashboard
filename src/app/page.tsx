@@ -3499,6 +3499,7 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
 function PersonalEmployees({ personalData }: { personalData: PersonalDashboardData }) {
   const [site, setSite] = useState("Alle Standorte");
   const [status, setStatus] = useState("Alle Status");
+  const activeEmployees = personalData.employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
   const rows = personalData.employees.filter((employee) => {
     const siteMatch = site === "Alle Standorte" || employee.site === site;
     const statusMatch = status === "Alle Status" || employee.status === status;
@@ -3508,6 +3509,25 @@ function PersonalEmployees({ personalData }: { personalData: PersonalDashboardDa
   return (
     <section className="space-y-5">
       <PageTitle title="Mitarbeiterübersicht" text="Stammdaten, Beschäftigungsart, Funktion und Vergütungsdaten aus Input_Mitarbeiter." />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Aktive Mitarbeiter" value={activeEmployees.length} plain delta="nur Status Aktiv" icon={Users} status="green" />
+        <KpiCard
+          label="FTE aktiv"
+          value={Math.round(activeEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0) * 10) / 10}
+          plain
+          delta="Basis 40 Std./Woche"
+          icon={Gauge}
+          status="green"
+        />
+        <KpiCard
+          label="AG-Aufwand aktiv"
+          value={activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0)}
+          delta="monatlich laut Import"
+          icon={BadgeEuro}
+          status="yellow"
+        />
+        <KpiCard label="Gefilterte Zeilen" value={rows.length} plain delta="aktuelle Tabellenansicht" icon={UserRound} status="green" />
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Select value={site} onChange={(event) => setSite(event.target.value)}>
           <option>Alle Standorte</option>
@@ -3529,7 +3549,10 @@ function PersonalEmployees({ personalData }: { personalData: PersonalDashboardDa
               <TableHead>Bereich</TableHead>
               <TableHead>Eintritt</TableHead>
               <TableHead>Wochenstunden</TableHead>
+              <TableHead>Fixgehalt</TableHead>
+              <TableHead>Stundenlohn Fixgehalt</TableHead>
               <TableHead>AG-Aufwand</TableHead>
+              <TableHead>Bemerkungen</TableHead>
             </tr>
           </thead>
           <tbody>
@@ -3542,7 +3565,10 @@ function PersonalEmployees({ personalData }: { personalData: PersonalDashboardDa
                 <TableCell>{employee.area}</TableCell>
                 <TableCell>{employee.entryDate}</TableCell>
                 <TableCell>{employee.weeklyHours.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
+                <TableCell>{employee.fixedSalary ? eur(employee.fixedSalary) : ""}</TableCell>
+                <TableCell>{employee.hourlyWage ? eur(employee.hourlyWage) : ""}</TableCell>
                 <TableCell>{employee.employerCost ? eur(employee.employerCost) : ""}</TableCell>
+                <TableCell>{employee.note}</TableCell>
               </tr>
             ))}
           </tbody>
