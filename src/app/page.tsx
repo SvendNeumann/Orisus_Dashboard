@@ -3096,6 +3096,13 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
       fluctuation: activeEmployees.length ? (exitsInLatestYear / activeEmployees.length) * 100 : 0
     };
   });
+  const totalFte = active.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+  const newHiresInLatestYear = personalData.employees.filter((employee) => yearFromDisplayDate(employee.entryDate) === latestSicknessYear);
+  const highestFluctuationRow = operationalRows.reduce(
+    (highest, row) => (row.fluctuation > highest.fluctuation ? row : highest),
+    { site: "", personnelCosts: 0, sicknessDays: 0, activeEmployees: 0, exitsInLatestYear: 0, fluctuation: 0 }
+  );
+  const fluctuationStatus: Status = highestFluctuationRow.fluctuation <= 10 ? "green" : highestFluctuationRow.fluctuation <= 20 ? "yellow" : "red";
   const personnelCostRows = operationalRows
     .filter((row) => row.personnelCosts > 0)
     .map((row) => ({ name: row.site, value: Math.round(row.personnelCosts) }));
@@ -3116,6 +3123,16 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
       </Card>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Aktive Mitarbeiter" value={active.length} plain delta={`${personalData.employees.length} Personen gesamt`} icon={Users} status="green" />
+        <KpiCard label="FTE gesamt" value={Math.round(totalFte * 10) / 10} plain delta="Basis 40 Std./Woche" icon={Gauge} status="green" />
+        <KpiCard label={`Neueinstellungen ${latestSicknessYear}`} value={newHiresInLatestYear.length} plain delta="Eintritte laut Mitarbeiterstamm" icon={UserRound} status="green" />
+        <KpiCard
+          label={`Fluktuation Standort max. ${latestSicknessYear}`}
+          value={highestFluctuationRow.fluctuation}
+          percent
+          delta={`${highestFluctuationRow.site || "Kein Standort"} | ${highestFluctuationRow.exitsInLatestYear} Austritte`}
+          icon={TrendingUp}
+          status={fluctuationStatus}
+        />
         <KpiCard label="Wochenstunden aktiv" value={active.reduce((sum, employee) => sum + employee.weeklyHours, 0)} plain delta="Kapazität laut Arbeitsverträgen" icon={Gauge} status="green" />
         <KpiCard label="AG-Aufwand monatlich" value={active.reduce((sum, employee) => sum + employee.employerCost, 0)} delta="nur aktive Mitarbeiter" icon={BadgeEuro} status="yellow" />
         <KpiCard label={`Krankheitstage ${latestSicknessYear}`} value={sicknessBySite.reduce((sum, row) => sum + row.days, 0)} plain delta={`${sicknessDays.toLocaleString("de-DE")} Tage gesamt`} icon={Stethoscope} status="yellow" />
