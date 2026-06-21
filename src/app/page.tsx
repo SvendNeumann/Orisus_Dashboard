@@ -3710,7 +3710,7 @@ function OrisusPerformance({ sites = standorte, monthlyData = monthly }: { sites
             <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
-              <YAxis tickFormatter={(v) => eur(Number(v), true)} />
+              <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
               <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
@@ -4067,7 +4067,7 @@ function Analysen({ sites = standorte, monthlyData = monthly }: { sites?: Dashbo
             <BarChart data={sites}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="name" />
-              <YAxis tickFormatter={(v) => eur(Number(v), true)} />
+              <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
               <Bar dataKey="ebitda" fill="#0891b2" radius={[5, 5, 0, 0]} />
@@ -4286,7 +4286,7 @@ function Bankenreporting({
             <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
-              <YAxis tickFormatter={(v) => eur(Number(v), true)} />
+              <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
               <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
@@ -4401,7 +4401,7 @@ function BoardPack({
             <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
-              <YAxis tickFormatter={(v) => eur(Number(v), true)} />
+              <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
               <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
