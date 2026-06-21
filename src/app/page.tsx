@@ -95,7 +95,7 @@ const importPersistenceDbName = "orisus-cfo-dashboard";
 const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
-const importDashboardSchemaVersion = "2026-06-21-bank-movements-v9";
+const importDashboardSchemaVersion = "2026-06-21-bank-movements-source-v10";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const supabaseAccessTokenKey = "orisus-cfo-supabase-access-token";
 const supabaseRefreshTokenKey = "orisus-cfo-supabase-refresh-token";
@@ -1510,7 +1510,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     pvsRevenueRows: buildImportedPvsRevenueRows(workbook, rows, report, latestYear),
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(rows, report),
     behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
-    bankMovementRows: buildImportedBankMovementRows(workbook, latestYear),
+    bankMovementRows: buildImportedBankMovementRows(workbook, rows, latestYear),
     report
   };
 }
@@ -3331,9 +3331,9 @@ function dashboardPerformanceMonthlyValues(workbook: XLSX.WorkBook, titleTerms: 
   return valuesBySite;
 }
 
-function buildImportedBankMovementRows(workbook: XLSX.WorkBook, latestYear: number): ImportedBankMovementRow[] {
+function dashboardBankMovementRows(workbook: XLSX.WorkBook, latestYear: number) {
   const sheet = workbook.Sheets["Dashboard_Performance"];
-  if (!sheet) return [];
+  if (!sheet) return new Map<string, ImportedBankMovementRow>();
 
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
@@ -3344,10 +3344,10 @@ function buildImportedBankMovementRows(workbook: XLSX.WorkBook, latestYear: numb
   const titleRowIndex = rows.findIndex((row) =>
     row.some((cell) => normalizeMetric(cell).includes("bank_geldbewegungen_aus_input_finanzen"))
   );
-  if (titleRowIndex < 0) return [];
+  if (titleRowIndex < 0) return new Map<string, ImportedBankMovementRow>();
 
   const headerRowIndex = rows.findIndex((row, index) => index > titleRowIndex && row.some((cell) => normalizeMetric(cell) === "position"));
-  if (headerRowIndex < 0) return [];
+  if (headerRowIndex < 0) return new Map<string, ImportedBankMovementRow>();
 
   const headerRow = rows[headerRowIndex] ?? [];
   const positionColumn = headerRow.findIndex((cell) => normalizeMetric(cell) === "position");
@@ -3358,9 +3358,9 @@ function buildImportedBankMovementRows(workbook: XLSX.WorkBook, latestYear: numb
   const monthColumns = headerRow
     .map((cell, column) => ({ column, month: monthNumberFromHeader(cell) }))
     .filter((entry): entry is { column: number; month: number } => entry.month != null);
-  if (positionColumn < 0 || !monthColumns.length) return [];
+  if (positionColumn < 0 || !monthColumns.length) return new Map<string, ImportedBankMovementRow>();
 
-  const result: ImportedBankMovementRow[] = [];
+  const result = new Map<string, ImportedBankMovementRow>();
   for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
     const row = rows[rowIndex] ?? [];
     const label = asText(row[positionColumn]);
@@ -3376,7 +3376,7 @@ function buildImportedBankMovementRows(workbook: XLSX.WorkBook, latestYear: numb
       }
     });
 
-    result.push({
+    result.set(normalizeMetric(label), {
       label,
       indent: normalizeMetric(label).startsWith("davon_"),
       valuesByMonth,
@@ -3389,6 +3389,77 @@ function buildImportedBankMovementRows(workbook: XLSX.WorkBook, latestYear: numb
   }
 
   return result;
+}
+
+function buildImportedBankMovementRows(workbook: XLSX.WorkBook, rows: Record<string, unknown>[], latestYear: number): ImportedBankMovementRow[] {
+  const definitions = [
+    { label: "Geldeingang Bank gesamt", keys: ["geldeingang_bank_gesamt"] },
+    { label: "davon Praxisumsatz", keys: ["davon_praxisumsatz"] },
+    { label: "davon sonstiges (Erstattungen etc)", keys: ["davon_sonstiges_miete_ersattungen_etc", "davon_sonstiges_erstattungen_etc"] },
+    { label: "Geldausgang Bank inkl. Kredit", keys: ["geldausgang_bank_inkl_kredit"] },
+    { label: "davon Praxisausgaben", keys: ["davon_praxisausgaben"] },
+    { label: "davon Tilgung + Zins", keys: ["davon_tilgung_zins"] },
+    { label: "davon Umbuchungen an Orisus ZMVZ", keys: ["davon_umbuchungen_an_orisus_zmvz"] },
+    { label: "Cashflow gesamt im Monat", keys: ["cashflow_gesamt_im_monat"] },
+    { label: "Cashflow vor Intercompany", keys: ["cashflow_vor_umbuchungen_intercompany"] },
+    { label: "Kontostand Monatsende", keys: ["kontostand_monatsende"], snapshot: true }
+  ];
+  const dashboardRows = dashboardBankMovementRows(workbook, latestYear);
+  const keyForRow = (row: Record<string, unknown>) => normalizeMetric(row.Kennzahl || row.Standard_Kennzahl || row.Detailbezeichnung);
+  const matches = (key: string, candidates: string[]) => candidates.some((candidate) => key === candidate || key.startsWith(`${candidate}_`));
+  const yearsByMonth = new Map<string, { year: number; month: number; value: number; key: string }[]>();
+
+  definitions.forEach((definition) => yearsByMonth.set(definition.label, []));
+  rows.forEach((row) => {
+    const year = rowYear(row);
+    const month = rowMonth(row);
+    const value = asNumber(row.Wert);
+    if (!year || year < 1900 || !month || month < 1 || month > 12 || value == null) return;
+    const metricKey = keyForRow(row);
+    const definition = definitions.find((entry) => matches(metricKey, entry.keys));
+    if (!definition) return;
+    yearsByMonth.get(definition.label)?.push({ year, month, value, key: `${year}-${month}` });
+  });
+
+  return definitions.map((definition) => {
+    const sourceValues = yearsByMonth.get(definition.label) ?? [];
+    const valuesByMonth: Record<string, number> = {};
+    const hasValueByMonth: Record<string, boolean> = {};
+    sourceValues.forEach(({ key, value }) => {
+      valuesByMonth[key] = (valuesByMonth[key] ?? 0) + value;
+      if (value !== 0) hasValueByMonth[key] = true;
+    });
+
+    const dashboardRow = dashboardRows.get(normalizeMetric(definition.label));
+    if (dashboardRow) {
+      Object.entries(dashboardRow.valuesByMonth).forEach(([key, value]) => {
+        valuesByMonth[key] = value;
+        if (value !== 0) hasValueByMonth[key] = true;
+      });
+    }
+
+    const activeValues = Object.entries(valuesByMonth).filter(([key, value]) => Boolean(hasValueByMonth[key]) && value !== 0);
+    const latestValue = activeValues
+      .sort(([a], [b]) => {
+        const [yearA, monthA] = a.split("-").map(Number);
+        const [yearB, monthB] = b.split("-").map(Number);
+        return yearA - yearB || monthA - monthB;
+      })
+      .at(-1)?.[1] ?? 0;
+    const contractValue = definition.snapshot ? latestValue : Object.values(valuesByMonth).reduce((sum, value) => sum + value, 0);
+    const activeMonthCount = Math.max(activeValues.length, 1);
+
+    return {
+      label: definition.label,
+      indent: normalizeMetric(definition.label).startsWith("davon_"),
+      valuesByMonth,
+      hasValueByMonth,
+      total: dashboardRow?.total ?? 0,
+      averageMonth: dashboardRow?.averageMonth ?? 0,
+      contractValue: dashboardRow?.contractValue ?? contractValue,
+      averageContract: dashboardRow?.averageContract ?? contractValue / activeMonthCount
+    };
+  });
 }
 
 function dashboardPerformanceBehandlerMonthlyValues(workbook: XLSX.WorkBook) {
@@ -5257,6 +5328,7 @@ function BankMovementsTable({
   const selection = selectedBwaPeriod(period);
   const importedRows = importedData?.bankMovementRows ?? [];
   const selectedMonthKeys = Array.from(visibleMonths).map((month) => `${selection.year ?? ""}-${month}`);
+  const isSnapshotRow = (row: ImportedBankMovementRow) => normalizeMetric(row.label) === "kontostand_monatsende";
   const monthValueFor = (row: ImportedBankMovementRow, month: number) => {
     if (!selection.year) return null;
     const key = `${selection.year}-${month}`;
@@ -5266,6 +5338,12 @@ function BankMovementsTable({
     if (!selection.year) return row.contractValue;
     const hasSelectedValues = selectedMonthKeys.some((key) => row.hasValueByMonth[key]);
     if (!hasSelectedValues) return row.total;
+    if (isSnapshotRow(row)) {
+      return Array.from(visibleMonths)
+        .map((month) => monthValueFor(row, month))
+        .filter((value): value is number => value != null)
+        .at(-1) ?? 0;
+    }
     return Array.from(visibleMonths).reduce((sum, month) => sum + (monthValueFor(row, month) ?? 0), 0);
   };
   const selectedAverageFor = (row: ImportedBankMovementRow, totalValue: number) => {
