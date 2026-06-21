@@ -1582,13 +1582,13 @@ function monthNumberFromHeader(value: unknown) {
   return months[key] ?? null;
 }
 
-function latestKontostandFromWorkbook(workbook: XLSX.WorkBook, siteName: string) {
+function kontostandEntriesFromInputSheet(workbook: XLSX.WorkBook, siteName: string) {
   const siteKey = normalizeSiteId(siteName);
   const sheetName = workbook.SheetNames.find((name) => {
     const key = normalizeSiteId(name.replace(/^Input_Kontostand_?/i, ""));
     return normalizeSiteId(name).startsWith("input_kontostand") && key === siteKey;
   });
-  if (!sheetName) return null;
+  if (!sheetName) return [];
 
   const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], {
     header: 1,
@@ -1598,7 +1598,7 @@ function latestKontostandFromWorkbook(workbook: XLSX.WorkBook, siteName: string)
   });
   const yearRowIndex = rows.findIndex((row) => normalizeMetric(row[0]) === "jahr");
   const monthRowIndex = rows.findIndex((row) => normalizeMetric(row[0]).includes("bankkonto") && normalizeMetric(row[0]).includes("monat"));
-  if (yearRowIndex < 0 || monthRowIndex < 0) return null;
+  if (yearRowIndex < 0 || monthRowIndex < 0) return [];
 
   const yearRow = rows[yearRowIndex] ?? [];
   const monthRow = rows[monthRowIndex] ?? [];
@@ -1613,7 +1613,7 @@ function latestKontostandFromWorkbook(workbook: XLSX.WorkBook, siteName: string)
     if (currentYear && month) monthColumns.push({ column, year: currentYear, month });
   }
 
-  const values = monthColumns
+  return monthColumns
     .map(({ column, year, month }) => {
       let sum = 0;
       let hasValue = false;
@@ -1632,7 +1632,62 @@ function latestKontostandFromWorkbook(workbook: XLSX.WorkBook, siteName: string)
     })
     .filter((entry): entry is { year: number; month: number; value: number } => entry != null)
     .sort((a, b) => b.year - a.year || b.month - a.month);
+}
 
+function kontostandEntriesFromExportSheets(workbook: XLSX.WorkBook, siteName: string) {
+  const siteKey = normalizeSiteId(siteName);
+  const valuesByPeriod = new Map<string, { year: number; month: number; value: number }>();
+
+  workbook.SheetNames.filter((sheetName) => {
+    const key = normalizeSiteId(sheetName);
+    return key.endsWith("_export") || key.startsWith("export_");
+  }).forEach((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: null,
+      raw: true,
+      blankrows: false
+    });
+
+    rows.forEach((row) => {
+      const rowSiteName = asText(row[1]) || asText(row[0]);
+      if (normalizeSiteId(rowSiteName) !== siteKey) return;
+      if (!row.some((cell) => normalizeMetric(cell) === "kontostand_monatsende")) return;
+      const year = asNumber(row[14]);
+      const month = asNumber(row[15]);
+      const value = asNumber(row[17]);
+      if (!year || year < 1900 || !month || month < 1 || month > 12 || value == null) return;
+      const periodKey = `${Math.trunc(year)}-${Math.trunc(month)}`;
+      const existing = valuesByPeriod.get(periodKey);
+      valuesByPeriod.set(periodKey, {
+        year: Math.trunc(year),
+        month: Math.trunc(month),
+        value: (existing?.value ?? 0) + value
+      });
+    });
+  });
+
+  return [...valuesByPeriod.values()].sort((a, b) => b.year - a.year || b.month - a.month);
+}
+
+function kontostandEntriesFromWorkbook(workbook: XLSX.WorkBook, siteName: string) {
+  const valuesByPeriod = new Map<string, { year: number; month: number; value: number }>();
+  const merge = (entries: { year: number; month: number; value: number }[]) => {
+    entries.forEach((entry) => {
+      valuesByPeriod.set(`${entry.year}-${entry.month}`, entry);
+    });
+  };
+
+  merge(kontostandEntriesFromInputSheet(workbook, siteName));
+  merge(kontostandEntriesFromExportSheets(workbook, siteName));
+
+  return [...valuesByPeriod.values()].sort((a, b) => b.year - a.year || b.month - a.month);
+}
+
+function latestKontostandFromWorkbook(workbook: XLSX.WorkBook, siteName: string) {
+  const values = kontostandEntriesFromWorkbook(workbook, siteName);
   return values[0]?.value ?? null;
 }
 
@@ -4865,6 +4920,21 @@ function buildImportedBankMovementRows(
   const dashboardRows = dashboardBankMovementRows(workbook, latestYear);
   const keyForRow = (row: Record<string, unknown>) => normalizeMetric(row.Kennzahl || row.Standard_Kennzahl || row.Detailbezeichnung);
   const matches = (key: string, candidates: string[]) => candidates.some((candidate) => key === candidate || key.startsWith(`${candidate}_`));
+  const siteNames = sortSitesByContractStart(
+    report.standorte.map((siteName) => standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? { ...standorte[0], id: siteIdForName(siteName), name: siteName })
+  ).map((site) => site.name);
+  const kontostandEntriesBySite = new Map(siteNames.map((siteName) => [siteName, kontostandEntriesFromWorkbook(workbook, siteName)]));
+  const consolidatedKontostandEntries = (() => {
+    const byPeriod = new Map<string, { year: number; month: number; value: number }>();
+    kontostandEntriesBySite.forEach((entries) => {
+      entries.forEach(({ year, month, value }) => {
+        const key = `${year}-${month}`;
+        const existing = byPeriod.get(key);
+        byPeriod.set(key, { year, month, value: (existing?.value ?? 0) + value });
+      });
+    });
+    return [...byPeriod.values()].sort((a, b) => b.year - a.year || b.month - a.month);
+  })();
 
   const buildRowsForSite = (siteName?: string): ImportedBankMovementRow[] => {
     const yearsByMonth = new Map<string, { year: number; month: number; value: number; key: string }[]>();
@@ -4888,18 +4958,27 @@ function buildImportedBankMovementRows(
       const hasValueByMonth: Record<string, boolean> = {};
       sourceValues.forEach(({ key, value }) => {
         valuesByMonth[key] = (valuesByMonth[key] ?? 0) + value;
-        if (value !== 0) hasValueByMonth[key] = true;
+        hasValueByMonth[key] = true;
       });
 
       const dashboardRow = siteName ? undefined : dashboardRows.get(normalizeMetric(definition.label));
       if (dashboardRow) {
         Object.entries(dashboardRow.valuesByMonth).forEach(([key, value]) => {
           valuesByMonth[key] = value;
-          if (value !== 0) hasValueByMonth[key] = true;
+          hasValueByMonth[key] = true;
         });
       }
 
-      const activeValues = Object.entries(valuesByMonth).filter(([key, value]) => Boolean(hasValueByMonth[key]) && value !== 0);
+      if (definition.snapshot) {
+        const entries = siteName ? kontostandEntriesBySite.get(siteName) ?? [] : consolidatedKontostandEntries;
+        entries.forEach(({ year, month, value }) => {
+          const key = `${year}-${month}`;
+          valuesByMonth[key] = value;
+          hasValueByMonth[key] = true;
+        });
+      }
+
+      const activeValues = Object.entries(valuesByMonth).filter(([key]) => Boolean(hasValueByMonth[key]));
       const latestValue = activeValues
         .sort(([a], [b]) => {
           const [yearA, monthA] = a.split("-").map(Number);
@@ -4924,10 +5003,6 @@ function buildImportedBankMovementRows(
       };
     });
   };
-
-  const siteNames = sortSitesByContractStart(
-    report.standorte.map((siteName) => standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? { ...standorte[0], id: siteIdForName(siteName), name: siteName })
-  ).map((site) => site.name);
 
   return [...buildRowsForSite(), ...siteNames.flatMap((siteName) => buildRowsForSite(siteName))];
 }
