@@ -36,6 +36,10 @@ export type Standort = {
     earnOutGesamt: number;
     earnOutGezahlt: number;
     earnOutFaelligAm: string;
+    earnOutUntergrenze?: number;
+    earnOutReduktionsfaktor?: number;
+    wachstumsfaktor?: number;
+    zielEbitdaKaufvertragPa?: number;
     zielEbitda: number;
     zielEbitdaKaufvertrag?: number;
     zielEbitdaUebernahme?: number;
@@ -71,6 +75,10 @@ export const standorte: Standort[] = [
       earnOutGesamt: 735000,
       earnOutGezahlt: 0,
       earnOutFaelligAm: "30.06.2029",
+      earnOutUntergrenze: 327500,
+      earnOutReduktionsfaktor: 6,
+      wachstumsfaktor: 0.25,
+      zielEbitdaKaufvertragPa: 450000,
       zielEbitda: 205000,
       istEbitda: 213000
     }
@@ -102,6 +110,10 @@ export const standorte: Standort[] = [
       earnOutGesamt: 391600,
       earnOutGezahlt: 0,
       earnOutFaelligAm: "31.12.2029",
+      earnOutUntergrenze: 164753.85,
+      earnOutReduktionsfaktor: 6.5,
+      wachstumsfaktor: 0.3,
+      zielEbitdaKaufvertragPa: 225000,
       zielEbitda: 124000,
       istEbitda: 96000
     }
@@ -133,6 +145,10 @@ export const standorte: Standort[] = [
       earnOutGesamt: 323750,
       earnOutGezahlt: 0,
       earnOutFaelligAm: "30.03.2029",
+      earnOutUntergrenze: 0,
+      earnOutReduktionsfaktor: 0,
+      wachstumsfaktor: 2.5,
+      zielEbitdaKaufvertragPa: 210000,
       zielEbitda: 92000,
       istEbitda: 79000
     }
@@ -164,6 +180,10 @@ export const standorte: Standort[] = [
       earnOutGesamt: 997500,
       earnOutGezahlt: 0,
       earnOutFaelligAm: "31.12.2030",
+      earnOutUntergrenze: 366475,
+      earnOutReduktionsfaktor: 6.95,
+      wachstumsfaktor: 0.3,
+      zielEbitdaKaufvertragPa: 510000,
       zielEbitda: 108000,
       istEbitda: 129000
     }
@@ -195,6 +215,10 @@ export const standorte: Standort[] = [
       earnOutGesamt: 297500,
       earnOutGezahlt: 0,
       earnOutFaelligAm: "31.12.2030",
+      earnOutUntergrenze: 240833.33,
+      earnOutReduktionsfaktor: 5.25,
+      wachstumsfaktor: 0.3,
+      zielEbitdaKaufvertragPa: 190000,
       zielEbitda: 64000,
       istEbitda: 36000
     }

@@ -125,12 +125,72 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? 
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const supabaseImportTableName = "orisus_confirmed_imports";
 
-const acquisitionTermsBySiteId: Record<string, { kaufpreis: number; earnOutGesamt: number; earnOutFaelligAm: string }> = {
-  kirchberg: { kaufpreis: 1365000, earnOutGesamt: 735000, earnOutFaelligAm: "30.06.2029" },
-  essen: { kaufpreis: 727200, earnOutGesamt: 391600, earnOutFaelligAm: "31.12.2029" },
-  kehl: { kaufpreis: 601250, earnOutGesamt: 323750, earnOutFaelligAm: "30.03.2029" },
-  ulmet: { kaufpreis: 1852500, earnOutGesamt: 997500, earnOutFaelligAm: "31.12.2030" },
-  huettenberg: { kaufpreis: 552500, earnOutGesamt: 297500, earnOutFaelligAm: "31.12.2030" }
+type AcquisitionTerms = {
+  kaufpreis: number;
+  earnOutGesamt: number;
+  earnOutFaelligAm: string;
+  earnOutUntergrenze: number;
+  earnOutReduktionsfaktor: number;
+  wachstumsfaktor: number;
+  zielEbitdaKaufvertragPa: number;
+};
+
+const emptyAcquisitionTerms: AcquisitionTerms = {
+  kaufpreis: 0,
+  earnOutGesamt: 0,
+  earnOutFaelligAm: "",
+  earnOutUntergrenze: 0,
+  earnOutReduktionsfaktor: 0,
+  wachstumsfaktor: 0,
+  zielEbitdaKaufvertragPa: 0
+};
+
+const acquisitionTermsBySiteId: Record<string, AcquisitionTerms> = {
+  kirchberg: {
+    kaufpreis: 1365000,
+    earnOutGesamt: 735000,
+    earnOutFaelligAm: "30.06.2029",
+    earnOutUntergrenze: 327500,
+    earnOutReduktionsfaktor: 6,
+    wachstumsfaktor: 0.25,
+    zielEbitdaKaufvertragPa: 450000
+  },
+  essen: {
+    kaufpreis: 727200,
+    earnOutGesamt: 391600,
+    earnOutFaelligAm: "31.12.2029",
+    earnOutUntergrenze: 164753.85,
+    earnOutReduktionsfaktor: 6.5,
+    wachstumsfaktor: 0.3,
+    zielEbitdaKaufvertragPa: 225000
+  },
+  kehl: {
+    kaufpreis: 601250,
+    earnOutGesamt: 323750,
+    earnOutFaelligAm: "30.03.2029",
+    earnOutUntergrenze: 0,
+    earnOutReduktionsfaktor: 0,
+    wachstumsfaktor: 2.5,
+    zielEbitdaKaufvertragPa: 210000
+  },
+  ulmet: {
+    kaufpreis: 1852500,
+    earnOutGesamt: 997500,
+    earnOutFaelligAm: "31.12.2030",
+    earnOutUntergrenze: 366475,
+    earnOutReduktionsfaktor: 6.95,
+    wachstumsfaktor: 0.3,
+    zielEbitdaKaufvertragPa: 510000
+  },
+  huettenberg: {
+    kaufpreis: 552500,
+    earnOutGesamt: 297500,
+    earnOutFaelligAm: "31.12.2030",
+    earnOutUntergrenze: 240833.33,
+    earnOutReduktionsfaktor: 5.25,
+    wachstumsfaktor: 0.3,
+    zielEbitdaKaufvertragPa: 190000
+  }
 };
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -1303,7 +1363,7 @@ function siteIdForName(siteName: string) {
 }
 
 function acquisitionTermsForSite(siteName: string) {
-  return acquisitionTermsBySiteId[siteIdForName(siteName)] ?? { kaufpreis: 0, earnOutGesamt: 0, earnOutFaelligAm: "" };
+  return acquisitionTermsBySiteId[siteIdForName(siteName)] ?? emptyAcquisitionTerms;
 }
 
 function rowMetric(row: Record<string, unknown>) {
@@ -1397,6 +1457,21 @@ function contractPeriodEndForSite(siteName: string, rows: Record<string, unknown
     lastRowsDisplayDate(rows, siteName, ["vertragsperiode_ende"], ["stammdaten", "dashboard"]) ||
     fallback
   );
+}
+
+function acquisitionTermsFromRows(siteName: string, rows: Record<string, unknown>[]) {
+  const fallback = acquisitionTermsForSite(siteName);
+  const maxEarnOut = lastRowsValue(rows, siteName, ["max_earn_out"], ["stammdaten"]) || fallback.earnOutGesamt;
+  return {
+    ...fallback,
+    earnOutGesamt: maxEarnOut,
+    earnOutUntergrenze: lastRowsValue(rows, siteName, ["untergrenze_earn_out"], ["stammdaten"]) || fallback.earnOutUntergrenze,
+    earnOutReduktionsfaktor:
+      lastRowsValue(rows, siteName, ["reduktionsfaktor_earn_out"], ["stammdaten"]) || fallback.earnOutReduktionsfaktor,
+    wachstumsfaktor: lastRowsValue(rows, siteName, ["faktor_wachstumszahlung"], ["stammdaten"]) || fallback.wachstumsfaktor,
+    zielEbitdaKaufvertragPa:
+      lastRowsValue(rows, siteName, ["ziel_ebitda_kaufvertrag_p_a"], ["stammdaten"]) || fallback.zielEbitdaKaufvertragPa
+  };
 }
 
 function preferredRowsValue(rows: Record<string, unknown>[], metricGroups: string[][], domains?: string[]) {
@@ -1988,7 +2063,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - personalquote) : 0;
     const zielEbitdaKaufvertrag = Math.round(targetEbitdaForActiveRows(rows, siteName, "kv", siteRows));
     const zielEbitdaUebernahme = Math.round(targetEbitdaForActiveRows(rows, siteName, "uebernahme", siteRows));
-    const acquisitionTerms = acquisitionTermsForSite(siteName);
+    const acquisitionTerms = acquisitionTermsFromRows(siteName, allSiteRows);
     const earnOutFaelligAm = contractPeriodEndForSite(siteName, rows, acquisitionTerms.earnOutFaelligAm);
     const status: Status = ebitdaMarge < 8 || cashflow < 0 ? "red" : ebitdaMarge < 12 ? "yellow" : "green";
 
@@ -2028,6 +2103,10 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
         earnOutGesamt: acquisitionTerms.earnOutGesamt,
         earnOutGezahlt: 0,
         earnOutFaelligAm,
+        earnOutUntergrenze: acquisitionTerms.earnOutUntergrenze,
+        earnOutReduktionsfaktor: acquisitionTerms.earnOutReduktionsfaktor,
+        wachstumsfaktor: acquisitionTerms.wachstumsfaktor,
+        zielEbitdaKaufvertragPa: acquisitionTerms.zielEbitdaKaufvertragPa,
         zielEbitda: zielEbitdaKaufvertrag,
         zielEbitdaKaufvertrag,
         zielEbitdaUebernahme,
@@ -7424,21 +7503,48 @@ function earnOutDueStatus(site: DashboardSite): { label: string; status: Status 
   return { label: "fällig", status: site.darlehen.earnOutGezahlt >= site.darlehen.earnOutGesamt ? "green" : "yellow" };
 }
 
+function earnOutTermsForSite(site: DashboardSite) {
+  const fallback = acquisitionTermsForSite(site.name);
+  return {
+    maxEarnOut: site.darlehen.earnOutGesamt || fallback.earnOutGesamt,
+    untergrenze: site.darlehen.earnOutUntergrenze ?? fallback.earnOutUntergrenze,
+    reduktionsfaktor: site.darlehen.earnOutReduktionsfaktor ?? fallback.earnOutReduktionsfaktor,
+    wachstumsfaktor: site.darlehen.wachstumsfaktor ?? fallback.wachstumsfaktor,
+    zielEbitdaKaufvertragPa: site.darlehen.zielEbitdaKaufvertragPa ?? fallback.zielEbitdaKaufvertragPa
+  };
+}
+
 function projectedEarnOutForSite(site: DashboardSite, period: string) {
   const open = Math.max(0, site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt);
-  const target = site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda;
+  const terms = earnOutTermsForSite(site);
+  const target = terms.zielEbitdaKaufvertragPa || site.darlehen.zielEbitdaKaufvertrag || site.darlehen.zielEbitda;
   if (!open || !target || !site.darlehen.earnOutFaelligAm) {
-    return { projectedEbitda: 0, projectedEarnOut: 0, achievement: 0 };
+    return { projectedEbitda: 0, projectedEarnOut: 0, achievement: 0, untergrenze: terms.untergrenze, target };
   }
   const elapsedMonths = monthsSinceStartForPeriod(site, period);
-  const contractMonths = monthsBetweenGermanDates(site.start, site.darlehen.earnOutFaelligAm);
   const averageMonthlyEbitda = site.ebitda / Math.max(elapsedMonths, 1);
-  const projectedEbitda = Math.round(averageMonthlyEbitda * contractMonths);
+  const projectedEbitda = Math.round(averageMonthlyEbitda * 12);
+  const untergrenze = terms.untergrenze || 0;
+  const reduktionsfaktor = terms.reduktionsfaktor || 0;
   const achievement = target ? projectedEbitda / target : 0;
+  let projectedEarnOut = 0;
+
+  if (projectedEbitda >= target) {
+    projectedEarnOut = open;
+  } else if (untergrenze && projectedEbitda <= untergrenze) {
+    projectedEarnOut = 0;
+  } else if (untergrenze && reduktionsfaktor && target > untergrenze) {
+    projectedEarnOut = open - (target - projectedEbitda) * reduktionsfaktor;
+  } else {
+    projectedEarnOut = 0;
+  }
+
   return {
     projectedEbitda,
-    projectedEarnOut: Math.round(open * Math.min(1, Math.max(0, achievement))),
-    achievement
+    projectedEarnOut: Math.round(Math.min(open, Math.max(0, projectedEarnOut))),
+    achievement,
+    untergrenze,
+    target
   };
 }
 
@@ -7460,9 +7566,9 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         {sortSitesByContractStart(sites).map((site) => {
-          const achievement = site.darlehen.zielEbitda ? (site.darlehen.istEbitda / site.darlehen.zielEbitda) * 100 : 0;
           const dueStatus = earnOutDueStatus(site);
           const projectedEarnOut = projectedEarnOutForSite(site, earnOutPeriod);
+          const achievement = projectedEarnOut.achievement * 100;
           return (
             <Card key={site.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
@@ -7475,13 +7581,15 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
                 <Mini label="Restschuld" value={eur(site.darlehen.restschuld, true)} />
                 <Mini label="Tilgung" value={eur(site.darlehen.tilgung, true)} />
                 <Mini label="Zins" value={eur(site.darlehen.zins, true)} />
-                <Mini label="Ziel/IST EBITDA" value={`${eur(site.darlehen.zielEbitda, true)} / ${eur(site.darlehen.istEbitda, true)}`} />
+                <Mini label="Ziel EBITDA p.a." value={eur(projectedEarnOut.target, true)} />
+                <Mini label="Run-Rate EBITDA p.a." value={eur(projectedEarnOut.projectedEbitda, true)} />
+                <Mini label="Untergrenze Earn-Out" value={projectedEarnOut.untergrenze ? eur(projectedEarnOut.untergrenze, true) : "nicht hinterlegt"} />
                 <Mini label="Earn-Out fällig am" value={site.darlehen.earnOutFaelligAm || "offen"} />
                 <Mini label="Run-Rate Earn-Out" value={eur(projectedEarnOut.projectedEarnOut, true)} />
               </div>
               <div className="mt-4">
                 <div className="mb-2 flex justify-between text-sm">
-                  <span className="font-semibold">Zielerreichung bis Fälligkeit</span>
+                  <span className="font-semibold">Run-Rate Zielerreichung p.a.</span>
                   <span>{dueStatus.label}</span>
                 </div>
                 <Progress value={achievement} tone={achievement >= 100 ? "green" : achievement >= 85 ? "yellow" : "red"} />
@@ -7500,10 +7608,6 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
   const open = totalPotential - paid;
   const dueNow = sites.reduce((sum, site) => sum + (isEarnOutDue(site) ? site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt : 0), 0);
   const notYetDue = Math.max(0, open - dueNow);
-  const likely = sites.reduce((sum, site) => {
-    const achievement = site.darlehen.zielEbitda ? site.darlehen.istEbitda / site.darlehen.zielEbitda : 0;
-    return sum + Math.max(0, site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt) * Math.min(1, achievement);
-  }, 0);
   const runRateProvision = sites.reduce((sum, site) => sum + projectedEarnOutForSite(site, period).projectedEarnOut, 0);
   const runRateAchievement = totalPotential ? (runRateProvision / totalPotential) * 100 : 0;
 
@@ -7522,11 +7626,11 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
         <Mini label="Earn-Out Potenzial" value={eur(totalPotential)} />
         <Mini label="Aktuell fällig" value={eur(dueNow)} />
         <Mini label="Noch nicht fällig" value={eur(notYetDue)} />
-        <Mini label="Erwartete Verpflichtung" value={eur(likely)} />
-        <Mini label="Run-Rate fällig" value={eur(runRateProvision)} />
+        <Mini label="Erwartete Verpflichtung" value={eur(runRateProvision)} />
+        <Mini label="Vorsorgequote" value={pct(runRateAchievement)} />
       </div>
       <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-muted-foreground">
-        Run-Rate-Logik: aktuelles Ø EBITDA seit Praxisstart wird bis zur jeweiligen Earn-Out-Fälligkeit hochgerechnet und proportional gegen das Ziel-EBITDA gespiegelt. Aktuelle Vorsorgequote: {pct(runRateAchievement)} des Gesamtpotenzials.
+        Run-Rate-Logik: EBITDA seit Praxisstart geteilt durch die bisher berücksichtigten Monate mal 12. Diese p.a.-Run-Rate wird gegen Ziel-EBITDA p.a., Untergrenze, Max. Earn-Out und Reduktionsfaktor aus den Stammdaten gespiegelt. Aktuelle Vorsorgequote: {pct(runRateAchievement)} des Gesamtpotenzials.
       </p>
     </Card>
   );
