@@ -119,6 +119,7 @@ type ImportedDashboardData = {
   monthly: typeof monthly;
   topBehandler: TopBehandlerEntry[];
   bwaRows: ImportedBwaRow[];
+  pvsRevenueRows?: ImportedPeriodValueRow[];
   report: ImportReport;
 };
 
@@ -147,6 +148,14 @@ type ImportedBwaRow = {
   valuesByMonth: Record<string, number>;
   hasDataByMonth: Record<string, boolean>;
   hasValueByMonth: Record<string, boolean>;
+  contractValue: number;
+};
+
+type ImportedPeriodValueRow = {
+  siteId: string;
+  siteName: string;
+  valuesByYear: Record<string, number>;
+  valuesByMonth: Record<string, number>;
   contractValue: number;
 };
 
@@ -1062,6 +1071,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     monthly: monthlyData,
     topBehandler: topBehandlerFromRows(rows, latestYear),
     bwaRows: buildImportedBwaRows(rows, report),
+    pvsRevenueRows: buildImportedPvsRevenueRows(rows, report),
     report
   };
 }
@@ -2558,6 +2568,33 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
+function buildImportedPvsRevenueRows(rows: Record<string, unknown>[], report: ImportReport): ImportedPeriodValueRow[] {
+  const validYears = report.jahre.filter((year) => year > 1900);
+  return report.standorte.map((siteName) => {
+    const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
+    const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
+    const valuesByYear = Object.fromEntries(
+      validYears.map((year) => [String(year), pvsTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year))])
+    );
+    const valuesByMonth = Object.fromEntries(
+      validYears.flatMap((year) =>
+        Array.from({ length: 12 }, (_, index) => {
+          const month = index + 1;
+          const value = pvsTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
+          return [`${year}-${month}`, value];
+        })
+      )
+    );
+    return {
+      siteId: siteIdForName(siteName),
+      siteName,
+      valuesByYear,
+      valuesByMonth,
+      contractValue: pvsTotalRevenueFromRows(siteRows)
+    };
+  });
+}
+
 function bwaPeriodOptionsFor(importedData?: ImportedDashboardData | null) {
   if (!importedData?.bwaRows?.length) return bwaPeriodOptions;
   const years = importedData.report.jahre.filter((year) => year >= 1900);
@@ -2841,6 +2878,53 @@ function selectedBwaPeriod(period: string) {
     if (monthIndex >= 0) return { year, months: [monthIndex + 1] };
   }
   return { year, months: null };
+}
+
+function importedPeriodValue(row: Pick<ImportedBwaRow, "valuesByYear" | "valuesByMonth" | "contractValue"> | undefined, period: string) {
+  if (!row) return 0;
+  const selection = selectedBwaPeriod(period);
+  if (selection.year && selection.months?.length) {
+    return selection.months.reduce((sum, month) => sum + (row.valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
+  }
+  if (selection.year) return row.valuesByYear[String(selection.year)] ?? 0;
+  return row.contractValue;
+}
+
+function importedBwaMetricValue(importedRows: ImportedBwaRow[] | undefined, siteId: string, metricKey: string, period: string) {
+  return importedPeriodValue(importedRows?.find((row) => row.siteId === siteId && row.metricKey === metricKey), period);
+}
+
+function filteredSiteForPeriod(site: DashboardSite, importedData: ImportedDashboardData | null | undefined, period: string): DashboardSite {
+  if (!importedData?.bwaRows?.length) return site;
+  const siteId = site.id;
+  const gesamtleistung = Math.round(importedBwaMetricValue(importedData.bwaRows, siteId, "summe_umsatz", period));
+  const ebitda = Math.round(importedBwaMetricValue(importedData.bwaRows, siteId, "ebitda", period));
+  const cashflow = Math.round(importedBwaMetricValue(importedData.bwaRows, siteId, "cashflow_gesamt", period));
+  const pvsRow = importedData.pvsRevenueRows?.find((row) => row.siteId === siteId);
+  const pvsUmsatz = Math.round(pvsRow ? importedPeriodValue(pvsRow, period) : site.pvsUmsatz);
+  const material = Math.abs(importedBwaMetricValue(importedData.bwaRows, siteId, "materialkosten_gesamt", period));
+  const fremdlabor = Math.abs(importedBwaMetricValue(importedData.bwaRows, siteId, "fremdlabor_gesamt", period));
+  const personal = Math.abs(importedBwaMetricValue(importedData.bwaRows, siteId, "personalkosten_gesamt", period));
+  const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0;
+  const materialquote = gesamtleistung ? (material / gesamtleistung) * 100 : 0;
+  const fremdlaborquote = gesamtleistung ? (fremdlabor / gesamtleistung) * 100 : 0;
+  const personalquote = gesamtleistung ? (personal / gesamtleistung) * 100 : 0;
+  const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - personalquote) : 0;
+  const status: Status = ebitdaMarge < 8 || cashflow < 0 ? "red" : ebitdaMarge < 12 ? "yellow" : "green";
+
+  return {
+    ...site,
+    gesamtleistung,
+    pvsUmsatz,
+    ebitda,
+    ebitdaMarge,
+    cashflow,
+    materialquote,
+    fremdlaborquote,
+    personalquote,
+    sonstigeKostenquote,
+    status
+  };
 }
 
 function buildImportedBwaLines(importedRows: ImportedBwaRow[], period: string, siteId?: string): BwaLine[] {
@@ -3300,17 +3384,34 @@ function StandortDetail({
   importedData?: ImportedDashboardData | null;
   monthlyData?: typeof monthly;
 }) {
+  const availablePeriods = bwaPeriodOptionsFor(importedData);
+  const [period, setPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) {
+      setPeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [availablePeriods, importedData, period]);
+  const filteredSite = filteredSiteForPeriod(site, importedData, period);
+  const periodLabel = period === "Gesamte Periode" ? `seit Vertragsstart ${site.start}` : period;
+
   return (
     <section className="space-y-5">
-      <PageTitle title={site.name} text={`Standortdetail ab Praxisstart ${site.start}.`} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <PageTitle title={site.name} text={`Standortdetail ${periodLabel}.`} />
+        <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
+          {availablePeriods.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </Select>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Gesamtleistung" value={site.gesamtleistung} delta={`${site.vorjahrAbweichung > 0 ? "+" : ""}${pct(site.vorjahrAbweichung)} ggü. Vorjahr`} icon={TrendingUp} status={site.status} />
-        <KpiCard label="PVS-Umsatz" value={site.pvsUmsatz} delta="Plausibel zur BWA" icon={BadgeEuro} status={site.status} />
-        <KpiCard label="EBITDA" value={site.ebitda} delta={`${pct(site.ebitdaMarge)} Marge`} icon={Banknote} status={site.status} />
-        <KpiCard label="Cashflow" value={site.cashflow} delta="Netto nach Annuitäten" icon={Wallet} status={site.status} />
+        <KpiCard label="Gesamtleistung" value={filteredSite.gesamtleistung} delta={periodLabel} icon={TrendingUp} status={filteredSite.status} />
+        <KpiCard label="PVS-Umsatz" value={filteredSite.pvsUmsatz} delta={periodLabel} icon={BadgeEuro} status={filteredSite.status} />
+        <KpiCard label="EBITDA" value={filteredSite.ebitda} delta={`${pct(filteredSite.ebitdaMarge)} Marge`} icon={Banknote} status={filteredSite.status} />
+        <KpiCard label="Cashflow" value={filteredSite.cashflow} delta="nach vorläufigem Ergebnis" icon={Wallet} status={filteredSite.status} />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
-        <CostRatios site={site} />
+        <CostRatios site={filteredSite} />
         <ChartCard title="Entwicklung über Zeit" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={monthlyData}>
