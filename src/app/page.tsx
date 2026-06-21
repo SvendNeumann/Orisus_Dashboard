@@ -87,7 +87,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-performance-honorar-v2";
+const importDashboardSchemaVersion = "2026-06-21-performance-behandler-total-v3";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -121,6 +121,7 @@ type ImportedDashboardData = {
   bwaRows: ImportedBwaRow[];
   pvsRevenueRows?: ImportedPeriodValueRow[];
   behandlerHonorarRows?: ImportedPeriodValueRow[];
+  behandlerTotalRows?: ImportedPeriodValueRow[];
   report: ImportReport;
 };
 
@@ -918,6 +919,27 @@ function pureBehandlerHonorarFromRows(rows: Record<string, unknown>[]) {
   return rows.filter(isPureBehandlerHonorarRow).reduce((sum, row) => sum + (asNumber(row.Wert) ?? 0), 0);
 }
 
+function isBehandlerTotalRevenueRow(row: Record<string, unknown>) {
+  const datenbereich = normalizeMetric(row.Datenbereich);
+  const kategorie = normalizeMetric([row.Kategorie, row.Standard_Kategorie].map(asText).join(" "));
+  const metric = normalizeMetric(row.Kennzahl);
+  const standardMetric = normalizeMetric(row.Standard_Kennzahl);
+  if (!datenbereich.startsWith("behandler")) return false;
+  if (["ranking", "stamm"].some((term) => kategorie.includes(term))) return false;
+  if (metric !== "umsatz_gesamt" || standardMetric !== "gesamtleistung") return false;
+  const combinedKey = normalizeMetric(
+    [row.Kennzahl, row.Standard_Kennzahl, row.Kategorie, row.Standard_Kategorie, row.Objekt_Name, row.Werttyp, row.Standard_Werttyp]
+      .map(asText)
+      .join(" ")
+  );
+  if (["pvs", "material"].some((term) => combinedKey.includes(term))) return false;
+  return true;
+}
+
+function behandlerTotalRevenueFromRows(rows: Record<string, unknown>[]) {
+  return rows.filter(isBehandlerTotalRevenueRow).reduce((sum, row) => sum + (asNumber(row.Wert) ?? 0), 0);
+}
+
 function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: number): TopBehandlerEntry[] {
   const grouped = new Map<string, { name: string; standort: string; honorar: number }>();
 
@@ -1083,6 +1105,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     bwaRows: buildImportedBwaRows(rows, report),
     pvsRevenueRows: buildImportedPvsRevenueRows(rows, report),
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(rows, report),
+    behandlerTotalRows: buildImportedBehandlerTotalRows(rows, report),
     report
   };
 }
@@ -2633,6 +2656,33 @@ function buildImportedBehandlerHonorarRows(rows: Record<string, unknown>[], repo
   });
 }
 
+function buildImportedBehandlerTotalRows(rows: Record<string, unknown>[], report: ImportReport): ImportedPeriodValueRow[] {
+  const validYears = report.jahre.filter((year) => year > 1900);
+  return report.standorte.map((siteName) => {
+    const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
+    const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
+    const valuesByYear = Object.fromEntries(
+      validYears.map((year) => [String(year), behandlerTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year))])
+    );
+    const valuesByMonth = Object.fromEntries(
+      validYears.flatMap((year) =>
+        Array.from({ length: 12 }, (_, index) => {
+          const month = index + 1;
+          const value = behandlerTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
+          return [`${year}-${month}`, value];
+        })
+      )
+    );
+    return {
+      siteId: siteIdForName(siteName),
+      siteName,
+      valuesByYear,
+      valuesByMonth,
+      contractValue: behandlerTotalRevenueFromRows(siteRows)
+    };
+  });
+}
+
 function bwaPeriodOptionsFor(importedData?: ImportedDashboardData | null) {
   if (!importedData?.bwaRows?.length) return bwaPeriodOptions;
   const years = importedData.report.jahre.filter((year) => year >= 1900);
@@ -3779,7 +3829,7 @@ function OrisusPerformance({
         importedData={importedData}
       />
       <PerformanceMonthlyTable
-        title="Behandler-Honorarumsatz | Monatsübersicht aktuelles Jahr"
+        title="Behandlerumsatz inkl. Labor | Monatsübersicht aktuelles Jahr"
         mode="honorar"
         sites={sites}
         monthlyData={monthlyData}
@@ -3847,6 +3897,10 @@ function OperationalPerformanceTable({ sites = standorte }: { sites?: DashboardS
 
 function performancePeriodRows(importedData: ImportedDashboardData | null | undefined, mode: "honorar" | "pvs") {
   return mode === "honorar" ? importedData?.behandlerHonorarRows : importedData?.pvsRevenueRows;
+}
+
+function performanceMonthlyRows(importedData: ImportedDashboardData | null | undefined, mode: "honorar" | "pvs") {
+  return mode === "honorar" ? importedData?.behandlerTotalRows : importedData?.pvsRevenueRows;
 }
 
 function importedPreviousPeriodValue(row: ImportedPeriodValueRow | undefined, period: string) {
@@ -4036,7 +4090,7 @@ function PerformanceMonthlyTable({
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
   const period = importedData ? defaultBwaPeriodFor(importedData) : "Gesamte Periode";
   const year = selectedBwaPeriod(period).year ?? importedData?.report.jahre.filter((entry) => entry >= 1900).at(-1) ?? new Date().getFullYear();
-  const rowBySite = new Map((performancePeriodRows(importedData, mode) ?? []).map((row) => [row.siteId, row]));
+  const rowBySite = new Map((performanceMonthlyRows(importedData, mode) ?? []).map((row) => [row.siteId, row]));
   const monthlyValuesForSite = (site: DashboardSite) => {
     const importedRow = rowBySite.get(site.id);
     if (importedRow) {
