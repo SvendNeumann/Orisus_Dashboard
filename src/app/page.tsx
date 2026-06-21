@@ -89,7 +89,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-site-cards-bank-tabs-v1";
+const importDashboardSchemaVersion = "2026-06-21-site-cards-consolidated-balances-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -520,6 +520,19 @@ function latestKontostandFromWorkbook(workbook: XLSX.WorkBook, siteName: string)
   return values[0]?.value ?? null;
 }
 
+function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
+  return ["Konzern_Konsolidierung", importSourceSheetName].flatMap((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return [];
+    return XLSX.utils
+      .sheet_to_json<Record<string, unknown>>(sheet, {
+        defval: null,
+        raw: true
+      })
+      .filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
+  });
+}
+
 function sumMetricForPeriod(rows: Record<string, unknown>[], siteName: string, sourceKeys: readonly string[], year?: number, month?: number) {
   return rows.reduce((sum, row) => {
     if (asText(row.Standortname) !== siteName) return sum;
@@ -750,11 +763,12 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   );
   const siteNamesForCards = activeSiteNames.length ? activeSiteNames : report.standorte;
   const fallbackByName = new Map(sortSitesByContractStart(standorte).map((site) => [site.name, site]));
+  const consolidationRows = consolidationRowsFromWorkbook(workbook);
 
   const sites = sortSitesByContractStart(siteNamesForCards.map((siteName) => {
     const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     const siteRows = activeRows.filter((row) => asText(row.Standortname) === siteName);
-    const allSiteRows = rows.filter((row) => asText(row.Standortname) === siteName);
+    const allSiteRows = consolidationRows.filter((row) => asText(row.Standortname) === siteName);
     const hasImportedSiteRows = siteRows.length > 0;
     const importedOrFallback = (value: number, fallbackValue: number) => (hasImportedSiteRows ? value : fallbackValue);
     const gesamtleistung = Math.round(importedOrFallback(sumRows(siteRows, null, ["gesamtleistung"], ["bwa"]), fallback.gesamtleistung));
