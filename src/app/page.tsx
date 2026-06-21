@@ -71,7 +71,7 @@ type Page =
   | "reports"
   | "admin";
 
-type AuthStep = "welcome" | "login" | "first-password" | "first-pin" | "pin" | "forgot" | "app";
+type AuthStep = "welcome" | "forgot" | "app";
 
 const bwaPeriodOptions = [
   "Geschäftsjahr 2024",
@@ -87,6 +87,7 @@ const bwaPeriodOptions = [
 ];
 
 const authStorageKey = "orisus-cfo-authenticated";
+const authPasswordConfiguredKey = "orisus-cfo-password-configured";
 const passkeyStorageKey = "orisus-cfo-passkey-id";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
@@ -1336,7 +1337,6 @@ export default function HomePage() {
   const [page, setPage] = useState<Page>("cockpit");
   const [selectedSite, setSelectedSite] = useState("kirchberg");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [pin, setPin] = useState("");
   const [previousPage, setPreviousPage] = useState<Page | null>(null);
   const [importedData, setImportedData] = useState<ImportedDashboardData | null>(null);
   const dashboardSites = useMemo(() => sortSitesByContractStart(importedData?.sites ?? []), [importedData?.sites]);
@@ -1377,13 +1377,12 @@ export default function HomePage() {
 
   const logout = () => {
     window.localStorage.removeItem(authStorageKey);
-    setPin("");
     setMenuOpen(false);
     setAuthStep("welcome");
   };
 
   if (authStep !== "app") {
-    return <AuthFlow step={authStep} setStep={setPersistentAuthStep} pin={pin} setPin={setPin} />;
+    return <AuthFlow step={authStep} setStep={setPersistentAuthStep} />;
   }
 
   const go = (target: Page) => {
@@ -1543,18 +1542,22 @@ function base64ToArrayBuffer(value: string) {
 
 function AuthFlow({
   step,
-  setStep,
-  pin,
-  setPin
+  setStep
 }: {
   step: AuthStep;
   setStep: (step: AuthStep) => void;
-  pin: string;
-  setPin: (pin: string) => void;
 }) {
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   const [passkeyMessage, setPasskeyMessage] = useState("");
   const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [email, setEmail] = useState("svend.neumann@orisus.de");
+  const [password, setPassword] = useState("");
+  const [loginMessage, setLoginMessage] = useState("");
+  const [passwordConfigured, setPasswordConfigured] = useState(false);
+
+  useEffect(() => {
+    setPasswordConfigured(window.localStorage.getItem(authPasswordConfiguredKey) === "true");
+  }, []);
 
   useEffect(() => {
     const updateDeviceMode = () => {
@@ -1637,6 +1640,28 @@ function AuthFlow({
     }
   };
 
+  const handlePasswordLogin = () => {
+    setLoginMessage("");
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      setLoginMessage("Bitte eine gültige E-Mail-Adresse eingeben.");
+      return;
+    }
+    if (password.length < 6) {
+      setLoginMessage("Bitte ein Passwort mit mindestens 6 Zeichen eingeben.");
+      return;
+    }
+    if (!passwordConfigured) {
+      window.localStorage.setItem(authPasswordConfiguredKey, "true");
+      setPasswordConfigured(true);
+    }
+    setStep("app");
+  };
+
+  const resetMailHref = `mailto:sven.neumann@resos.de?subject=${encodeURIComponent("Orisus CFO Dashboard - Passwort zurücksetzen")}&body=${encodeURIComponent(
+    `Bitte Passwort-Zugang zurücksetzen für: ${email.trim() || "svend.neumann@orisus.de"}`
+  )}`;
+
   return (
     <main className="min-h-screen bg-[#eef3f4] px-4 py-5 sm:px-6 sm:py-8">
       <div className="mx-auto grid max-w-7xl gap-6 lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.18fr_0.82fr]">
@@ -1680,10 +1705,16 @@ function AuthFlow({
               <div className="mt-8 space-y-4">
           {step === "welcome" && (
             <>
-              <Input defaultValue="svend.neumann@orisus.de" type="email" aria-label="E-Mail" />
-              <Input placeholder="Passwort eingeben" type="password" aria-label="Passwort" />
-              <Button className="w-full" onClick={() => setStep("login")}>
-                Anmelden
+              <Input value={email} onChange={(event) => setEmail(event.target.value)} type="email" aria-label="E-Mail" />
+              <Input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder={passwordConfigured ? "Passwort eingeben" : "Passwort beim Erst-Login festlegen"}
+                type="password"
+                aria-label="Passwort"
+              />
+              <Button className="w-full" onClick={handlePasswordLogin}>
+                {passwordConfigured ? "Anmelden" : "Passwort festlegen & anmelden"}
               </Button>
               {isMobileDevice && (
                 <Button className="w-full gap-2" variant="secondary" onClick={handlePasskeyLogin} disabled={passkeyBusy}>
@@ -1694,67 +1725,18 @@ function AuthFlow({
               <Button className="w-full" variant="secondary" onClick={() => setStep("forgot")}>
                 Passwort vergessen
               </Button>
+              {loginMessage && <p className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">{loginMessage}</p>}
               {passkeyMessage && <p className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">{passkeyMessage}</p>}
             </>
-          )}
-          {step === "login" && (
-            <FormShell title="Anmelden" text="Interner Zugang für Svend Neumann.">
-              <Input defaultValue="svend.neumann@orisus.de" type="email" aria-label="E-Mail" />
-              <Input placeholder="Passwort" type="password" aria-label="Passwort" />
-              <Button className="w-full" onClick={() => setStep("first-password")}>
-                Einloggen
-              </Button>
-              {isMobileDevice && (
-                <Button className="w-full gap-2" variant="secondary" onClick={handlePasskeyLogin} disabled={passkeyBusy}>
-                  <Fingerprint className="h-4 w-4" />
-                  {passkeyBusy ? "Face ID wird geprüft ..." : "Mit Face ID anmelden"}
-                </Button>
-              )}
-              <Button className="w-full" variant="ghost" onClick={() => setStep("forgot")}>
-                Passwort vergessen
-              </Button>
-              {passkeyMessage && <p className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">{passkeyMessage}</p>}
-            </FormShell>
-          )}
-          {step === "first-password" && (
-            <FormShell title="Erstlogin" text="Bitte neues Passwort für den Prototyp festlegen.">
-              <Input placeholder="Neues Passwort" type="password" />
-              <Input placeholder="Passwort bestätigen" type="password" />
-              <Button className="w-full" onClick={() => setStep("first-pin")}>
-                Weiter zur PIN
-              </Button>
-            </FormShell>
-          )}
-          {step === "first-pin" && (
-            <FormShell title="PIN festlegen" text="6-stellige PIN für die reguläre Nutzung.">
-              <Input
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="123456"
-                value={pin}
-                onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
-              />
-              <Button className="w-full" disabled={pin.length < 6} onClick={() => setStep("app")}>
-                Dashboard öffnen
-              </Button>
-            </FormShell>
-          )}
-          {step === "pin" && (
-            <FormShell title="PIN eingeben" text="Regulärer Login mit 6-stelliger PIN.">
-              <Input inputMode="numeric" maxLength={6} placeholder="PIN" />
-              <Button className="w-full" onClick={() => setStep("app")}>
-                Dashboard öffnen
-              </Button>
-            </FormShell>
           )}
           {step === "forgot" && (
             <FormShell
               title="Passwort zurücksetzen"
-              text="Perspektivisch wird ein Reset-Link an svend.neumann@orisus.de gesendet."
+              text="Eine Reset-Anfrage wird an den Admin gesendet."
             >
-              <Input defaultValue="svend.neumann@orisus.de" type="email" />
-              <Button className="w-full" onClick={() => setStep("login")}>
-                Reset-Link simulieren
+              <Input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+              <Button className="w-full" onClick={() => { window.location.href = resetMailHref; }}>
+                Anfrage an Admin senden
               </Button>
               <Button className="w-full" variant="ghost" onClick={() => setStep("welcome")}>
                 Zurück
