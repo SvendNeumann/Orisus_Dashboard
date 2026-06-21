@@ -4109,7 +4109,7 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
             <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
-              <YAxis tickFormatter={(v) => eur(Number(v), true)} />
+              <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="leistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
               <Line dataKey="ebitda" stroke="#0369a1" strokeWidth={3} />
