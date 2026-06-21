@@ -2630,6 +2630,7 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
   }
 
   const rows = importedData?.bwaRows?.length ? buildImportedBwaLines(importedData.bwaRows, period, siteId) : [];
+  const contractRows = importedData?.bwaRows?.length ? buildImportedBwaLines(importedData.bwaRows, "Gesamte Periode", siteId) : [];
   const activeSites = siteId ? (importedData?.sites ?? []).filter((site) => site.id === siteId) : (importedData?.sites ?? []);
 
   return (
@@ -2648,24 +2649,34 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
         </Select>
       </div>
       <div className="overflow-x-auto">
-        <div className="min-w-[720px]">
-          <div className="grid grid-cols-[1.4fr_1fr] gap-3 border-b border-border bg-slate-50 p-3 text-xs font-bold uppercase text-muted-foreground">
+        <div className="min-w-[840px]">
+          <div className="grid grid-cols-[1.35fr_1fr_1fr] gap-3 border-b border-border bg-slate-50 p-3 text-xs font-bold uppercase text-muted-foreground">
             <span>Position</span>
-            <span className="text-right">Ist</span>
+            <span className="text-right">{period}</span>
+            <span className="text-right">Vertragsperiode seit Start</span>
           </div>
-          {rows.map((row) => (
-            <div
-              key={row.label}
-              className={cn(
-                "grid grid-cols-[1.4fr_1fr] gap-3 border-b border-border p-3 text-sm last:border-0",
-                row.emphasis && "table-total font-bold",
-                row.kind === "cashflow" && "table-cashflow"
-              )}
-            >
-              <span className={cn(row.indent && "pl-5 text-muted-foreground")}>{row.label}</span>
-              <span className="text-right font-semibold">{row.percent ? pct(row.actual) : eur(row.actual)}</span>
-            </div>
-          ))}
+          {rows.map((row, index) => {
+            const contractRow = contractRows[index] ?? row;
+            const isSectionRow = row.emphasis && row.actual === 0 && !row.percent;
+            return (
+              <div
+                key={row.label}
+                className={cn(
+                  "grid grid-cols-[1.35fr_1fr_1fr] gap-3 border-b border-border p-3 text-sm last:border-0",
+                  row.emphasis && "table-total font-bold",
+                  row.kind === "cashflow" && "table-cashflow"
+                )}
+              >
+                <span className={cn(row.indent && "pl-5 text-muted-foreground")}>{row.label}</span>
+                <span className={cn("text-right font-semibold", bwaValueToneClass(row.actual, row.label))}>
+                  {isSectionRow ? "" : row.percent ? pct(row.actual) : eur(row.actual)}
+                </span>
+                <span className={cn("text-right font-semibold", bwaValueToneClass(contractRow.actual, contractRow.label))}>
+                  {isSectionRow ? "" : contractRow.percent ? pct(contractRow.actual) : eur(contractRow.actual)}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
       <div className="grid gap-3 border-t border-border bg-slate-50 p-4 text-sm sm:grid-cols-3">
