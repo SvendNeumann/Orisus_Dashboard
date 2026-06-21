@@ -91,6 +91,10 @@ const authPasswordConfiguredKey = "orisus-cfo-password-configured";
 const passkeyStorageKey = "orisus-cfo-passkey-id";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
+const importPersistenceDbName = "orisus-cfo-dashboard";
+const importPersistenceStoreName = "confirmed-import";
+const importPersistenceReportKey = "report";
+const importPersistenceDashboardKey = "dashboard";
 const importDashboardSchemaVersion = "2026-06-21-performance-behandler-total-v8";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
@@ -172,6 +176,115 @@ type ImportedPeriodValueRow = {
   valuesByMonth: Record<string, number>;
   contractValue: number;
 };
+
+function openImportPersistenceDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (!("indexedDB" in window)) {
+      reject(new Error("indexedDB-unavailable"));
+      return;
+    }
+
+    const request = window.indexedDB.open(importPersistenceDbName, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(importPersistenceStoreName)) {
+        db.createObjectStore(importPersistenceStoreName);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("indexedDB-error"));
+  });
+}
+
+function readPersistentValue<T>(key: string): Promise<T | null> {
+  return openImportPersistenceDb()
+    .then(
+      (db) =>
+        new Promise<T | null>((resolve, reject) => {
+          const transaction = db.transaction(importPersistenceStoreName, "readonly");
+          const store = transaction.objectStore(importPersistenceStoreName);
+          const request = store.get(key);
+          request.onsuccess = () => resolve((request.result as T | undefined) ?? null);
+          request.onerror = () => reject(request.error ?? new Error("indexedDB-read-error"));
+          transaction.oncomplete = () => db.close();
+          transaction.onerror = () => db.close();
+        })
+    )
+    .catch(() => null);
+}
+
+function writePersistentValue<T>(key: string, value: T): Promise<boolean> {
+  return openImportPersistenceDb()
+    .then(
+      (db) =>
+        new Promise<boolean>((resolve, reject) => {
+          const transaction = db.transaction(importPersistenceStoreName, "readwrite");
+          const store = transaction.objectStore(importPersistenceStoreName);
+          const request = store.put(value, key);
+          request.onsuccess = () => resolve(true);
+          request.onerror = () => reject(request.error ?? new Error("indexedDB-write-error"));
+          transaction.oncomplete = () => db.close();
+          transaction.onerror = () => db.close();
+        })
+    )
+    .catch(() => false);
+}
+
+function deletePersistentValue(key: string): Promise<void> {
+  return openImportPersistenceDb()
+    .then(
+      (db) =>
+        new Promise<void>((resolve) => {
+          const transaction = db.transaction(importPersistenceStoreName, "readwrite");
+          const store = transaction.objectStore(importPersistenceStoreName);
+          store.delete(key);
+          transaction.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          transaction.onerror = () => {
+            db.close();
+            resolve();
+          };
+        })
+    )
+    .catch(() => undefined);
+}
+
+async function loadConfirmedImportData() {
+  const persistentDashboard = await readPersistentValue<ImportedDashboardData>(importPersistenceDashboardKey);
+  const localDashboard = !persistentDashboard ? window.localStorage.getItem(importDashboardStorageKey) : null;
+  const parsedDashboard = persistentDashboard ?? (localDashboard ? (JSON.parse(localDashboard) as ImportedDashboardData) : null);
+  if (!parsedDashboard) return null;
+  if (parsedDashboard.schemaVersion !== importDashboardSchemaVersion) {
+    await clearConfirmedImport();
+    return null;
+  }
+
+  const repairedImport = repairImportedCashflowData(parsedDashboard);
+  await saveConfirmedImport(repairedImport.report, repairedImport);
+  return repairedImport;
+}
+
+async function saveConfirmedImport(report: ImportReport, dashboardData: ImportedDashboardData) {
+  const savedReport = await writePersistentValue(importPersistenceReportKey, report);
+  const savedDashboard = await writePersistentValue(importPersistenceDashboardKey, dashboardData);
+  window.localStorage.setItem(importStorageKey, JSON.stringify(report));
+  if (savedReport && savedDashboard) {
+    window.localStorage.removeItem(importDashboardStorageKey);
+    return;
+  }
+  window.localStorage.setItem(importDashboardStorageKey, JSON.stringify(dashboardData));
+}
+
+async function clearConfirmedImport() {
+  await Promise.all([
+    deletePersistentValue(importPersistenceReportKey),
+    deletePersistentValue(importPersistenceDashboardKey)
+  ]);
+  window.localStorage.removeItem(importStorageKey);
+  window.localStorage.removeItem(importDashboardStorageKey);
+}
 
 const emptyImportReport: ImportReport = {
   status: "idle",
@@ -1351,21 +1464,15 @@ export default function HomePage() {
     if (window.localStorage.getItem(authStorageKey) === "true") {
       setAuthStep("app");
     }
-    const savedImport = window.localStorage.getItem(importDashboardStorageKey);
-    if (!savedImport) return;
-    try {
-      const parsedImport = JSON.parse(savedImport) as ImportedDashboardData;
-      if (parsedImport.schemaVersion !== importDashboardSchemaVersion) {
-        window.localStorage.removeItem(importDashboardStorageKey);
-        window.localStorage.removeItem(importStorageKey);
-        return;
-      }
-      const repairedImport = repairImportedCashflowData(parsedImport);
-      window.localStorage.setItem(importDashboardStorageKey, JSON.stringify(repairedImport));
-      setImportedData(repairedImport);
-    } catch {
-      window.localStorage.removeItem(importDashboardStorageKey);
-    }
+    let isMounted = true;
+    loadConfirmedImportData()
+      .then((savedImport) => {
+        if (isMounted && savedImport) setImportedData(savedImport);
+      })
+      .catch(() => clearConfirmedImport());
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const setPersistentAuthStep = (step: AuthStep) => {
@@ -5639,23 +5746,17 @@ function Uploads({
   const [pendingDashboardData, setPendingDashboardData] = useState<ImportedDashboardData | null>(null);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(importStorageKey);
-    if (!saved) return;
-    try {
-      const savedDashboard = window.localStorage.getItem(importDashboardStorageKey);
-      if (savedDashboard) {
-        const parsedDashboard = JSON.parse(savedDashboard) as ImportedDashboardData;
-        if (parsedDashboard.schemaVersion !== importDashboardSchemaVersion) {
-          window.localStorage.removeItem(importStorageKey);
-          window.localStorage.removeItem(importDashboardStorageKey);
-          return;
-        }
-      }
-      setConfirmedReport(JSON.parse(saved) as ImportReport);
-    } catch {
-      window.localStorage.removeItem(importStorageKey);
-      window.localStorage.removeItem(importDashboardStorageKey);
-    }
+    let isMounted = true;
+    loadConfirmedImportData()
+      .then((savedImport) => {
+        if (isMounted && savedImport) setConfirmedReport(savedImport.report);
+      })
+      .catch(() => {
+        if (isMounted) setConfirmedReport(null);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
@@ -5693,18 +5794,16 @@ function Uploads({
     }
   }
 
-  function confirmImport() {
+  async function confirmImport() {
     if ((report.status !== "ready" && report.status !== "warning") || !pendingDashboardData) return;
     const repairedDashboardData = repairImportedCashflowData(pendingDashboardData);
-    window.localStorage.setItem(importStorageKey, JSON.stringify(report));
-    window.localStorage.setItem(importDashboardStorageKey, JSON.stringify(repairedDashboardData));
+    await saveConfirmedImport(report, repairedDashboardData);
     setConfirmedReport(report);
     onImportConfirmed?.(repairedDashboardData);
   }
 
-  function resetImport() {
-    window.localStorage.removeItem(importStorageKey);
-    window.localStorage.removeItem(importDashboardStorageKey);
+  async function resetImport() {
+    await clearConfirmedImport();
     setReport(emptyImportReport);
     setConfirmedReport(null);
     setPendingDashboardData(null);
