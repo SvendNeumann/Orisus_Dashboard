@@ -89,7 +89,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-site-cards-contract-period-v1";
+const importDashboardSchemaVersion = "2026-06-21-site-export-balances-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -527,7 +527,18 @@ function latestKontostandFromWorkbook(workbook: XLSX.WorkBook, siteName: string)
 }
 
 function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
-  return ["Konzern_Konsolidierung", importSourceSheetName].flatMap((sheetName) => {
+  const sheetNames = Array.from(
+    new Set([
+      "Konzern_Konsolidierung",
+      importSourceSheetName,
+      ...workbook.SheetNames.filter((sheetName) => {
+        const key = normalizeMetric(sheetName);
+        return key.endsWith("_export") || key.startsWith("export_");
+      })
+    ])
+  );
+
+  return sheetNames.flatMap((sheetName) => {
     const sheet = workbook.Sheets[sheetName];
     if (!sheet) return [];
     return XLSX.utils
@@ -535,7 +546,10 @@ function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
         defval: null,
         raw: true
       })
-      .filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
+      .filter((row) => {
+        if (isExcludedPlanRow(row) || !asText(row.Kennzahl) || !asText(row.Standortname)) return false;
+        return metricMatches(rowMetric(row), ["kontostand", "kontostand_monatsende", "kontostand_per_stichtag"]);
+      });
   });
 }
 
