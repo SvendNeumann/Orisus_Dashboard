@@ -2094,6 +2094,7 @@ function Cockpit({
   importedData: ImportedDashboardData | null;
 }) {
   const cockpitPeriod = defaultBwaPeriodFor(importedData);
+  const cockpitPeriodSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, cockpitPeriod)) : sites;
   return (
     <section className="space-y-5">
       <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Handlungsbedarf." />
@@ -2102,7 +2103,7 @@ function Cockpit({
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard title={`Ist EBITDA vs. EBITDA bei Übernahme | ${cockpitPeriod}`} icon={TrendingUp}>
-          <EbitdaTakeoverChart sites={sites} />
+          <EbitdaTakeoverChart sites={cockpitPeriodSites} />
         </ChartCard>
         <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
           <CostShareDonut sites={sites} />
@@ -3525,6 +3526,8 @@ function filteredSiteForPeriod(site: DashboardSite, importedData: ImportedDashbo
   const personalquote = gesamtleistung ? (personal / gesamtleistung) * 100 : 0;
   const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - personalquote) : 0;
   const status: Status = ebitdaMarge < 8 || cashflow < 0 ? "red" : ebitdaMarge < 12 ? "yellow" : "green";
+  const zielEbitdaKaufvertrag = Math.round(importedBwaMetricValue(importedData.bwaRows, siteId, "ziel_ebitda_kaufvertrag", period));
+  const zielEbitdaUebernahme = Math.round(importedBwaMetricValue(importedData.bwaRows, siteId, "ziel_ebitda_uebernahme", period));
 
   return {
     ...site,
@@ -3537,7 +3540,14 @@ function filteredSiteForPeriod(site: DashboardSite, importedData: ImportedDashbo
     fremdlaborquote,
     personalquote,
     sonstigeKostenquote,
-    status
+    status,
+    darlehen: {
+      ...site.darlehen,
+      zielEbitda: zielEbitdaKaufvertrag || site.darlehen.zielEbitda,
+      zielEbitdaKaufvertrag: zielEbitdaKaufvertrag || site.darlehen.zielEbitdaKaufvertrag,
+      zielEbitdaUebernahme: zielEbitdaUebernahme || site.darlehen.zielEbitdaUebernahme,
+      istEbitda: ebitda
+    }
   };
 }
 
