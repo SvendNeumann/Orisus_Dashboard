@@ -1056,7 +1056,11 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const importedCashflow = Math.round(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]));
     const vorlaeufigesErgebnis = Math.round(sumRows(siteRows, null, ["vorlaufiges_ergebnis"], ["bwa"]));
     const cashflowAbschreibungen = Math.abs(
-      Math.round(sumRowsByCategory(siteRows, ["abschreibungen"], ["bwa"], ["cashflow_adjustments"]))
+      Math.round(
+        sumRowsByCategory(siteRows, ["plus_abschreibungen"], ["bwa"], ["cashflow_adjustments"]) ||
+          sumRowsByCategory(siteRows, ["abschreibungen"], ["bwa"], ["cashflow_adjustments"]) ||
+          sumRowsByCategory(siteRows, ["abschreibungen"], ["bwa"], ["unter_ebitda"])
+      )
     );
     const investitionsausgaben = Math.abs(
       Math.round(sumRowsByCategory(siteRows, ["investitionsausgaben"], ["bwa"], ["cashflow_adjustments"]))
@@ -2659,7 +2663,10 @@ function CashflowBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
   ];
   return (
     <Card className="p-4">
-      <h2 className="font-bold">Cashflow</h2>
+      <h2 className="font-bold">Cashflow Gesamt | seit Vertragsstart</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Herleitung: Vorläufiges Ergebnis + Abschreibungen - Investitionen - Tilgung - Umbuchung ZMVZ - sonstige Adjustments.
+      </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {rows.map(([label, value]) => (
           <div key={label} className="rounded-md bg-slate-50 p-3">
