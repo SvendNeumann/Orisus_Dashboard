@@ -1867,8 +1867,8 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
     },
     {
       label: "Fremdkapital",
-      value: metrics.restschuld,
-      delta: `${eur(metrics.aufgenommen, true)} aufgenommen | ${eur(metrics.getilgt, true)} getilgt`,
+      value: Math.max(0, metrics.aufgenommen - metrics.tilgung),
+      delta: `${eur(metrics.aufgenommen, true)} aufgenommen | ${eur(metrics.tilgung, true)} getilgt`,
       icon: Landmark,
       status: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow"
     }
