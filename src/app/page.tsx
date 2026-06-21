@@ -95,7 +95,7 @@ const importPersistenceDbName = "orisus-cfo-dashboard";
 const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
-const importDashboardSchemaVersion = "2026-06-21-performance-behandler-total-v8";
+const importDashboardSchemaVersion = "2026-06-21-bank-movements-v9";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const supabaseAccessTokenKey = "orisus-cfo-supabase-access-token";
 const supabaseRefreshTokenKey = "orisus-cfo-supabase-refresh-token";
@@ -144,6 +144,7 @@ type ImportedDashboardData = {
   pvsRevenueRows?: ImportedPeriodValueRow[];
   behandlerHonorarRows?: ImportedPeriodValueRow[];
   behandlerTotalRows?: ImportedPeriodValueRow[];
+  bankMovementRows?: ImportedBankMovementRow[];
   report: ImportReport;
 };
 
@@ -200,6 +201,17 @@ type ImportedPeriodValueRow = {
   valuesByYear: Record<string, number>;
   valuesByMonth: Record<string, number>;
   contractValue: number;
+};
+
+type ImportedBankMovementRow = {
+  label: string;
+  indent: boolean;
+  valuesByMonth: Record<string, number>;
+  hasValueByMonth: Record<string, boolean>;
+  total: number;
+  averageMonth: number;
+  contractValue: number;
+  averageContract: number;
 };
 
 function openImportPersistenceDb(): Promise<IDBDatabase> {
@@ -1498,6 +1510,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     pvsRevenueRows: buildImportedPvsRevenueRows(workbook, rows, report, latestYear),
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(rows, report),
     behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
+    bankMovementRows: buildImportedBankMovementRows(workbook, latestYear),
     report
   };
 }
@@ -3318,6 +3331,66 @@ function dashboardPerformanceMonthlyValues(workbook: XLSX.WorkBook, titleTerms: 
   return valuesBySite;
 }
 
+function buildImportedBankMovementRows(workbook: XLSX.WorkBook, latestYear: number): ImportedBankMovementRow[] {
+  const sheet = workbook.Sheets["Dashboard_Performance"];
+  if (!sheet) return [];
+
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: null,
+    raw: true,
+    blankrows: false
+  });
+  const titleRowIndex = rows.findIndex((row) =>
+    row.some((cell) => normalizeMetric(cell).includes("bank_geldbewegungen_aus_input_finanzen"))
+  );
+  if (titleRowIndex < 0) return [];
+
+  const headerRowIndex = rows.findIndex((row, index) => index > titleRowIndex && row.some((cell) => normalizeMetric(cell) === "position"));
+  if (headerRowIndex < 0) return [];
+
+  const headerRow = rows[headerRowIndex] ?? [];
+  const positionColumn = headerRow.findIndex((cell) => normalizeMetric(cell) === "position");
+  const totalColumn = headerRow.findIndex((cell) => normalizeMetric(cell) === "gesamt");
+  const averageMonthColumn = headerRow.findIndex((cell) => normalizeMetric(cell).includes("monat"));
+  const contractColumn = headerRow.findIndex((cell) => normalizeMetric(cell) === "gesamte_vertragsperiode");
+  const averageContractColumn = headerRow.findIndex((cell) => normalizeMetric(cell) === "vertragsperiode");
+  const monthColumns = headerRow
+    .map((cell, column) => ({ column, month: monthNumberFromHeader(cell) }))
+    .filter((entry): entry is { column: number; month: number } => entry.month != null);
+  if (positionColumn < 0 || !monthColumns.length) return [];
+
+  const result: ImportedBankMovementRow[] = [];
+  for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex] ?? [];
+    const label = asText(row[positionColumn]);
+    if (!label) break;
+
+    const valuesByMonth: Record<string, number> = {};
+    const hasValueByMonth: Record<string, boolean> = {};
+    monthColumns.forEach(({ column, month }) => {
+      const value = asNumber(row[column]);
+      if (value != null) {
+        valuesByMonth[`${latestYear}-${month}`] = value;
+        hasValueByMonth[`${latestYear}-${month}`] = true;
+      }
+    });
+
+    result.push({
+      label,
+      indent: normalizeMetric(label).startsWith("davon_"),
+      valuesByMonth,
+      hasValueByMonth,
+      total: totalColumn >= 0 ? asNumber(row[totalColumn]) ?? 0 : Object.values(valuesByMonth).reduce((sum, value) => sum + value, 0),
+      averageMonth: averageMonthColumn >= 0 ? asNumber(row[averageMonthColumn]) ?? 0 : 0,
+      contractValue: contractColumn >= 0 ? asNumber(row[contractColumn]) ?? 0 : 0,
+      averageContract: averageContractColumn >= 0 ? asNumber(row[averageContractColumn]) ?? 0 : 0
+    });
+  }
+
+  return result;
+}
+
 function dashboardPerformanceBehandlerMonthlyValues(workbook: XLSX.WorkBook) {
   return dashboardPerformanceMonthlyValues(workbook, ["behandlerumsatz_inkl_eigenlabor", "monats"]);
 }
@@ -4746,6 +4819,7 @@ function OrisusPerformance({
       <BankMovementsTable
         sites={sites}
         monthlyData={monthlyData}
+        importedData={importedData}
         period={bankPeriod}
         setPeriod={setBankPeriod}
         availablePeriods={availablePeriods}
@@ -5111,17 +5185,38 @@ function PerformanceMonthRow({ label, values }: { label: string; values: number[
 function BankMovementsTable({
   sites = standorte,
   monthlyData = monthly,
+  importedData,
   period,
   setPeriod,
   availablePeriods
 }: {
   sites?: DashboardSite[];
   monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
   period: string;
   setPeriod: (period: string) => void;
   availablePeriods: string[];
 }) {
   const visibleMonths = monthSelectionForPeriod(period);
+  const selection = selectedBwaPeriod(period);
+  const importedRows = importedData?.bankMovementRows ?? [];
+  const selectedMonthKeys = Array.from(visibleMonths).map((month) => `${selection.year ?? ""}-${month}`);
+  const monthValueFor = (row: ImportedBankMovementRow, month: number) => {
+    if (!selection.year) return null;
+    const key = `${selection.year}-${month}`;
+    return row.hasValueByMonth[key] ? row.valuesByMonth[key] ?? 0 : null;
+  };
+  const selectedTotalFor = (row: ImportedBankMovementRow) => {
+    if (!selection.year) return row.contractValue;
+    const hasSelectedValues = selectedMonthKeys.some((key) => row.hasValueByMonth[key]);
+    if (!hasSelectedValues) return row.total;
+    return Array.from(visibleMonths).reduce((sum, month) => sum + (monthValueFor(row, month) ?? 0), 0);
+  };
+  const selectedAverageFor = (row: ImportedBankMovementRow, totalValue: number) => {
+    if (!selection.year) return row.averageContract;
+    const activeMonthCount = selectedMonthKeys.filter((key) => row.hasValueByMonth[key]).length;
+    return activeMonthCount ? totalValue / activeMonthCount : row.averageMonth;
+  };
   const applyPeriod = (values: number[]) => fillTwelveMonths(values).map((value, index) => (visibleMonths.has(index + 1) ? value : 0));
   const monthlyPerformance = fillTwelveMonths(monthlyData.map((entry) => entry.leistung));
   const monthlyEbitda = fillTwelveMonths(monthlyData.map((entry) => entry.ebitda));
@@ -5148,6 +5243,34 @@ function BankMovementsTable({
     { label: "Cashflow gesamt im Monat", values: applyPeriod(monthlyCashflow), contract: totalForSites(sites, "cashflow") },
     { label: "Kontostand Monatsende", values: applyPeriod(kontostandMonths), contract: endingKontostand }
   ];
+  const displayRows = importedRows.length
+    ? importedRows.map((row) => {
+        const values = Array.from({ length: 12 }, (_, index) => monthValueFor(row, index + 1));
+        const total = selectedTotalFor(row);
+        return {
+          label: row.label,
+          indent: row.indent,
+          values,
+          total,
+          average: selectedAverageFor(row, total),
+          contract: row.contractValue,
+          contractAverage: row.averageContract
+        };
+      })
+    : rows.map((row) => {
+        const values = fillTwelveMonths(row.values).map((value) => (value ? value : null));
+        const total = row.values.reduce((sum, value) => sum + value, 0);
+        const activeMonths = row.values.filter((value) => value !== 0).length || 1;
+        return {
+          label: row.label,
+          indent: Boolean(row.indent),
+          values,
+          total,
+          average: total / activeMonths,
+          contract: row.contract,
+          contractAverage: row.contract / activeMonths
+        };
+      });
 
   return (
     <Card className="overflow-hidden">
@@ -5180,21 +5303,21 @@ function BankMovementsTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
-              const fullValues = fillTwelveMonths(row.values);
-              const totalValue = row.values.reduce((sum, value) => sum + value, 0);
-              const activeMonths = row.values.filter((value) => value !== 0).length || 1;
+            {displayRows.map((row) => {
+              const totalValue = row.total;
               const isSummary = !row.indent;
               return (
                 <tr key={row.label} className={cn(isSummary && "summary-row")}>
                   <TableCell strong={isSummary} summary={isSummary}>{row.indent ? `  ${row.label}` : row.label}</TableCell>
-                  {fullValues.map((value, index) => (
-                    <TableCell key={`${row.label}-${index}`} summary={isSummary} tone={value < 0 ? "red" : undefined}>{value ? eur(value) : ""}</TableCell>
+                  {row.values.map((value, index) => (
+                    <TableCell key={`${row.label}-${index}`} summary={isSummary} tone={(value ?? 0) < 0 ? "red" : undefined}>
+                      {value == null ? "" : eur(value)}
+                    </TableCell>
                   ))}
                   <TableCell strong summary={isSummary} tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue)}</TableCell>
-                  <TableCell strong summary={isSummary} tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue / activeMonths)}</TableCell>
+                  <TableCell strong summary={isSummary} tone={row.average < 0 ? "red" : undefined}>{eur(row.average)}</TableCell>
                   <TableCell strong summary={isSummary} tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract)}</TableCell>
-                  <TableCell strong summary={isSummary} tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract / activeMonths)}</TableCell>
+                  <TableCell strong summary={isSummary} tone={row.contractAverage < 0 ? "red" : undefined}>{eur(row.contractAverage)}</TableCell>
                 </tr>
               );
             })}
