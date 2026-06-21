@@ -88,7 +88,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-performance-periods-v7";
+const importDashboardSchemaVersion = "2026-06-21-performance-behandler-total-v8";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 const acquisitionTermsBySiteId: Record<string, { kaufpreis: number; earnOutGesamt: number; earnOutFaelligAm: string }> = {
@@ -2821,6 +2821,7 @@ function dashboardPerformanceContractValues(workbook: XLSX.WorkBook, titleTerms:
 function buildImportedBehandlerTotalRows(workbook: XLSX.WorkBook, rows: Record<string, unknown>[], report: ImportReport, latestYear: number): ImportedPeriodValueRow[] {
   const validYears = report.jahre.filter((year) => year > 1900);
   const dashboardMonthlyValues = dashboardPerformanceBehandlerMonthlyValues(workbook);
+  const dashboardContractValues = dashboardPerformanceContractValues(workbook, ["behandlerumsatz_je_standort"]);
   return report.standorte.map((siteName) => {
     const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
@@ -2849,7 +2850,7 @@ function buildImportedBehandlerTotalRows(workbook: XLSX.WorkBook, rows: Record<s
       siteName,
       valuesByYear,
       valuesByMonth,
-      contractValue: behandlerTotalRevenueFromRows(siteRows)
+      contractValue: dashboardContractValues.get(siteId) ?? behandlerTotalRevenueFromRows(siteRows)
     };
   });
 }
@@ -4005,7 +4006,7 @@ function OrisusPerformance({
       </div>
       <OperationalPerformanceTable sites={sites} />
       <PerformanceRevenueBlock
-        title="Behandler-Honorarumsatz je Standort"
+        title="Behandlerumsatz inkl. Eigenlabor je Standort"
         period={honorarPeriod}
         setPeriod={setHonorarPeriod}
         availablePeriods={availablePeriods}
@@ -4014,7 +4015,7 @@ function OrisusPerformance({
         importedData={importedData}
       />
       <PerformanceMonthlyTable
-        title="Behandlerumsatz inkl. Labor | Monatsübersicht aktuelles Jahr"
+        title="Behandlerumsatz inkl. Eigenlabor | Monatsübersicht aktuelles Jahr"
         mode="honorar"
         sites={sites}
         monthlyData={monthlyData}
@@ -4083,7 +4084,7 @@ function OperationalPerformanceTable({ sites = standorte }: { sites?: DashboardS
 }
 
 function performancePeriodRows(importedData: ImportedDashboardData | null | undefined, mode: "honorar" | "pvs") {
-  return mode === "honorar" ? importedData?.behandlerHonorarRows : importedData?.pvsRevenueRows;
+  return mode === "honorar" ? importedData?.behandlerTotalRows : importedData?.pvsRevenueRows;
 }
 
 function performanceMonthlyRows(importedData: ImportedDashboardData | null | undefined, mode: "honorar" | "pvs") {
@@ -4197,7 +4198,7 @@ function PerformanceRevenueBlock({
       </div>
       <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">{subtitle}</div>
       <div className="grid gap-px table-grid-bg md:grid-cols-5">
-        <KennzahlTile label={`${mode === "honorar" ? "Honorarumsatz" : "PVS Umsatz"} Zeitraum`} value={eur(current)} />
+        <KennzahlTile label={`${mode === "honorar" ? "Behandlerumsatz inkl. Eigenlabor" : "PVS Umsatz"} Zeitraum`} value={eur(current)} />
         <KennzahlTile label="YoY Zeitraum" value={pctDelta(current, previous)} />
         <KennzahlTile label="QTD YoY" value={pctDelta(qtd, qtdPrevious)} />
         <KennzahlTile label="Umsatz seit Übernahme" value={eur(sinceTakeover)} />
