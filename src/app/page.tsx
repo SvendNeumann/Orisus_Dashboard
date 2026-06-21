@@ -2072,7 +2072,7 @@ function StandortCfoComparison({ sites = standorte }: { sites?: DashboardSite[] 
       <div className="border-b border-border p-4">
         <h2 className="font-bold">Standortvergleich CFO-Kennzahlen</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Konsolidierte Steuerungssicht je Standort: Ergebnisqualität, Cashflow, Forderungen und Kostenquote.
+          Konsolidierte Steuerungssicht je Standort seit Vertragsstart: Ergebnisqualität, Cashflow, Forderungen und Kostenquote.
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -2088,7 +2088,7 @@ function StandortCfoComparison({ sites = standorte }: { sites?: DashboardSite[] 
           </thead>
           <tbody>
             {sites.filter((site) => site.gesamtleistung > 0).map((site) => {
-              const kostenquote = site.materialquote + site.fremdlaborquote + site.sonstigeKostenquote;
+              const kostenquote = site.materialquote + site.fremdlaborquote + (site.personalquote ?? 0) + site.sonstigeKostenquote;
               return (
                 <tr key={site.id}>
                   <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
