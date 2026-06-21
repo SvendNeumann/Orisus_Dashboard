@@ -3164,6 +3164,8 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
 function PersonalSickness({ personalData }: { personalData: PersonalDashboardData }) {
   const [year, setYear] = useState(String(personalData.report.years.at(-1) ?? new Date().getFullYear()));
   const selectedYear = Number(year);
+  const formatOneDecimal = (value: number) =>
+    value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const siteRows = personalEmployeesBySite(personalData).map((site) => {
     const entries = personalData.sicknessEntries.filter((entry) => entry.site === site.site && entry.year === selectedYear);
     return {
@@ -3177,6 +3179,19 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
     month,
     days: personalData.sicknessEntries.filter((entry) => entry.year === selectedYear && entry.month === index + 1).reduce((sum, entry) => sum + entry.days, 0)
   }));
+  const monthlySiteRows = siteRows.map((site) => {
+    const monthlyValues = bwaMonths.map((_, index) =>
+      personalData.sicknessEntries
+        .filter((entry) => entry.site === site.site && entry.year === selectedYear && entry.month === index + 1)
+        .reduce((sum, entry) => sum + entry.days, 0)
+    );
+    return {
+      site: site.site,
+      monthlyValues,
+      total: monthlyValues.reduce((sum, value) => sum + value, 0)
+    };
+  });
+  const monthlyTotals = bwaMonths.map((_, index) => monthlySiteRows.reduce((sum, row) => sum + row.monthlyValues[index], 0));
 
   return (
     <section className="space-y-5">
@@ -3231,9 +3246,44 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
                 <TableCell>{row.days.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
                 <TableCell>{row.cases}</TableCell>
                 <TableCell>{row.active}</TableCell>
-                <TableCell>{row.active ? (row.days / row.active).toLocaleString("de-DE", { maximumFractionDigits: 1 }) : ""}</TableCell>
+                <TableCell>{row.active ? formatOneDecimal(row.days / row.active) : ""}</TableCell>
               </tr>
             ))}
+          </tbody>
+        </ResponsiveTable>
+      </Card>
+      <Card className="overflow-hidden">
+        <div className="p-4">
+          <h2 className="font-bold">Monatliche Krankheitstage je Standort | {selectedYear}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Aufstellung aus Input_Krankheitstage nach Monat und Standort.</p>
+        </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <TableHead>Standort</TableHead>
+              {bwaMonths.map((month) => (
+                <TableHead key={month}>{month}</TableHead>
+              ))}
+              <TableHead>Gesamt</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {monthlySiteRows.map((row) => (
+              <tr key={row.site}>
+                <TableCell strong>{row.site}</TableCell>
+                {row.monthlyValues.map((value, index) => (
+                  <TableCell key={`${row.site}-${bwaMonths[index]}`}>{value ? formatOneDecimal(value) : ""}</TableCell>
+                ))}
+                <TableCell strong summary>{formatOneDecimal(row.total)}</TableCell>
+              </tr>
+            ))}
+            <tr className="summary-row">
+              <TableCell strong summary>Gesamt</TableCell>
+              {monthlyTotals.map((value, index) => (
+                <TableCell key={`gesamt-${bwaMonths[index]}`} strong summary>{value ? formatOneDecimal(value) : ""}</TableCell>
+              ))}
+              <TableCell strong summary>{formatOneDecimal(monthlyTotals.reduce((sum, value) => sum + value, 0))}</TableCell>
+            </tr>
           </tbody>
         </ResponsiveTable>
       </Card>
