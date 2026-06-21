@@ -87,7 +87,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-no-demo-values-v1";
+const importDashboardSchemaVersion = "2026-06-21-top-behandler-honorar-only-v1";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
@@ -835,7 +835,14 @@ function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: numbe
   rows.forEach((row) => {
     if ((rowYear(row) ?? 0) !== latestYear) return;
     if (!rowDomain(row).includes("behandler")) return;
-    if (!metricMatches(rowMetric(row), ["honorarumsatz"])) return;
+    const metric = rowMetric(row);
+    if (!metricMatches(metric, ["honorarumsatz"])) return;
+    const combinedKey = normalizeMetric(
+      [row.Kennzahl, row.Standard_Kennzahl, row.Kategorie, row.Standard_Kategorie, row.Objekt_Name, row.Werttyp, row.Standard_Werttyp]
+        .map(asText)
+        .join(" ")
+    );
+    if (["eigenlabor", "labor", "material", "pvs", "gesamtumsatz", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return;
 
     const name = asText(row.Objekt_Name || row.Behandler || row.Behandlername);
     const standort = asText(row.Standortname);
