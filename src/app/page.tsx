@@ -3108,7 +3108,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
           <option>2026</option>
         </Select>
       </div>
-      <div className="max-h-[72vh] overflow-auto">
+      <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
