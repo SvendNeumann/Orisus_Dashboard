@@ -88,7 +88,7 @@ const bwaPeriodOptions = [
 const authStorageKey = "orisus-cfo-authenticated";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
-const importDashboardSchemaVersion = "2026-06-21-earnout-maturity-v6";
+const importDashboardSchemaVersion = "2026-06-21-performance-periods-v7";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 
 const acquisitionTermsBySiteId: Record<string, { kaufpreis: number; earnOutGesamt: number; earnOutFaelligAm: string }> = {
@@ -1166,7 +1166,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     monthly: monthlyData,
     topBehandler: topBehandlerFromRows(rows, latestYear),
     bwaRows: buildImportedBwaRows(rows, report),
-    pvsRevenueRows: buildImportedPvsRevenueRows(rows, report),
+    pvsRevenueRows: buildImportedPvsRevenueRows(workbook, rows, report, latestYear),
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(rows, report),
     behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
     report
@@ -2667,29 +2667,39 @@ function Mini({ label, value }: { label: string; value: string }) {
   );
 }
 
-function buildImportedPvsRevenueRows(rows: Record<string, unknown>[], report: ImportReport): ImportedPeriodValueRow[] {
+function buildImportedPvsRevenueRows(workbook: XLSX.WorkBook, rows: Record<string, unknown>[], report: ImportReport, latestYear: number): ImportedPeriodValueRow[] {
   const validYears = report.jahre.filter((year) => year > 1900);
+  const dashboardMonthlyValues = dashboardPerformanceMonthlyValues(workbook, ["pvs_gesamtumsatz_inkl_fl_mat", "monats"]);
+  const dashboardContractValues = dashboardPerformanceContractValues(workbook, ["pvs_gesamtumsatz_je_standort"]);
   return report.standorte.map((siteName) => {
     const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
+    const siteId = siteIdForName(siteName);
+    const dashboardValuesForSite = dashboardMonthlyValues.get(siteId);
     const valuesByYear = Object.fromEntries(
       validYears.map((year) => [String(year), pvsTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year))])
     );
-    const valuesByMonth = Object.fromEntries(
+    const valuesByMonth: Record<string, number> = Object.fromEntries(
       validYears.flatMap((year) =>
         Array.from({ length: 12 }, (_, index) => {
           const month = index + 1;
-          const value = pvsTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
+          const dashboardValue = year === latestYear ? dashboardValuesForSite?.[month] : undefined;
+          const value =
+            dashboardValue ??
+            pvsTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
           return [`${year}-${month}`, value];
         })
       )
     );
+    if (dashboardValuesForSite) {
+      valuesByYear[String(latestYear)] = Object.values(dashboardValuesForSite).reduce((sum, value) => sum + value, 0);
+    }
     return {
-      siteId: siteIdForName(siteName),
+      siteId,
       siteName,
       valuesByYear,
       valuesByMonth,
-      contractValue: pvsTotalRevenueFromRows(siteRows)
+      contractValue: dashboardContractValues.get(siteId) ?? pvsTotalRevenueFromRows(siteRows)
     };
   });
 }
@@ -2721,7 +2731,7 @@ function buildImportedBehandlerHonorarRows(rows: Record<string, unknown>[], repo
   });
 }
 
-function dashboardPerformanceBehandlerMonthlyValues(workbook: XLSX.WorkBook) {
+function dashboardPerformanceMonthlyValues(workbook: XLSX.WorkBook, titleTerms: string[]) {
   const sheet = workbook.Sheets["Dashboard_Performance"];
   if (!sheet) return new Map<string, Record<number, number>>();
 
@@ -2732,7 +2742,10 @@ function dashboardPerformanceBehandlerMonthlyValues(workbook: XLSX.WorkBook) {
     blankrows: false
   });
   const titleRowIndex = rows.findIndex((row) =>
-    row.some((cell) => normalizeMetric(cell).includes("behandlerumsatz_inkl_eigenlabor") && normalizeMetric(cell).includes("monatsuebersicht"))
+    row.some((cell) => {
+      const key = normalizeMetric(cell);
+      return titleTerms.every((term) => key.includes(normalizeMetric(term)));
+    })
   );
   if (titleRowIndex < 0) return new Map<string, Record<number, number>>();
 
@@ -2757,6 +2770,49 @@ function dashboardPerformanceBehandlerMonthlyValues(workbook: XLSX.WorkBook) {
         .filter((entry): entry is [number, number] => entry[1] != null)
     );
     valuesBySite.set(siteIdForName(siteName), values);
+  }
+
+  return valuesBySite;
+}
+
+function dashboardPerformanceBehandlerMonthlyValues(workbook: XLSX.WorkBook) {
+  return dashboardPerformanceMonthlyValues(workbook, ["behandlerumsatz_inkl_eigenlabor", "monats"]);
+}
+
+function dashboardPerformanceContractValues(workbook: XLSX.WorkBook, titleTerms: string[]) {
+  const sheet = workbook.Sheets["Dashboard_Performance"];
+  if (!sheet) return new Map<string, number>();
+
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: null,
+    raw: true,
+    blankrows: false
+  });
+  const titleRowIndex = rows.findIndex((row) =>
+    row.some((cell) => {
+      const key = normalizeMetric(cell);
+      return titleTerms.every((term) => key.includes(normalizeMetric(term)));
+    })
+  );
+  if (titleRowIndex < 0) return new Map<string, number>();
+
+  const headerRowIndex = rows.findIndex((row, index) => index > titleRowIndex && row.some((cell) => normalizeMetric(cell) === "standort"));
+  if (headerRowIndex < 0) return new Map<string, number>();
+
+  const headerRow = rows[headerRowIndex] ?? [];
+  const siteColumn = headerRow.findIndex((cell) => normalizeMetric(cell) === "standort");
+  const contractColumn = headerRow.findIndex((cell) => normalizeMetric(cell) === "seit_ubernahme" || normalizeMetric(cell) === "seit_uebernahme");
+  if (siteColumn < 0 || contractColumn < 0) return new Map<string, number>();
+
+  const valuesBySite = new Map<string, number>();
+  for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex] ?? [];
+    const siteName = asText(row[siteColumn]);
+    if (!siteName || normalizeMetric(siteName) === "gesamt") continue;
+    if (!standorte.some((site) => site.name.toLowerCase() === siteName.toLowerCase())) break;
+    const value = asNumber(row[contractColumn]);
+    if (value != null) valuesBySite.set(siteIdForName(siteName), value);
   }
 
   return valuesBySite;
@@ -4147,7 +4203,7 @@ function PerformanceRevenueBlock({
         <KennzahlTile label="Umsatz seit Übernahme" value={eur(sinceTakeover)} />
         <KennzahlTile label="Aktueller Gesamtkontostand" value={eur(totalForSites(activeSites, "kontostand"))} />
       </div>
-      <div className="mt-5 overflow-x-auto border-t border-border pt-4">
+      <div className="mt-8 overflow-x-auto border-t border-border pt-5">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
