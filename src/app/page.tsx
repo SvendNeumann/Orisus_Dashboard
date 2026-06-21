@@ -3488,9 +3488,62 @@ function bwaPeriodOptionsFor(importedData?: ImportedDashboardData | null) {
   return [...options, "Gesamte Periode"];
 }
 
-function defaultBwaPeriodFor(importedData?: ImportedDashboardData | null) {
-  const options = bwaPeriodOptionsFor(importedData);
+function periodOptionsFromImportedRows(rows?: Pick<ImportedPeriodValueRow, "valuesByYear" | "valuesByMonth">[]) {
+  if (!rows?.length) return bwaPeriodOptions;
+  const years = Array.from(
+    new Set(
+      rows
+        .flatMap((row) => [
+          ...Object.keys(row.valuesByYear).map(Number),
+          ...Object.keys(row.valuesByMonth).map((key) => Number(key.split("-")[0]))
+        ])
+        .filter((year) => Number.isFinite(year) && year >= 1900)
+    )
+  ).sort((a, b) => a - b);
+  const options = years.flatMap((year) => {
+    const activeMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+      rows.some((row) => Math.abs(row.valuesByMonth[`${year}-${month}`] ?? 0) > 0)
+    );
+    const latestMonth = activeMonths.at(-1);
+    const hasYearValue = rows.some((row) => Math.abs(row.valuesByYear[String(year)] ?? 0) > 0);
+    return [
+      ...(hasYearValue || activeMonths.length ? [`Geschäftsjahr ${year}`] : []),
+      ...(latestMonth ? [`YTD ${year} bis ${bwaMonths[latestMonth - 1]}`] : []),
+      ...activeMonths.map((month) => `${bwaMonths[month - 1]} ${year}`)
+    ];
+  });
+  return [...options, "Gesamte Periode"];
+}
+
+function periodOptionsFromBankMovements(rows?: ImportedBankMovementRow[]) {
+  if (!rows?.length) return bwaPeriodOptions;
+  const years = Array.from(
+    new Set(
+      rows
+        .flatMap((row) => Object.keys(row.hasValueByMonth).map((key) => Number(key.split("-")[0])))
+        .filter((year) => Number.isFinite(year) && year >= 1900)
+    )
+  ).sort((a, b) => a - b);
+  const options = years.flatMap((year) => {
+    const activeMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+      rows.some((row) => row.hasValueByMonth[`${year}-${month}`])
+    );
+    const latestMonth = activeMonths.at(-1);
+    return [
+      `Geschäftsjahr ${year}`,
+      ...(latestMonth ? [`YTD ${year} bis ${bwaMonths[latestMonth - 1]}`] : []),
+      ...activeMonths.map((month) => `${bwaMonths[month - 1]} ${year}`)
+    ];
+  });
+  return [...options, "Gesamte Periode"];
+}
+
+function defaultPeriodFromOptions(options: string[]) {
   return options.findLast((option) => option.startsWith("YTD ")) ?? options.find((option) => option.startsWith("Geschäftsjahr 2026")) ?? options[0];
+}
+
+function defaultBwaPeriodFor(importedData?: ImportedDashboardData | null) {
+  return defaultPeriodFromOptions(bwaPeriodOptionsFor(importedData));
 }
 
 function BwaStatement({ title, siteId, importedData }: { title: string; siteId?: string; importedData?: ImportedDashboardData | null }) {
@@ -4712,34 +4765,37 @@ function OrisusPerformance({
   importedData?: ImportedDashboardData | null;
 }) {
   const metrics = cfoMetrics(sites, monthlyData);
-  const availablePeriods = bwaPeriodOptionsFor(importedData);
-  const performancePeriod = defaultBwaPeriodFor(importedData);
-  const [operationalPeriod, setOperationalPeriod] = useState(() => defaultBwaPeriodFor(importedData));
-  const [honorarPeriod, setHonorarPeriod] = useState(() => defaultBwaPeriodFor(importedData));
-  const [honorarMonthlyPeriod, setHonorarMonthlyPeriod] = useState(() => defaultBwaPeriodFor(importedData));
-  const [pvsPeriod, setPvsPeriod] = useState(() => defaultBwaPeriodFor(importedData));
-  const [pvsMonthlyPeriod, setPvsMonthlyPeriod] = useState(() => defaultBwaPeriodFor(importedData));
-  const [bankPeriod, setBankPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const bwaPeriods = bwaPeriodOptionsFor(importedData);
+  const honorarPeriods = periodOptionsFromImportedRows(importedData?.behandlerTotalRows);
+  const pvsPeriods = periodOptionsFromImportedRows(importedData?.pvsRevenueRows);
+  const bankPeriods = periodOptionsFromBankMovements(importedData?.bankMovementRows);
+  const performancePeriod = defaultPeriodFromOptions(bwaPeriods);
+  const [operationalPeriod, setOperationalPeriod] = useState(() => defaultPeriodFromOptions(bwaPeriods));
+  const [honorarPeriod, setHonorarPeriod] = useState(() => defaultPeriodFromOptions(honorarPeriods));
+  const [honorarMonthlyPeriod, setHonorarMonthlyPeriod] = useState(() => defaultPeriodFromOptions(honorarPeriods));
+  const [pvsPeriod, setPvsPeriod] = useState(() => defaultPeriodFromOptions(pvsPeriods));
+  const [pvsMonthlyPeriod, setPvsMonthlyPeriod] = useState(() => defaultPeriodFromOptions(pvsPeriods));
+  const [bankPeriod, setBankPeriod] = useState(() => defaultPeriodFromOptions(bankPeriods));
   useEffect(() => {
-    if (!availablePeriods.includes(operationalPeriod)) {
-      setOperationalPeriod(defaultBwaPeriodFor(importedData));
+    if (!bwaPeriods.includes(operationalPeriod)) {
+      setOperationalPeriod(defaultPeriodFromOptions(bwaPeriods));
     }
-    if (!availablePeriods.includes(honorarPeriod)) {
-      setHonorarPeriod(defaultBwaPeriodFor(importedData));
+    if (!honorarPeriods.includes(honorarPeriod)) {
+      setHonorarPeriod(defaultPeriodFromOptions(honorarPeriods));
     }
-    if (!availablePeriods.includes(honorarMonthlyPeriod)) {
-      setHonorarMonthlyPeriod(defaultBwaPeriodFor(importedData));
+    if (!honorarPeriods.includes(honorarMonthlyPeriod)) {
+      setHonorarMonthlyPeriod(defaultPeriodFromOptions(honorarPeriods));
     }
-    if (!availablePeriods.includes(pvsPeriod)) {
-      setPvsPeriod(defaultBwaPeriodFor(importedData));
+    if (!pvsPeriods.includes(pvsPeriod)) {
+      setPvsPeriod(defaultPeriodFromOptions(pvsPeriods));
     }
-    if (!availablePeriods.includes(pvsMonthlyPeriod)) {
-      setPvsMonthlyPeriod(defaultBwaPeriodFor(importedData));
+    if (!pvsPeriods.includes(pvsMonthlyPeriod)) {
+      setPvsMonthlyPeriod(defaultPeriodFromOptions(pvsPeriods));
     }
-    if (!availablePeriods.includes(bankPeriod)) {
-      setBankPeriod(defaultBwaPeriodFor(importedData));
+    if (!bankPeriods.includes(bankPeriod)) {
+      setBankPeriod(defaultPeriodFromOptions(bankPeriods));
     }
-  }, [availablePeriods, bankPeriod, honorarMonthlyPeriod, honorarPeriod, importedData, operationalPeriod, pvsMonthlyPeriod, pvsPeriod]);
+  }, [bankPeriod, bankPeriods, bwaPeriods, honorarMonthlyPeriod, honorarPeriod, honorarPeriods, operationalPeriod, pvsMonthlyPeriod, pvsPeriod, pvsPeriods]);
   const operationalSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, operationalPeriod)) : sites;
   return (
     <section className="space-y-5">
@@ -4776,13 +4832,13 @@ function OrisusPerformance({
         sites={operationalSites}
         period={operationalPeriod}
         setPeriod={setOperationalPeriod}
-        availablePeriods={availablePeriods}
+        availablePeriods={bwaPeriods}
       />
       <PerformanceRevenueBlock
         title="Behandlerumsatz inkl. Eigenlabor je Standort"
         period={honorarPeriod}
         setPeriod={setHonorarPeriod}
-        availablePeriods={availablePeriods}
+        availablePeriods={honorarPeriods}
         mode="honorar"
         sites={sites}
         importedData={importedData}
@@ -4795,13 +4851,13 @@ function OrisusPerformance({
         importedData={importedData}
         period={honorarMonthlyPeriod}
         setPeriod={setHonorarMonthlyPeriod}
-        availablePeriods={availablePeriods}
+        availablePeriods={honorarPeriods}
       />
       <PerformanceRevenueBlock
         title="PVS-Gesamtumsatz je Standort"
         period={pvsPeriod}
         setPeriod={setPvsPeriod}
-        availablePeriods={availablePeriods}
+        availablePeriods={pvsPeriods}
         mode="pvs"
         sites={sites}
         importedData={importedData}
@@ -4814,7 +4870,7 @@ function OrisusPerformance({
         importedData={importedData}
         period={pvsMonthlyPeriod}
         setPeriod={setPvsMonthlyPeriod}
-        availablePeriods={availablePeriods}
+        availablePeriods={pvsPeriods}
       />
       <BankMovementsTable
         sites={sites}
@@ -4822,7 +4878,7 @@ function OrisusPerformance({
         importedData={importedData}
         period={bankPeriod}
         setPeriod={setBankPeriod}
-        availablePeriods={availablePeriods}
+        availablePeriods={bankPeriods}
       />
     </section>
   );
