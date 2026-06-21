@@ -761,7 +761,6 @@ async function clearConfirmedPersonalImport() {
 const requiredPersonalSheets = [
   "Input_Mitarbeiter",
   "Input_Krankheitstage",
-  "Input_Gehaltshistorie",
   "Input_Personalmassnahmen",
   "Einstellungen"
 ];
@@ -1211,7 +1210,6 @@ function buildPersonalDashboardData(workbook: XLSX.WorkBook, fileName: string, p
   const salaryChanges = countNewAndChanged(salaryEntries, previous?.salaryEntries);
   const actionChanges = countNewAndChanged(actionEntries, previous?.actionEntries);
   const warnings = [
-    ...(!salaryEntries.length ? ["Gehaltshistorie enthält aktuell keine belastbaren Datensätze oder nur Platzhalter."] : []),
     ...(!actionEntries.length ? ["Personalmaßnahmen enthalten aktuell keine offenen Datensätze."] : []),
     ...(!years.length ? ["Krankheitsjahre konnten nicht eindeutig erkannt werden."] : [])
   ];
@@ -3549,48 +3547,6 @@ function PersonalEmployees({ personalData }: { personalData: PersonalDashboardDa
             ))}
           </tbody>
         </ResponsiveTable>
-      </Card>
-    </section>
-  );
-}
-
-function PersonalSalaryHistory({ personalData }: { personalData: PersonalDashboardData }) {
-  return (
-    <section className="space-y-5">
-      <PageTitle title="Gehaltshistorie" text="Veränderungen aus Input_Gehaltshistorie. In Stufe 1 wird die vorhandene Historie gelesen und transparent angezeigt." />
-      <Card className="overflow-hidden">
-        {personalData.salaryEntries.length ? (
-          <ResponsiveTable>
-            <thead>
-              <tr>
-                <TableHead>Datum</TableHead>
-                <TableHead>Mitarbeiter</TableHead>
-                <TableHead>Standort</TableHead>
-                <TableHead>Alt</TableHead>
-                <TableHead>Neu</TableHead>
-                <TableHead>Differenz</TableHead>
-                <TableHead>Grund</TableHead>
-                <TableHead>Freigegeben von</TableHead>
-              </tr>
-            </thead>
-            <tbody>
-              {personalData.salaryEntries.map((entry) => (
-                <tr key={entry.id}>
-                  <TableCell>{entry.date}</TableCell>
-                  <TableCell strong>{entry.employeeName || entry.employeeId}</TableCell>
-                  <TableCell>{entry.site}</TableCell>
-                  <TableCell>{eur(entry.oldSalary)}</TableCell>
-                  <TableCell>{eur(entry.newSalary)}</TableCell>
-                  <TableCell tone={entry.difference < 0 ? "red" : "green"}>{eur(entry.difference)}</TableCell>
-                  <TableCell>{entry.reason}</TableCell>
-                  <TableCell>{entry.approvedBy}</TableCell>
-                </tr>
-              ))}
-            </tbody>
-          </ResponsiveTable>
-        ) : (
-          <div className="p-5 text-sm font-semibold text-muted-foreground">Noch keine Gehaltshistorie in der Personal-Arbeitsmappe hinterlegt.</div>
-        )}
       </Card>
     </section>
   );
@@ -7627,7 +7583,7 @@ function PersonalUpload({
           {[
             ["Standorte", activeReport?.sites.length ? activeReport.sites.join(", ") : "Noch nicht erkannt"],
             ["Jahre Krankheit", activeReport?.years.length ? activeReport.years.join(", ") : "Noch nicht erkannt"],
-            ["Gehaltshistorie", activeReport ? `${activeReport.salaryRows} Einträge` : "Noch offen"],
+            ["Aktive Mitarbeiter", activeReport ? activeReport.activeEmployees.toLocaleString("de-DE") : "Noch offen"],
             ["Maßnahmen", activeReport ? `${activeReport.actionRows} Einträge` : "Noch offen"]
           ].map(([label, value]) => (
             <div key={label} className="bg-white p-4">
