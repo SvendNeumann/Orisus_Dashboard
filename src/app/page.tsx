@@ -281,6 +281,13 @@ const quickNav = [
 ] as const;
 
 function eur(value: number, compact = false) {
+  if (compact && Math.abs(value) >= 1000000) {
+    return `${(value / 1000000).toLocaleString("de-DE", {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3
+    })} Mio. €`;
+  }
+
   return new Intl.NumberFormat("de-DE", {
     style: "currency",
     currency: "EUR",
