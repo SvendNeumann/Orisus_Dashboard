@@ -87,6 +87,8 @@ const bwaPeriodOptions = [
 ];
 
 const authStorageKey = "orisus-cfo-authenticated";
+const authLastActivityStorageKey = "orisus-cfo-last-activity";
+const authIdleTimeoutMs = 5 * 60 * 1000;
 const passkeyStorageKey = "orisus-cfo-passkey-id";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
@@ -1324,7 +1326,14 @@ export default function HomePage() {
 
   useEffect(() => {
     if (window.localStorage.getItem(authStorageKey) === "true") {
-      setAuthStep("app");
+      const lastActivity = Number(window.localStorage.getItem(authLastActivityStorageKey) ?? 0);
+      if (lastActivity && Date.now() - lastActivity < authIdleTimeoutMs) {
+        window.localStorage.setItem(authLastActivityStorageKey, String(Date.now()));
+        setAuthStep("app");
+      } else {
+        window.localStorage.removeItem(authStorageKey);
+        window.localStorage.removeItem(authLastActivityStorageKey);
+      }
     }
     const savedImport = window.localStorage.getItem(importDashboardStorageKey);
     if (!savedImport) return;
@@ -1344,16 +1353,54 @@ export default function HomePage() {
   const setPersistentAuthStep = (step: AuthStep) => {
     if (step === "app") {
       window.localStorage.setItem(authStorageKey, "true");
+      window.localStorage.setItem(authLastActivityStorageKey, String(Date.now()));
     }
     setAuthStep(step);
   };
 
   const logout = () => {
     window.localStorage.removeItem(authStorageKey);
+    window.localStorage.removeItem(authLastActivityStorageKey);
     setPin("");
     setMenuOpen(false);
     setAuthStep("welcome");
   };
+
+  useEffect(() => {
+    if (authStep !== "app") return;
+
+    const isExpired = () => {
+      const lastActivity = Number(window.localStorage.getItem(authLastActivityStorageKey) ?? 0);
+      return !lastActivity || Date.now() - lastActivity >= authIdleTimeoutMs;
+    };
+
+    const recordActivity = () => {
+      if (isExpired()) {
+        logout();
+        return;
+      }
+      window.localStorage.setItem(authLastActivityStorageKey, String(Date.now()));
+    };
+
+    const checkSession = () => {
+      if (isExpired()) logout();
+    };
+
+    window.localStorage.setItem(authLastActivityStorageKey, String(Date.now()));
+
+    const events = ["click", "keydown", "pointerdown", "touchstart", "scroll", "focus"];
+    events.forEach((eventName) => window.addEventListener(eventName, recordActivity, { passive: true }));
+    document.addEventListener("visibilitychange", checkSession);
+    window.addEventListener("pageshow", checkSession);
+    const interval = window.setInterval(checkSession, 15000);
+
+    return () => {
+      events.forEach((eventName) => window.removeEventListener(eventName, recordActivity));
+      document.removeEventListener("visibilitychange", checkSession);
+      window.removeEventListener("pageshow", checkSession);
+      window.clearInterval(interval);
+    };
+  }, [authStep]);
 
   if (authStep !== "app") {
     return <AuthFlow step={authStep} setStep={setPersistentAuthStep} pin={pin} setPin={setPin} />;
