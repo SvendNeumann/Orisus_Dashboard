@@ -590,6 +590,14 @@ function openReceivablesSinceStart(siteName: string, siteRows: Record<string, un
   );
 }
 
+function pvsTotalRevenueFromRows(rows: Record<string, unknown>[]) {
+  return (
+    sumRowsByCategory(rows, ["gesamtumsatz_inkl_fl_mat"], ["finanzen"], ["pvs_umsatzstatistik_honorare"]) ||
+    sumRowsByCategory(rows, ["gesamtumsatz_inkl_fl_mat"], ["finanzen"], ["pvs"]) ||
+    sumRowsByCategory(rows, ["soll_forderung_pvs"], ["finanzen"], ["pvs"])
+  );
+}
+
 function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
   const sheetNames = Array.from(
     new Set([
@@ -617,6 +625,7 @@ function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
           "kontostand_monatsende",
           "kontostand_per_stichtag",
           "offene_forderungen_gesamt",
+          "gesamtumsatz_inkl_fl_mat",
           "soll_forderung_pvs",
           "noch_nicht_geflossen",
           "noch_ausstehend_vs_bank",
@@ -945,7 +954,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
       (row) => asText(row.Standortname) === siteName && ((rowYear(row) ?? 0) < 1900 || isOnOrAfterStart(row, fallback.start))
     );
     const gesamtleistung = Math.round(sumRows(siteRows, null, ["gesamtleistung"], ["bwa"]));
-    const pvsUmsatz = Math.round(sumRows(siteRows, null, ["pvs_gesamtumsatz_inkl_fl_mat"], ["finanzen"]));
+    const pvsUmsatz = Math.round(pvsTotalRevenueFromRows(siteRows) || pvsTotalRevenueFromRows(allSiteRows));
     const ebitda = Math.round(sumRows(siteRows, null, ["ebitda"], ["bwa"]));
     const cashflow = Math.round(sumRows(siteRows, null, ["cashflow_gesamt"], ["bwa", "finanzen"]));
     const vorlaeufigesErgebnis = Math.round(sumRows(siteRows, null, ["vorlaufiges_ergebnis"], ["bwa"]));
