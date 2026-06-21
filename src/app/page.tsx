@@ -3169,7 +3169,6 @@ function StandortDetail({ site, importedData }: { site: DashboardSite; importedD
             <AreaChart data={monthly}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" tickLine={false} axisLine={false} />
-              <YAxis tickFormatter={(v) => eur(Number(v), true)} tickLine={false} axisLine={false} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Area dataKey="leistung" stroke="#0f766e" fill="#ccfbf1" strokeWidth={3} />
             </AreaChart>
@@ -3753,7 +3752,6 @@ function Analysen() {
             <AreaChart data={monthly}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
-              <YAxis tickFormatter={(v) => eur(Number(v), true)} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Area dataKey="ebitda" stroke="#0369a1" fill="#dbeafe" strokeWidth={3} />
             </AreaChart>
@@ -3909,7 +3907,6 @@ function Cashflow() {
             <AreaChart data={monthly}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
-              <YAxis tickFormatter={(v) => eur(Number(v), true)} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Area dataKey="cashflow" stroke="#0f766e" fill="#ccfbf1" strokeWidth={3} />
             </AreaChart>
