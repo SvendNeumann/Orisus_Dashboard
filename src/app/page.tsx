@@ -39,7 +39,10 @@ import {
   PieChart as PieIcon,
   Fingerprint,
   ShieldCheck,
+  Stethoscope,
   TrendingUp,
+  UserRound,
+  Users,
   Wallet,
   X
 } from "lucide-react";
@@ -69,7 +72,13 @@ type Page =
   | "board"
   | "uploads"
   | "reports"
-  | "admin";
+  | "admin"
+  | "personal-cockpit"
+  | "personal-krankheit"
+  | "personal-mitarbeiter"
+  | "personal-gehalt"
+  | "personal-massnahmen"
+  | "personal-upload";
 
 type AuthStep = "welcome" | "forgot" | "app";
 type UserRole = "admin" | "info";
@@ -98,6 +107,12 @@ const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
 const importDashboardSchemaVersion = "2026-06-21-bank-movements-source-v10";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
+const personalImportPersistenceReportKey = "personal-report";
+const personalImportPersistenceDashboardKey = "personal-dashboard";
+const personalImportStorageKey = "orisus-personal-import-report";
+const personalImportDashboardStorageKey = "orisus-personal-import-dashboard-data";
+const personalImportSchemaVersion = "2026-06-21-personal-stage-one-v1";
+const personalSupabaseImportTableName = "orisus_personal_imports";
 const supabaseAccessTokenKey = "orisus-cfo-supabase-access-token";
 const supabaseRefreshTokenKey = "orisus-cfo-supabase-refresh-token";
 const supabaseUserEmailKey = "orisus-cfo-supabase-user-email";
@@ -174,6 +189,8 @@ type ImportHistoryEntry = {
   created_at: string | null;
 };
 
+type PersonalImportHistoryEntry = ImportHistoryEntry;
+
 type BwaLine = {
   label: string;
   actual: number;
@@ -219,6 +236,116 @@ type ImportedBankMovementRow = {
   averageMonth: number;
   contractValue: number;
   averageContract: number;
+};
+
+type PersonalImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
+
+type PersonalImportReport = {
+  status: PersonalImportStatus;
+  fileName: string;
+  importedAt: string;
+  presentSheets: string[];
+  missingSheets: string[];
+  employeeRows: number;
+  activeEmployees: number;
+  sicknessRows: number;
+  salaryRows: number;
+  actionRows: number;
+  sites: string[];
+  years: number[];
+  warnings: string[];
+  errors: string[];
+  changes: {
+    newEmployees: number;
+    changedEmployees: number;
+    inactiveEmployees: number;
+    newSicknessEntries: number;
+    changedSicknessEntries: number;
+    newSalaryEntries: number;
+    changedSalaryEntries: number;
+    newActions: number;
+    changedActions: number;
+  };
+};
+
+type PersonalEmployee = {
+  id: string;
+  site: string;
+  firstName: string;
+  lastName: string;
+  name: string;
+  birthDate: string;
+  functionName: string;
+  area: string;
+  employmentType: string;
+  isDentist: boolean;
+  isSiteLead: boolean;
+  hasPersonnelResponsibility: boolean;
+  entryDate: string;
+  contractUntil: string;
+  exitDate: string;
+  status: string;
+  weeklyHours: number;
+  vacationDays: number;
+  payModel: string;
+  fixedSalary: number;
+  hourlyWage: number;
+  employerCost: number;
+  note: string;
+};
+
+type PersonalSicknessEntry = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  site: string;
+  year: number;
+  month: number;
+  days: number;
+  from: string;
+  to: string;
+};
+
+type PersonalSalaryEntry = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  site: string;
+  date: string;
+  oldSalary: number;
+  newSalary: number;
+  difference: number;
+  reason: string;
+  approvedBy: string;
+};
+
+type PersonalActionEntry = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  site: string;
+  date: string;
+  action: string;
+  details: string;
+  status: string;
+};
+
+type PersonalDashboardData = {
+  schemaVersion: string;
+  importedAt: string;
+  fileName: string;
+  employees: PersonalEmployee[];
+  sicknessEntries: PersonalSicknessEntry[];
+  salaryEntries: PersonalSalaryEntry[];
+  actionEntries: PersonalActionEntry[];
+  settings: {
+    sites: string[];
+    statuses: string[];
+    employmentTypes: string[];
+    functions: string[];
+    payModels: string[];
+  };
+  report: PersonalImportReport;
 };
 
 function openImportPersistenceDb(): Promise<IDBDatabase> {
@@ -419,6 +546,81 @@ function importHistoryId(fileName: string) {
   return `${Date.now()}-${fileName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "import"}`;
 }
 
+async function loadSupabaseConfirmedPersonalImport() {
+  if (!isSupabaseConfigured()) return null;
+  const token = currentSupabaseAccessToken();
+  if (!token) return null;
+  const rows = await supabaseFetch<Array<{ payload: PersonalDashboardData }>>(
+    `/rest/v1/${personalSupabaseImportTableName}?select=payload&active=eq.true&order=imported_at.desc&limit=1`,
+    undefined,
+    token
+  ).catch(() => []);
+  const personalData = rows[0]?.payload ?? null;
+  if (!personalData) return null;
+  if (personalData.schemaVersion !== personalImportSchemaVersion) return null;
+  return personalData;
+}
+
+async function loadSupabasePersonalImportHistory() {
+  if (!isSupabaseConfigured()) return [];
+  const token = currentSupabaseAccessToken();
+  if (!token) return [];
+  return supabaseFetch<PersonalImportHistoryEntry[]>(
+    `/rest/v1/${personalSupabaseImportTableName}?select=id,file_name,imported_at,schema_version,active,created_at&order=created_at.desc&limit=8`,
+    undefined,
+    token
+  ).catch(() => []);
+}
+
+async function saveSupabaseConfirmedPersonalImport(report: PersonalImportReport, dashboardData: PersonalDashboardData) {
+  if (!canModifyData(currentUserRole())) return false;
+  if (!isSupabaseConfigured()) return false;
+  const token = currentSupabaseAccessToken();
+  if (!token) return false;
+  await supabaseFetch(
+    `/rest/v1/${personalSupabaseImportTableName}?active=eq.true`,
+    {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ active: false })
+    },
+    token
+  ).catch(() => undefined);
+  await supabaseFetch(
+    `/rest/v1/${personalSupabaseImportTableName}`,
+    {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({
+        id: importHistoryId(dashboardData.fileName),
+        active: true,
+        file_name: dashboardData.fileName,
+        imported_at: dashboardData.importedAt,
+        schema_version: dashboardData.schemaVersion,
+        report,
+        payload: dashboardData
+      })
+    },
+    token
+  );
+  return true;
+}
+
+async function clearSupabaseConfirmedPersonalImport() {
+  if (!canModifyData(currentUserRole())) return;
+  if (!isSupabaseConfigured()) return;
+  const token = currentSupabaseAccessToken();
+  if (!token) return;
+  await supabaseFetch(
+    `/rest/v1/${personalSupabaseImportTableName}?active=eq.true`,
+    {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" }
+    },
+    token
+  ).catch(() => undefined);
+}
+
 async function saveSupabaseConfirmedImport(report: ImportReport, dashboardData: ImportedDashboardData) {
   if (!canModifyData(currentUserRole())) return false;
   if (!isSupabaseConfigured()) return false;
@@ -513,6 +715,85 @@ async function clearConfirmedImport() {
   window.localStorage.removeItem(importStorageKey);
   window.localStorage.removeItem(importDashboardStorageKey);
 }
+
+async function loadConfirmedPersonalImportData() {
+  const supabaseDashboard = await loadSupabaseConfirmedPersonalImport();
+  if (supabaseDashboard) {
+    await saveLocalConfirmedPersonalImport(supabaseDashboard.report, supabaseDashboard);
+    return supabaseDashboard;
+  }
+  const persistentDashboard = await readPersistentValue<PersonalDashboardData>(personalImportPersistenceDashboardKey);
+  const localDashboard = !persistentDashboard ? window.localStorage.getItem(personalImportDashboardStorageKey) : null;
+  const parsedDashboard = persistentDashboard ?? (localDashboard ? (JSON.parse(localDashboard) as PersonalDashboardData) : null);
+  if (!parsedDashboard) return null;
+  if (parsedDashboard.schemaVersion !== personalImportSchemaVersion) {
+    await clearConfirmedPersonalImport();
+    return null;
+  }
+  return parsedDashboard;
+}
+
+async function saveLocalConfirmedPersonalImport(report: PersonalImportReport, dashboardData: PersonalDashboardData) {
+  const savedReport = await writePersistentValue(personalImportPersistenceReportKey, report);
+  const savedDashboard = await writePersistentValue(personalImportPersistenceDashboardKey, dashboardData);
+  window.localStorage.setItem(personalImportStorageKey, JSON.stringify(report));
+  if (savedReport && savedDashboard) {
+    window.localStorage.removeItem(personalImportDashboardStorageKey);
+    return;
+  }
+  window.localStorage.setItem(personalImportDashboardStorageKey, JSON.stringify(dashboardData));
+}
+
+async function saveConfirmedPersonalImport(report: PersonalImportReport, dashboardData: PersonalDashboardData) {
+  await saveSupabaseConfirmedPersonalImport(report, dashboardData);
+  await saveLocalConfirmedPersonalImport(report, dashboardData);
+}
+
+async function clearConfirmedPersonalImport() {
+  await clearSupabaseConfirmedPersonalImport();
+  await Promise.all([
+    deletePersistentValue(personalImportPersistenceReportKey),
+    deletePersistentValue(personalImportPersistenceDashboardKey)
+  ]);
+  window.localStorage.removeItem(personalImportStorageKey);
+  window.localStorage.removeItem(personalImportDashboardStorageKey);
+}
+
+const requiredPersonalSheets = [
+  "Input_Mitarbeiter",
+  "Input_Krankheitstage",
+  "Input_Gehaltshistorie",
+  "Input_Personalmassnahmen",
+  "Einstellungen"
+];
+
+const emptyPersonalImportReport: PersonalImportReport = {
+  status: "idle",
+  fileName: "",
+  importedAt: "",
+  presentSheets: [],
+  missingSheets: [],
+  employeeRows: 0,
+  activeEmployees: 0,
+  sicknessRows: 0,
+  salaryRows: 0,
+  actionRows: 0,
+  sites: [],
+  years: [],
+  warnings: [],
+  errors: [],
+  changes: {
+    newEmployees: 0,
+    changedEmployees: 0,
+    inactiveEmployees: 0,
+    newSicknessEntries: 0,
+    changedSicknessEntries: 0,
+    newSalaryEntries: 0,
+    changedSalaryEntries: 0,
+    newActions: 0,
+    changedActions: 0
+  }
+};
 
 const emptyImportReport: ImportReport = {
   status: "idle",
@@ -622,6 +903,12 @@ const desktopNav = [
   { id: "banken", label: "Bankenreporting", icon: ShieldCheck },
   { id: "board", label: "Board-Pack", icon: FileBarChart },
   { id: "uploads", label: "Uploads", icon: FileUp },
+  { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users },
+  { id: "personal-krankheit", label: "Krankheit / Fehlzeiten", icon: Stethoscope },
+  { id: "personal-mitarbeiter", label: "Mitarbeiterübersicht", icon: UserRound },
+  { id: "personal-gehalt", label: "Gehaltshistorie", icon: BadgeEuro },
+  { id: "personal-massnahmen", label: "Personalmaßnahmen", icon: CheckCircle2 },
+  { id: "personal-upload", label: "Personal-Upload", icon: FileUp },
   { id: "reports", label: "Reports", icon: FileBarChart },
   { id: "admin", label: "Admin / KPI-Regeln", icon: Lock }
 ] as const;
@@ -631,7 +918,7 @@ const mobileNav = [
   { id: "standorte", label: "Standorte", icon: Building2 },
   { id: "analysen", label: "Analysen", icon: BarChart3 },
   { id: "darlehen", label: "Darlehen", icon: Landmark },
-  { id: "uploads", label: "Uploads", icon: FileUp }
+  { id: "personal-cockpit", label: "Personal", icon: Users }
 ] as const;
 
 const quickNav = [
@@ -639,6 +926,7 @@ const quickNav = [
   { id: "standorte", label: "Standorte" },
   { id: "bwa", label: "BWA" },
   { id: "performance", label: "Performance" },
+  { id: "personal-cockpit", label: "Personal" },
   { id: "banken", label: "Banken" },
   { id: "board", label: "Board" }
 ] as const;
@@ -730,6 +1018,248 @@ function uniqueSortedNumbers(values: unknown[]) {
         .map((value) => Math.trunc(value))
     )
   ).sort((a, b) => a - b);
+}
+
+function normalizePersonalText(value: unknown) {
+  return asText(value).replace(/\s+/g, " ").trim();
+}
+
+function yesNo(value: unknown) {
+  return ["ja", "yes", "true", "1", "x"].includes(asText(value).toLowerCase());
+}
+
+function readSheetRows(workbook: XLSX.WorkBook, sheetName: string) {
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet) return [];
+  return XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: null,
+    raw: true,
+    blankrows: false
+  });
+}
+
+function objectFromHeaderRow(headers: unknown[], row: unknown[]) {
+  return headers.reduce<Record<string, unknown>>((result, header, index) => {
+    const key = asText(header);
+    if (key) result[key] = row[index];
+    return result;
+  }, {});
+}
+
+function personalCompositeId(parts: unknown[]) {
+  return parts.map((part) => normalizePersonalText(part).toLowerCase()).join("|");
+}
+
+function parsePersonalEmployees(workbook: XLSX.WorkBook): PersonalEmployee[] {
+  const rows = readSheetRows(workbook, "Input_Mitarbeiter");
+  const headers = rows[0] ?? [];
+  return rows
+    .slice(1)
+    .map((row) => objectFromHeaderRow(headers, row))
+    .filter((row) => asText(row.Mitarbeiter_ID))
+    .map((row) => {
+      const firstName = normalizePersonalText(row.Vorname);
+      const lastName = normalizePersonalText(row.Nachname);
+      return {
+        id: asText(row.Mitarbeiter_ID),
+        site: normalizePersonalText(row.Standort),
+        firstName,
+        lastName,
+        name: `${firstName} ${lastName}`.trim(),
+        birthDate: displayDateFromUnknown(row.Geburtsdatum),
+        functionName: normalizePersonalText(row.Funktion),
+        area: normalizePersonalText(row.Bereich),
+        employmentType: normalizePersonalText(row.Beschäftigungsart),
+        isDentist: yesNo(row.Behandler),
+        isSiteLead: yesNo(row.Standortleitung),
+        hasPersonnelResponsibility: yesNo(row.Personalverantwortung),
+        entryDate: displayDateFromUnknown(row.Eintrittsdatum),
+        contractUntil: displayDateFromUnknown(row.Arbeitsvertrag_bis),
+        exitDate: displayDateFromUnknown(row.Austrittsdatum),
+        status: normalizePersonalText(row.Status) || "Nicht gesetzt",
+        weeklyHours: asNumber(row.Wochenstunden) ?? 0,
+        vacationDays: asNumber(row.Urlaubstage) ?? 0,
+        payModel: normalizePersonalText(row.Vergütungsmodell),
+        fixedSalary: asNumber(row.Fixgehalt) ?? 0,
+        hourlyWage: asNumber(row.Stundenlohn_Fixgehalt) ?? 0,
+        employerCost: asNumber(row.AG_Aufwand) ?? 0,
+        note: normalizePersonalText(row.Bemerkung)
+      };
+    });
+}
+
+function parsePersonalSicknessEntries(workbook: XLSX.WorkBook): PersonalSicknessEntry[] {
+  const rows = readSheetRows(workbook, "Input_Krankheitstage");
+  const headers = rows[3] ?? [];
+  return rows
+    .slice(4)
+    .map((row) => objectFromHeaderRow(headers, row))
+    .filter((row) => asText(row.Mitarbeiter_ID) || asText(row.Mitarbeiter))
+    .map((row) => {
+      const employeeId = asText(row.Mitarbeiter_ID);
+      const employeeName = normalizePersonalText(row.Mitarbeiter);
+      const site = normalizePersonalText(row.Standort);
+      const year = Math.trunc(asNumber(row.Jahr) ?? 0);
+      const month = Math.trunc(asNumber(row.Monat) ?? 0);
+      const from = displayDateFromUnknown(row.Von);
+      const to = displayDateFromUnknown(row.Bis);
+      const days = asNumber(row.Krankheitstage) ?? 0;
+      return {
+        id: personalCompositeId([employeeId, employeeName, site, year, month, from, to, days]),
+        employeeId,
+        employeeName,
+        site,
+        year,
+        month,
+        days,
+        from,
+        to
+      };
+    })
+    .filter((entry) => entry.days || entry.year || entry.month);
+}
+
+function parsePersonalSalaryEntries(workbook: XLSX.WorkBook): PersonalSalaryEntry[] {
+  const rows = readSheetRows(workbook, "Input_Gehaltshistorie");
+  const headers = rows[3] ?? [];
+  return rows
+    .slice(4)
+    .map((row) => objectFromHeaderRow(headers, row))
+    .filter((row) => asText(row.Mitarbeiter_ID) || asText(row.Mitarbeiter))
+    .map((row) => {
+      const employeeId = asText(row.Mitarbeiter_ID);
+      const employeeName = normalizePersonalText(row.Mitarbeiter);
+      const date = displayDateFromUnknown(row.Datum);
+      const oldSalary = asNumber(row.Gehalt_alt) ?? 0;
+      const newSalary = asNumber(row.Gehalt_neu) ?? 0;
+      return {
+        id: personalCompositeId([employeeId, employeeName, date, row.Gehalt_alt, row.Gehalt_neu, row.Grund]),
+        employeeId,
+        employeeName,
+        site: normalizePersonalText(row.Standort),
+        date,
+        oldSalary,
+        newSalary,
+        difference: asNumber(row.Differenz) ?? newSalary - oldSalary,
+        reason: normalizePersonalText(row.Grund),
+        approvedBy: normalizePersonalText(row.Freigegeben_von)
+      };
+    });
+}
+
+function parsePersonalActionEntries(workbook: XLSX.WorkBook): PersonalActionEntry[] {
+  const rows = readSheetRows(workbook, "Input_Personalmassnahmen");
+  const headers = rows[3] ?? [];
+  return rows
+    .slice(4)
+    .map((row) => objectFromHeaderRow(headers, row))
+    .filter((row) => asText(row.Mitarbeiter_ID) || asText(row.Mitarbeiter) || asText(row.Maßnahme))
+    .map((row) => {
+      const employeeId = asText(row.Mitarbeiter_ID);
+      const employeeName = normalizePersonalText(row.Mitarbeiter);
+      const date = displayDateFromUnknown(row.Datum);
+      const action = normalizePersonalText(row.Maßnahme);
+      return {
+        id: personalCompositeId([employeeId, employeeName, date, action, row["Bemerkung / Details"]]),
+        employeeId,
+        employeeName,
+        site: normalizePersonalText(row.Standort),
+        date,
+        action,
+        details: normalizePersonalText(row["Bemerkung / Details"]),
+        status: normalizePersonalText(row.Status) || "Offen"
+      };
+    });
+}
+
+function parsePersonalSettings(workbook: XLSX.WorkBook, employees: PersonalEmployee[]): PersonalDashboardData["settings"] {
+  const rows = readSheetRows(workbook, "Einstellungen");
+  const values = rows.flat();
+  return {
+    sites: uniqueSortedText([...employees.map((employee) => employee.site), ...values.filter((value) => ["Kirchberg", "Essen", "Kehl", "Ulmet", "Hüttenberg"].includes(asText(value)))]),
+    statuses: uniqueSortedText(employees.map((employee) => employee.status), ["Aktiv", "Elternzeit", "Inaktiv"]),
+    employmentTypes: uniqueSortedText(employees.map((employee) => employee.employmentType)),
+    functions: uniqueSortedText(employees.map((employee) => employee.functionName)),
+    payModels: uniqueSortedText(employees.map((employee) => employee.payModel))
+  };
+}
+
+function countNewAndChanged<T extends { id: string }>(current: T[], previous: T[] = []) {
+  const previousMap = new Map(previous.map((entry) => [entry.id, JSON.stringify(entry)]));
+  return current.reduce(
+    (result, entry) => {
+      const previousValue = previousMap.get(entry.id);
+      if (!previousValue) result.new += 1;
+      else if (previousValue !== JSON.stringify(entry)) result.changed += 1;
+      return result;
+    },
+    { new: 0, changed: 0 }
+  );
+}
+
+function buildPersonalDashboardData(workbook: XLSX.WorkBook, fileName: string, previous?: PersonalDashboardData | null): PersonalDashboardData {
+  const presentSheets = requiredPersonalSheets.filter((sheet) => workbook.SheetNames.includes(sheet));
+  const missingSheets = requiredPersonalSheets.filter((sheet) => !workbook.SheetNames.includes(sheet));
+  const employees = parsePersonalEmployees(workbook);
+  const sicknessEntries = parsePersonalSicknessEntries(workbook);
+  const salaryEntries = parsePersonalSalaryEntries(workbook);
+  const actionEntries = parsePersonalActionEntries(workbook);
+  const settings = parsePersonalSettings(workbook, employees);
+  const years = uniqueSortedNumbers(sicknessEntries.map((entry) => entry.year));
+  const sites = uniqueSortedText(employees.map((employee) => employee.site));
+  const employeeChanges = countNewAndChanged(employees, previous?.employees);
+  const sicknessChanges = countNewAndChanged(sicknessEntries, previous?.sicknessEntries);
+  const salaryChanges = countNewAndChanged(salaryEntries, previous?.salaryEntries);
+  const actionChanges = countNewAndChanged(actionEntries, previous?.actionEntries);
+  const warnings = [
+    ...(!salaryEntries.length ? ["Gehaltshistorie enthält aktuell keine belastbaren Datensätze oder nur Platzhalter."] : []),
+    ...(!actionEntries.length ? ["Personalmaßnahmen enthalten aktuell keine offenen Datensätze."] : []),
+    ...(!years.length ? ["Krankheitsjahre konnten nicht eindeutig erkannt werden."] : [])
+  ];
+  const errors = [
+    ...missingSheets.map((sheet) => `Pflichtblatt fehlt: ${sheet}`),
+    ...(!employees.length ? ["Input_Mitarbeiter enthält keine Mitarbeiter_ID-Datensätze."] : [])
+  ];
+  const report: PersonalImportReport = {
+    status: errors.length ? "error" : warnings.length ? "warning" : "ready",
+    fileName,
+    importedAt: new Date().toISOString(),
+    presentSheets,
+    missingSheets,
+    employeeRows: employees.length,
+    activeEmployees: employees.filter((employee) => employee.status.toLowerCase() === "aktiv").length,
+    sicknessRows: sicknessEntries.length,
+    salaryRows: salaryEntries.length,
+    actionRows: actionEntries.length,
+    sites,
+    years,
+    warnings,
+    errors,
+    changes: {
+      newEmployees: employeeChanges.new,
+      changedEmployees: employeeChanges.changed,
+      inactiveEmployees: employees.filter((employee) => employee.status.toLowerCase() !== "aktiv").length,
+      newSicknessEntries: sicknessChanges.new,
+      changedSicknessEntries: sicknessChanges.changed,
+      newSalaryEntries: salaryChanges.new,
+      changedSalaryEntries: salaryChanges.changed,
+      newActions: actionChanges.new,
+      changedActions: actionChanges.changed
+    }
+  };
+
+  return {
+    schemaVersion: personalImportSchemaVersion,
+    importedAt: report.importedAt,
+    fileName,
+    employees,
+    sicknessEntries,
+    salaryEntries,
+    actionEntries,
+    settings,
+    report
+  };
 }
 
 function isAllowedTargetValue(row: Record<string, unknown>) {
@@ -1681,13 +2211,17 @@ export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [previousPage, setPreviousPage] = useState<Page | null>(null);
   const [importedData, setImportedData] = useState<ImportedDashboardData | null>(null);
+  const [personalData, setPersonalData] = useState<PersonalDashboardData | null>(null);
   const [userEmail, setUserEmail] = useState("");
   const dashboardSites = useMemo(() => sortSitesByContractStart(importedData?.sites ?? []), [importedData?.sites]);
   const dashboardMonthly = importedData?.monthly ?? [];
   const userRole = roleForEmail(userEmail);
   const isAdmin = userRole === "admin";
-  const visibleDesktopNav = desktopNav.filter((item) => isAdmin || (item.id !== "uploads" && item.id !== "admin"));
-  const visibleMobileNav = mobileNav.filter((item) => isAdmin || item.id !== "uploads");
+  const adminOnlyPages: Page[] = ["uploads", "admin", "personal-upload"];
+  const personalPages: Page[] = ["personal-cockpit", "personal-krankheit", "personal-mitarbeiter", "personal-gehalt", "personal-massnahmen", "personal-upload"];
+  const personalContentPages = personalPages.filter((item) => item !== "personal-upload") as Page[];
+  const visibleDesktopNav = desktopNav.filter((item) => isAdmin || !adminOnlyPages.includes(item.id as Page));
+  const visibleMobileNav = mobileNav.filter((item) => isAdmin || !adminOnlyPages.includes(item.id as Page));
 
   const selected = useMemo(
     () => dashboardSites.find((site) => site.id === selectedSite) ?? dashboardSites[0] ?? standorte[0],
@@ -1702,7 +2236,7 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (!isAdmin && (page === "uploads" || page === "admin")) {
+    if (!isAdmin && adminOnlyPages.includes(page)) {
       setPage("cockpit");
     }
   }, [isAdmin, page]);
@@ -1715,6 +2249,19 @@ export default function HomePage() {
         if (isMounted && savedImport) setImportedData(savedImport);
       })
       .catch(() => clearConfirmedImport());
+    return () => {
+      isMounted = false;
+    };
+  }, [authStep]);
+
+  useEffect(() => {
+    if (authStep !== "app") return;
+    let isMounted = true;
+    loadConfirmedPersonalImportData()
+      .then((savedImport) => {
+        if (isMounted && savedImport) setPersonalData(savedImport);
+      })
+      .catch(() => clearConfirmedPersonalImport());
     return () => {
       isMounted = false;
     };
@@ -1747,7 +2294,8 @@ export default function HomePage() {
     setPage(target);
     setMenuOpen(false);
   };
-  const requiresImport = !["uploads", "admin", "reports"].includes(page);
+  const requiresImport = !["uploads", "admin", "reports", ...personalPages].includes(page);
+  const requiresPersonalImport = personalContentPages.includes(page);
 
   return (
     <div className="min-h-screen lg:flex">
@@ -1833,6 +2381,7 @@ export default function HomePage() {
             onGo={go}
           />
           {requiresImport && !importedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
+          {requiresPersonalImport && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
           {importedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
@@ -1857,6 +2406,18 @@ export default function HomePage() {
               userRole={userRole}
               onImportConfirmed={(data) => setImportedData(repairImportedCashflowData(data))}
               onImportReset={() => setImportedData(null)}
+            />
+          )}
+          {personalData && page === "personal-cockpit" && <PersonalCockpit personalData={personalData} />}
+          {personalData && page === "personal-krankheit" && <PersonalSickness personalData={personalData} />}
+          {personalData && page === "personal-mitarbeiter" && <PersonalEmployees personalData={personalData} />}
+          {personalData && page === "personal-gehalt" && <PersonalSalaryHistory personalData={personalData} />}
+          {personalData && page === "personal-massnahmen" && <PersonalActions personalData={personalData} />}
+          {page === "personal-upload" && isAdmin && (
+            <PersonalUpload
+              userRole={userRole}
+              onImportConfirmed={(data) => setPersonalData(data)}
+              onImportReset={() => setPersonalData(null)}
             />
           )}
           {page === "reports" && <Reports />}
@@ -2446,6 +3007,371 @@ function NoImportState({ canUpload, onUpload }: { canUpload: boolean; onUpload: 
         )}
       </div>
     </Card>
+  );
+}
+
+function NoPersonalImportState({ canUpload, onUpload }: { canUpload: boolean; onUpload: () => void }) {
+  return (
+    <Card className="p-6">
+      <div className="max-w-2xl">
+        <Badge tone="yellow">Kein bestätigter Personal-Import</Badge>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight">Noch keine Personal-Daten aktiv</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          Lade die Personalübersicht-Arbeitsmappe hoch. Die Personal-Seiten lesen ausschließlich diese Datei und bleiben getrennt vom CFO-/BWA-Import.
+        </p>
+        {canUpload ? (
+          <Button className="mt-5" onClick={onUpload}>
+            Zum Personal-Upload
+          </Button>
+        ) : (
+          <p className="mt-5 rounded-md bg-slate-50 p-3 text-sm font-semibold text-muted-foreground">
+            Bitte einen Admin bitten, den aktuellen Personal-Datenstand zu importieren.
+          </p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function personalActiveEmployees(data: PersonalDashboardData) {
+  return data.employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
+}
+
+function personalEmployeesBySite(data: PersonalDashboardData) {
+  const sites = data.settings.sites.length ? data.settings.sites : uniqueSortedText(data.employees.map((employee) => employee.site));
+  return sites.map((site) => {
+    const employees = data.employees.filter((employee) => employee.site === site);
+    const active = employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
+    return {
+      site,
+      employees: employees.length,
+      active: active.length,
+      hours: active.reduce((sum, employee) => sum + employee.weeklyHours, 0),
+      employerCost: active.reduce((sum, employee) => sum + employee.employerCost, 0),
+      dentists: active.filter((employee) => employee.isDentist).length
+    };
+  });
+}
+
+function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData }) {
+  const active = personalActiveEmployees(personalData);
+  const siteRows = personalEmployeesBySite(personalData);
+  const sicknessDays = personalData.sicknessEntries.reduce((sum, entry) => sum + entry.days, 0);
+  const latestSicknessYear = Math.max(...personalData.report.years, new Date().getFullYear());
+  const sicknessBySite = siteRows.map((site) => ({
+    site: site.site,
+    days: personalData.sicknessEntries.filter((entry) => entry.site === site.site && entry.year === latestSicknessYear).reduce((sum, entry) => sum + entry.days, 0)
+  }));
+  const statusRows = uniqueSortedText(personalData.employees.map((employee) => employee.status)).map((status) => ({
+    name: status,
+    value: personalData.employees.filter((employee) => employee.status === status).length
+  }));
+
+  return (
+    <section className="space-y-5">
+      <PageTitle title="Personal-Cockpit" text="Stufe 1: zentrale Personalsteuerung aus der hochgeladenen Personalübersicht-Arbeitsmappe." />
+      <Card className="grid gap-3 p-4 md:grid-cols-3">
+        <Mini label="Datenstand" value={new Date(personalData.importedAt).toLocaleString("de-DE")} />
+        <Mini label="Datei" value={personalData.fileName} />
+        <Mini label="Schema" value={personalData.schemaVersion} />
+      </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Aktive Mitarbeiter" value={active.length} plain delta={`${personalData.employees.length} Personen gesamt`} icon={Users} status="green" />
+        <KpiCard label="Wochenstunden aktiv" value={active.reduce((sum, employee) => sum + employee.weeklyHours, 0)} plain delta="Kapazität laut Arbeitsverträgen" icon={Gauge} status="green" />
+        <KpiCard label="AG-Aufwand monatlich" value={active.reduce((sum, employee) => sum + employee.employerCost, 0)} delta="nur aktive Mitarbeiter" icon={BadgeEuro} status="yellow" />
+        <KpiCard label={`Krankheitstage ${latestSicknessYear}`} value={sicknessBySite.reduce((sum, row) => sum + row.days, 0)} plain delta={`${sicknessDays.toLocaleString("de-DE")} Tage gesamt`} icon={Stethoscope} status="yellow" />
+      </div>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ChartCard title={`Aktive Mitarbeiter je Standort | aktueller Personalstand`} icon={Building2}>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={siteRows}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="site" tickLine={false} axisLine={false} />
+              <YAxis hide />
+              <Tooltip formatter={(value) => [`${value}`, "Aktive Mitarbeiter"]} />
+              <Bar dataKey="active" fill="#0f766e" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title={`Krankheitstage je Standort | ${latestSicknessYear}`} icon={Stethoscope}>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={sicknessBySite}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="site" tickLine={false} axisLine={false} />
+              <YAxis hide />
+              <Tooltip formatter={(value) => [`${value} Tage`, "Krankheit"]} />
+              <Bar dataKey="days" fill="#0891b2" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+      <Card className="overflow-hidden">
+        <div className="p-4">
+          <h2 className="font-bold">Personalstruktur je Standort</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Aktueller Stand nach Mitarbeiterstatus aus Input_Mitarbeiter.</p>
+        </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <TableHead>Standort</TableHead>
+              <TableHead>Aktiv</TableHead>
+              <TableHead>Gesamt</TableHead>
+              <TableHead>Wochenstunden</TableHead>
+              <TableHead>Behandler</TableHead>
+              <TableHead>AG-Aufwand</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {siteRows.map((row) => (
+              <tr key={row.site}>
+                <TableCell strong>{row.site}</TableCell>
+                <TableCell>{row.active}</TableCell>
+                <TableCell>{row.employees}</TableCell>
+                <TableCell>{row.hours.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
+                <TableCell>{row.dentists}</TableCell>
+                <TableCell>{eur(row.employerCost)}</TableCell>
+              </tr>
+            ))}
+            <tr className="table-total font-bold">
+              <TableCell>Gesamt</TableCell>
+              <TableCell>{siteRows.reduce((sum, row) => sum + row.active, 0)}</TableCell>
+              <TableCell>{siteRows.reduce((sum, row) => sum + row.employees, 0)}</TableCell>
+              <TableCell>{siteRows.reduce((sum, row) => sum + row.hours, 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
+              <TableCell>{siteRows.reduce((sum, row) => sum + row.dentists, 0)}</TableCell>
+              <TableCell>{eur(siteRows.reduce((sum, row) => sum + row.employerCost, 0))}</TableCell>
+            </tr>
+          </tbody>
+        </ResponsiveTable>
+      </Card>
+      <ChartCard title="Statusverteilung | aktueller Personalstand" icon={PieIcon}>
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie data={statusRows} dataKey="value" nameKey="name" innerRadius={58} outerRadius={92}>
+              {statusRows.map((_, index) => (
+                <Cell key={index} fill={["#0f766e", "#0891b2", "#f59e0b", "#ef4444"][index % 4]} />
+              ))}
+            </Pie>
+            <Tooltip formatter={(value, name) => [`${value}`, name]} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ChartCard>
+    </section>
+  );
+}
+
+function PersonalSickness({ personalData }: { personalData: PersonalDashboardData }) {
+  const [year, setYear] = useState(String(personalData.report.years.at(-1) ?? new Date().getFullYear()));
+  const selectedYear = Number(year);
+  const siteRows = personalEmployeesBySite(personalData).map((site) => {
+    const entries = personalData.sicknessEntries.filter((entry) => entry.site === site.site && entry.year === selectedYear);
+    return {
+      site: site.site,
+      days: entries.reduce((sum, entry) => sum + entry.days, 0),
+      cases: entries.length,
+      active: site.active
+    };
+  });
+  const monthRows = bwaMonths.map((month, index) => ({
+    month,
+    days: personalData.sicknessEntries.filter((entry) => entry.year === selectedYear && entry.month === index + 1).reduce((sum, entry) => sum + entry.days, 0)
+  }));
+
+  return (
+    <section className="space-y-5">
+      <PageTitle title="Krankheit / Fehlzeiten" text="Krankheitstage aus Input_Krankheitstage nach Standort, Jahr und Monat." />
+      <Select className="w-full max-w-xs" value={year} onChange={(event) => setYear(event.target.value)}>
+        {personalData.report.years.map((item) => (
+          <option key={item} value={item}>{item}</option>
+        ))}
+      </Select>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ChartCard title={`Krankheitstage je Monat | ${selectedYear}`} icon={Stethoscope}>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={monthRows}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} />
+              <YAxis hide />
+              <Tooltip formatter={(value) => [`${value} Tage`, "Krankheit"]} />
+              <Bar dataKey="days" fill="#0f766e" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title={`Krankheitstage je Standort | ${selectedYear}`} icon={Building2}>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={siteRows}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="site" tickLine={false} axisLine={false} />
+              <YAxis hide />
+              <Tooltip formatter={(value) => [`${value} Tage`, "Krankheit"]} />
+              <Bar dataKey="days" fill="#0891b2" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+      <Card className="overflow-hidden">
+        <div className="p-4">
+          <h2 className="font-bold">Fehlzeiten je Standort | {selectedYear}</h2>
+        </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <TableHead>Standort</TableHead>
+              <TableHead>Krankheitstage</TableHead>
+              <TableHead>Einträge</TableHead>
+              <TableHead>Aktive Mitarbeiter</TableHead>
+              <TableHead>Tage je aktivem Mitarbeiter</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {siteRows.map((row) => (
+              <tr key={row.site}>
+                <TableCell strong>{row.site}</TableCell>
+                <TableCell>{row.days.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
+                <TableCell>{row.cases}</TableCell>
+                <TableCell>{row.active}</TableCell>
+                <TableCell>{row.active ? (row.days / row.active).toLocaleString("de-DE", { maximumFractionDigits: 1 }) : ""}</TableCell>
+              </tr>
+            ))}
+          </tbody>
+        </ResponsiveTable>
+      </Card>
+    </section>
+  );
+}
+
+function PersonalEmployees({ personalData }: { personalData: PersonalDashboardData }) {
+  const [site, setSite] = useState("Alle Standorte");
+  const [status, setStatus] = useState("Alle Status");
+  const rows = personalData.employees.filter((employee) => {
+    const siteMatch = site === "Alle Standorte" || employee.site === site;
+    const statusMatch = status === "Alle Status" || employee.status === status;
+    return siteMatch && statusMatch;
+  });
+
+  return (
+    <section className="space-y-5">
+      <PageTitle title="Mitarbeiterübersicht" text="Stammdaten, Beschäftigungsart, Funktion und Vergütungsdaten aus Input_Mitarbeiter." />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Select value={site} onChange={(event) => setSite(event.target.value)}>
+          <option>Alle Standorte</option>
+          {personalData.settings.sites.map((item) => <option key={item}>{item}</option>)}
+        </Select>
+        <Select value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option>Alle Status</option>
+          {personalData.settings.statuses.map((item) => <option key={item}>{item}</option>)}
+        </Select>
+      </div>
+      <Card className="overflow-hidden">
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <TableHead>Mitarbeiter</TableHead>
+              <TableHead>Standort</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Funktion</TableHead>
+              <TableHead>Bereich</TableHead>
+              <TableHead>Eintritt</TableHead>
+              <TableHead>Wochenstunden</TableHead>
+              <TableHead>AG-Aufwand</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((employee) => (
+              <tr key={employee.id}>
+                <TableCell strong>{employee.name || employee.id}</TableCell>
+                <TableCell>{employee.site}</TableCell>
+                <TableCell>{employee.status}</TableCell>
+                <TableCell>{employee.functionName}</TableCell>
+                <TableCell>{employee.area}</TableCell>
+                <TableCell>{employee.entryDate}</TableCell>
+                <TableCell>{employee.weeklyHours.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
+                <TableCell>{employee.employerCost ? eur(employee.employerCost) : ""}</TableCell>
+              </tr>
+            ))}
+          </tbody>
+        </ResponsiveTable>
+      </Card>
+    </section>
+  );
+}
+
+function PersonalSalaryHistory({ personalData }: { personalData: PersonalDashboardData }) {
+  return (
+    <section className="space-y-5">
+      <PageTitle title="Gehaltshistorie" text="Veränderungen aus Input_Gehaltshistorie. In Stufe 1 wird die vorhandene Historie gelesen und transparent angezeigt." />
+      <Card className="overflow-hidden">
+        {personalData.salaryEntries.length ? (
+          <ResponsiveTable>
+            <thead>
+              <tr>
+                <TableHead>Datum</TableHead>
+                <TableHead>Mitarbeiter</TableHead>
+                <TableHead>Standort</TableHead>
+                <TableHead>Alt</TableHead>
+                <TableHead>Neu</TableHead>
+                <TableHead>Differenz</TableHead>
+                <TableHead>Grund</TableHead>
+                <TableHead>Freigegeben von</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {personalData.salaryEntries.map((entry) => (
+                <tr key={entry.id}>
+                  <TableCell>{entry.date}</TableCell>
+                  <TableCell strong>{entry.employeeName || entry.employeeId}</TableCell>
+                  <TableCell>{entry.site}</TableCell>
+                  <TableCell>{eur(entry.oldSalary)}</TableCell>
+                  <TableCell>{eur(entry.newSalary)}</TableCell>
+                  <TableCell tone={entry.difference < 0 ? "red" : "green"}>{eur(entry.difference)}</TableCell>
+                  <TableCell>{entry.reason}</TableCell>
+                  <TableCell>{entry.approvedBy}</TableCell>
+                </tr>
+              ))}
+            </tbody>
+          </ResponsiveTable>
+        ) : (
+          <div className="p-5 text-sm font-semibold text-muted-foreground">Noch keine Gehaltshistorie in der Personal-Arbeitsmappe hinterlegt.</div>
+        )}
+      </Card>
+    </section>
+  );
+}
+
+function PersonalActions({ personalData }: { personalData: PersonalDashboardData }) {
+  return (
+    <section className="space-y-5">
+      <PageTitle title="Personalmaßnahmen" text="Maßnahmen aus Input_Personalmassnahmen. Ohne Status-Spalte wird der Status in Stufe 1 als offen interpretiert." />
+      <Card className="overflow-hidden">
+        {personalData.actionEntries.length ? (
+          <ResponsiveTable>
+            <thead>
+              <tr>
+                <TableHead>Datum</TableHead>
+                <TableHead>Mitarbeiter</TableHead>
+                <TableHead>Standort</TableHead>
+                <TableHead>Maßnahme</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Details</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {personalData.actionEntries.map((entry) => (
+                <tr key={entry.id}>
+                  <TableCell>{entry.date}</TableCell>
+                  <TableCell strong>{entry.employeeName || entry.employeeId}</TableCell>
+                  <TableCell>{entry.site}</TableCell>
+                  <TableCell>{entry.action}</TableCell>
+                  <TableCell>{entry.status}</TableCell>
+                  <TableCell>{entry.details}</TableCell>
+                </tr>
+              ))}
+            </tbody>
+          </ResponsiveTable>
+        ) : (
+          <div className="p-5 text-sm font-semibold text-muted-foreground">Noch keine Personalmaßnahmen in der Personal-Arbeitsmappe hinterlegt.</div>
+        )}
+      </Card>
+    </section>
   );
 }
 
@@ -4854,6 +5780,18 @@ function MonthlyEbitdaTable({
   );
 }
 
+function ResponsiveTable({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="data-table border-separate border-spacing-0 text-sm">{children}</table>
+    </div>
+  );
+}
+
+function TableHead({ children }: { children: React.ReactNode }) {
+  return <th className="table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white">{children}</th>;
+}
+
 function TableCell({
   children,
   strong,
@@ -6253,6 +7191,205 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
         Run-Rate-Logik: aktuelles Ø EBITDA seit Praxisstart wird bis zur jeweiligen Earn-Out-Fälligkeit hochgerechnet und proportional gegen das Ziel-EBITDA gespiegelt. Aktuelle Vorsorgequote: {pct(runRateAchievement)} des Gesamtpotenzials.
       </p>
     </Card>
+  );
+}
+
+function PersonalUpload({
+  userRole,
+  onImportConfirmed,
+  onImportReset
+}: {
+  userRole: UserRole;
+  onImportConfirmed?: (data: PersonalDashboardData) => void;
+  onImportReset?: () => void;
+}) {
+  const [report, setReport] = useState<PersonalImportReport>(emptyPersonalImportReport);
+  const [confirmedReport, setConfirmedReport] = useState<PersonalImportReport | null>(null);
+  const [pendingDashboardData, setPendingDashboardData] = useState<PersonalDashboardData | null>(null);
+  const [importHistory, setImportHistory] = useState<PersonalImportHistoryEntry[]>([]);
+  const [previousData, setPreviousData] = useState<PersonalDashboardData | null>(null);
+  const canEdit = canModifyData(userRole);
+
+  const refreshImportHistory = () => {
+    loadSupabasePersonalImportHistory().then(setImportHistory);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    loadConfirmedPersonalImportData()
+      .then((savedImport) => {
+        if (!isMounted) return;
+        setPreviousData(savedImport);
+        if (savedImport) setConfirmedReport(savedImport.report);
+      })
+      .catch(() => {
+        if (isMounted) setConfirmedReport(null);
+      });
+    refreshImportHistory();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    if (!canEdit) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setReport({ ...emptyPersonalImportReport, status: "reading", fileName: file.name });
+    try {
+      await waitForBrowserPaint();
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      const dashboardData = buildPersonalDashboardData(workbook, file.name, previousData);
+      setReport(dashboardData.report);
+      setPendingDashboardData(dashboardData.report.status === "error" ? null : dashboardData);
+    } catch (error) {
+      setReport({
+        ...emptyPersonalImportReport,
+        status: "error",
+        fileName: file.name,
+        importedAt: new Date().toISOString(),
+        errors: [
+          error instanceof Error
+            ? `Die Personal-Datei konnte nicht gelesen werden: ${error.message}`
+            : "Die Personal-Datei konnte nicht gelesen werden."
+        ]
+      });
+      setPendingDashboardData(null);
+    }
+  }
+
+  async function confirmImport() {
+    if (!canEdit) return;
+    if ((report.status !== "ready" && report.status !== "warning") || !pendingDashboardData) return;
+    await saveConfirmedPersonalImport(report, pendingDashboardData);
+    setConfirmedReport(report);
+    setPreviousData(pendingDashboardData);
+    refreshImportHistory();
+    onImportConfirmed?.(pendingDashboardData);
+  }
+
+  async function resetImport() {
+    if (!canEdit) return;
+    await clearConfirmedPersonalImport();
+    setReport(emptyPersonalImportReport);
+    setConfirmedReport(null);
+    setPendingDashboardData(null);
+    setPreviousData(null);
+    refreshImportHistory();
+    onImportReset?.();
+  }
+
+  const activeReport = report.status === "idle" ? confirmedReport : report;
+  const statusTone = activeReport?.status === "ready" ? "green" : activeReport?.status === "warning" ? "yellow" : activeReport?.status === "error" ? "red" : "neutral";
+  const statusLabel =
+    activeReport?.status === "ready"
+      ? "Importfähig"
+      : activeReport?.status === "warning"
+        ? "Importfähig mit Warnungen"
+        : activeReport?.status === "error"
+          ? "Nicht importfähig"
+          : report.status === "reading"
+            ? "Datei wird gelesen"
+            : "Noch kein Personal-Import";
+  const importSteps = [
+    { label: "Personal-Arbeitsmappe auswählen", done: report.status !== "idle" || Boolean(confirmedReport) },
+    { label: "Pflichtblätter erkennen", done: Boolean(activeReport?.presentSheets.length) },
+    { label: "Mitarbeiterstamm lesen", done: Boolean(activeReport?.employeeRows) },
+    { label: "Krankheitsdaten prüfen", done: Boolean(activeReport?.sicknessRows) },
+    { label: "Änderungen erkennen", done: Boolean(activeReport && activeReport.status !== "error") },
+    { label: "Personal-Import freigeben", done: Boolean(confirmedReport) }
+  ];
+
+  return (
+    <section className="space-y-5">
+      <PageTitle title="Personal-Upload" text="Eigener Import für die Personalübersicht-Arbeitsmappe. Diese Datenbasis ist vom CFO-/BWA-Import getrennt." />
+      <Card className="grid gap-3 p-4 md:grid-cols-3">
+        <Mini label="Aktueller Importstatus" value={statusLabel} />
+        <Mini label="Letzte bestätigte Datei" value={confirmedReport?.fileName ?? "Noch keine Datei bestätigt"} />
+        <Mini label="Datenstand" value={confirmedReport?.importedAt ? new Date(confirmedReport.importedAt).toLocaleString("de-DE") : "Noch offen"} />
+      </Card>
+      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <Card className="p-4">
+          <h2 className="font-bold">Uploadablauf</h2>
+          <div className="mt-4 space-y-3">
+            {importSteps.map((step, index) => (
+              <div key={step.label} className="flex items-center gap-3 rounded-md bg-slate-50 p-3">
+                <span className={cn("flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white", step.done ? "bg-primary" : "bg-slate-300")}>
+                  {step.done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                </span>
+                <span className="font-semibold">{step.label}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="font-bold">Orisus Personalübersicht</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Lade die komplette Personal-Excel-Datei hoch. Die App liest die Input-Blätter direkt.</p>
+            </div>
+            <Badge tone={statusTone}>{statusLabel}</Badge>
+          </div>
+          <label className={cn("mt-4 block rounded-lg border-2 border-dashed border-border bg-slate-50 p-8 text-center transition", canEdit ? "cursor-pointer hover:border-primary hover:bg-cyan-50/60" : "cursor-not-allowed opacity-60")}>
+            <FileUp className="mx-auto h-10 w-10 text-primary" />
+            <p className="mt-3 font-bold">{report.status === "reading" ? "Datei wird gelesen ..." : "Personal-Excel auswählen"}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Empfohlen: ++Orisus_Personalübersicht_Dashboard++.xlsx</p>
+            <input className="sr-only" type="file" accept=".xlsx,.xls" onChange={handleFileUpload} disabled={!canEdit} />
+          </label>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {[
+              ["Pflichtblätter", activeReport ? `${activeReport.presentSheets.length}/${requiredPersonalSheets.length} erkannt` : "Noch offen"],
+              ["Mitarbeiter", activeReport ? activeReport.employeeRows.toLocaleString("de-DE") : "Noch offen"],
+              ["Aktive Mitarbeiter", activeReport ? activeReport.activeEmployees.toLocaleString("de-DE") : "Noch offen"],
+              ["Krankheitseinträge", activeReport ? activeReport.sicknessRows.toLocaleString("de-DE") : "Noch offen"]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-md table-total p-3">
+                <p className="text-xs font-bold uppercase text-muted-foreground">{label}</p>
+                <p className="mt-1 font-bold">{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <Button className="w-full" disabled={!canEdit || (report.status !== "ready" && report.status !== "warning")} onClick={confirmImport}>
+              Personal-Import bestätigen
+            </Button>
+            <Button className="w-full" variant="secondary" disabled={!canEdit || (!confirmedReport && report.status === "idle")} onClick={resetImport}>
+              Personal-Import zurücksetzen
+            </Button>
+          </div>
+        </Card>
+      </div>
+      <Card className="overflow-hidden">
+        <div className="border-b border-border p-4">
+          <h2 className="font-bold">Personal-Importbericht</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Vorschau aus der Personal-Arbeitsmappe. Nach Bestätigung nutzen die Personal-Seiten diese Datenbasis.</p>
+        </div>
+        <div className="grid gap-px table-grid-bg md:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Standorte", activeReport?.sites.length ? activeReport.sites.join(", ") : "Noch nicht erkannt"],
+            ["Jahre Krankheit", activeReport?.years.length ? activeReport.years.join(", ") : "Noch nicht erkannt"],
+            ["Gehaltshistorie", activeReport ? `${activeReport.salaryRows} Einträge` : "Noch offen"],
+            ["Maßnahmen", activeReport ? `${activeReport.actionRows} Einträge` : "Noch offen"]
+          ].map(([label, value]) => (
+            <div key={label} className="bg-white p-4">
+              <p className="text-xs font-bold uppercase text-muted-foreground">{label}</p>
+              <p className="mt-2 font-bold">{value}</p>
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-3 p-4 md:grid-cols-3">
+          <div className="rounded-md table-cashflow p-3 text-sm font-semibold text-emerald-800">
+            {activeReport ? `${activeReport.presentSheets.length} relevante Blätter erkannt` : "Bereit für Upload"}
+          </div>
+          <div className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+            {activeReport ? `${activeReport.warnings.length} Warnungen` : "Warnungen erscheinen nach Upload"}
+          </div>
+          <div className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-800">
+            {activeReport ? `${activeReport.errors.length} blockierende Fehler` : "Fehler erscheinen nach Upload"}
+          </div>
+        </div>
+      </Card>
+    </section>
   );
 }
 
