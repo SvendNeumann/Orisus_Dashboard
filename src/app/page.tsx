@@ -2261,22 +2261,39 @@ function CostRatios({ site, sites = standorte }: { site?: DashboardSite; sites?:
 
 function Ranking({ title, metric, sites = standorte }: { title: string; metric: "ebitda" | "gesamtleistung"; sites?: DashboardSite[] }) {
   const rows = [...sites].sort((a, b) => b[metric] - a[metric]);
+  const ebitdaRankingStatus = (site: DashboardSite): Status => {
+    const target = site.darlehen.zielEbitda;
+    if (target > 0) {
+      const achievement = (site.ebitda / target) * 100;
+      if (achievement >= 100) return "green";
+      if (achievement >= 85) return "yellow";
+      return "red";
+    }
+    if (site.ebitdaMarge >= 12) return "green";
+    if (site.ebitdaMarge >= 8) return "yellow";
+    return "red";
+  };
+
   return (
     <Card className="p-4">
       <h2 className="font-bold">{title}</h2>
       <div className="mt-4 space-y-3">
-        {rows.map((site) => (
-          <button key={site.id} className="w-full rounded-md bg-slate-50 p-3 text-left">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="font-semibold">{site.name}</span>
-              <StatusDot status={site.status} />
-            </div>
-            <div className="flex items-center gap-3">
-              <Progress value={metric === "ebitda" ? site.ebitdaMarge * 4 : site.gesamtleistung / 13000} tone={statusMap[site.status].tone} />
-              <span className="min-w-20 text-right text-sm font-bold">{eur(site[metric], true)}</span>
-            </div>
-          </button>
-        ))}
+        {rows.map((site) => {
+          const status = metric === "ebitda" ? ebitdaRankingStatus(site) : site.status;
+          const ebitdaProgress = site.darlehen.zielEbitda > 0 ? (site.ebitda / site.darlehen.zielEbitda) * 100 : site.ebitdaMarge * 4;
+          return (
+            <button key={site.id} className="w-full rounded-md bg-slate-50 p-3 text-left">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-semibold">{site.name}</span>
+                <StatusDot status={status} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Progress value={metric === "ebitda" ? ebitdaProgress : site.gesamtleistung / 13000} tone={statusMap[status].tone} />
+                <span className="min-w-20 text-right text-sm font-bold">{eur(site[metric], true)}</span>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </Card>
   );
