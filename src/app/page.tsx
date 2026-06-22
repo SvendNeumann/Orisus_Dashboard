@@ -3343,6 +3343,25 @@ function personalEmployeesBySite(data: PersonalDashboardData) {
   });
 }
 
+function personalYearFromDisplayDate(value: string) {
+  const parts = value.split(".");
+  return Number(parts[2]) || 0;
+}
+
+function personalDateFromDisplayDate(value: string) {
+  const [day, month, year] = value.split(".").map(Number);
+  if (!day || !month || !year) return null;
+  return new Date(year, month - 1, day).getTime();
+}
+
+function personalWasEmployedInYear(employee: PersonalEmployee, year: number) {
+  const periodStart = new Date(year, 0, 1).getTime();
+  const periodEnd = new Date(year, 11, 31).getTime();
+  const entryDate = personalDateFromDisplayDate(employee.entryDate) ?? -Infinity;
+  const exitDate = personalDateFromDisplayDate(employee.exitDate) ?? Infinity;
+  return entryDate <= periodEnd && exitDate >= periodStart;
+}
+
 function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData }) {
   const yearFromDisplayDate = (value: string) => {
     const parts = value.split(".");
@@ -3732,13 +3751,15 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
   const selectedYear = Number(year);
   const formatOneDecimal = (value: number) =>
     value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const siteRows = personalEmployeesBySite(personalData).map((site) => {
-    const entries = personalData.sicknessEntries.filter((entry) => entry.site === site.site && entry.year === selectedYear);
+  const sites = personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site));
+  const siteRows = sites.map((site) => {
+    const employeesInYear = personalData.employees.filter((employee) => employee.site === site && personalWasEmployedInYear(employee, selectedYear));
+    const entries = personalData.sicknessEntries.filter((entry) => entry.site === site && entry.year === selectedYear);
     return {
-      site: site.site,
+      site,
       days: entries.reduce((sum, entry) => sum + entry.days, 0),
       cases: entries.length,
-      active: site.active
+      active: employeesInYear.length
     };
   });
   const monthRows = bwaMonths.map((month, index) => ({
