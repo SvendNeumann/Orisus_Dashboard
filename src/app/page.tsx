@@ -1217,16 +1217,6 @@ const mobileNav = [
   { id: "personal-cockpit", label: "Personal", icon: Users }
 ] as const;
 
-const quickNav = [
-  { id: "cockpit", label: "Cockpit" },
-  { id: "standorte", label: "Standorte" },
-  { id: "bwa", label: "BWA" },
-  { id: "performance", label: "Performance" },
-  { id: "personal-cockpit", label: "Personal" },
-  { id: "banken", label: "Banken" },
-  { id: "board", label: "Board" }
-] as const;
-
 const appPageIds: Page[] = [
   "cockpit",
   "kennzahlen",
@@ -2831,8 +2821,6 @@ export default function HomePage() {
     admin: false
   });
   const visibleNavSections = useMemo(() => navSectionsForRole(userRole), [userRole]);
-  const visibleQuickNav = quickNav.filter((item) => allowedPages.includes(item.id as Page));
-
   const selected = useMemo(
     () => dashboardSites.find((site) => site.id === selectedSite) ?? dashboardSites[0] ?? standorte[0],
     [dashboardSites, selectedSite]
@@ -3029,8 +3017,6 @@ export default function HomePage() {
             page={page}
             previousPage={previousPage}
             onBack={() => go(previousPage ?? "cockpit")}
-            onGo={go}
-            quickNavItems={visibleQuickNav}
           />
           {requiresImport && !importedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
           {requiresPersonalImport && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
@@ -3840,21 +3826,17 @@ function NavSection({
 function NavigationControls({
   page,
   previousPage,
-  onBack,
-  onGo,
-  quickNavItems
+  onBack
 }: {
   page: Page;
   previousPage: Page | null;
   onBack: () => void;
-  onGo: (page: Page) => void;
-  quickNavItems: typeof quickNav[number][];
 }) {
   return (
-    <div className="app-nav-controls mb-5 flex flex-col gap-2 rounded-lg border border-border p-2 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="app-nav-controls mb-5 rounded-lg border border-border p-2 shadow-sm">
       <button
         className={cn(
-          "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border px-3 text-sm font-semibold",
+          "inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-border px-3 text-sm font-semibold sm:w-auto",
           page === "cockpit" && !previousPage ? "cursor-not-allowed text-muted-foreground" : "bg-white/5 hover:bg-white/10"
         )}
         disabled={page === "cockpit" && !previousPage}
@@ -3863,20 +3845,6 @@ function NavigationControls({
         <ArrowLeft className="h-4 w-4" />
         Zurück
       </button>
-      <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
-        {quickNavItems.map((item) => (
-          <button
-            key={item.id}
-            className={cn(
-              "h-10 shrink-0 rounded-md px-3 text-sm font-semibold",
-              page === item.id ? "bg-gradient-to-r from-[#30d5c8] to-[#087b8c] text-white" : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-white"
-            )}
-            onClick={() => onGo(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
