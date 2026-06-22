@@ -4674,8 +4674,8 @@ function Cockpit({
         <ChartCard title={`Ist EBITDA vs. EBITDA bei Übernahme | ${cockpitPeriod}`} icon={TrendingUp}>
           <EbitdaTakeoverChart sites={cockpitPeriodSites} />
         </ChartCard>
-        <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
-          <CostShareDonut sites={sites} />
+        <ChartCard title="Offene Forderungen je Standort | aktueller Stand" icon={FileBarChart}>
+          <ReceivablesChart sites={sites} />
         </ChartCard>
       </div>
 
@@ -4691,8 +4691,8 @@ function Cockpit({
       <StandortCfoComparison sites={sites} />
 
       <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
-        <ChartCard title="Offene Forderungen je Standort | aktueller Stand" icon={FileBarChart}>
-          <ReceivablesChart sites={sites} />
+        <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
+          <CostShareDonut sites={sites} />
         </ChartCard>
         <AccountsBlock sites={sites} />
       </div>
