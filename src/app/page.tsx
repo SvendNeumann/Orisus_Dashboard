@@ -6622,6 +6622,7 @@ function StandortDetail({
       </div>
       <BwaStatement title={`BWA bis Cashflow ${site.name}`} siteId={site.id} importedData={importedData} />
       <SiteMonthlyBwa site={site} importedData={importedData} />
+      <SitePvsMonthlyRevenue site={site} importedData={importedData} monthlyData={monthlyData} />
     </section>
   );
 }
@@ -7606,6 +7607,125 @@ function BankMovementsTable({
 
 function performanceBase(site: DashboardSite, mode: "honorar" | "pvs") {
   return mode === "honorar" ? site.honorar + site.eigenlabor : site.pvsUmsatz + site.eigenlabor + site.gesamtleistung * 0.06;
+}
+
+function SitePvsMonthlyRevenue({
+  site,
+  importedData,
+  monthlyData = monthly
+}: {
+  site: DashboardSite;
+  importedData?: ImportedDashboardData | null;
+  monthlyData?: typeof monthly;
+}) {
+  const availablePeriods = periodOptionsFromImportedRows(importedData?.pvsRevenueRows);
+  const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) {
+      setPeriod(defaultPeriodFromOptions(availablePeriods));
+    }
+  }, [availablePeriods, period]);
+
+  const pvsRow = importedData?.pvsRevenueRows?.find((row) => row.siteId === site.id);
+  const selection = selectedBwaPeriod(period);
+  const visibleMonths = monthSelectionForPeriod(period);
+  const valueFor = (year: number, month: number) => Math.round(pvsRow?.valuesByMonth[`${year}-${month}`] ?? 0);
+  const periodYears = Array.from(
+    new Set(
+      Object.keys(pvsRow?.valuesByMonth ?? {})
+        .map((key) => Number(key.split("-")[0]))
+        .filter((year) => Number.isFinite(year) && year >= 1900)
+    )
+  )
+    .filter((year) => bwaMonths.some((_, index) => Math.abs(valueFor(year, index + 1)) > 0))
+    .sort((a, b) => a - b);
+  const years = selection.year ? [selection.year] : periodYears;
+  const fallbackValues = allocateByMonthlyStructure(site.pvsUmsatz, monthlyData);
+  const rows = years.map((year) => {
+    const values = bwaMonths.map((_, index) => {
+      const month = index + 1;
+      if (selection.year && !visibleMonths.has(month)) return null;
+      const importedValue = valueFor(year, month);
+      if (pvsRow) return importedValue || null;
+      return selection.year ? fallbackValues[index] || null : null;
+    });
+    return {
+      label: selection.year ? "PVS-Gesamtumsatz" : `Geschäftsjahr ${year}`,
+      values
+    };
+  });
+  const totalByMonth = bwaMonths.map((_, index) =>
+    rows.reduce((sum, row) => sum + (row.values[index] ?? 0), 0)
+  );
+  const hasRows = rows.some((row) => row.values.some((value) => value != null && value !== 0));
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-bold">Monatliche PVS-Gesamtumsätze {site.name} | {performancePeriodLabel(period)}</span>
+        <Select
+          className="w-full bg-white text-foreground sm:w-64"
+          value={period}
+          onChange={(event) => setPeriod(event.target.value)}
+        >
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>
+              {performancePeriodLabel(option)}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div className="border-b border-border bg-slate-50 p-3 text-sm text-muted-foreground">
+        Monatliche Herleitung aus dem bestätigten Excel-Import. Bei gesamter Vertragsperiode werden die Jahre seit Praxisstart untereinander dargestellt.
+      </div>
+      <div className="overflow-x-auto">
+        <table className="data-table border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-20 border-b border-r border-border table-head p-2 text-left text-white">Zeitraum</th>
+              {bwaMonths.map((month) => (
+                <th key={month} className="border-b border-r border-border table-head p-2 text-right text-white">{month}</th>
+              ))}
+              <th className="border-b border-r border-border table-head p-2 text-right text-white">Gesamt</th>
+              <th className="border-b border-r border-border table-head p-2 text-right text-white">Ø Monat</th>
+            </tr>
+          </thead>
+          <tbody>
+            {hasRows ? (
+              <>
+                {rows.map((row) => (
+                  <SitePvsMonthRow key={row.label} label={row.label} values={row.values} />
+                ))}
+                {!selection.year && <SitePvsMonthRow label="Gesamt" values={totalByMonth} summary />}
+              </>
+            ) : (
+              <tr>
+                <td className="border-b border-border bg-white p-4 text-sm text-muted-foreground" colSpan={15}>
+                  Für {site.name} sind in diesem Zeitraum keine PVS-Monatswerte im bestätigten Import vorhanden.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function SitePvsMonthRow({ label, values, summary }: { label: string; values: (number | null)[]; summary?: boolean }) {
+  const numericValues = values.filter((value): value is number => value != null);
+  const totalValue = numericValues.reduce((sum, value) => sum + value, 0);
+  const averageValue = totalValue / Math.max(numericValues.filter((value) => value !== 0).length, 1);
+  return (
+    <tr className={cn(summary && "summary-row")}>
+      <td className={cn("sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-bold", summary && "table-total")}>{label}</td>
+      {values.map((value, index) => (
+        <TableCell key={`${label}-${index}`} summary={summary}>{value ? eur(value) : ""}</TableCell>
+      ))}
+      <TableCell strong summary={summary}>{eur(totalValue)}</TableCell>
+      <TableCell strong summary={summary}>{eur(averageValue)}</TableCell>
+    </tr>
+  );
 }
 
 function fillTwelveMonths(values: number[]) {
