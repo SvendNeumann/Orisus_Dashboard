@@ -97,6 +97,7 @@ type AccessUser = {
   name: string | null;
   role: UserRole;
   active: boolean;
+  last_sign_in_at?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -1312,6 +1313,19 @@ function displayDateFromUnknown(value: unknown) {
   if (numeric && numeric > 20000) return excelSerialDateToDisplay(numeric);
   const text = asText(value);
   return /^\d{1,2}\.\d{1,2}\.\d{4}$/.test(text) ? text : "";
+}
+
+function displayDateTimeFromUnknown(value: unknown) {
+  if (!value) return "Noch nie";
+  const date = new Date(asText(value));
+  if (Number.isNaN(date.getTime())) return "Noch nie";
+  return date.toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 function startPeriodValue(value: string) {
@@ -4725,7 +4739,6 @@ function Cockpit({
 }) {
   const cockpitPeriod = defaultBwaPeriodFor(importedData);
   const topBehandlerPeriod = importedData?.topBehandlerPeriod ?? cockpitPeriod;
-  const cockpitPeriodSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, cockpitPeriod)) : sites;
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -4735,8 +4748,8 @@ function Cockpit({
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} />
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <ChartCard title={`Ist EBITDA vs. EBITDA bei Übernahme | ${cockpitPeriod}`} icon={TrendingUp}>
-          <EbitdaTakeoverChart sites={cockpitPeriodSites} />
+        <ChartCard title="Ist EBITDA vs. Ziel-EBITDA Kaufvertrag | seit Vertragsstart" icon={TrendingUp}>
+          <EbitdaTargetChart sites={sites} />
         </ChartCard>
         <ChartCard title="Offene Forderungen je Standort | aktueller Stand" icon={FileBarChart}>
           <ReceivablesChart sites={sites} />
@@ -5080,14 +5093,53 @@ function ChartCard({
   );
 }
 
-function EbitdaTakeoverChart({ sites = standorte }: { sites?: DashboardSite[] }) {
-  const chartData = sites
-    .filter((site) => site.gesamtleistung > 0 || site.ebitda !== 0 || (site.darlehen.zielEbitdaUebernahme ?? site.darlehen.zielEbitda) !== 0)
-    .map((site) => ({
+type EbitdaTargetChartRow = {
+  name: string;
+  ebitda: number;
+  zielEbitdaKaufvertrag: number;
+  abweichung: number;
+  abweichungPct: number;
+};
+
+function EbitdaTargetTooltip({
+  active,
+  payload,
+  label
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: EbitdaTargetChartRow }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+
+  return (
+    <div className="rounded-md border border-border bg-white p-3 text-sm shadow-lg">
+      <p className="mb-2 font-bold text-slate-900">{label}</p>
+      <p className="text-teal-700">Ist EBITDA: {eur(row.ebitda)}</p>
+      <p className="text-sky-700">Ziel-EBITDA KV: {eur(row.zielEbitdaKaufvertrag)}</p>
+      <p className={cn("font-bold", row.abweichung < 0 ? "text-red-700" : "text-emerald-700")}>
+        Abw.: {eur(row.abweichung)} ({pct(row.abweichungPct)})
+      </p>
+    </div>
+  );
+}
+
+function EbitdaTargetChart({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const chartData = sortSitesByContractStart(sites)
+    .filter((site) => site.gesamtleistung > 0 || site.ebitda !== 0 || (site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda) !== 0)
+    .map((site) => {
+      const zielEbitdaKaufvertrag = site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda;
+      const abweichung = site.ebitda - zielEbitdaKaufvertrag;
+      return {
       name: site.name,
       ebitda: site.ebitda,
-      uebernahmeEbitda: site.darlehen.zielEbitdaUebernahme ?? site.darlehen.zielEbitda
-    }));
+        zielEbitdaKaufvertrag,
+        abweichung,
+        abweichungPct: zielEbitdaKaufvertrag ? (abweichung / zielEbitdaKaufvertrag) * 100 : 0
+      };
+    });
 
   return (
     <ResponsiveContainer width="100%" height={300}>
@@ -5095,12 +5147,12 @@ function EbitdaTakeoverChart({ sites = standorte }: { sites?: DashboardSite[] })
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis dataKey="name" tickLine={false} axisLine={false} />
         <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
-        <Tooltip formatter={(v) => eur(Number(v))} />
-        <Bar dataKey="ebitda" name="Ist EBITDA" fill="#0f766e" radius={[5, 5, 0, 0]} />
+        <Tooltip content={<EbitdaTargetTooltip />} />
+        <Bar dataKey="ebitda" name="Ist EBITDA seit Vertragsstart" fill="#0f766e" radius={[5, 5, 0, 0]} />
         <Line
           type="monotone"
-          dataKey="uebernahmeEbitda"
-          name="EBITDA bei Übernahme"
+          dataKey="zielEbitdaKaufvertrag"
+          name="Ziel-EBITDA Kaufvertrag"
           stroke="#0369a1"
           strokeWidth={3}
           dot={{ r: 4 }}
@@ -9967,7 +10019,7 @@ function AccessUserManagement() {
         <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              {["Name", "E-Mail", "Rolle", "Status", "Aktion"].map((head) => (
+              {["Name", "E-Mail", "Rolle", "Status", "Aktion", "Letzter Login"].map((head) => (
                 <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                   {head}
                 </th>
@@ -10016,12 +10068,15 @@ function AccessUserManagement() {
                       )}
                     </div>
                   </td>
+                  <td className="border-b border-r border-border p-3 text-sm font-semibold text-muted-foreground">
+                    {displayDateTimeFromUnknown(user.last_sign_in_at)}
+                  </td>
                 </tr>
               );
             })}
             {!users.length && (
               <tr>
-                <td colSpan={5} className="p-4 text-center text-muted-foreground">
+                <td colSpan={6} className="p-4 text-center text-muted-foreground">
                   Noch keine Zugänge geladen.
                 </td>
               </tr>

@@ -9,6 +9,12 @@ type AccessUserPayload = {
   active?: boolean;
 };
 
+type AuthAdminUser = {
+  id: string;
+  email?: string;
+  last_sign_in_at?: string | null;
+};
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY ?? "";
 const permanentAdminEmail = "svend.neumann@orisus.de";
@@ -102,7 +108,7 @@ async function ensurePermanentAdminRole() {
 }
 
 async function deleteSupabaseAuthUser(email: string) {
-  const listedUsers = await supabaseServiceFetch<{ users?: Array<{ id: string; email?: string }> }>("/auth/v1/admin/users?per_page=1000");
+  const listedUsers = await supabaseServiceFetch<{ users?: AuthAdminUser[] }>("/auth/v1/admin/users?per_page=1000");
   const matchingUsers = (listedUsers?.users ?? []).filter((user) => normalizeEmail(user.email ?? "") === email);
   for (const user of matchingUsers) {
     await supabaseServiceFetch(`/auth/v1/admin/users/${encodeURIComponent(user.id)}`, {
@@ -154,10 +160,21 @@ export async function GET(request: NextRequest) {
 
     await ensurePermanentAdminRole();
 
-    const users = await supabaseServiceFetch(
+    const users = await supabaseServiceFetch<Array<Record<string, unknown>>>(
       "/rest/v1/orisus_user_roles?select=email,name,role,active,created_at,updated_at&order=name.asc.nullslast,email.asc"
     );
-    return NextResponse.json({ users });
+    const authUsers = await supabaseServiceFetch<{ users?: AuthAdminUser[] }>("/auth/v1/admin/users?per_page=1000");
+    const lastSignInByEmail = new Map(
+      (authUsers.users ?? [])
+        .filter((user) => user.email)
+        .map((user) => [normalizeEmail(user.email ?? ""), user.last_sign_in_at ?? null])
+    );
+    return NextResponse.json({
+      users: users.map((user) => ({
+        ...user,
+        last_sign_in_at: lastSignInByEmail.get(normalizeEmail(String(user.email ?? ""))) ?? null
+      }))
+    });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Zugänge konnten nicht geladen werden.", 500);
   }
