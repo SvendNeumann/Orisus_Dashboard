@@ -1762,6 +1762,69 @@ function preferredRowsValue(rows: Record<string, unknown>[], metricGroups: strin
   return 0;
 }
 
+function isCurrentOpenReceivablesRow(row: Record<string, unknown>) {
+  const sourceText = [row.Datenquelle, row.Unterkategorie, row.Kennzahl, row.Standard_Kennzahl, row.Detailbezeichnung]
+    .map(normalizeMetric)
+    .join(" ");
+  const domain = rowDomain(row);
+  return (
+    domain === "finanzen" &&
+    (sourceText.includes("noch_nicht_geflossen_gesamt") || sourceText.includes("offene_forderungen_gesamt"))
+  );
+}
+
+function currentOpenReceivablesRowValue(row: Record<string, unknown>) {
+  if (!isCurrentOpenReceivablesRow(row)) return null;
+  const sourceText = [row.Datenquelle, row.Unterkategorie].map(normalizeMetric).join(" ");
+  if (sourceText.includes("noch_nicht_geflossen_gesamt")) {
+    return asNumber(row.Kategorie) ?? asNumber(row.Standard_Kategorie) ?? asNumber(row.Wert);
+  }
+  return asNumber(row.Wert) ?? asNumber(row.Kategorie) ?? asNumber(row.Standard_Kategorie);
+}
+
+function preferredCurrentOpenReceivablesValue(rows: Record<string, unknown>[]) {
+  const candidates = rows
+    .map((row) => ({ row, value: currentOpenReceivablesRowValue(row) }))
+    .filter((entry): entry is { row: Record<string, unknown>; value: number } => entry.value != null && entry.value > 0)
+    .sort((a, b) => {
+      const yearDelta = (rowYear(b.row) ?? 0) - (rowYear(a.row) ?? 0);
+      if (yearDelta) return yearDelta;
+      return (rowMonth(b.row) ?? 0) - (rowMonth(a.row) ?? 0);
+    });
+  return candidates[0]?.value ?? 0;
+}
+
+function managementOpenReceivablesFromWorkbook(workbook: XLSX.WorkBook) {
+  const sheet = workbook.Sheets.Dashboard_Management;
+  if (!sheet) return new Map<string, number>();
+
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: null,
+    raw: true,
+    blankrows: false
+  });
+  const headerRowIndex = rows.findIndex((row) => row.some((cell) => normalizeMetric(cell) === "offene_forderungen_seit_start"));
+  if (headerRowIndex < 0) return new Map<string, number>();
+
+  const headerRow = rows[headerRowIndex] ?? [];
+  const siteColumn = headerRow.findIndex((cell) => normalizeMetric(cell) === "offene_forderungen_seit_start");
+  const valueColumn = siteColumn + 1;
+  const valuesBySite = new Map<string, number>();
+
+  for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex] ?? [];
+    const siteName = asText(row[siteColumn]);
+    const value = asNumber(row[valueColumn]);
+    if (!siteName || value == null) continue;
+    const siteKey = siteIdForName(siteName);
+    if (!standorte.some((site) => site.id === siteKey)) continue;
+    valuesBySite.set(siteKey, value);
+  }
+
+  return valuesBySite;
+}
+
 function monthNumberFromHeader(value: unknown) {
   const key = normalizeMetric(value);
   const months: Record<string, number> = {
@@ -1902,7 +1965,16 @@ function latestKontostandFromWorkbook(workbook: XLSX.WorkBook, siteName: string)
   return values[0]?.value ?? null;
 }
 
-function openReceivablesSinceStart(siteName: string, siteRows: Record<string, unknown>[], allSiteRows: Record<string, unknown>[]) {
+function openReceivablesSinceStart(
+  siteName: string,
+  siteRows: Record<string, unknown>[],
+  allSiteRows: Record<string, unknown>[],
+  managementReceivables?: number
+) {
+  const currentReceivables = preferredCurrentOpenReceivablesValue(allSiteRows) || preferredCurrentOpenReceivablesValue(siteRows);
+  if (currentReceivables) return currentReceivables;
+  if (managementReceivables) return managementReceivables;
+
   if (normalizeSiteId(siteName) === "ulmet") {
     const ulmetReceivables = preferredRowsValue(allSiteRows, [["offene_forderungen_gesamt"]], ["dashboard", "bwa_dashboard"]);
     if (ulmetReceivables) return ulmetReceivables;
@@ -1952,6 +2024,7 @@ function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
       })
       .filter((row) => {
         if (isExcludedPlanRow(row) || !asText(row.Kennzahl) || !asText(row.Standortname)) return false;
+        if (isCurrentOpenReceivablesRow(row)) return true;
         return metricMatches(rowMetric(row), [
           "kontostand",
           "kontostand_monatsende",
@@ -2296,6 +2369,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   const activeRows = rows.filter((row) => (rowYear(row) ?? latestYear) === latestYear);
   const fallbackByName = new Map(sortSitesByContractStart(standorte).map((site) => [site.name, site]));
   const consolidationRows = consolidationRowsFromWorkbook(workbook);
+  const managementReceivablesBySite = managementOpenReceivablesFromWorkbook(workbook);
   const periodSiteNames = report.standorte.filter((siteName) => {
     const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     return rows.some(
@@ -2344,7 +2418,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const material = Math.abs(sumRows(siteRows, null, ["materialkosten"], ["bwa"]));
     const fremdlabor = Math.abs(sumRows(siteRows, null, ["fremdlaborkosten"], ["bwa"]));
     const personal = Math.abs(sumRows(siteRows, null, ["personalkosten"], ["bwa"]));
-    const forderungen = Math.round(openReceivablesSinceStart(siteName, siteRows, allSiteRows));
+    const forderungen = Math.round(openReceivablesSinceStart(siteName, siteRows, allSiteRows, managementReceivablesBySite.get(siteIdForName(siteName))));
     const additionalDebt = additionalDebtForSite(siteName);
     const importedDarlehen = Math.round(
       preferredRowsValue(
