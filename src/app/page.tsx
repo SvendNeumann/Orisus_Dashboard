@@ -8940,6 +8940,103 @@ function Analysen({
 
   return (
     <section className="analysis-report space-y-5">
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 10mm;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .analysis-report,
+          .analysis-report * {
+            visibility: visible !important;
+          }
+
+          .analysis-report {
+            position: absolute !important;
+            inset: 0 auto auto 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+
+          .analysis-report .analysis-no-print {
+            display: none !important;
+          }
+
+          .analysis-report,
+          .analysis-report div,
+          .analysis-report section,
+          .analysis-report label,
+          .analysis-report p,
+          .analysis-report span,
+          .analysis-report strong,
+          .analysis-report h1,
+          .analysis-report h2,
+          .analysis-report h3,
+          .analysis-report table,
+          .analysis-report th,
+          .analysis-report td {
+            color: #0f172a !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+          }
+
+          .analysis-report > div,
+          .analysis-report .analysis-print-block {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          .analysis-report .analysis-print-page {
+            break-before: page;
+            page-break-before: always;
+          }
+
+          .analysis-report .analysis-print-page:first-of-type {
+            break-before: auto;
+            page-break-before: auto;
+          }
+
+          .analysis-report .rounded-xl,
+          .analysis-report .rounded-lg,
+          .analysis-report .rounded-md {
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+          }
+
+          .analysis-report table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 9px !important;
+          }
+
+          .analysis-report th {
+            background: #0f6f82 !important;
+            color: #ffffff !important;
+          }
+
+          .analysis-report th,
+          .analysis-report td {
+            border: 1px solid #d7dee8 !important;
+            padding: 5px !important;
+          }
+
+          .analysis-report .bg-emerald-500\\/60,
+          .analysis-report .bg-amber-400\\/70,
+          .analysis-report .bg-red-500\\/70 {
+            color: #ffffff !important;
+          }
+        }
+      `}</style>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="flex flex-wrap items-end gap-3">
@@ -8950,13 +9047,13 @@ function Analysen({
             Anonymisierte Standortleiter-Ansicht mit normalisierten Kennzahlen, Kostenquoten, Rankings und Handlungsschwerpunkten.
           </p>
         </div>
-        <Button className="w-full border border-teal-300/40 bg-teal-500/20 text-white shadow-[0_0_24px_rgba(20,184,166,0.22)] hover:bg-teal-500/30 sm:w-auto" onClick={() => window.print()}>
+        <Button className="analysis-no-print w-full border border-teal-300/40 bg-teal-500/20 text-white shadow-[0_0_24px_rgba(20,184,166,0.22)] hover:bg-teal-500/30 sm:w-auto" onClick={() => window.print()}>
           <FileBarChart className="mr-2 h-4 w-4" />
           PDF exportieren
         </Button>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-4">
+      <div className="analysis-no-print grid gap-3 lg:grid-cols-4">
         <FilterShell label="Zeitraum">
           <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
             {periodOptions.map((item) => <option key={item}>{item}</option>)}
@@ -8980,7 +9077,7 @@ function Analysen({
         </FilterShell>
       </div>
 
-      <div className="rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] lg:grid lg:grid-cols-[1fr_1.4fr] lg:items-center">
+      <div className="analysis-print-block rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] lg:grid lg:grid-cols-[1fr_1.4fr] lg:items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">Standort-Benchmarking</h2>
           <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-200">
@@ -9004,14 +9101,14 @@ function Analysen({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="analysis-print-block grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {benchmarkItems.map((item) => (
           <BenchmarkKpiCard key={item.label} {...item} />
         ))}
       </div>
 
       {viewMode === "Intern" && (
-        <div className="grid gap-3 rounded-xl border border-white/15 bg-slate-950/45 p-4 md:grid-cols-4">
+        <div className="analysis-print-block grid gap-3 rounded-xl border border-white/15 bg-slate-950/45 p-4 md:grid-cols-4">
           <Mini label={`${selectedSite?.name ?? "Standort"} Gesamtleistung`} value={eur(selectedSite?.gesamtleistung ?? 0)} />
           <Mini label={`${selectedSite?.name ?? "Standort"} PVS-Umsatz`} value={eur(selectedSite?.pvsUmsatz ?? 0)} />
           <Mini label={`${selectedSite?.name ?? "Standort"} EBITDA`} value={eur(selectedSite?.ebitda ?? 0)} />
@@ -9019,7 +9116,7 @@ function Analysen({
         </div>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="analysis-print-page grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <BenchmarkPanel title="Rankings im Standortvergleich">
           <div className="grid gap-5 lg:grid-cols-2">
             <BenchmarkRanking
@@ -9049,7 +9146,7 @@ function Analysen({
         </BenchmarkPanel>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
+      <div className="analysis-print-page grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
         <BenchmarkPanel title="EBITDA-Margen-Treiber" subtitle={`Warum liegt ${displaySiteName} ${marginGap >= 0 ? "über" : "unter"} dem Gruppenschnitt?`}>
           <div className="grid gap-4 md:grid-cols-[1fr_0.9fr]">
             <div className="space-y-2">
