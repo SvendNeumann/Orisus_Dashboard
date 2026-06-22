@@ -19,9 +19,11 @@ In Vercel muessen fuer die zentrale Speicherung diese Environment Variables gese
 NEXT_PUBLIC_SUPABASE_URL=https://<projekt>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-public-key>
 SUPABASE_SERVICE_ROLE_KEY=<server-only-service-role-key>
+# Alternativ akzeptiert die App auch:
+SUPABASE_SECRET_KEY=<server-only-secret-key>
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` darf niemals als `NEXT_PUBLIC_...` Variable angelegt werden. Der Key wird nur serverseitig fuer die Admin-Zugangsverwaltung genutzt.
+`SUPABASE_SERVICE_ROLE_KEY` bzw. `SUPABASE_SECRET_KEY` darf niemals als `NEXT_PUBLIC_...` Variable angelegt werden. Der Key wird nur serverseitig fuer die Admin-Zugangsverwaltung genutzt.
 
 In Supabase werden zwei Importtabellen benoetigt:
 

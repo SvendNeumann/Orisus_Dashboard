@@ -10,7 +10,7 @@ type AccessUserPayload = {
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY ?? "";
 const adminFallbackEmails = new Set([
   "svend.neumann@orisus.de",
   "sven.neumann@orisus.de",
@@ -101,7 +101,7 @@ async function requesterIsAdmin(request: NextRequest) {
 
 async function requireAdmin(request: NextRequest) {
   if (!supabaseUrl || !serviceRoleKey) {
-    return jsonError("Supabase Service Role Key fehlt in Vercel.", 503);
+    return jsonError("Supabase Secret Key fehlt in Vercel.", 503);
   }
   if (!(await requesterIsAdmin(request))) {
     return jsonError("Keine Admin-Berechtigung.", 403);
