@@ -123,7 +123,7 @@ const importPersistenceDbName = "orisus-cfo-dashboard";
 const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
-const importDashboardSchemaVersion = "2026-06-22-site-behandler-detail-v12";
+const importDashboardSchemaVersion = "2026-06-22-cockpit-honorar-period-v13";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const personalImportPersistenceReportKey = "personal-report";
 const personalImportPersistenceDashboardKey = "personal-dashboard";
@@ -249,6 +249,7 @@ type ImportedDashboardData = {
   sites: DashboardSite[];
   monthly: typeof monthly;
   topBehandler: TopBehandlerEntry[];
+  topBehandlerPeriod?: string;
   bwaRows: ImportedBwaRow[];
   pvsRevenueRows?: ImportedPeriodValueRow[];
   behandlerHonorarRows?: ImportedPeriodValueRow[];
@@ -2334,12 +2335,29 @@ function behandlerTotalRevenueFromRows(rows: Record<string, unknown>[]) {
   return pureBehandlerHonorarFromRows(rows) + rows.filter(isPureBehandlerEigenlaborRow).reduce((sum, row) => sum + (asNumber(row.Wert) ?? 0), 0);
 }
 
-function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: number): TopBehandlerEntry[] {
+function latestBehandlerHonorarMonth(rows: Record<string, unknown>[], year: number) {
+  return rows.reduce((latest, row) => {
+    if ((rowYear(row) ?? 0) !== year) return latest;
+    if (!isPureBehandlerHonorarRow(row)) return latest;
+    const month = rowMonth(row);
+    if (!month || month < 1 || month > 12) return latest;
+    return Math.max(latest, month);
+  }, 0);
+}
+
+function behandlerHonorarPeriodLabel(rows: Record<string, unknown>[], year: number) {
+  const latestMonth = latestBehandlerHonorarMonth(rows, year);
+  return latestMonth ? `YTD ${year} bis ${bwaMonths[latestMonth - 1]}` : `Geschäftsjahr ${year}`;
+}
+
+function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: number, latestMonth = 12): TopBehandlerEntry[] {
   const grouped = new Map<string, { name: string; standort: string; honorar: number }>();
 
   rows.forEach((row) => {
     if ((rowYear(row) ?? 0) !== latestYear) return;
     if (!isPureBehandlerHonorarRow(row)) return;
+    const month = rowMonth(row) ?? 0;
+    if (!month || month > latestMonth) return;
 
     const name = asText(row.Objekt_Name || row.Behandler || row.Behandlername);
     const standort = asText(row.Standortname);
@@ -2530,13 +2548,16 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     };
   });
 
+  const latestBehandlerMonth = latestBehandlerHonorarMonth(rows, latestYear) || 12;
+
   return {
     schemaVersion: importDashboardSchemaVersion,
     importedAt: new Date().toISOString(),
     fileName,
     sites,
     monthly: monthlyData,
-    topBehandler: topBehandlerFromRows(rows, latestYear),
+    topBehandler: topBehandlerFromRows(rows, latestYear, latestBehandlerMonth),
+    topBehandlerPeriod: behandlerHonorarPeriodLabel(rows, latestYear),
     bwaRows: buildImportedBwaRows(rows, report),
     pvsRevenueRows: buildImportedPvsRevenueRows(workbook, rows, report, latestYear),
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(rows, report),
@@ -4703,6 +4724,7 @@ function Cockpit({
   importedData: ImportedDashboardData | null;
 }) {
   const cockpitPeriod = defaultBwaPeriodFor(importedData);
+  const topBehandlerPeriod = importedData?.topBehandlerPeriod ?? cockpitPeriod;
   const cockpitPeriodSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, cockpitPeriod)) : sites;
   return (
     <section className="space-y-5">
@@ -4725,7 +4747,7 @@ function Cockpit({
         <ChartCard title="Standortvergleich Gesamtleistung & EBITDA | seit Vertragsstart" icon={BarChart3}>
           <SitePerformanceChart sites={sites} />
         </ChartCard>
-        <ChartCard title={`Top Behandler nach Honorarumsatz | ${cockpitPeriod}`} icon={BadgeEuro}>
+        <ChartCard title={`Top Behandler nach Honorarumsatz | ${topBehandlerPeriod}`} icon={BadgeEuro}>
           <TopBehandlerChart data={importedData?.topBehandler ?? []} />
         </ChartCard>
       </div>
