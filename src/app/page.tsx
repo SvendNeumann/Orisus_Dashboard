@@ -3216,7 +3216,7 @@ function LandingMockup() {
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map(([label, value, trend, tone]) => (
-          <div key={label} className="rounded-lg border border-white/8 bg-[#071827]/86 p-3">
+          <div key={label} className="rounded-lg border border-white/8 bg-[#071827]/86 p-3 text-center">
             <p className="text-[10px] font-bold uppercase text-slate-500">{label}</p>
             <p className="mt-2 text-base font-bold text-white">{value}</p>
             <p className={cn("mt-1 text-[10px] font-semibold", tone === "red" ? "text-red-300" : "text-[#30d5c8]")}>{trend}</p>
@@ -3246,10 +3246,15 @@ function LandingMockup() {
 
         <div className="rounded-xl border border-white/8 bg-[#071827]/86 p-4">
           <p className="text-sm font-bold text-white">Standortvergleich EBITDA</p>
-          <div className="mt-4 flex h-40 items-end gap-2 border-b border-l border-white/10 px-2 pb-3">
+          <div className="mt-4 flex h-40 gap-2 border-b border-l border-white/10 px-2 pb-3">
             {siteBars.map(([site, value]) => (
-              <div key={site} className="flex flex-1 flex-col items-center gap-2">
-                <span className="w-full rounded-t bg-gradient-to-t from-[#108493] to-[#42ded4]" style={{ height: `${value}%` }} />
+              <div key={site} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                <div className="flex min-h-0 w-full flex-1 items-end">
+                  <span
+                    className="block w-full min-w-3 rounded-t bg-gradient-to-t from-[#108493] to-[#42ded4]"
+                    style={{ height: `${value}%` }}
+                  />
+                </div>
                 <span className="max-w-12 truncate text-[10px] text-slate-400">{site}</span>
               </div>
             ))}
