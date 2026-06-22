@@ -2807,12 +2807,17 @@ export default function HomePage() {
   }, [allowedPages, authProfileReady, authStep, page, userRole]);
 
   useEffect(() => {
-    const activeSection = navSections.find((section) =>
+    const activeSection = visibleNavSections.find((section) =>
       section.items.some((item) => item.id === page || (item.id === "standorte" && page === "standort-detail"))
     );
     if (!activeSection) return;
-    setOpenNavSections((current) => ({ ...current, [activeSection.id]: true }));
-  }, [page]);
+    setOpenNavSections(
+      visibleNavSections.reduce<Record<string, boolean>>((next, section) => {
+        next[section.id] = section.id === activeSection.id;
+        return next;
+      }, {})
+    );
+  }, [page, visibleNavSections]);
 
   useEffect(() => {
     if (authStep !== "app") return;
