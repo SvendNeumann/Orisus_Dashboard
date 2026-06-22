@@ -3,16 +3,16 @@
 @tailwind utilities;
 
 :root {
-  --background: 210 22% 96%;
-  --foreground: 222 35% 12%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 35% 12%;
-  --muted: 210 18% 92%;
-  --muted-foreground: 216 13% 44%;
-  --border: 214 18% 86%;
-  --primary: 194 79% 28%;
+  --background: 211 58% 8%;
+  --foreground: 195 38% 94%;
+  --card: 207 58% 12%;
+  --card-foreground: 195 38% 94%;
+  --muted: 207 42% 18%;
+  --muted-foreground: 204 20% 70%;
+  --border: 191 26% 25%;
+  --primary: 177 66% 51%;
   --primary-foreground: 0 0% 100%;
-  --accent: 162 55% 38%;
+  --accent: 172 64% 44%;
 }
 
 * {
@@ -28,9 +28,47 @@ body {
   margin: 0;
   color: hsl(var(--foreground));
   background:
-    radial-gradient(circle at top left, rgba(20, 118, 140, 0.12), transparent 34rem),
-    linear-gradient(180deg, #f4f7f7 0%, #eef3f4 100%);
+    radial-gradient(circle at top left, rgba(48, 213, 200, 0.14), transparent 34rem),
+    linear-gradient(180deg, #061421 0%, #0a1825 100%);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.app-shell {
+  min-height: 100vh;
+  color: #eefbfb;
+  background:
+    radial-gradient(circle at 16% 8%, rgba(48, 213, 200, 0.16), transparent 31rem),
+    radial-gradient(circle at 82% 18%, rgba(7, 123, 140, 0.14), transparent 29rem),
+    linear-gradient(135deg, #061421 0%, #081a29 44%, #0b2230 100%);
+}
+
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.46), transparent 70%);
+}
+
+.app-sidebar,
+.app-mobile-header,
+.app-mobile-menu,
+.app-bottom-nav,
+.app-user-panel,
+.app-nav-controls {
+  border-color: rgba(148, 211, 215, 0.16) !important;
+  background: rgba(5, 18, 31, 0.88) !important;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(18px);
+}
+
+.app-main {
+  position: relative;
+  z-index: 1;
 }
 
 button,
@@ -52,30 +90,30 @@ select {
 }
 
 .table-head {
-  background: hsl(var(--primary));
+  background: linear-gradient(135deg, #0d7280, #0a4f61);
   color: hsl(var(--primary-foreground));
 }
 
 .table-subhead {
-  background: hsl(var(--primary) / 0.92);
+  background: linear-gradient(135deg, #0b6271, #083d4d);
   color: hsl(var(--primary-foreground));
 }
 
 .table-section {
-  background: #eff6f7;
+  background: rgba(48, 213, 200, 0.08);
   color: hsl(var(--foreground));
 }
 
 .table-cashflow {
-  background: #eef8f4;
+  background: rgba(26, 185, 150, 0.08);
 }
 
 .table-total {
-  background: #f6fafb;
+  background: rgba(48, 213, 200, 0.09);
 }
 
 .summary-row > td {
-  background: #f6fafb !important;
+  background: rgba(48, 213, 200, 0.11) !important;
   font-weight: 700;
 }
 
@@ -84,11 +122,93 @@ select {
 }
 
 .table-ratio {
-  background: #edf8f8;
+  background: rgba(48, 213, 200, 0.07);
 }
 
 .table-grid-bg {
-  background: hsl(var(--border));
+  background: rgba(148, 211, 215, 0.16);
+}
+
+.app-shell .bg-white,
+.app-shell .bg-white\/75,
+.app-shell .bg-white\/86,
+.app-shell .bg-white\/88,
+.app-shell .bg-white\/92,
+.app-shell .bg-white\/95 {
+  background-color: rgba(7, 24, 39, 0.78) !important;
+}
+
+.app-shell .bg-slate-50,
+.app-shell .bg-slate-100 {
+  background-color: rgba(13, 35, 52, 0.74) !important;
+}
+
+.app-shell .border-border,
+.app-shell .border-slate-200\/70 {
+  border-color: rgba(148, 211, 215, 0.16) !important;
+}
+
+.app-shell .text-slate-950,
+.app-shell .text-slate-900,
+.app-shell .text-slate-800,
+.app-shell .text-foreground {
+  color: #eefbfb !important;
+}
+
+.app-shell .text-slate-700 {
+  color: #c9dcdf !important;
+}
+
+.app-shell .text-muted-foreground,
+.app-shell .text-slate-500 {
+  color: #9fb8bf !important;
+}
+
+.app-shell .bg-cyan-50,
+.app-shell .bg-emerald-50 {
+  background-color: rgba(48, 213, 200, 0.1) !important;
+}
+
+.app-shell .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+
+.app-shell .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+
+.app-shell .text-cyan-800,
+.app-shell .text-cyan-700,
+.app-shell .text-emerald-700 {
+  color: #79eee7 !important;
+}
+
+.app-shell .text-amber-900,
+.app-shell .text-amber-800,
+.app-shell .text-amber-700 {
+  color: #f6c36a !important;
+}
+
+.app-shell .text-red-800,
+.app-shell .text-red-700 {
+  color: #ff8f95 !important;
+}
+
+.app-shell .shadow-sm,
+.app-shell .shadow-soft {
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18) !important;
+}
+
+.app-shell .recharts-cartesian-grid line {
+  stroke: rgba(148, 211, 215, 0.14);
+}
+
+.app-shell .recharts-text {
+  fill: #9fb8bf;
+}
+
+.app-shell .recharts-tooltip-wrapper {
+  color: #0f172a;
 }
 
 .data-table {

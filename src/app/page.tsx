@@ -2883,8 +2883,8 @@ export default function HomePage() {
   const requiresPersonalImport = personalContentPages.includes(page);
 
   return (
-    <div className="min-h-screen lg:flex">
-      <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 flex-col border-r border-border bg-white/92 px-5 py-6 backdrop-blur lg:flex">
+    <div className="app-shell min-h-screen lg:flex">
+      <aside className="app-sidebar fixed left-0 top-0 z-30 hidden h-screen w-72 flex-col border-r border-border px-5 py-6 lg:flex">
         <div className="shrink-0">
           <Brand onClick={() => go(defaultPageForRole(userRole))} />
         </div>
@@ -2900,7 +2900,7 @@ export default function HomePage() {
             />
           ))}
         </nav>
-        <div className="shrink-0 rounded-lg border border-border bg-slate-50 p-4">
+        <div className="app-user-panel shrink-0 rounded-lg border border-border p-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Nutzer</p>
           <p className="mt-1 font-semibold">{userDisplayName}</p>
           <p className="text-sm text-muted-foreground">{roleLabel(userRole)}-Zugang</p>
@@ -2914,12 +2914,12 @@ export default function HomePage() {
         </div>
       </aside>
 
-      <header className="sticky top-0 z-20 border-b border-border bg-white/88 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="app-mobile-header sticky top-0 z-20 border-b border-border px-4 py-3 lg:hidden">
         <div className="flex items-center justify-between">
           <Brand compact onClick={() => go(defaultPageForRole(userRole))} />
           <button
             aria-label="Menü öffnen"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-white"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/12 bg-white/5 text-white"
             onClick={() => setMenuOpen(true)}
           >
             <Menu className="h-5 w-5" />
@@ -2928,13 +2928,13 @@ export default function HomePage() {
       </header>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-40 bg-slate-950/35 lg:hidden">
-          <div className="ml-auto flex h-dvh max-h-dvh w-80 max-w-[86vw] flex-col overflow-hidden bg-white p-5 shadow-soft">
+        <div className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-sm lg:hidden">
+          <div className="app-mobile-menu ml-auto flex h-dvh max-h-dvh w-80 max-w-[86vw] flex-col overflow-hidden p-5 shadow-soft">
             <div className="shrink-0 flex items-center justify-between">
               <Brand compact onClick={() => go(defaultPageForRole(userRole))} />
               <button
                 aria-label="Menü schließen"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/12 bg-white/5 text-white"
                 onClick={() => setMenuOpen(false)}
               >
                 <X className="h-5 w-5" />
@@ -2953,7 +2953,7 @@ export default function HomePage() {
                   />
                 ))}
               </nav>
-              <div className="mt-6 rounded-lg border border-border bg-slate-50 p-4">
+              <div className="app-user-panel mt-6 rounded-lg border border-border p-4">
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Sitzung</p>
                 <p className="mt-1 text-sm text-muted-foreground">Du bleibst angemeldet, bis du dich aktiv abmeldest.</p>
                 <Button className="mt-4 w-full gap-2" variant="secondary" onClick={reloadCurrentPage}>
@@ -2969,7 +2969,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <main className="w-full px-4 pb-28 pt-5 sm:px-6 lg:ml-72 lg:px-8 lg:pb-10">
+      <main className="app-main w-full px-4 pb-28 pt-5 sm:px-6 lg:ml-72 lg:px-8 lg:pb-10">
         <div className="mx-auto max-w-7xl">
           <NavigationControls
             page={page}
@@ -3022,7 +3022,7 @@ export default function HomePage() {
         </div>
       </main>
 
-      <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-white/95 px-2 pt-2 backdrop-blur lg:hidden">
+      <nav className="app-bottom-nav safe-bottom fixed bottom-0 left-0 right-0 z-30 border-t border-border px-2 pt-2 lg:hidden">
         <div
           className={cn(
             "grid gap-1",
@@ -3035,7 +3035,7 @@ export default function HomePage() {
               className={cn(
                 "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-semibold text-muted-foreground",
                 (page === item.id || (item.id === "standorte" && page === "standort-detail")) &&
-                  "table-total text-primary"
+                  "bg-[#30d5c8]/10 text-[#79eee7]"
               )}
               onClick={() => go(item.id as Page)}
             >
@@ -3712,8 +3712,8 @@ function NavButton({
   return (
     <button
       className={cn(
-        "flex h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground",
-        active && "table-total text-primary"
+        "flex h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-semibold text-muted-foreground transition hover:bg-white/8 hover:text-white",
+        active && "border border-[#30d5c8]/24 bg-[#30d5c8]/10 text-[#79eee7] shadow-[0_0_28px_rgba(48,213,200,0.08)]"
       )}
       onClick={onClick}
     >
@@ -3747,8 +3747,8 @@ function NavSection({
       <button
         type="button"
         className={cn(
-          "flex h-9 w-full items-center justify-between rounded-md border border-slate-200/70 bg-slate-100/80 px-3 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground transition hover:border-primary/20 hover:bg-primary/5 hover:text-primary",
-          hasActiveItem && "border-primary/20 bg-primary/8 text-primary shadow-sm"
+          "flex h-9 w-full items-center justify-between rounded-md border border-white/10 bg-white/[0.055] px-3 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground transition hover:border-[#30d5c8]/25 hover:bg-[#30d5c8]/8 hover:text-[#79eee7]",
+          hasActiveItem && "border-[#30d5c8]/30 bg-[#30d5c8]/10 text-[#79eee7] shadow-sm"
         )}
         onClick={onToggle}
         aria-expanded={open}
@@ -3787,11 +3787,11 @@ function NavigationControls({
   quickNavItems: typeof quickNav[number][];
 }) {
   return (
-    <div className="mb-5 flex flex-col gap-2 rounded-lg border border-border bg-white/86 p-2 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="app-nav-controls mb-5 flex flex-col gap-2 rounded-lg border border-border p-2 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <button
         className={cn(
           "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border px-3 text-sm font-semibold",
-          page === "cockpit" && !previousPage ? "cursor-not-allowed text-muted-foreground" : "bg-white hover:bg-slate-50"
+          page === "cockpit" && !previousPage ? "cursor-not-allowed text-muted-foreground" : "bg-white/5 hover:bg-white/10"
         )}
         disabled={page === "cockpit" && !previousPage}
         onClick={onBack}
@@ -3805,7 +3805,7 @@ function NavigationControls({
             key={item.id}
             className={cn(
               "h-10 shrink-0 rounded-md px-3 text-sm font-semibold",
-              page === item.id ? "bg-primary text-white" : "bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground"
+              page === item.id ? "bg-gradient-to-r from-[#30d5c8] to-[#087b8c] text-white" : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-white"
             )}
             onClick={() => onGo(item.id)}
           >

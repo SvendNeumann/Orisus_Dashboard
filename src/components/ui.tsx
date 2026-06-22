@@ -8,7 +8,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-lg border border-border bg-card text-card-foreground shadow-sm",
+        "rounded-lg border border-white/10 bg-[#071827]/82 text-card-foreground shadow-[0_18px_54px_rgba(0,0,0,0.22)] backdrop-blur",
         className
       )}
       {...props}
@@ -28,10 +28,10 @@ export function Button({
       className={cn(
         "inline-flex h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50",
         variant === "primary" &&
-          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/92",
+          "bg-gradient-to-r from-[#30d5c8] to-[#087b8c] text-white shadow-lg shadow-[#30d5c8]/10 hover:from-[#5fe1d8] hover:to-[#0a8fa1]",
         variant === "secondary" &&
-          "border border-border bg-white text-foreground hover:bg-muted",
-        variant === "ghost" && "text-foreground hover:bg-muted",
+          "border border-white/12 bg-white/5 text-foreground hover:border-[#30d5c8]/35 hover:bg-white/10",
+        variant === "ghost" && "text-foreground hover:bg-white/8",
         variant === "danger" && "bg-red-600 text-white hover:bg-red-700",
         className
       )}
@@ -47,7 +47,7 @@ export function Input({
   return (
     <input
       className={cn(
-        "h-11 w-full rounded-md border border-border bg-white px-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-4 focus:ring-primary/10",
+        "h-11 w-full rounded-md border border-white/12 bg-[#061421]/78 px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-[#30d5c8] focus:ring-4 focus:ring-[#30d5c8]/10",
         className
       )}
       {...props}
@@ -63,7 +63,7 @@ export function Select({
   return (
     <select
       className={cn(
-        "h-10 rounded-md border border-border bg-white px-3 text-sm font-medium outline-none focus:border-primary focus:ring-4 focus:ring-primary/10",
+        "h-10 rounded-md border border-white/12 bg-[#061421]/78 px-3 text-sm font-medium text-foreground outline-none focus:border-[#30d5c8] focus:ring-4 focus:ring-[#30d5c8]/10",
         className
       )}
       {...props}
@@ -84,11 +84,11 @@ export function Badge({
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
-        tone === "green" && "bg-emerald-50 text-emerald-700",
-        tone === "yellow" && "bg-amber-50 text-amber-700",
-        tone === "red" && "bg-red-50 text-red-700",
-        tone === "blue" && "bg-cyan-50 text-cyan-700",
-        tone === "neutral" && "bg-slate-100 text-slate-700",
+        tone === "green" && "bg-emerald-400/10 text-emerald-300",
+        tone === "yellow" && "bg-amber-400/12 text-amber-300",
+        tone === "red" && "bg-red-400/12 text-red-300",
+        tone === "blue" && "bg-[#30d5c8]/12 text-[#79eee7]",
+        tone === "neutral" && "bg-white/8 text-slate-300",
         className
       )}
       {...props}
@@ -98,7 +98,7 @@ export function Badge({
 
 export function Progress({ value, tone = "green" }: { value: number; tone?: "green" | "yellow" | "red" }) {
   return (
-    <div className="h-2.5 w-full rounded-full bg-muted">
+    <div className="h-2.5 w-full rounded-full bg-white/10">
       <div
         className={cn(
           "h-2.5 rounded-full",
