@@ -3370,7 +3370,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
     ...personalData.report.years,
     ...personalData.employees.map((employee) => yearFromDisplayDate(employee.entryDate)),
     ...personalData.employees.map((employee) => yearFromDisplayDate(employee.exitDate))
-  ]).filter((item) => item >= 2000);
+  ]).filter((item) => item >= 2024);
   const latestSicknessYear = Math.max(...availableYears, new Date().getFullYear());
   const [year, setYear] = useState(String(latestSicknessYear));
   const selectedYear = Number(year);
@@ -3382,8 +3382,19 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
     const exitDate = dateFromDisplayDate(employee.exitDate) ?? Infinity;
     return entryDate <= periodEnd && exitDate >= periodStart;
   };
-  const active = personalActiveEmployees(personalData);
-  const siteRows = personalEmployeesBySite(personalData);
+  const active = personalData.employees.filter(wasEmployedInSelectedYear);
+  const sites = personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site));
+  const siteRows = sites.map((site) => {
+    const siteEmployees = personalData.employees.filter((employee) => employee.site === site && wasEmployedInSelectedYear(employee));
+    return {
+      site,
+      employees: siteEmployees.length,
+      active: siteEmployees.length,
+      hours: siteEmployees.reduce((sum, employee) => sum + employee.weeklyHours, 0),
+      employerCost: siteEmployees.reduce((sum, employee) => sum + employee.employerCost, 0),
+      dentists: siteEmployees.filter((employee) => employee.isDentist).length
+    };
+  });
   const sicknessDays = personalData.sicknessEntries.reduce((sum, entry) => sum + entry.days, 0);
   const sicknessBySite = siteRows.map((site) => ({
     site: site.site,
@@ -3401,7 +3412,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
   };
   const operationalRows = siteRows.map((site) => {
     const siteEmployees = personalData.employees.filter((employee) => employee.site === site.site);
-    const activeEmployees = siteEmployees.filter((employee) => employee.status.toLowerCase() === "aktiv");
+    const activeEmployees = siteEmployees.filter(wasEmployedInSelectedYear);
     const exitsInLatestYear = siteEmployees.filter((employee) => {
       const status = employee.status.toLowerCase();
       const hasExitInYear = yearFromDisplayDate(employee.exitDate) === selectedYear;
@@ -3434,7 +3445,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
     return `${name}: ${eur(value)}`;
   };
   const costOverviewRows = siteRows.map((site) => {
-    const activeEmployees = personalData.employees.filter((employee) => employee.site === site.site && employee.status.toLowerCase() === "aktiv");
+    const activeEmployees = personalData.employees.filter((employee) => employee.site === site.site && wasEmployedInSelectedYear(employee));
     const teamEmployees = activeEmployees.filter((employee) => !employee.isDentist);
     const employerCost = activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0);
     const teamCost = teamEmployees.reduce((sum, employee) => sum + employee.employerCost, 0);
@@ -3457,7 +3468,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
     employerCost: costOverviewRows.reduce((sum, row) => sum + row.employerCost, 0),
     teamCost: costOverviewRows.reduce((sum, row) => sum + row.teamCost, 0),
     hourlyWageSum: costOverviewRows.reduce((sum, row) => {
-      const teamEmployees = personalData.employees.filter((employee) => employee.site === row.site && employee.status.toLowerCase() === "aktiv" && !employee.isDentist);
+      const teamEmployees = personalData.employees.filter((employee) => employee.site === row.site && wasEmployedInSelectedYear(employee) && !employee.isDentist);
       return sum + teamEmployees.reduce((subtotal, employee) => subtotal + employee.hourlyWage, 0);
     }, 0)
   };
@@ -3474,7 +3485,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
         <div>
           <h2 className="font-bold">Zeitraumauswahl Personal-Cockpit</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Mitarbeiter- und Kostenkacheln zeigen den aktuellen Aktivbestand; Krankheit, Neueinstellungen und Fluktuation folgen dem ausgewählten Jahr.
+            Mitarbeiter, FTE, Kosten, Krankheit, Neueinstellungen und Fluktuation folgen dem ausgewählten Geschäftsjahr.
           </p>
         </div>
         <Select className="w-full sm:w-56" value={year} onChange={(event) => setYear(event.target.value)}>
@@ -3486,8 +3497,8 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
         </Select>
       </Card>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Aktive Mitarbeiter aktuell" value={active.length} plain delta="nur Status Aktiv" icon={Users} status="green" />
-        <KpiCard label="FTE gesamt aktuell" value={Math.round(totalFte * 10) / 10} plain delta="Basis 40 Std./Woche" icon={Gauge} status="green" />
+        <KpiCard label={`Mitarbeiter ${periodLabel}`} value={active.length} plain delta="im Jahr beschäftigt" icon={Users} status="green" />
+        <KpiCard label={`FTE gesamt ${periodLabel}`} value={Math.round(totalFte * 10) / 10} plain delta="Basis 40 Std./Woche" icon={Gauge} status="green" />
         <KpiCard label={`Neueinstellungen ${selectedYear}`} value={newHiresInSelectedYear.length} plain delta="Eintritte laut Mitarbeiterstamm" icon={UserRound} status="green" />
         <KpiCard
           label={`Fluktuation Standort max. ${selectedYear}`}
@@ -3497,18 +3508,18 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
           icon={TrendingUp}
           status={fluctuationStatus}
         />
-        <KpiCard label="Wochenstunden aktuell" value={active.reduce((sum, employee) => sum + employee.weeklyHours, 0)} plain delta="Kapazität laut aktiven Arbeitsverträgen" icon={Gauge} status="green" />
-        <KpiCard label="AG-Aufwand monatlich aktuell" value={active.reduce((sum, employee) => sum + employee.employerCost, 0)} delta="nur Status Aktiv" icon={BadgeEuro} status="yellow" />
+        <KpiCard label={`Wochenstunden ${periodLabel}`} value={active.reduce((sum, employee) => sum + employee.weeklyHours, 0)} plain delta="Kapazität laut Arbeitsverträgen" icon={Gauge} status="green" />
+        <KpiCard label={`AG-Aufwand monatlich ${periodLabel}`} value={active.reduce((sum, employee) => sum + employee.employerCost, 0)} delta="Mitarbeiter im Jahr" icon={BadgeEuro} status="yellow" />
         <KpiCard label={`Krankheitstage ${selectedYear}`} value={sicknessBySite.reduce((sum, row) => sum + row.days, 0)} plain delta={`${sicknessDays.toLocaleString("de-DE")} Tage gesamt im Import`} icon={Stethoscope} status="yellow" />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
-        <ChartCard title="Mitarbeiter je Standort | aktueller Aktivbestand" icon={Building2}>
+        <ChartCard title={`Mitarbeiter je Standort | ${periodLabel}`} icon={Building2}>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={siteRows}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="site" tickLine={false} axisLine={false} />
               <YAxis hide />
-              <Tooltip formatter={(value) => [`${value}`, "Aktive Mitarbeiter"]} />
+              <Tooltip formatter={(value) => [`${value}`, "Mitarbeiter im Jahr"]} />
               <Bar dataKey="active" fill="#0f766e" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -3527,8 +3538,8 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
       </div>
       <Card className="overflow-hidden">
         <div className="p-4">
-          <h2 className="font-bold">Personalstruktur je Standort | aktueller Aktivbestand</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Gezählt werden nur Mitarbeiter mit Status Aktiv.</p>
+          <h2 className="font-bold">Personalstruktur je Standort | {periodLabel}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Gezählt werden Mitarbeiter, die im ausgewählten Jahr beschäftigt waren.</p>
         </div>
         <ResponsiveTable>
           <thead>
@@ -3568,7 +3579,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
       </Card>
       <Card className="overflow-hidden">
         <div className="table-head p-4 text-white">
-          <h2 className="font-bold">Kostenübersicht je Standort | aktueller Aktivbestand</h2>
+          <h2 className="font-bold">Kostenübersicht je Standort | {periodLabel}</h2>
         </div>
         <ResponsiveTable>
           <thead>
@@ -3612,12 +3623,12 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
           </tbody>
         </ResponsiveTable>
         <p className="border-t border-border bg-slate-50 p-3 text-xs text-muted-foreground">
-          Basis: aktuell aktive Mitarbeitende; Team-MA = Mitarbeitende ohne Behandler; AG-Kosten = AG_Aufwand aus dem Personal-Upload.
+          Basis: im ausgewählten Jahr beschäftigte Mitarbeitende; Team-MA = Mitarbeitende ohne Behandler; AG-Kosten = AG_Aufwand aus dem Personal-Upload.
         </p>
       </Card>
       <Card className="overflow-hidden">
         <div className="table-head p-4 text-white">
-          <h2 className="font-bold">Kosten & operative Kennzahlen | Aktivbestand aktuell / Krankheit {selectedYear}</h2>
+          <h2 className="font-bold">Kosten & operative Kennzahlen | {periodLabel}</h2>
         </div>
         <ResponsiveTable>
           <thead>
