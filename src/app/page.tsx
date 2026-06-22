@@ -5361,6 +5361,15 @@ function InfoLine({ label, value, strong }: { label: string; value: number; stro
   );
 }
 
+function InfoTextLine({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className={cn("flex items-start justify-between gap-3", strong && "font-bold text-slate-950")}>
+      <span>{label}</span>
+      <span className="whitespace-nowrap text-right">{value}</span>
+    </div>
+  );
+}
+
 function StatusDot({ status, label }: { status: Status; label?: string }) {
   return (
     <Badge tone={statusMap[status].tone}>
@@ -10195,10 +10204,12 @@ function earnOutTermsForSite(site: DashboardSite) {
 function projectedEarnOutForSite(site: DashboardSite, period: string) {
   const open = Math.max(0, site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt);
   const terms = earnOutTermsForSite(site);
-  const target = terms.zielEbitdaKaufvertragPa || site.darlehen.zielEbitdaKaufvertrag || site.darlehen.zielEbitda;
+  const target = terms.zielEbitdaKaufvertragPa;
   if (!open || !target || !site.darlehen.earnOutFaelligAm) {
     return {
       projectedEbitda: 0,
+      averageMonthlyEbitda: 0,
+      elapsedMonths: 0,
       projectedEarnOut: 0,
       projectedGrowthPayment: 0,
       growthFactor: terms.wachstumsfaktor || 0,
@@ -10230,6 +10241,8 @@ function projectedEarnOutForSite(site: DashboardSite, period: string) {
 
   return {
     projectedEbitda,
+    averageMonthlyEbitda,
+    elapsedMonths,
     projectedEarnOut: Math.round(Math.min(open, Math.max(0, projectedEarnOut))),
     projectedGrowthPayment: Math.round(excessEbitda * growthFactor),
     growthFactor,
@@ -10238,6 +10251,37 @@ function projectedEarnOutForSite(site: DashboardSite, period: string) {
     untergrenze,
     target
   };
+}
+
+function growthFactorLabel(factor: number) {
+  if (!factor) return "nicht hinterlegt";
+  return factor < 1
+    ? `${pct(factor * 100)} vom Mehr-EBITDA`
+    : `${factor.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x Mehr-EBITDA`;
+}
+
+function GrowthPaymentInfo({ site, projection, period }: { site: DashboardSite; projection: ReturnType<typeof projectedEarnOutForSite>; period: string }) {
+  return (
+    <div className="space-y-2">
+      <p className="font-semibold text-slate-950">Herleitung potenzielle Wachstumszahlung</p>
+      <p className="text-slate-600">
+        Basis ist das durchschnittliche EBITDA seit Vertragsstart. Dieses wird auf eine p.a.-Run-Rate hochgerechnet und gegen das
+        Ziel-EBITDA p.a. gemäß Kaufvertrag gespiegelt.
+      </p>
+      <div className="space-y-1">
+        <InfoLine label={`${site.name}: EBITDA seit Start`} value={site.ebitda} />
+        <InfoTextLine label={`÷ Monate seit Start (${period})`} value={projection.elapsedMonths.toLocaleString("de-DE")} />
+        <InfoLine label="= Ø EBITDA je Monat" value={projection.averageMonthlyEbitda} />
+        <InfoLine label="× 12 = Run-Rate EBITDA p.a." value={projection.projectedEbitda} strong />
+        <InfoLine label="- Ziel EBITDA p.a. Kaufvertrag" value={-projection.target} />
+        <InfoLine label="= Mehr-EBITDA p.a." value={projection.excessEbitda} strong />
+      </div>
+      <div className="rounded-md bg-slate-50 p-2 text-slate-700">
+        Wachstumslogik: {growthFactorLabel(projection.growthFactor)}
+      </div>
+      <InfoLine label="= Potenzielle Wachstumszahlung" value={projection.projectedGrowthPayment} strong />
+    </div>
+  );
 }
 
 function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
@@ -10278,16 +10322,14 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
                 <Mini label="Untergrenze Earn-Out" value={projectedEarnOut.untergrenze ? eur(projectedEarnOut.untergrenze, true) : "nicht hinterlegt"} />
                 <Mini label="Earn-Out fällig am" value={site.darlehen.earnOutFaelligAm || "offen"} />
                 <Mini label="Run-Rate Earn-Out" value={eur(projectedEarnOut.projectedEarnOut, true)} />
-                <Mini label="Potenzielle Wachstumszahlung" value={eur(projectedEarnOut.projectedGrowthPayment, true)} />
+                <Mini
+                  label="Potenzielle Wachstumszahlung"
+                  value={eur(projectedEarnOut.projectedGrowthPayment, true)}
+                  info={<GrowthPaymentInfo site={site} projection={projectedEarnOut} period={earnOutPeriod} />}
+                />
                 <Mini
                   label="Wachstumslogik"
-                  value={
-                    projectedEarnOut.growthFactor
-                      ? projectedEarnOut.growthFactor < 1
-                        ? `${pct(projectedEarnOut.growthFactor * 100)} vom Mehr-EBITDA`
-                        : `${projectedEarnOut.growthFactor.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x Mehr-EBITDA`
-                      : "nicht hinterlegt"
-                  }
+                  value={growthFactorLabel(projectedEarnOut.growthFactor)}
                 />
               </div>
               <div className="mt-4">
