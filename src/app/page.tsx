@@ -3809,7 +3809,9 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
               <tr key={row.site}>
                 <TableCell strong>{row.site}</TableCell>
                 {row.monthlyValues.map((value, index) => (
-                  <TableCell key={`${row.site}-${bwaMonths[index]}`}>{value ? formatOneDecimal(value) : ""}</TableCell>
+                  <TableCell key={`${row.site}-${bwaMonths[index]}`}>
+                    {value || monthlyTotals[index] > 0 ? formatOneDecimal(value) : ""}
+                  </TableCell>
                 ))}
                 <TableCell strong summary>{formatOneDecimal(row.total)}</TableCell>
               </tr>
