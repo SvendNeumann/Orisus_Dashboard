@@ -917,7 +917,7 @@ async function accessUsersApi<T>(method = "GET", body?: unknown): Promise<T> {
 }
 
 async function loadConfirmedImportData() {
-  const supabaseDashboard = await loadSupabaseConfirmedImport();
+  const supabaseDashboard = await loadSupabaseConfirmedImport().catch(() => null);
   if (supabaseDashboard) {
     await saveLocalConfirmedImport(supabaseDashboard.report, supabaseDashboard);
     return supabaseDashboard;
@@ -927,7 +927,7 @@ async function loadConfirmedImportData() {
   const parsedDashboard = persistentDashboard ?? (localDashboard ? (JSON.parse(localDashboard) as ImportedDashboardData) : null);
   if (!parsedDashboard) return null;
   if (parsedDashboard.schemaVersion !== importDashboardSchemaVersion) {
-    await clearConfirmedImport();
+    await clearLocalConfirmedImport();
     return null;
   }
 
@@ -948,12 +948,11 @@ async function saveLocalConfirmedImport(report: ImportReport, dashboardData: Imp
 }
 
 async function saveConfirmedImport(report: ImportReport, dashboardData: ImportedDashboardData) {
-  await saveSupabaseConfirmedImport(report, dashboardData);
   await saveLocalConfirmedImport(report, dashboardData);
+  await saveSupabaseConfirmedImport(report, dashboardData).catch(() => false);
 }
 
-async function clearConfirmedImport() {
-  await clearSupabaseConfirmedImport();
+async function clearLocalConfirmedImport() {
   await Promise.all([
     deletePersistentValue(importPersistenceReportKey),
     deletePersistentValue(importPersistenceDashboardKey)
@@ -962,8 +961,13 @@ async function clearConfirmedImport() {
   window.localStorage.removeItem(importDashboardStorageKey);
 }
 
+async function clearConfirmedImport() {
+  await clearSupabaseConfirmedImport();
+  await clearLocalConfirmedImport();
+}
+
 async function loadConfirmedPersonalImportData() {
-  const supabaseDashboard = await loadSupabaseConfirmedPersonalImport();
+  const supabaseDashboard = await loadSupabaseConfirmedPersonalImport().catch(() => null);
   if (supabaseDashboard) {
     await saveLocalConfirmedPersonalImport(supabaseDashboard.report, supabaseDashboard);
     return supabaseDashboard;
@@ -973,7 +977,7 @@ async function loadConfirmedPersonalImportData() {
   const parsedDashboard = persistentDashboard ?? (localDashboard ? (JSON.parse(localDashboard) as PersonalDashboardData) : null);
   if (!parsedDashboard) return null;
   if (parsedDashboard.schemaVersion !== personalImportSchemaVersion) {
-    await clearConfirmedPersonalImport();
+    await clearLocalConfirmedPersonalImport();
     return null;
   }
   return parsedDashboard;
@@ -991,18 +995,22 @@ async function saveLocalConfirmedPersonalImport(report: PersonalImportReport, da
 }
 
 async function saveConfirmedPersonalImport(report: PersonalImportReport, dashboardData: PersonalDashboardData) {
-  await saveSupabaseConfirmedPersonalImport(report, dashboardData);
   await saveLocalConfirmedPersonalImport(report, dashboardData);
+  await saveSupabaseConfirmedPersonalImport(report, dashboardData).catch(() => false);
 }
 
-async function clearConfirmedPersonalImport() {
-  await clearSupabaseConfirmedPersonalImport();
+async function clearLocalConfirmedPersonalImport() {
   await Promise.all([
     deletePersistentValue(personalImportPersistenceReportKey),
     deletePersistentValue(personalImportPersistenceDashboardKey)
   ]);
   window.localStorage.removeItem(personalImportStorageKey);
   window.localStorage.removeItem(personalImportDashboardStorageKey);
+}
+
+async function clearConfirmedPersonalImport() {
+  await clearSupabaseConfirmedPersonalImport();
+  await clearLocalConfirmedPersonalImport();
 }
 
 const requiredPersonalSheets = [
@@ -2915,7 +2923,7 @@ export default function HomePage() {
       .then((savedImport) => {
         if (isMounted && savedImport) setImportedData(savedImport);
       })
-      .catch(() => clearConfirmedImport());
+      .catch(() => undefined);
     return () => {
       isMounted = false;
     };
@@ -2928,7 +2936,7 @@ export default function HomePage() {
       .then((savedImport) => {
         if (isMounted && savedImport) setPersonalData(savedImport);
       })
-      .catch(() => clearConfirmedPersonalImport());
+      .catch(() => undefined);
     return () => {
       isMounted = false;
     };
