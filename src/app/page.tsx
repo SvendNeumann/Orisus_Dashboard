@@ -9581,7 +9581,6 @@ function Bankenreporting({
         title="Bankenreporting"
         text="Kompakte Bankenübersicht mit Ergebnisentwicklung, Cashflow, Fremdkapital und Kapitaldienstfähigkeit."
       />
-      <DataStatusStrip importedData={importedData} />
       <Card className="grid gap-px overflow-hidden table-grid-bg md:grid-cols-2 xl:grid-cols-4">
         {bankKpis.map((kpi) => (
           <div key={kpi.label} className="bg-white p-4">
@@ -9711,7 +9710,6 @@ function BoardPack({
         title="Investor / Board-Pack"
         text="Monatliche Management-Übersicht für Gesellschafter: Executive Summary, KPI-Entwicklung, Standortbeiträge, Risiken und Akquisitionen."
       />
-      <DataStatusStrip importedData={importedData} />
 
       <Card className="p-4">
         <h2 className="font-bold">Executive Summary | aktueller Stand</h2>
