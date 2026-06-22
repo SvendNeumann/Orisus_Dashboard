@@ -2926,6 +2926,28 @@ export default function HomePage() {
     [dashboardSites, selectedSite]
   );
 
+  const openOnlyActiveNavSection = (targetPage: Page) => {
+    const activeSection = visibleNavSections.find((section) =>
+      section.items.some((item) => item.id === targetPage || (item.id === "standorte" && targetPage === "standort-detail"))
+    );
+    if (!activeSection) return;
+    setOpenNavSections(
+      visibleNavSections.reduce<Record<string, boolean>>((next, section) => {
+        next[section.id] = section.id === activeSection.id;
+        return next;
+      }, {})
+    );
+  };
+
+  const toggleNavSection = (sectionId: string) => {
+    setOpenNavSections((current) =>
+      visibleNavSections.reduce<Record<string, boolean>>((next, section) => {
+        next[section.id] = section.id === sectionId ? !current[section.id] : false;
+        return next;
+      }, {})
+    );
+  };
+
   useEffect(() => {
     if (window.localStorage.getItem(authStorageKey) !== "true") return;
     let isMounted = true;
@@ -3045,6 +3067,7 @@ export default function HomePage() {
       setPreviousPage(page);
     }
     setPage(target);
+    openOnlyActiveNavSection(target);
     setMenuOpen(false);
   };
   const requiresImport = !["uploads", "admin", "reports", ...personalPages].includes(page);
@@ -3063,7 +3086,7 @@ export default function HomePage() {
               section={section}
               page={page}
               open={Boolean(openNavSections[section.id])}
-              onToggle={() => setOpenNavSections((current) => ({ ...current, [section.id]: !current[section.id] }))}
+              onToggle={() => toggleNavSection(section.id)}
               onGo={go}
             />
           ))}
@@ -3116,7 +3139,7 @@ export default function HomePage() {
                     section={section}
                     page={page}
                     open={Boolean(openNavSections[section.id])}
-                    onToggle={() => setOpenNavSections((current) => ({ ...current, [section.id]: !current[section.id] }))}
+                    onToggle={() => toggleNavSection(section.id)}
                     onGo={go}
                   />
                 ))}
