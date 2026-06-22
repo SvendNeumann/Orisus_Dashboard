@@ -5448,7 +5448,21 @@ function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <Mini label="Aufgenommenes Fremdkapital" value={eur(aufgenommen)} />
+        <Mini
+          label="Aufgenommenes Fremdkapital"
+          value={eur(aufgenommen)}
+          info={
+            <div className="space-y-1">
+              <p className="font-bold text-slate-900">Zusammensetzung seit Vertragsstart</p>
+              {sortSitesByContractStart(sites).map((site) => (
+                <InfoLine key={site.id} label={site.name} value={site.darlehen.darlehen} />
+              ))}
+              <div className="mt-2 border-t border-border pt-2">
+                <InfoLine label="= Aufgenommenes Fremdkapital gesamt" value={aufgenommen} strong />
+              </div>
+            </div>
+          }
+        />
         <Mini label="Bereits getilgt" value={eur(getilgt)} />
         <Mini label="Rest-Fremdkapital" value={eur(rest)} />
       </div>
@@ -5614,11 +5628,29 @@ function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void
   );
 }
 
-function Mini({ label, value }: { label: string; value: string }) {
+function Mini({ label, value, info }: { label: string; value: string; info?: React.ReactNode }) {
+  const [infoOpen, setInfoOpen] = useState(false);
   return (
-    <div className="rounded-md bg-slate-50 p-3">
-      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+    <div className="relative rounded-md bg-slate-50 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+        {info ? (
+          <button
+            type="button"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-white text-cyan-800 shadow-sm"
+            aria-label={`${label} erklären`}
+            onClick={() => setInfoOpen((open) => !open)}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+      </div>
       <p className="mt-1 font-bold">{value}</p>
+      {infoOpen && info ? (
+        <div className="absolute right-2 top-9 z-20 w-72 rounded-md border border-border bg-white p-3 text-xs shadow-lg">
+          {info}
+        </div>
+      ) : null}
     </div>
   );
 }
