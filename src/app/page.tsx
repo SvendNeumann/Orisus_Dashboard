@@ -130,8 +130,9 @@ const supabaseUserRoleKey = "orisus-cfo-supabase-user-role";
 const supabaseUserNameKey = "orisus-cfo-supabase-user-name";
 const activePageStorageKey = "orisus-cfo-active-page";
 const activeSiteStorageKey = "orisus-cfo-active-site";
+const permanentAdminEmail = "svend.neumann@orisus.de";
 const adminEmails = [
-  "svend.neumann@orisus.de",
+  permanentAdminEmail,
   "sven.neumann@orisus.de",
   "sven.neumann@resos.de",
   "svend.neumann@resos.de"
@@ -510,6 +511,10 @@ function isSupabaseConfigured() {
 function roleForEmail(email: string | null | undefined): UserRole {
   const normalizedEmail = (email ?? "").trim().toLowerCase();
   return adminEmails.includes(normalizedEmail) ? "admin" : "info";
+}
+
+function isPermanentAdminEmail(email: string | null | undefined) {
+  return (email ?? "").trim().toLowerCase() === permanentAdminEmail;
 }
 
 function currentUserEmail() {
@@ -9186,29 +9191,42 @@ function AccessUserManagement() {
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
-              <tr key={user.email} className={!user.active ? "opacity-55" : undefined}>
-                <td className="border-b border-r border-border p-3 font-semibold">{user.name || "Ohne Namen"}</td>
-                <td className="border-b border-r border-border p-3">{user.email}</td>
-                <td className="border-b border-r border-border p-3">
-                  <Select value={user.role} onChange={(event) => updateUser(user, { role: event.target.value as UserRole })}>
-                    <option value="info">Info-Rolle</option>
-                    <option value="admin">Admin</option>
-                  </Select>
-                </td>
-                <td className="border-b border-r border-border p-3">
-                  <Badge tone={user.active ? "green" : "neutral"}>{user.active ? "Aktiv" : "Deaktiviert"}</Badge>
-                </td>
-                <td className="border-b border-r border-border p-3">
-                  <Button
-                    variant={user.active ? "secondary" : "primary"}
-                    onClick={() => updateUser(user, { active: !user.active })}
-                  >
-                    {user.active ? "Zugriff entziehen" : "Reaktivieren"}
-                  </Button>
-                </td>
-              </tr>
-            ))}
+            {users.map((user) => {
+              const isLockedAdmin = isPermanentAdminEmail(user.email);
+              return (
+                <tr key={user.email} className={!user.active ? "opacity-55" : undefined}>
+                  <td className="border-b border-r border-border p-3 font-semibold">{user.name || "Ohne Namen"}</td>
+                  <td className="border-b border-r border-border p-3">
+                    <div className="flex flex-col gap-1">
+                      <span>{user.email}</span>
+                      {isLockedAdmin && <span className="text-xs font-semibold text-primary">Fester Admin-Zugang</span>}
+                    </div>
+                  </td>
+                  <td className="border-b border-r border-border p-3">
+                    <Select
+                      value={isLockedAdmin ? "admin" : user.role}
+                      onChange={(event) => updateUser(user, { role: event.target.value as UserRole })}
+                      disabled={isLockedAdmin}
+                    >
+                      <option value="info">Info-Rolle</option>
+                      <option value="admin">Admin</option>
+                    </Select>
+                  </td>
+                  <td className="border-b border-r border-border p-3">
+                    <Badge tone={user.active || isLockedAdmin ? "green" : "neutral"}>{user.active || isLockedAdmin ? "Aktiv" : "Deaktiviert"}</Badge>
+                  </td>
+                  <td className="border-b border-r border-border p-3">
+                    <Button
+                      variant={user.active ? "secondary" : "primary"}
+                      onClick={() => updateUser(user, { active: !user.active })}
+                      disabled={isLockedAdmin}
+                    >
+                      {isLockedAdmin ? "Nicht löschbar" : user.active ? "Zugriff entziehen" : "Reaktivieren"}
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
             {!users.length && (
               <tr>
                 <td colSpan={5} className="p-4 text-center text-muted-foreground">

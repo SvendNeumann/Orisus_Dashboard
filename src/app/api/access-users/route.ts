@@ -11,8 +11,10 @@ type AccessUserPayload = {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY ?? "";
+const permanentAdminEmail = "svend.neumann@orisus.de";
+const permanentAdminName = "Svend Neumann";
 const adminFallbackEmails = new Set([
-  "svend.neumann@orisus.de",
+  permanentAdminEmail,
   "sven.neumann@orisus.de",
   "sven.neumann@resos.de",
   "svend.neumann@resos.de"
@@ -83,6 +85,20 @@ async function sendSupabaseInvite(email: string, name: string) {
   }
 }
 
+async function ensurePermanentAdminRole() {
+  await supabaseServiceFetch("/rest/v1/orisus_user_roles?on_conflict=email", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({
+      email: permanentAdminEmail,
+      name: permanentAdminName,
+      role: "admin",
+      active: true,
+      updated_at: new Date().toISOString()
+    })
+  });
+}
+
 async function requesterEmail(request: NextRequest) {
   const authorization = request.headers.get("authorization") ?? "";
   const token = authorization.replace(/^Bearer\s+/i, "").trim();
@@ -123,6 +139,8 @@ export async function GET(request: NextRequest) {
     const denied = await requireAdmin(request);
     if (denied) return denied;
 
+    await ensurePermanentAdminRole();
+
     const users = await supabaseServiceFetch(
       "/rest/v1/orisus_user_roles?select=email,name,role,active,created_at,updated_at&order=name.asc.nullslast,email.asc"
     );
@@ -145,19 +163,20 @@ export async function POST(request: NextRequest) {
     if (!email || !email.includes("@")) return jsonError("Bitte eine gültige E-Mail-Adresse eingeben.");
     if (!name) return jsonError("Bitte einen Namen eingeben.");
 
+    const isPermanentAdmin = email === permanentAdminEmail;
     await supabaseServiceFetch("/rest/v1/orisus_user_roles?on_conflict=email", {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify({
         email,
-        name,
-        role,
+        name: isPermanentAdmin ? permanentAdminName : name,
+        role: isPermanentAdmin ? "admin" : role,
         active: true,
         updated_at: new Date().toISOString()
       })
     });
 
-    await sendSupabaseInvite(email, name);
+    await sendSupabaseInvite(email, isPermanentAdmin ? permanentAdminName : name);
 
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -173,6 +192,11 @@ export async function PATCH(request: NextRequest) {
     const body = (await request.json().catch(() => ({}))) as AccessUserPayload;
     const email = normalizeEmail(body.email ?? "");
     if (!email || !email.includes("@")) return jsonError("Bitte eine gültige E-Mail-Adresse eingeben.");
+
+    if (email === permanentAdminEmail) {
+      await ensurePermanentAdminRole();
+      return NextResponse.json({ ok: true, locked: true });
+    }
 
     const update: Record<string, string | boolean> = { updated_at: new Date().toISOString() };
     if (typeof body.name === "string") update.name = body.name.trim();
