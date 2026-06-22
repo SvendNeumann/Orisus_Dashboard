@@ -1078,15 +1078,15 @@ const navSections = [
     id: "finance",
     label: "BWA & Finanzen",
     items: [
-      { id: "kennzahlen", label: "Kennzahlen / Entwicklung", icon: BarChart3 },
-      { id: "performance", label: "Orisus Performance", icon: TrendingUp },
       { id: "standorte", label: "Standorte", icon: Building2 },
-      { id: "analysen", label: "Analysen", icon: BarChart3 },
       { id: "bwa", label: "BWA", icon: FileBarChart },
+      { id: "kennzahlen", label: "Kennzahlen / Entwicklung", icon: BarChart3 },
       { id: "cashflow", label: "Cashflow", icon: Wallet },
+      { id: "performance", label: "Orisus Performance", icon: TrendingUp },
       { id: "darlehen", label: "Darlehen & Earn-Out", icon: Landmark },
+      { id: "board", label: "Board-Pack", icon: FileBarChart },
       { id: "banken", label: "Bankenreporting", icon: ShieldCheck },
-      { id: "board", label: "Board-Pack", icon: FileBarChart }
+      { id: "analysen", label: "Analysen", icon: BarChart3 }
     ]
   },
   {
