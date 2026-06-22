@@ -18,7 +18,10 @@ In Vercel muessen fuer die zentrale Speicherung diese Environment Variables gese
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://<projekt>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-public-key>
+SUPABASE_SERVICE_ROLE_KEY=<server-only-service-role-key>
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` darf niemals als `NEXT_PUBLIC_...` Variable angelegt werden. Der Key wird nur serverseitig fuer die Admin-Zugangsverwaltung genutzt.
 
 In Supabase werden zwei Importtabellen benoetigt:
 
@@ -62,7 +65,7 @@ Rollenlogik live:
 - `admin`: darf CFO- und Personal-Uploads bestaetigen/zuruecksetzen, KPI-Regeln sehen/aendern und alle Bereiche nutzen.
 - `info`: darf die App lesen, aber keine Uploads bestaetigen, keine Daten zuruecksetzen und keine Regeln aendern.
 
-Die Schreibrechte werden nicht nur in der App-Oberflaeche, sondern ueber Supabase Row Level Security abgesichert. Die Admin-Mailadressen stehen in `public.orisus_user_roles`; authentifizierte Nutzer duerfen Importdaten lesen, aber nur Admins duerfen Importdaten schreiben, aktualisieren oder loeschen.
+Die Schreibrechte werden nicht nur in der App-Oberflaeche, sondern ueber Supabase Row Level Security abgesichert. Die App-Zugaenge stehen in `public.orisus_user_roles`; nur aktive Nutzer duerfen Importdaten lesen, und nur Admins duerfen Importdaten schreiben, aktualisieren oder loeschen. Neue App-Nutzer werden im Admin-Bereich angelegt und koennen beim Erst-Login ihr Passwort setzen.
 
 Solange Supabase nicht konfiguriert ist, nutzt die App weiterhin den lokalen persistenten Browser-Speicher.
 

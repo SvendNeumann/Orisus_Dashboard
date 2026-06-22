@@ -43,6 +43,7 @@ import {
   Stethoscope,
   TrendingUp,
   UserRound,
+  UserRoundPlus,
   Users,
   Wallet,
   X
@@ -82,6 +83,14 @@ type Page =
 
 type AuthStep = "welcome" | "forgot" | "app";
 type UserRole = "admin" | "info";
+type AccessUser = {
+  email: string;
+  name: string | null;
+  role: UserRole;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
 
 const bwaPeriodOptions = [
   "Geschäftsjahr 2024",
@@ -116,6 +125,8 @@ const personalSupabaseImportTableName = "orisus_personal_imports";
 const supabaseAccessTokenKey = "orisus-cfo-supabase-access-token";
 const supabaseRefreshTokenKey = "orisus-cfo-supabase-refresh-token";
 const supabaseUserEmailKey = "orisus-cfo-supabase-user-email";
+const supabaseUserRoleKey = "orisus-cfo-supabase-user-role";
+const supabaseUserNameKey = "orisus-cfo-supabase-user-name";
 const adminEmails = [
   "svend.neumann@orisus.de",
   "sven.neumann@orisus.de",
@@ -501,7 +512,13 @@ function currentUserEmail() {
 
 function currentUserRole() {
   if (typeof window === "undefined") return "info";
-  return roleForEmail(currentUserEmail());
+  const storedRole = window.localStorage.getItem(supabaseUserRoleKey);
+  return storedRole === "admin" || storedRole === "info" ? storedRole : roleForEmail(currentUserEmail());
+}
+
+function currentUserName() {
+  if (typeof window === "undefined") return "Svend Neumann";
+  return window.localStorage.getItem(supabaseUserNameKey) ?? "Svend Neumann";
 }
 
 function canModifyData(role: UserRole) {
@@ -573,10 +590,34 @@ async function signInOrCreateSupabaseUser(email: string, password: string) {
   return rememberSupabaseSession(signupSession, email);
 }
 
+async function loadAndRememberAccessProfile(email: string) {
+  if (!isSupabaseConfigured()) {
+    window.localStorage.setItem(supabaseUserRoleKey, roleForEmail(email));
+    window.localStorage.setItem(supabaseUserNameKey, email);
+    return true;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const rows = await supabaseFetch<Array<AccessUser>>(
+    `/rest/v1/orisus_user_roles?select=email,name,role,active&email=eq.${encodeURIComponent(normalizedEmail)}&active=eq.true&limit=1`
+  );
+  const profile = rows[0];
+  if (!profile || (profile.role !== "admin" && profile.role !== "info")) {
+    window.localStorage.removeItem(supabaseUserRoleKey);
+    window.localStorage.removeItem(supabaseUserNameKey);
+    return false;
+  }
+  window.localStorage.setItem(supabaseUserRoleKey, profile.role);
+  window.localStorage.setItem(supabaseUserNameKey, profile.name || profile.email);
+  return true;
+}
+
 function clearSupabaseSession() {
   window.localStorage.removeItem(supabaseAccessTokenKey);
   window.localStorage.removeItem(supabaseRefreshTokenKey);
   window.localStorage.removeItem(supabaseUserEmailKey);
+  window.localStorage.removeItem(supabaseUserRoleKey);
+  window.localStorage.removeItem(supabaseUserNameKey);
 }
 
 async function loadSupabaseConfirmedImport() {
@@ -731,6 +772,23 @@ async function clearSupabaseConfirmedImport() {
     },
     token
   ).catch(() => undefined);
+}
+
+async function accessUsersApi<T>(method = "GET", body?: unknown): Promise<T> {
+  const token = currentSupabaseAccessToken();
+  const response = await fetch("/api/access-users", {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!response.ok) {
+    const data = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Zugangsverwaltung konnte nicht aktualisiert werden.");
+  }
+  return (await response.json()) as T;
 }
 
 async function loadConfirmedImportData() {
@@ -2441,9 +2499,10 @@ export default function HomePage() {
   const [importedData, setImportedData] = useState<ImportedDashboardData | null>(null);
   const [personalData, setPersonalData] = useState<PersonalDashboardData | null>(null);
   const [userEmail, setUserEmail] = useState("");
+  const [userDisplayName, setUserDisplayName] = useState("Svend Neumann");
+  const [userRole, setUserRole] = useState<UserRole>("info");
   const dashboardSites = useMemo(() => sortSitesByContractStart(importedData?.sites ?? []), [importedData?.sites]);
   const dashboardMonthly = importedData?.monthly ?? [];
-  const userRole = roleForEmail(userEmail);
   const isAdmin = userRole === "admin";
   const adminOnlyPages: Page[] = ["uploads", "admin", "personal-upload"];
   const personalPages: Page[] = ["personal-cockpit", "personal-krankheit", "personal-mitarbeiter", "personal-massnahmen", "personal-upload"];
@@ -2470,6 +2529,8 @@ export default function HomePage() {
   useEffect(() => {
     if (window.localStorage.getItem(authStorageKey) === "true") {
       setUserEmail(currentUserEmail());
+      setUserDisplayName(currentUserName());
+      setUserRole(currentUserRole());
       setAuthStep("app");
     }
   }, []);
@@ -2518,6 +2579,8 @@ export default function HomePage() {
     if (step === "app") {
       window.localStorage.setItem(authStorageKey, "true");
       setUserEmail(currentUserEmail());
+      setUserDisplayName(currentUserName());
+      setUserRole(currentUserRole());
     }
     setAuthStep(step);
   };
@@ -2526,6 +2589,8 @@ export default function HomePage() {
     window.localStorage.removeItem(authStorageKey);
     clearSupabaseSession();
     setUserEmail("");
+    setUserDisplayName("Svend Neumann");
+    setUserRole("info");
     setMenuOpen(false);
     setAuthStep("welcome");
   };
@@ -2564,7 +2629,7 @@ export default function HomePage() {
         </nav>
         <div className="shrink-0 rounded-lg border border-border bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Nutzer</p>
-          <p className="mt-1 font-semibold">Svend Neumann</p>
+          <p className="mt-1 font-semibold">{userDisplayName}</p>
           <p className="text-sm text-muted-foreground">{isAdmin ? "Admin-Zugang" : "Info-Zugang"}</p>
           <Button className="mt-4 w-full" variant="secondary" onClick={logout}>
             Abmelden
@@ -2829,6 +2894,13 @@ function AuthFlow({
         const isAuthenticated = await signInOrCreateSupabaseUser(normalizedEmail, password);
         if (!isAuthenticated) {
           setLoginMessage("Bitte bestätige den Zugang über die Supabase-E-Mail oder prüfe die Login-Daten.");
+          return;
+        }
+        const hasAppAccess = await loadAndRememberAccessProfile(normalizedEmail);
+        if (!hasAppAccess) {
+          clearSupabaseSession();
+          window.localStorage.removeItem(authStorageKey);
+          setLoginMessage("Für diese E-Mail ist noch kein App-Zugang angelegt. Bitte Admin-Zugang anlegen lassen.");
           return;
         }
         window.localStorage.setItem(authPasswordConfiguredKey, "true");
@@ -8893,8 +8965,9 @@ function AdminKpiRules() {
     <section className="space-y-5">
       <PageTitle
         title="Admin / KPI-Regeln"
-        text="Interner Einstellungsbereich für Ampel-Schwellenwerte und Zielerreichungslogik. In Phase 1 als Regelübersicht vorbereitet."
+        text="Interner Einstellungsbereich für App-Zugänge, Rollen, Ampel-Schwellenwerte und Zielerreichungslogik."
       />
+      <AccessUserManagement />
       <Card className="p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -8953,5 +9026,131 @@ function AdminKpiRules() {
         </Card>
       </div>
     </section>
+  );
+}
+
+function AccessUserManagement() {
+  const [users, setUsers] = useState<AccessUser[]>([]);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<UserRole>("info");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const loadUsers = async () => {
+    try {
+      const data = await accessUsersApi<{ users: AccessUser[] }>();
+      setUsers(data.users ?? []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Zugänge konnten nicht geladen werden.");
+    }
+  };
+
+  useEffect(() => {
+    void loadUsers();
+  }, []);
+
+  const createUser = async () => {
+    setMessage("");
+    setBusy(true);
+    try {
+      await accessUsersApi("POST", { name, email, role });
+      setName("");
+      setEmail("");
+      setRole("info");
+      setMessage("Zugang angelegt. Die Person kann sich mit der Mail anmelden und beim Erst-Login ihr Passwort setzen.");
+      await loadUsers();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Zugang konnte nicht angelegt werden.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateUser = async (user: AccessUser, update: Partial<AccessUser>) => {
+    setMessage("");
+    try {
+      await accessUsersApi("PATCH", { email: user.email, ...update });
+      await loadUsers();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Zugang konnte nicht aktualisiert werden.");
+    }
+  };
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-border p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="font-bold">App-Zugänge</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Für externe App-Nutzer: Name, E-Mail und Rolle anlegen. Nur aktive Zugänge dürfen Dashboard-Daten lesen.
+            </p>
+          </div>
+          <Badge tone="blue">Admin verwaltet</Badge>
+        </div>
+      </div>
+      <div className="grid gap-3 border-b border-border p-4 lg:grid-cols-[1fr_1.3fr_0.7fr_auto]">
+        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name, z. B. Max Mustermann" />
+        <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="E-Mail, z. B. max@orisus.de" type="email" />
+        <Select value={role} onChange={(event) => setRole(event.target.value as UserRole)}>
+          <option value="info">Info-Rolle</option>
+          <option value="admin">Admin</option>
+        </Select>
+        <Button onClick={createUser} disabled={busy}>
+          <UserRoundPlus className="h-4 w-4" />
+          Zugang anlegen
+        </Button>
+      </div>
+      {message && <p className="border-b border-border bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-800">{message}</p>}
+      <div className="overflow-x-auto">
+        <table className="data-table border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              {["Name", "E-Mail", "Rolle", "Status", "Aktion"].map((head) => (
+                <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
+                  {head}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.email} className={!user.active ? "opacity-55" : undefined}>
+                <td className="border-b border-r border-border p-3 font-semibold">{user.name || "Ohne Namen"}</td>
+                <td className="border-b border-r border-border p-3">{user.email}</td>
+                <td className="border-b border-r border-border p-3">
+                  <Select value={user.role} onChange={(event) => updateUser(user, { role: event.target.value as UserRole })}>
+                    <option value="info">Info-Rolle</option>
+                    <option value="admin">Admin</option>
+                  </Select>
+                </td>
+                <td className="border-b border-r border-border p-3">
+                  <Badge tone={user.active ? "green" : "neutral"}>{user.active ? "Aktiv" : "Deaktiviert"}</Badge>
+                </td>
+                <td className="border-b border-r border-border p-3">
+                  <Button
+                    variant={user.active ? "secondary" : "primary"}
+                    onClick={() => updateUser(user, { active: !user.active })}
+                  >
+                    {user.active ? "Zugriff entziehen" : "Reaktivieren"}
+                  </Button>
+                </td>
+              </tr>
+            ))}
+            {!users.length && (
+              <tr>
+                <td colSpan={5} className="p-4 text-center text-muted-foreground">
+                  Noch keine Zugänge geladen.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="p-4 text-sm text-muted-foreground">
+        Info-Rolle: lesen, keine Uploads, kein Zurücksetzen, keine Regeländerung. Admin: vollständiger Zugriff.
+      </div>
+    </Card>
   );
 }
