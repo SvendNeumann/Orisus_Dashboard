@@ -1037,8 +1037,7 @@ const navSections = [
       { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users },
       { id: "personal-krankheit", label: "Krankheit / Fehlzeiten", icon: Stethoscope },
       { id: "personal-mitarbeiter", label: "Mitarbeiterübersicht", icon: UserRound },
-      { id: "personal-massnahmen", label: "Personalmaßnahmen", icon: CheckCircle2 },
-      { id: "personal-upload", label: "Personal-Upload", icon: FileUp }
+      { id: "personal-massnahmen", label: "Personalmaßnahmen", icon: CheckCircle2 }
     ]
   },
   {
@@ -1046,6 +1045,7 @@ const navSections = [
     label: "Administration",
     items: [
       { id: "uploads", label: "CFO-Upload", icon: FileUp },
+      { id: "personal-upload", label: "Personal-Upload", icon: FileUp },
       { id: "reports", label: "Reports", icon: FileBarChart },
       { id: "admin", label: "Admin / KPI-Regeln", icon: Lock }
     ]
