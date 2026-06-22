@@ -4754,9 +4754,11 @@ function Cockpit({
 
       <StandortCfoComparison sites={sites} />
 
-      <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
-        <CostShareDonut sites={sites} />
-      </ChartCard>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
+          <CostShareDonut sites={sites} />
+        </ChartCard>
+      </div>
 
       <DebtCapitalBlock sites={sites} />
 
