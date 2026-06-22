@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   Area,
@@ -3144,7 +3144,7 @@ export default function HomePage() {
             />
           )}
           {importedData && page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} monthlyData={dashboardMonthly} />}
-          {importedData && page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {importedData && page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} personalData={personalData} />}
           {importedData && page === "bwa" && <Bwa importedData={importedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
           {importedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "darlehen" && <Darlehen sites={dashboardSites} importedData={importedData} />}
@@ -8708,47 +8708,459 @@ function allocateByMonthlyStructure(totalValue: number, monthlyData: typeof mont
 function Analysen({
   sites = standorte,
   monthlyData = monthly,
-  importedData
+  importedData,
+  personalData
 }: {
   sites?: DashboardSite[];
   monthlyData?: typeof monthly;
   importedData?: ImportedDashboardData | null;
+  personalData?: PersonalDashboardData | null;
 }) {
-  const metrics = cfoMetrics(sites, monthlyData);
-  const analysisPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
+  const sortedSites = sortSitesByContractStart(sites.filter((site) => site.gesamtleistung || site.ebitda || site.pvsUmsatz));
+  const [period, setPeriod] = useState(importedData ? defaultBwaPeriodFor(importedData) : "YTD 2026");
+  const [selectedSiteId, setSelectedSiteId] = useState(sortedSites[0]?.id ?? sites[0]?.id ?? "kirchberg");
+  const [comparison, setComparison] = useState("Gruppendurchschnitt");
+  const [viewMode, setViewMode] = useState<"Standortleiter" | "Intern">("Standortleiter");
+
+  useEffect(() => {
+    if (sortedSites.length && !sortedSites.some((site) => site.id === selectedSiteId)) {
+      setSelectedSiteId(sortedSites[0].id);
+    }
+  }, [selectedSiteId, sortedSites]);
+
+  const selectedSite = sortedSites.find((site) => site.id === selectedSiteId) ?? sortedSites[0] ?? sites[0];
+  const activeDentistsBySite = useMemo(() => {
+    const result = new Map<string, number>();
+    if (!personalData) return result;
+    personalData.employees.forEach((employee) => {
+      if (employee.status.toLowerCase() !== "aktiv" || !employee.isDentist) return;
+      const siteId = siteIdForName(employee.site);
+      if (!siteId) return;
+      result.set(siteId, (result.get(siteId) ?? 0) + 1);
+    });
+    return result;
+  }, [personalData]);
+
+  const siteRows = sortedSites.map((site, index) => {
+    const dentists = activeDentistsBySite.get(site.id) ?? 0;
+    const roomCount = 0;
+    const pvsPerDentist = dentists ? site.pvsUmsatz / dentists : null;
+    const performancePerDentist = dentists ? site.gesamtleistung / dentists : null;
+    const ebitdaPerDentist = dentists ? site.ebitda / dentists : null;
+    const pvsPerRoom = roomCount ? site.pvsUmsatz / roomCount : null;
+    const performancePerRoom = roomCount ? site.gesamtleistung / roomCount : null;
+    const ebitdaPerRoom = roomCount ? site.ebitda / roomCount : null;
+    return {
+      site,
+      label: site.id === selectedSite?.id ? "Ausgewählter Standort" : `Standort ${String.fromCharCode(65 + index)}`,
+      dentists,
+      rooms: roomCount,
+      pvsPerDentist,
+      performancePerDentist,
+      ebitdaPerDentist,
+      pvsPerRoom,
+      performancePerRoom,
+      ebitdaPerRoom,
+      ebitdaMargin: site.ebitdaMarge,
+      receivablesRatio: site.pvsUmsatz ? (site.forderungen / site.pvsUmsatz) * 100 : 0,
+      materialquote: site.materialquote,
+      fremdlaborquote: site.fremdlaborquote,
+      personalquote: site.personalquote ?? 0,
+      sonstigeKostenquote: site.sonstigeKostenquote,
+      gesamtkostenquote: site.materialquote + site.fremdlaborquote + (site.personalquote ?? 0) + site.sonstigeKostenquote
+    };
+  });
+
+  const selectedRow = siteRows.find((row) => row.site.id === selectedSite?.id) ?? siteRows[0];
+  const numericAverage = (selector: (row: (typeof siteRows)[number]) => number | null) => {
+    const values = siteRows.map(selector).filter((value): value is number => value != null && Number.isFinite(value));
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  };
+  const indexFor = (value: number | null, average: number | null) => (value != null && average ? (value / average) * 100 : null);
+  const benchmarkItems = [
+    {
+      label: "Gesamtumsatz je Zahnarzt",
+      selected: indexFor(selectedRow?.pvsPerDentist ?? null, numericAverage((row) => row.pvsPerDentist)),
+      group: 100,
+      higherIsBetter: true,
+      unavailable: !selectedRow?.dentists
+    },
+    {
+      label: "Gesamtleistung je Zahnarzt",
+      selected: indexFor(selectedRow?.performancePerDentist ?? null, numericAverage((row) => row.performancePerDentist)),
+      group: 100,
+      higherIsBetter: true,
+      unavailable: !selectedRow?.dentists
+    },
+    {
+      label: "EBITDA je Zahnarzt",
+      selected: indexFor(selectedRow?.ebitdaPerDentist ?? null, numericAverage((row) => row.ebitdaPerDentist)),
+      group: 100,
+      higherIsBetter: true,
+      unavailable: !selectedRow?.dentists
+    },
+    {
+      label: "Gesamtumsatz je Behandlungszimmer",
+      selected: indexFor(selectedRow?.pvsPerRoom ?? null, numericAverage((row) => row.pvsPerRoom)),
+      group: 100,
+      higherIsBetter: true,
+      unavailable: true
+    },
+    {
+      label: "Gesamtleistung je Behandlungszimmer",
+      selected: indexFor(selectedRow?.performancePerRoom ?? null, numericAverage((row) => row.performancePerRoom)),
+      group: 100,
+      higherIsBetter: true,
+      unavailable: true
+    },
+    {
+      label: "EBITDA je Behandlungszimmer",
+      selected: indexFor(selectedRow?.ebitdaPerRoom ?? null, numericAverage((row) => row.ebitdaPerRoom)),
+      group: 100,
+      higherIsBetter: true,
+      unavailable: true
+    },
+    {
+      label: "EBITDA-Marge",
+      selected: selectedRow?.ebitdaMargin ?? null,
+      group: numericAverage((row) => row.ebitdaMargin) ?? 0,
+      higherIsBetter: true,
+      suffix: "%"
+    },
+    {
+      label: "Forderungsquote",
+      selected: selectedRow?.receivablesRatio ?? null,
+      group: numericAverage((row) => row.receivablesRatio) ?? 0,
+      higherIsBetter: false,
+      suffix: "%"
+    }
+  ];
+  const marginGroup = numericAverage((row) => row.ebitdaMargin) ?? 0;
+  const costGroup = {
+    materialquote: numericAverage((row) => row.materialquote) ?? 0,
+    fremdlaborquote: numericAverage((row) => row.fremdlaborquote) ?? 0,
+    personalquote: numericAverage((row) => row.personalquote) ?? 0,
+    sonstigeKostenquote: numericAverage((row) => row.sonstigeKostenquote) ?? 0,
+    gesamtkostenquote: numericAverage((row) => row.gesamtkostenquote) ?? 0
+  };
+  const marginGap = (selectedRow?.ebitdaMargin ?? 0) - marginGroup;
+  const costDrivers = [
+    { label: "Materialquote", value: (selectedRow?.materialquote ?? 0) - costGroup.materialquote },
+    { label: "Fremdlaborquote", value: (selectedRow?.fremdlaborquote ?? 0) - costGroup.fremdlaborquote },
+    { label: "Personalkostenquote", value: (selectedRow?.personalquote ?? 0) - costGroup.personalquote },
+    { label: "Sonstige Kostenquote", value: (selectedRow?.sonstigeKostenquote ?? 0) - costGroup.sonstigeKostenquote }
+  ].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  const summaryItems = [
+    marginGap >= 0 ? "Die EBITDA-Marge liegt über dem Gruppenschnitt." : "Die EBITDA-Marge liegt unter dem Gruppenschnitt.",
+    (selectedRow?.gesamtkostenquote ?? 0) <= costGroup.gesamtkostenquote ? "Die Kostenquoten liegen unter dem Gruppendurchschnitt." : "Die Kostenquoten liegen über dem Gruppendurchschnitt.",
+    (benchmarkItems[0].selected ?? 0) >= 100 ? "Der Gesamtumsatz je Zahnarzt liegt über dem Gruppendurchschnitt." : "Der Gesamtumsatz je Zahnarzt liegt unter dem Gruppendurchschnitt."
+  ];
+  const hasMissingBasis = benchmarkItems.some((item) => item.unavailable);
+  const displaySiteName = viewMode === "Intern" ? selectedSite?.name ?? "Ausgewählter Standort" : "Ausgewählter Standort";
+  const periodOptions = importedData ? bwaPeriodOptionsFor(importedData) : ["YTD 2026", "aktueller Monat", "Geschäftsjahr", "Gesamt seit Praxisstart", "freier Zeitraum"];
+
   return (
-    <section className="space-y-5">
-      <PageTitle title="Analysen" text="EBITDA, Gesamtleistung, Cashflow, Standortvergleich, Zeitvergleich und Vorjahresabweichungen." />
-      <div className="grid gap-5 xl:grid-cols-2">
-        <ChartCard title={`EBITDA-Entwicklung | ${analysisPeriod}`} icon={TrendingUp}>
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="month" />
-              <Tooltip formatter={(v) => eur(Number(v))} />
-              <Area dataKey="ebitda" stroke="#0369a1" fill="#dbeafe" strokeWidth={3} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
-        <ChartCard title="Standortvergleich | seit Vertragsstart" icon={BarChart3}>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={sites}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" />
-              <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
-              <Tooltip formatter={(v) => eur(Number(v))} />
-              <Bar dataKey="gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
-              <Bar dataKey="ebitda" fill="#0891b2" radius={[5, 5, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+    <section className="analysis-report space-y-5">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <div className="flex flex-wrap items-end gap-3">
+            <h1 className="text-3xl font-extrabold text-white">Analyse</h1>
+            <p className="pb-1 text-sm font-semibold text-slate-300">Standort-Benchmarking</p>
+          </div>
+          <p className="mt-2 max-w-3xl text-sm text-slate-300">
+            Anonymisierte Standortleiter-Ansicht mit normalisierten Kennzahlen, Kostenquoten, Rankings und Handlungsschwerpunkten.
+          </p>
+        </div>
+        <Button className="w-full border border-teal-300/40 bg-teal-500/20 text-white shadow-[0_0_24px_rgba(20,184,166,0.22)] hover:bg-teal-500/30 sm:w-auto" onClick={() => window.print()}>
+          <FileBarChart className="mr-2 h-4 w-4" />
+          PDF exportieren
+        </Button>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <AnalysisTile title="EBITDA-Marge | seit Vertragsstart" value={pct(metrics.ebitdaMarge)} text="Konzern über die aktuell importierte Datenbasis." />
-        <DebtServiceCoverageTile value={metrics.kapitaldienstfaehigkeit} />
-        <AnalysisTile title="Cashflow-Qualität | seit Vertragsstart" value={pct(metrics.gesamtleistung ? (metrics.cashflow / metrics.gesamtleistung) * 100 : 0)} text="Cashflow im Verhältnis zur Gesamtleistung." />
+
+      <div className="grid gap-3 lg:grid-cols-4">
+        <FilterShell label="Zeitraum">
+          <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
+            {periodOptions.map((item) => <option key={item}>{item}</option>)}
+          </Select>
+        </FilterShell>
+        <FilterShell label="Standort">
+          <Select value={selectedSiteId} onChange={(event) => setSelectedSiteId(event.target.value)}>
+            {sortedSites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
+          </Select>
+        </FilterShell>
+        <FilterShell label="Vergleich">
+          <Select value={comparison} onChange={(event) => setComparison(event.target.value)}>
+            {["Gruppendurchschnitt", "bester Standort", "Plan", "Vorjahr"].map((item) => <option key={item}>{item}</option>)}
+          </Select>
+        </FilterShell>
+        <FilterShell label="Ansicht">
+          <Select value={viewMode} onChange={(event) => setViewMode(event.target.value as "Standortleiter" | "Intern")}>
+            <option>Standortleiter</option>
+            <option>Intern</option>
+          </Select>
+        </FilterShell>
+      </div>
+
+      <div className="rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] lg:grid lg:grid-cols-[1fr_1.4fr] lg:items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Standort-Benchmarking</h2>
+          <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-200">
+            <span>Zeitraum: <strong>{period}</strong></span>
+            <span>Vergleich: <strong>{comparison}</strong></span>
+            <span>Report: <strong>{viewMode}</strong></span>
+          </div>
+        </div>
+        <div className="mt-4 space-y-2 border-t border-white/10 pt-4 text-sm text-slate-100 lg:mt-0 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          {summaryItems.map((item, index) => (
+            <div key={item} className="flex gap-3">
+              {index === 0 ? <TrendingUp className="mt-0.5 h-4 w-4 text-amber-300" /> : index === 1 ? <Gauge className="mt-0.5 h-4 w-4 text-amber-300" /> : <ArrowUpRight className="mt-0.5 h-4 w-4 text-emerald-300" />}
+              <span>{item}</span>
+            </div>
+          ))}
+          {hasMissingBasis && (
+            <p className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-2 text-xs text-amber-100">
+              Hinweis: Behandlungszimmer sind im aktuellen CFO-Import noch nicht als strukturierte Basis erkannt. Diese Kennzahlen werden nicht künstlich berechnet.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {benchmarkItems.map((item) => (
+          <BenchmarkKpiCard key={item.label} {...item} />
+        ))}
+      </div>
+
+      {viewMode === "Intern" && (
+        <div className="grid gap-3 rounded-xl border border-white/15 bg-slate-950/45 p-4 md:grid-cols-4">
+          <Mini label={`${selectedSite?.name ?? "Standort"} Gesamtleistung`} value={eur(selectedSite?.gesamtleistung ?? 0)} />
+          <Mini label={`${selectedSite?.name ?? "Standort"} PVS-Umsatz`} value={eur(selectedSite?.pvsUmsatz ?? 0)} />
+          <Mini label={`${selectedSite?.name ?? "Standort"} EBITDA`} value={eur(selectedSite?.ebitda ?? 0)} />
+          <Mini label={`${selectedSite?.name ?? "Standort"} Forderungen`} value={eur(selectedSite?.forderungen ?? 0)} />
+        </div>
+      )}
+
+      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <BenchmarkPanel title="Rankings im Standortvergleich">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <BenchmarkRanking
+              title="Umsatz je Zahnarzt (Index)"
+              rows={siteRows.map((row) => ({
+                label: viewMode === "Intern" ? row.site.name : row.label,
+                value: Math.round(indexFor(row.pvsPerDentist, numericAverage((item) => item.pvsPerDentist)) ?? 0),
+                selected: row.site.id === selectedSite?.id
+              }))}
+              suffix="%"
+              max={150}
+            />
+            <BenchmarkRanking
+              title="EBITDA-Marge (%)"
+              rows={siteRows.map((row) => ({
+                label: viewMode === "Intern" ? row.site.name : row.label,
+                value: row.ebitdaMargin,
+                selected: row.site.id === selectedSite?.id
+              }))}
+              suffix="%"
+              max={Math.max(30, ...siteRows.map((row) => row.ebitdaMargin))}
+            />
+          </div>
+        </BenchmarkPanel>
+        <BenchmarkPanel title="Kostenquoten im Standortvergleich (%)">
+          <BenchmarkHeatmap rows={siteRows} group={costGroup} viewMode={viewMode} selectedSiteId={selectedSite?.id} />
+        </BenchmarkPanel>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
+        <BenchmarkPanel title="EBITDA-Margen-Treiber" subtitle={`Warum liegt ${displaySiteName} ${marginGap >= 0 ? "über" : "unter"} dem Gruppenschnitt?`}>
+          <div className="grid gap-4 md:grid-cols-[1fr_0.9fr]">
+            <div className="space-y-2">
+              {costDrivers.map((driver) => (
+                <DriverLine key={driver.label} label={driver.label} value={driver.value} />
+              ))}
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-slate-100">
+              <div className={cn("mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full border", marginGap >= 0 ? "border-emerald-300/40 text-emerald-300" : "border-amber-300/40 text-amber-300")}>
+                <Info className="h-5 w-5" />
+              </div>
+              <p>
+                Die EBITDA-Marge liegt {marginGap >= 0 ? "über" : "unter"} dem Gruppenschnitt.
+                Die wichtigsten Treiber sind {costDrivers.slice(0, 2).map((item) => item.label).join(" und ")}.
+              </p>
+            </div>
+          </div>
+        </BenchmarkPanel>
+        <BenchmarkPanel title="Standortleiter-Insights">
+          <div className="grid gap-3 md:grid-cols-3">
+            {summaryItems.map((item, index) => (
+              <div key={item} className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-slate-100">
+                <div className={cn("mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full border", index === 1 ? "border-amber-300/40 text-amber-300" : "border-emerald-300/40 text-emerald-300")}>
+                  {index === 1 ? <Gauge className="h-5 w-5" /> : <ArrowUpRight className="h-5 w-5" />}
+                </div>
+                <p>{item}</p>
+              </div>
+            ))}
+          </div>
+        </BenchmarkPanel>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-center gap-4 border-t border-white/10 pt-4 text-xs text-slate-400">
+        <span>Orisus Zahnmedizin MVZ GmbH</span>
+        <span>Internal Use Only</span>
+        <span>Exportdatum: {new Date().toLocaleDateString("de-DE")}</span>
       </div>
     </section>
+  );
+}
+
+function FilterShell({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="rounded-lg border border-white/15 bg-slate-950/50 p-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
+      <span className="mb-1 block">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function BenchmarkKpiCard({
+  label,
+  selected,
+  group,
+  higherIsBetter,
+  suffix = "%",
+  unavailable = false
+}: {
+  label: string;
+  selected: number | null;
+  group: number;
+  higherIsBetter: boolean;
+  suffix?: string;
+  unavailable?: boolean;
+}) {
+  const deviation = selected == null ? null : selected - group;
+  const good = deviation == null ? false : higherIsBetter ? deviation >= 0 : deviation <= 0;
+  const valueText = unavailable || selected == null ? "n. v." : `${selected.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`;
+  const groupText = unavailable || selected == null ? "n. v." : `${group.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`;
+  const deviationText = unavailable || deviation == null
+    ? "Basis fehlt"
+    : `${deviation > 0 ? "+" : ""}${deviation.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %-Pkt.`;
+  return (
+    <div className="rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm font-bold text-white">{label}</h3>
+        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full border", unavailable ? "border-slate-500/40 text-slate-400" : good ? "border-emerald-300/50 text-emerald-300" : "border-red-300/50 text-red-300")}>
+          {unavailable ? <Info className="h-5 w-5" /> : good ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownRight className="h-5 w-5" />}
+        </div>
+      </div>
+      <div className="mt-3 space-y-1 text-sm text-slate-200">
+        <div className="flex justify-between gap-4"><span>Standortwert</span><strong className="text-white">{valueText}</strong></div>
+        <div className="flex justify-between gap-4"><span>Gruppenschnitt</span><strong className="text-white">{groupText}</strong></div>
+        <div className="flex justify-between gap-4"><span>Abweichung</span><strong className={unavailable ? "text-slate-400" : good ? "text-emerald-300" : "text-red-300"}>{deviationText}</strong></div>
+      </div>
+    </div>
+  );
+}
+
+function BenchmarkPanel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
+      <h3 className="text-lg font-bold text-white">{title}</h3>
+      {subtitle ? <p className="mt-1 text-sm text-slate-300">{subtitle}</p> : null}
+      <div className="mt-4">{children}</div>
+    </div>
+  );
+}
+
+function BenchmarkRanking({ title, rows, suffix, max }: { title: string; rows: { label: string; value: number; selected: boolean }[]; suffix: string; max: number }) {
+  const sortedRows = [...rows].sort((a, b) => b.value - a.value);
+  return (
+    <div>
+      <p className="mb-3 text-sm font-semibold text-slate-100">{title}</p>
+      <div className="space-y-2">
+        {sortedRows.map((row) => (
+          <div key={`${title}-${row.label}`} className="grid grid-cols-[88px_1fr_56px] items-center gap-2 text-xs text-slate-200">
+            <span className="truncate">{row.label}</span>
+            <div className="h-3 rounded-full bg-white/10">
+              <div className={cn("h-3 rounded-full", row.selected ? "bg-cyan-400" : "bg-slate-400")} style={{ width: `${Math.max(4, Math.min(100, (row.value / (max || 1)) * 100))}%` }} />
+            </div>
+            <strong className="text-right text-white">{row.value.toLocaleString("de-DE", { maximumFractionDigits: 1 })}{suffix}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BenchmarkHeatmap({
+  rows,
+  group,
+  viewMode,
+  selectedSiteId
+}: {
+  rows: Array<{
+    site: DashboardSite;
+    label: string;
+    materialquote: number;
+    fremdlaborquote: number;
+    personalquote: number;
+    sonstigeKostenquote: number;
+    gesamtkostenquote: number;
+  }>;
+  group: Record<string, number>;
+  viewMode: "Standortleiter" | "Intern";
+  selectedSiteId?: string;
+}) {
+  const columns = [
+    ["materialquote", "Materialquote"],
+    ["fremdlaborquote", "Fremdlaborquote"],
+    ["personalquote", "Personalkostenquote"],
+    ["sonstigeKostenquote", "Sonstige Kostenquote"],
+    ["gesamtkostenquote", "Gesamtkostenquote"]
+  ] as const;
+  const heat = (value: number, basis: number) => {
+    if (value <= basis) return "bg-emerald-500/60 text-white";
+    if (value <= basis + 2) return "bg-amber-400/70 text-slate-950";
+    return "bg-red-500/70 text-white";
+  };
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[620px] border-collapse text-xs">
+        <thead>
+          <tr>
+            <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Standort</th>
+            {columns.map(([, label]) => <th key={label} className="border border-white/10 bg-white/5 p-2 text-right text-slate-200">{label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.site.id} className={row.site.id === selectedSiteId ? "outline outline-1 outline-cyan-400/70" : ""}>
+              <td className="border border-white/10 p-2 font-semibold text-white">{viewMode === "Intern" ? row.site.name : row.label}</td>
+              {columns.map(([key]) => (
+                <td key={key} className={cn("border border-white/10 p-2 text-right font-semibold", heat(row[key], group[key]))}>
+                  {pct(row[key])}
+                </td>
+              ))}
+            </tr>
+          ))}
+          <tr>
+            <td className="border border-white/10 bg-slate-900 p-2 font-bold text-white">Gruppenschnitt</td>
+            {columns.map(([key]) => (
+              <td key={key} className="border border-white/10 bg-slate-900 p-2 text-right font-bold text-white">{pct(group[key])}</td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DriverLine({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 p-3 text-sm">
+      <span className="font-semibold text-slate-100">{label}</span>
+      <span className={value <= 0 ? "font-bold text-emerald-300" : "font-bold text-red-300"}>
+        {value > 0 ? "+" : ""}{value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %-Pkt. {value > 0 ? "über" : "unter"} Gruppe
+      </span>
+    </div>
   );
 }
 
