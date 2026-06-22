@@ -3916,12 +3916,10 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
 
   return (
     <section className="space-y-5">
-      <PageTitle title="Personal-Cockpit" text="Stufe 1: zentrale Personalsteuerung aus der hochgeladenen Personalübersicht-Arbeitsmappe." />
-      <Card className="grid gap-3 p-4 md:grid-cols-3">
-        <Mini label="Datenstand" value={new Date(personalData.importedAt).toLocaleString("de-DE")} />
-        <Mini label="Datei" value={personalData.fileName} />
-        <Mini label="Schema" value={personalData.schemaVersion} />
-      </Card>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <PageTitle title="Personal-Cockpit" text="Stufe 1: zentrale Personalsteuerung aus der hochgeladenen Personalübersicht-Arbeitsmappe." />
+        <CompactPersonalDataStatus personalData={personalData} />
+      </div>
       <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="font-bold">Zeitraumauswahl Personal-Cockpit</h2>
@@ -4176,6 +4174,17 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
         </ChartCard>
       </div>
     </section>
+  );
+}
+
+function CompactPersonalDataStatus({ personalData }: { personalData: PersonalDashboardData }) {
+  return (
+    <div className="flex shrink-0 items-center gap-2 self-start rounded-full border border-border bg-white/75 px-3 py-2 text-xs shadow-sm">
+      <Badge tone="green">Personal-Import bestätigt</Badge>
+      <span className="hidden max-w-[240px] truncate text-muted-foreground sm:inline">
+        {new Date(personalData.importedAt).toLocaleDateString("de-DE")} · {personalData.fileName}
+      </span>
+    </div>
   );
 }
 
