@@ -1176,6 +1176,32 @@ const appPageIds: Page[] = [
   "personal-upload"
 ];
 
+function pagesForRole(role: UserRole): Page[] {
+  if (role === "admin") return appPageIds;
+  return appPageIds.filter((page) => !["uploads", "admin", "personal-upload"].includes(page));
+}
+
+function navSectionsForRole(role: UserRole) {
+  const allowedPages = pagesForRole(role);
+  return navSections
+    .map((section) => {
+      const items = section.items.filter((item) => allowedPages.includes(item.id as Page));
+      if (role !== "admin" && section.id === "admin" && items.some((item) => item.id === "reports")) {
+        return {
+          ...section,
+          label: "Berichte",
+          items: items.filter((item) => item.id === "reports")
+        };
+      }
+      return { ...section, items };
+    })
+    .filter((section) => section.items.length > 0);
+}
+
+function defaultPageForRole(role: UserRole): Page {
+  return pagesForRole(role).includes("cockpit") ? "cockpit" : pagesForRole(role)[0] ?? "cockpit";
+}
+
 function storedPage(): Page {
   if (typeof window === "undefined") return "cockpit";
   const savedPage = window.localStorage.getItem(activePageStorageKey) as Page | null;
@@ -2591,22 +2617,18 @@ export default function HomePage() {
   const dashboardSites = useMemo(() => sortSitesByContractStart(importedData?.sites ?? []), [importedData?.sites]);
   const dashboardMonthly = importedData?.monthly ?? [];
   const isAdmin = userRole === "admin";
-  const adminOnlyPages: Page[] = ["uploads", "admin", "personal-upload"];
+  const allowedPages = useMemo(() => pagesForRole(userRole), [userRole]);
   const personalPages: Page[] = ["personal-cockpit", "personal-krankheit", "personal-mitarbeiter", "personal-massnahmen", "personal-upload"];
   const personalContentPages = personalPages.filter((item) => item !== "personal-upload") as Page[];
-  const visibleMobileNav = mobileNav.filter((item) => isAdmin || !adminOnlyPages.includes(item.id as Page));
+  const visibleMobileNav = mobileNav.filter((item) => allowedPages.includes(item.id as Page));
   const [openNavSections, setOpenNavSections] = useState<Record<string, boolean>>({
     management: true,
     finance: true,
     personal: false,
     admin: false
   });
-  const visibleNavSections = navSections
-    .map((section) => ({
-      ...section,
-      items: section.items.filter((item) => isAdmin || !adminOnlyPages.includes(item.id as Page))
-    }))
-    .filter((section) => section.items.length > 0);
+  const visibleNavSections = useMemo(() => navSectionsForRole(userRole), [userRole]);
+  const visibleQuickNav = quickNav.filter((item) => allowedPages.includes(item.id as Page));
 
   const selected = useMemo(
     () => dashboardSites.find((site) => site.id === selectedSite) ?? dashboardSites[0] ?? standorte[0],
@@ -2623,10 +2645,10 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (!isAdmin && adminOnlyPages.includes(page)) {
-      setPage("cockpit");
+    if (!allowedPages.includes(page)) {
+      setPage(defaultPageForRole(userRole));
     }
-  }, [isAdmin, page]);
+  }, [allowedPages, page, userRole]);
 
   useEffect(() => {
     const activeSection = navSections.find((section) =>
@@ -2689,6 +2711,10 @@ export default function HomePage() {
   }
 
   const go = (target: Page) => {
+    if (!allowedPages.includes(target)) {
+      setMenuOpen(false);
+      return;
+    }
     if (target !== page) {
       setPreviousPage(page);
     }
@@ -2792,6 +2818,7 @@ export default function HomePage() {
             previousPage={previousPage}
             onBack={() => go(previousPage ?? "cockpit")}
             onGo={go}
+            quickNavItems={visibleQuickNav}
           />
           {requiresImport && !importedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
           {requiresPersonalImport && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
@@ -3579,12 +3606,14 @@ function NavigationControls({
   page,
   previousPage,
   onBack,
-  onGo
+  onGo,
+  quickNavItems
 }: {
   page: Page;
   previousPage: Page | null;
   onBack: () => void;
   onGo: (page: Page) => void;
+  quickNavItems: typeof quickNav[number][];
 }) {
   return (
     <div className="mb-5 flex flex-col gap-2 rounded-lg border border-border bg-white/86 p-2 shadow-sm sm:flex-row sm:items-center sm:justify-between">
@@ -3600,7 +3629,7 @@ function NavigationControls({
         Zurück
       </button>
       <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
-        {quickNav.map((item) => (
+        {quickNavItems.map((item) => (
           <button
             key={item.id}
             className={cn(
