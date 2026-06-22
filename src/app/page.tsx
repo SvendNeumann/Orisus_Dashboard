@@ -638,6 +638,18 @@ async function refreshSupabaseSession() {
   return rememberSupabaseSession(session, currentUserEmail(), false) ? session : null;
 }
 
+async function activeSupabaseAccessToken(forceRefresh = false) {
+  if (forceRefresh) {
+    const refreshed = await refreshSupabaseSession();
+    return refreshed?.access_token ?? currentSupabaseAccessToken();
+  }
+
+  const token = currentSupabaseAccessToken();
+  if (token) return token;
+  const refreshed = await refreshSupabaseSession();
+  return refreshed?.access_token ?? "";
+}
+
 async function signInSupabaseUser(identifier: string, password: string) {
   const authEmail = authEmailForLoginIdentifier(identifier);
   const loginResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
@@ -898,8 +910,8 @@ async function clearSupabaseConfirmedImport() {
   ).catch(() => undefined);
 }
 
-async function accessUsersApi<T>(method = "GET", body?: unknown): Promise<T> {
-  const token = currentSupabaseAccessToken();
+async function accessUsersApi<T>(method = "GET", body?: unknown, retriedAfterRefresh = false): Promise<T> {
+  const token = await activeSupabaseAccessToken(retriedAfterRefresh);
   const response = await fetch("/api/access-users", {
     method,
     headers: {
@@ -908,6 +920,9 @@ async function accessUsersApi<T>(method = "GET", body?: unknown): Promise<T> {
     },
     body: body ? JSON.stringify(body) : undefined
   });
+  if ((response.status === 401 || response.status === 403) && !retriedAfterRefresh) {
+    return accessUsersApi<T>(method, body, true);
+  }
   if (!response.ok) {
     const data = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Zugangsverwaltung konnte nicht aktualisiert werden.");
