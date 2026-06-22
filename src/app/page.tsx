@@ -3803,6 +3803,26 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
     const intensity = Math.max(0.15, Math.min(value / maxRelativeMonth, 1));
     return `rgba(15, 118, 110, ${0.12 + intensity * 0.34})`;
   };
+  const daysInSelectedYear = new Date(selectedYear, 1, 29).getMonth() === 1 ? 366 : 365;
+  const topSickEmployees = Array.from(
+    personalData.sicknessEntries
+      .filter((entry) => entry.year === selectedYear)
+      .reduce((map, entry) => {
+        const key = entry.employeeId || `${entry.employeeName}-${entry.site}`;
+        const existing = map.get(key) ?? {
+          employee: entry.employeeName || entry.employeeId || "Unbekannt",
+          site: entry.site,
+          days: 0
+        };
+        existing.days += entry.days;
+        if (!existing.site && entry.site) existing.site = entry.site;
+        map.set(key, existing);
+        return map;
+      }, new Map<string, { employee: string; site: string; days: number }>())
+      .values()
+  )
+    .sort((a, b) => b.days - a.days)
+    .slice(0, 10);
 
   return (
     <section className="space-y-5">
@@ -3862,6 +3882,45 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
             ))}
           </tbody>
         </ResponsiveTable>
+      </Card>
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Top 10 kranke Mitarbeiter | {selectedYear}</h2>
+        </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <TableHead>Rang</TableHead>
+              <TableHead>Mitarbeiter</TableHead>
+              <TableHead>Standort</TableHead>
+              <TableHead>Krankheitstage</TableHead>
+              <TableHead>Anteil Jahr</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {topSickEmployees.map((row, index) => (
+              <tr key={`${row.employee}-${row.site}`}>
+                <TableCell strong>{index + 1}</TableCell>
+                <TableCell strong>{row.employee}</TableCell>
+                <TableCell>{row.site}</TableCell>
+                <TableCell>{formatOneDecimal(row.days)}</TableCell>
+                <TableCell>{pct((row.days / daysInSelectedYear) * 100)}</TableCell>
+              </tr>
+            ))}
+            {!topSickEmployees.length && (
+              <tr>
+                <TableCell strong>Keine Daten</TableCell>
+                <TableCell>{""}</TableCell>
+                <TableCell>{""}</TableCell>
+                <TableCell>{""}</TableCell>
+                <TableCell>{""}</TableCell>
+              </tr>
+            )}
+          </tbody>
+        </ResponsiveTable>
+        <p className="border-t border-border bg-slate-50 p-3 text-xs text-muted-foreground">
+          Anteil Jahr = Krankheitstage des Mitarbeiters im ausgewählten Jahr geteilt durch {daysInSelectedYear} Kalendertage.
+        </p>
       </Card>
       <Card className="overflow-hidden">
         <div className="p-4">
