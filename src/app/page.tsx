@@ -575,12 +575,12 @@ async function supabaseFetch<T>(path: string, init?: RequestInit, token?: string
   return (await response.json()) as T;
 }
 
-function rememberSupabaseSession(session: SupabaseAuthResponse, fallbackEmail: string) {
+function rememberSupabaseSession(session: SupabaseAuthResponse, fallbackEmail: string, authenticated = true) {
   if (!session.access_token) return false;
   window.localStorage.setItem(supabaseAccessTokenKey, session.access_token);
   if (session.refresh_token) window.localStorage.setItem(supabaseRefreshTokenKey, session.refresh_token);
   window.localStorage.setItem(supabaseUserEmailKey, session.user?.email ?? fallbackEmail);
-  window.localStorage.setItem(authStorageKey, "true");
+  if (authenticated) window.localStorage.setItem(authStorageKey, "true");
   return true;
 }
 
@@ -613,6 +613,22 @@ async function updateSupabaseUserPassword(password: string, token = currentSupab
 
 async function loadSupabaseAuthUser(token = currentSupabaseAccessToken()) {
   return supabaseFetch<{ email?: string }>("/auth/v1/user", undefined, token);
+}
+
+function authParamsFromCurrentUrl() {
+  const sources = [
+    window.location.search,
+    window.location.hash,
+    window.location.hash.replace(/^#\/?\??/, "?")
+  ];
+  const merged = new URLSearchParams();
+  sources.forEach((source) => {
+    const params = new URLSearchParams(source.replace(/^#/, "").replace(/^\?/, ""));
+    params.forEach((value, key) => {
+      if (!merged.has(key)) merged.set(key, value);
+    });
+  });
+  return merged;
 }
 
 async function loadAndRememberAccessProfile(email: string) {
@@ -2911,7 +2927,7 @@ function AuthFlow({
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   const [passkeyMessage, setPasskeyMessage] = useState("");
   const [isMobileDevice, setIsMobileDevice] = useState(false);
-  const [email, setEmail] = useState("svend.neumann@orisus.de");
+  const [email, setEmail] = useState(() => (typeof window === "undefined" ? "" : currentUserEmail()));
   const [password, setPassword] = useState("");
   const [loginMessage, setLoginMessage] = useState("");
   const [passwordConfigured, setPasswordConfigured] = useState(false);
@@ -2923,15 +2939,23 @@ function AuthFlow({
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const queryParams = new URLSearchParams(window.location.search);
-    const token = hashParams.get("access_token") || queryParams.get("access_token") || "";
-    const refreshToken = hashParams.get("refresh_token") || queryParams.get("refresh_token") || "";
-    const type = hashParams.get("type") || queryParams.get("type") || "";
+    const params = authParamsFromCurrentUrl();
+    const token = params.get("access_token") || "";
+    const refreshToken = params.get("refresh_token") || "";
+    const type = params.get("type") || params.get("auth") || "";
+    const urlEmail = params.get("email") || "";
+    const errorDescription = params.get("error_description") || params.get("error") || "";
+    if (urlEmail) setEmail(urlEmail);
+    if (errorDescription) {
+      setLoginMessage(`Einladungslink konnte nicht bestätigt werden: ${decodeURIComponent(errorDescription)}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
     if (!token || (type && !["invite", "recovery"].includes(type))) return;
 
     setInviteToken(token);
-    rememberSupabaseSession({ access_token: token, refresh_token: refreshToken }, email);
+    window.localStorage.removeItem(authStorageKey);
+    rememberSupabaseSession({ access_token: token, refresh_token: refreshToken }, urlEmail || email, false);
     loadSupabaseAuthUser(token)
       .then((user) => {
         if (user.email) {

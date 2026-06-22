@@ -72,7 +72,7 @@ async function sendSupabaseInvite(email: string, name: string) {
     email,
     data: { name }
   };
-  if (appUrl) body.redirect_to = appUrl;
+  if (appUrl) body.redirect_to = `${appUrl}/?auth=invite&email=${encodeURIComponent(email)}`;
 
   const response = await fetch(`${supabaseUrl}/auth/v1/invite`, {
     method: "POST",
