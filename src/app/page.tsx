@@ -1210,11 +1210,11 @@ const navSections = [
 ] as const;
 
 const mobileNav = [
-  { id: "cockpit", label: "Cockpit", icon: Home },
+  { id: "cockpit", label: "CFO Cockpit", icon: Home },
+  { id: "personal-cockpit", label: "Personal", icon: Users },
   { id: "standorte", label: "Standorte", icon: Building2 },
-  { id: "analysen", label: "Analysen", icon: BarChart3 },
-  { id: "darlehen", label: "Darlehen", icon: Landmark },
-  { id: "personal-cockpit", label: "Personal", icon: Users }
+  { id: "bwa", label: "BWA", icon: FileBarChart },
+  { id: "personal-mitarbeiter", label: "Mitarbeiter", icon: UserRound }
 ] as const;
 
 const appPageIds: Page[] = [
