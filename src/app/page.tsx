@@ -4166,6 +4166,17 @@ function DataStatusStrip({ importedData }: { importedData?: ImportedDashboardDat
 function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; monthlyData: typeof monthly }) {
   const metrics = cfoMetrics(sites, monthlyData);
   const riskLabel = metrics.kritisch.length ? metrics.kritisch.map((site) => site.name).join(", ") : "Keine roten Standorte";
+  const criticalReasons = metrics.kritisch.map((site) => {
+    const reasons = [
+      site.status === "red" ? "Ampel rot" : "",
+      site.cashflow < 0 ? `Cashflow negativ (${eur(site.cashflow)})` : "",
+      site.ebitdaMarge < 10 ? `EBITDA-Marge unter 10 % (${pct(site.ebitdaMarge)})` : "",
+      site.forderungen > site.gesamtleistung * 0.15
+        ? `Forderungen über 15 % der Gesamtleistung (${pct((site.forderungen / (site.gesamtleistung || 1)) * 100)})`
+        : ""
+    ].filter(Boolean);
+    return { site: site.name, reasons };
+  });
   const cashflowDetails = sites.reduce(
     (sum, site) => ({
       vorlaeufigesErgebnis: sum.vorlaeufigesErgebnis + (site.cashflowDetails?.vorlaeufigesErgebnis ?? 0),
@@ -4228,7 +4239,27 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       delta: riskLabel,
       icon: Building2,
       plain: true,
-      status: metrics.kritisch.length ? "yellow" : "green"
+      status: metrics.kritisch.length ? "yellow" : "green",
+      info: (
+        <div className="space-y-2">
+          <p className="font-bold text-slate-900">Warum ein Standort kritisch ist</p>
+          <p>
+            Ein Standort wird hier gezählt, wenn mindestens eine CFO-Regel greift: rote Ampel, Cashflow negativ,
+            EBITDA-Marge unter 10 % oder offene Forderungen über 15 % der Gesamtleistung.
+          </p>
+          {criticalReasons.length ? (
+            <div className="space-y-1">
+              {criticalReasons.map((row) => (
+                <p key={row.site}>
+                  <span className="font-semibold">{row.site}:</span> {row.reasons.join(", ")}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p>Aktuell greift bei keinem Standort eine dieser Regeln.</p>
+          )}
+        </div>
+      )
     },
     {
       label: "Offene Forderungen | aktueller Stand",
