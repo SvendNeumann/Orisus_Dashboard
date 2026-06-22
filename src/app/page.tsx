@@ -1013,17 +1013,17 @@ const navSections = [
     label: "Management",
     items: [
       { id: "cockpit", label: "CFO Cockpit", icon: Home },
-      { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users },
-      { id: "kennzahlen", label: "Kennzahlen / Entwicklung", icon: BarChart3 },
-      { id: "performance", label: "Orisus Performance", icon: TrendingUp },
-      { id: "standorte", label: "Standorte", icon: Building2 },
-      { id: "analysen", label: "Analysen", icon: BarChart3 }
+      { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users }
     ]
   },
   {
     id: "finance",
     label: "BWA & Finanzen",
     items: [
+      { id: "kennzahlen", label: "Kennzahlen / Entwicklung", icon: BarChart3 },
+      { id: "performance", label: "Orisus Performance", icon: TrendingUp },
+      { id: "standorte", label: "Standorte", icon: Building2 },
+      { id: "analysen", label: "Analysen", icon: BarChart3 },
       { id: "bwa", label: "BWA", icon: FileBarChart },
       { id: "cashflow", label: "Cashflow", icon: Wallet },
       { id: "darlehen", label: "Darlehen & Earn-Out", icon: Landmark },
