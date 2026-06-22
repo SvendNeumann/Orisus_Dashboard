@@ -9881,13 +9881,24 @@ function projectedEarnOutForSite(site: DashboardSite, period: string) {
   const terms = earnOutTermsForSite(site);
   const target = terms.zielEbitdaKaufvertragPa || site.darlehen.zielEbitdaKaufvertrag || site.darlehen.zielEbitda;
   if (!open || !target || !site.darlehen.earnOutFaelligAm) {
-    return { projectedEbitda: 0, projectedEarnOut: 0, achievement: 0, untergrenze: terms.untergrenze, target };
+    return {
+      projectedEbitda: 0,
+      projectedEarnOut: 0,
+      projectedGrowthPayment: 0,
+      growthFactor: terms.wachstumsfaktor || 0,
+      excessEbitda: 0,
+      achievement: 0,
+      untergrenze: terms.untergrenze,
+      target
+    };
   }
   const elapsedMonths = monthsSinceStartForPeriod(site, period);
   const averageMonthlyEbitda = site.ebitda / Math.max(elapsedMonths, 1);
   const projectedEbitda = Math.round(averageMonthlyEbitda * 12);
   const untergrenze = terms.untergrenze || 0;
   const reduktionsfaktor = terms.reduktionsfaktor || 0;
+  const growthFactor = terms.wachstumsfaktor || 0;
+  const excessEbitda = Math.max(0, projectedEbitda - target);
   const achievement = target ? projectedEbitda / target : 0;
   let projectedEarnOut = 0;
 
@@ -9904,6 +9915,9 @@ function projectedEarnOutForSite(site: DashboardSite, period: string) {
   return {
     projectedEbitda,
     projectedEarnOut: Math.round(Math.min(open, Math.max(0, projectedEarnOut))),
+    projectedGrowthPayment: Math.round(excessEbitda * growthFactor),
+    growthFactor,
+    excessEbitda,
     achievement,
     untergrenze,
     target
@@ -9948,6 +9962,17 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
                 <Mini label="Untergrenze Earn-Out" value={projectedEarnOut.untergrenze ? eur(projectedEarnOut.untergrenze, true) : "nicht hinterlegt"} />
                 <Mini label="Earn-Out fällig am" value={site.darlehen.earnOutFaelligAm || "offen"} />
                 <Mini label="Run-Rate Earn-Out" value={eur(projectedEarnOut.projectedEarnOut, true)} />
+                <Mini label="Potenzielle Wachstumszahlung" value={eur(projectedEarnOut.projectedGrowthPayment, true)} />
+                <Mini
+                  label="Wachstumslogik"
+                  value={
+                    projectedEarnOut.growthFactor
+                      ? projectedEarnOut.growthFactor < 1
+                        ? `${pct(projectedEarnOut.growthFactor * 100)} vom Mehr-EBITDA`
+                        : `${projectedEarnOut.growthFactor.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x Mehr-EBITDA`
+                      : "nicht hinterlegt"
+                  }
+                />
               </div>
               <div className="mt-4">
                 <div className="mb-2 flex justify-between text-sm">
