@@ -66,6 +66,18 @@ Rollenlogik live:
 
 - `admin`: darf CFO- und Personal-Uploads bestaetigen/zuruecksetzen, KPI-Regeln sehen/aendern und alle Bereiche nutzen.
 - `info`: darf die App lesen, aber keine Uploads bestaetigen, keine Daten zuruecksetzen und keine Regeln aendern.
+- `praxismanagement`: darf nur Krankheit/Fehlzeiten, Personalmassnahmen und Mitarbeiteruebersicht ohne Gehalts- und AG-Kosteninformationen sehen.
+
+Falls die Tabelle `public.orisus_user_roles` schon existiert, muss die Rollen-Constraint diese drei Rollen zulassen:
+
+```sql
+alter table public.orisus_user_roles
+  drop constraint if exists orisus_user_roles_role_check;
+
+alter table public.orisus_user_roles
+  add constraint orisus_user_roles_role_check
+  check (role in ('admin', 'info', 'praxismanagement'));
+```
 
 Die Schreibrechte werden nicht nur in der App-Oberflaeche, sondern ueber Supabase Row Level Security abgesichert. Die App-Zugaenge stehen in `public.orisus_user_roles`; nur aktive Nutzer duerfen Importdaten lesen, und nur Admins duerfen Importdaten schreiben, aktualisieren oder loeschen. Neue App-Nutzer werden ausschliesslich im Admin-Bereich angelegt und per Einladung aktiviert; eine Selbstregistrierung ueber die Startseite ist deaktiviert.
 

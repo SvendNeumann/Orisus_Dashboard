@@ -53,7 +53,7 @@ async function supabaseServiceFetch<T>(path: string, init?: RequestInit): Promis
   });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Supabase request failed with ${response.status}`);
+    throw new Error(readableSupabaseError(text, `Supabase request failed with ${response.status}`));
   }
   if (response.status === 204) return null as T;
   const text = await response.text();
