@@ -2631,6 +2631,7 @@ export default function HomePage() {
   const [userEmail, setUserEmail] = useState("");
   const [userDisplayName, setUserDisplayName] = useState("Svend Neumann");
   const [userRole, setUserRole] = useState<UserRole>("info");
+  const [authProfileReady, setAuthProfileReady] = useState(false);
 
   const setPage = (target: Page) => {
     setPageState(target);
@@ -2678,15 +2679,17 @@ export default function HomePage() {
       setUserEmail(currentUserEmail());
       setUserDisplayName(currentUserName());
       setUserRole(currentUserRole());
+      setAuthProfileReady(true);
       setAuthStep("app");
     }
   }, []);
 
   useEffect(() => {
+    if (authStep !== "app" || !authProfileReady) return;
     if (!allowedPages.includes(page)) {
       setPage(defaultPageForRole(userRole));
     }
-  }, [allowedPages, page, userRole]);
+  }, [allowedPages, authProfileReady, authStep, page, userRole]);
 
   useEffect(() => {
     const activeSection = navSections.find((section) =>
@@ -2728,6 +2731,7 @@ export default function HomePage() {
       setUserEmail(currentUserEmail());
       setUserDisplayName(currentUserName());
       setUserRole(currentUserRole());
+      setAuthProfileReady(true);
     }
     setAuthStep(step);
   };
@@ -2740,6 +2744,7 @@ export default function HomePage() {
     setUserEmail("");
     setUserDisplayName("Svend Neumann");
     setUserRole("info");
+    setAuthProfileReady(false);
     setMenuOpen(false);
     setAuthStep("welcome");
   };
