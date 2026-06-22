@@ -68,8 +68,8 @@ export const standorte: Standort[] = [
     vorjahrAbweichung: 4.8,
     darlehen: {
       kaufpreis: 1365000,
-      darlehen: 860000,
-      restschuld: 704000,
+      darlehen: 960000,
+      restschuld: 804000,
       tilgung: 96000,
       zins: 36000,
       earnOutGesamt: 735000,

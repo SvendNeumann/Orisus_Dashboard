@@ -205,6 +205,10 @@ const acquisitionTermsBySiteId: Record<string, AcquisitionTerms> = {
   }
 };
 
+const additionalDebtBySiteId: Record<string, number> = {
+  kirchberg: 100000
+};
+
 type ImportStatus = "idle" | "reading" | "ready" | "warning" | "error";
 
 type ImportReport = {
@@ -1494,6 +1498,10 @@ function acquisitionTermsForSite(siteName: string) {
   return acquisitionTermsBySiteId[siteIdForName(siteName)] ?? emptyAcquisitionTerms;
 }
 
+function additionalDebtForSite(siteName: string) {
+  return additionalDebtBySiteId[siteIdForName(siteName)] ?? 0;
+}
+
 function rowMetric(row: Record<string, unknown>) {
   const originalMetric = asText(row.Kennzahl);
   const rawMetric = originalMetric.startsWith("+") ? originalMetric : asText(row.Standard_Kennzahl || row.Kennzahl || row.Detailbezeichnung);
@@ -2206,13 +2214,15 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const fremdlabor = Math.abs(sumRows(siteRows, null, ["fremdlaborkosten"], ["bwa"]));
     const personal = Math.abs(sumRows(siteRows, null, ["personalkosten"], ["bwa"]));
     const forderungen = Math.round(openReceivablesSinceStart(siteName, siteRows, allSiteRows));
-    const darlehen = Math.round(
+    const additionalDebt = additionalDebtForSite(siteName);
+    const importedDarlehen = Math.round(
       preferredRowsValue(
         allSiteRows,
         [["aufgenommenes_fremdkapital"], ["davon_aufgenommenes_fremdkapital_nicht_bankwirksam"], ["darlehen*"], ["fremdkapital*"]],
         ["stammdaten", "finanzen", "darlehen"]
       )
     );
+    const darlehen = importedDarlehen + additionalDebt;
     const bwaTilgung = Math.abs(Math.round(sumRowsByCategory(siteRows, ["tilgung"], ["bwa"], ["cashflow_adjustments"])));
     const fallbackTilgung = Math.abs(
       Math.round(sumRows(allSiteRows, null, ["tilgung_kredit_zins", "davon_tilgung_zins", "tilgung"], ["finanzen", "darlehen"]))
@@ -2238,7 +2248,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
       : importedCashflow;
     const zins = Math.abs(Math.round(sumRows(siteRows, null, ["zinsen_neutraler_aufwand", "zins*", "zinsen*"], ["bwa"])));
     const explicitRestschuld = lastRowsValue(allSiteRows, null, ["restschuld", "rest_fremdkapital"], ["finanzen", "darlehen", "stammdaten"]);
-    const restschuld = Math.max(0, Math.round(explicitRestschuld || Math.max(0, darlehen - tilgung)));
+    const restschuld = Math.max(0, Math.round(explicitRestschuld ? explicitRestschuld + additionalDebt : Math.max(0, darlehen - tilgung)));
     const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0;
     const materialquote = gesamtleistung ? (material / gesamtleistung) * 100 : 0;
     const fremdlaborquote = gesamtleistung ? (fremdlabor / gesamtleistung) * 100 : 0;
