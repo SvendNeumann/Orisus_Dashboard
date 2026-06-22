@@ -9226,6 +9226,23 @@ function Analysen({
         </div>
       </div>
 
+      <div className="analysis-print-block rounded-xl border border-teal-200/20 bg-teal-400/10 p-4 text-sm leading-relaxed text-slate-200">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="font-semibold uppercase tracking-[0.18em] text-teal-200">Logik der Vergleichskacheln</p>
+            <p className="mt-2">
+              Die Werte werden als Index gegen den gewählten Vergleich berechnet. <strong>100 %</strong> entspricht dem Vergleichsniveau
+              (z. B. Gruppendurchschnitt). Werte über 100 % bedeuten bei Umsatz-, Leistungs- und EBITDA-Kennzahlen eine bessere
+              relative Performance; bei Forderungs- und Kostenquoten ist ein niedrigerer Wert besser, weil weniger Kapitalbindung
+              bzw. geringere Kostenbelastung vorliegt.
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-slate-950/35 px-3 py-2 text-xs text-slate-200 md:max-w-xs">
+            Beispiel: 118 % bei „Gesamtumsatz je Zahnarzt“ heißt 18 % über Vergleich. 85 % bei „EBITDA je Behandlungszimmer“ heißt 15 % unter Vergleich.
+          </div>
+        </div>
+      </div>
+
       <div className="analysis-print-block grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {benchmarkItems.map((item) => (
           <BenchmarkKpiCard key={item.label} {...item} />
