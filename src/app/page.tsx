@@ -3356,6 +3356,14 @@ function personalWasEmployedInYear(employee: PersonalEmployee, year: number) {
   return entryDate <= periodEnd && exitDate >= periodStart;
 }
 
+function personalWasEmployedInMonth(employee: PersonalEmployee, year: number, month: number) {
+  const periodStart = new Date(year, month - 1, 1).getTime();
+  const periodEnd = new Date(year, month, 0).getTime();
+  const entryDate = personalDateFromDisplayDate(employee.entryDate) ?? -Infinity;
+  const exitDate = personalDateFromDisplayDate(employee.exitDate) ?? Infinity;
+  return entryDate <= periodEnd && exitDate >= periodStart;
+}
+
 function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData }) {
   const yearFromDisplayDate = (value: string) => {
     const parts = value.split(".");
@@ -3772,17 +3780,22 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
   });
   const monthlyTotals = bwaMonths.map((_, index) => monthlySiteRows.reduce((sum, row) => sum + row.monthlyValues[index], 0));
   const relativeMonthlyRows = monthlySiteRows.map((row) => {
-    const activeEmployees = siteRows.find((site) => site.site === row.site)?.active ?? 0;
+    const monthlyActiveEmployees = bwaMonths.map((_, index) =>
+      personalData.employees.filter((employee) => employee.site === row.site && personalWasEmployedInMonth(employee, selectedYear, index + 1)).length
+    );
+    const activeMonths = monthlyActiveEmployees.filter((value, index) => value > 0 || row.monthlyValues[index] > 0);
+    const averageActiveEmployees = activeMonths.length ? activeMonths.reduce((sum, value) => sum + value, 0) / activeMonths.length : 0;
     return {
       ...row,
-      activeEmployees,
-      relativeValues: row.monthlyValues.map((value) => (activeEmployees ? value / activeEmployees : 0)),
-      relativeTotal: activeEmployees ? row.total / activeEmployees : 0
+      monthlyActiveEmployees,
+      activeEmployees: averageActiveEmployees,
+      relativeValues: row.monthlyValues.map((value, index) => (monthlyActiveEmployees[index] ? value / monthlyActiveEmployees[index] : 0)),
+      relativeTotal: averageActiveEmployees ? row.total / averageActiveEmployees : 0
     };
   });
   const highestRelativeRow = relativeMonthlyRows.reduce(
     (highest, row) => (row.relativeTotal > highest.relativeTotal ? row : highest),
-    { site: "", activeEmployees: 0, monthlyValues: [], relativeValues: [], total: 0, relativeTotal: 0 }
+    { site: "", activeEmployees: 0, monthlyActiveEmployees: [], monthlyValues: [], relativeValues: [], total: 0, relativeTotal: 0 }
   );
   const maxRelativeMonth = Math.max(...relativeMonthlyRows.flatMap((row) => row.relativeValues), 0);
   const relativeHeatTone = (value: number) => {
@@ -3895,7 +3908,7 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
           <thead>
             <tr>
               <TableHead>Standort</TableHead>
-              <TableHead>Aktive MA</TableHead>
+              <TableHead>Ø aktive MA</TableHead>
               {bwaMonths.map((month) => (
                 <TableHead key={month}>{month}</TableHead>
               ))}
@@ -3906,7 +3919,7 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
             {relativeMonthlyRows.map((row) => (
               <tr key={row.site}>
                 <TableCell strong>{row.site}</TableCell>
-                <TableCell>{row.activeEmployees || ""}</TableCell>
+                <TableCell>{row.activeEmployees ? formatOneDecimal(row.activeEmployees) : ""}</TableCell>
                 {row.relativeValues.map((value, index) => (
                   <td
                     key={`${row.site}-relative-${bwaMonths[index]}`}
