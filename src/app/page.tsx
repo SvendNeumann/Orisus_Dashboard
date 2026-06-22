@@ -2853,119 +2853,223 @@ function AuthFlow({
   )}`;
 
   return (
-    <main className="min-h-screen bg-[#eef3f4] px-4 py-5 sm:px-6 sm:py-8">
-      <div className="mx-auto grid max-w-7xl gap-6 lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.18fr_0.82fr]">
-        <section className="overflow-hidden rounded-xl border border-[#153547] bg-[#071927] text-white shadow-soft">
-          <div className="p-5 sm:p-7 lg:p-8">
-            <div className="w-44 rounded-md bg-white px-3 py-2 sm:w-52">
+    <main className="min-h-screen overflow-hidden bg-[#020b16] px-4 py-5 text-white sm:px-6 lg:px-8">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(48,213,200,0.18),transparent_28%),radial-gradient(circle_at_88%_42%,rgba(9,128,146,0.16),transparent_32%)]" />
+      <div className="relative mx-auto grid max-w-7xl gap-6 lg:min-h-[calc(100vh-2.5rem)] lg:grid-cols-[1.48fr_0.72fr] lg:items-center">
+        <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#03101f]/88 p-5 shadow-2xl backdrop-blur sm:p-7 lg:p-8">
+          <img
+            src="/orisus-logo.png"
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute -left-28 top-6 hidden w-[42rem] max-w-none opacity-[0.055] sm:block"
+          />
+          <div className="relative">
+            <div className="w-40 rounded-md bg-white/95 px-3 py-2 shadow-lg shadow-black/20 sm:w-48">
               <img src="/orisus-logo.png" alt="Orisus Zahnmedizin" className="h-auto w-full" />
             </div>
 
-            <div className="mt-7 max-w-3xl">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#30d5c8]">Interne Steuerungsplattform</p>
-              <h1 className="mt-4 max-w-4xl text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
-                Die zentrale Steuerungsplattform für Finanzen, Standorte und Personal der Orisus-Gruppe.
+            <div className="mx-auto mt-8 max-w-3xl text-left lg:mt-12 lg:text-center">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#30d5c8]">Interne Steuerungsplattform</p>
+              <h1 className="mt-4 text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
+                Die zentrale Steuerungsplattform
+                <span className="block text-[#30d5c8]">für die gesamte Orisus-Gruppe.</span>
               </h1>
-              <p className="mt-5 max-w-3xl text-base leading-7 text-slate-300 sm:text-lg">
-                CFO-Cockpit, BWA bis Cashflow, Bankenreporting, Darlehen, Earn-Out, Standortsteuerung,
-                Personalstruktur und Fehlzeiten auf einer konsistenten Datenbasis. Für schnelle Entscheidungen
-                in Geschäftsführung, Controlling und Management.
+              <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
+                BWA, PVS-Umsätze, EBITDA, Cashflow, Liquidität, Standorte, Darlehen, Earn-Outs und
+                Personalsteuerung auf einer Zahlenbasis.
               </p>
             </div>
 
-            <div className="hidden lg:block">
-              <LandingFeatures />
-              <LandingMockup />
+            <div className="mt-7 lg:hidden">
+              <LandingLoginCard
+                step={step}
+                email={email}
+                password={password}
+                passwordConfigured={passwordConfigured}
+                isMobileDevice={isMobileDevice}
+                passkeyBusy={passkeyBusy}
+                loginMessage={loginMessage}
+                passkeyMessage={passkeyMessage}
+                resetMailHref={resetMailHref}
+                onEmailChange={setEmail}
+                onPasswordChange={setPassword}
+                onPasswordLogin={handlePasswordLogin}
+                onPasskeyLogin={handlePasskeyLogin}
+                onForgot={() => setStep("forgot")}
+                onWelcome={() => setStep("welcome")}
+              />
             </div>
+
+            <LandingFeatures />
+            <LandingMockup />
+
+            <p className="mt-7 text-xs text-slate-500">
+              © Orisus Zahnmedizin MVZ GmbH <span className="mx-3 text-slate-700">|</span> Version 1.0
+              <span className="mx-3 text-slate-700">|</span> Internal Use Only
+            </p>
           </div>
         </section>
 
-        <aside className="flex flex-col justify-center gap-5">
-          <Card className="overflow-hidden rounded-xl border-white bg-white shadow-soft">
-            <div className="p-6 sm:p-8 lg:p-10">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e3f5f4] text-primary">
-                <Lock className="h-6 w-6" />
-              </div>
-              <p className="mt-7 text-xs font-bold uppercase tracking-[0.16em] text-primary">Geschützter Zugang</p>
-              <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-950">Orisus CFO Dashboard</h2>
-              <div className="mt-4 space-y-2 text-base leading-7 text-slate-600">
-                <p>Interne Management-Plattform für Geschäftsführung, Controlling und Personalsteuerung.</p>
-                <p>Zugriff auf CFO-Cockpit, BWA, Cashflow, Standorte, Bankenreporting, Personal-KPIs und Uploads.</p>
-              </div>
+        <aside className="hidden lg:block">
+          <LandingLoginCard
+            step={step}
+            email={email}
+            password={password}
+            passwordConfigured={passwordConfigured}
+            isMobileDevice={isMobileDevice}
+            passkeyBusy={passkeyBusy}
+            loginMessage={loginMessage}
+            passkeyMessage={passkeyMessage}
+            resetMailHref={resetMailHref}
+            onEmailChange={setEmail}
+            onPasswordChange={setPassword}
+            onPasswordLogin={handlePasswordLogin}
+            onPasskeyLogin={handlePasskeyLogin}
+            onForgot={() => setStep("forgot")}
+            onWelcome={() => setStep("welcome")}
+          />
+        </aside>
+      </div>
+    </main>
+  );
+}
 
-              <div className="mt-8 space-y-4">
+function LandingLoginCard({
+  step,
+  email,
+  password,
+  passwordConfigured,
+  isMobileDevice,
+  passkeyBusy,
+  loginMessage,
+  passkeyMessage,
+  resetMailHref,
+  onEmailChange,
+  onPasswordChange,
+  onPasswordLogin,
+  onPasskeyLogin,
+  onForgot,
+  onWelcome
+}: {
+  step: AuthStep;
+  email: string;
+  password: string;
+  passwordConfigured: boolean;
+  isMobileDevice: boolean;
+  passkeyBusy: boolean;
+  loginMessage: string;
+  passkeyMessage: string;
+  resetMailHref: string;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onPasswordLogin: () => void;
+  onPasskeyLogin: () => void;
+  onForgot: () => void;
+  onWelcome: () => void;
+}) {
+  return (
+    <Card className="overflow-hidden rounded-2xl border-white/12 bg-[#071827]/88 text-white shadow-[0_24px_80px_rgba(0,0,0,0.45),0_0_70px_rgba(48,213,200,0.08)] backdrop-blur">
+      <div className="p-6 sm:p-8 lg:p-10">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[#30d5c8]/35 bg-[#30d5c8]/10 text-[#30d5c8] shadow-[0_0_30px_rgba(48,213,200,0.13)]">
+          <Lock className="h-7 w-7" />
+        </div>
+        <p className="mt-7 text-center text-xs font-bold uppercase tracking-[0.22em] text-[#30d5c8]">Geschützter Zugang</p>
+        <h2 className="mt-4 text-center text-2xl font-bold tracking-tight text-white sm:text-3xl">Orisus CFO Dashboard</h2>
+        <div className="mx-auto mt-4 h-px w-10 bg-[#30d5c8]" />
+        <div className="mx-auto mt-6 max-w-sm space-y-4 text-center text-sm leading-6 text-slate-300">
+          <p>Interne Management-Plattform für Geschäftsführung und Controlling.</p>
+          <p>Zugriff auf CFO-Cockpit, Standortsteuerung, Finanzierungsdaten und Personalübersicht.</p>
+        </div>
+
+        <div className="mt-8 space-y-4">
           {step === "welcome" && (
             <>
-              <Input value={email} onChange={(event) => setEmail(event.target.value)} type="email" aria-label="E-Mail" />
-              <Input
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder={passwordConfigured ? "Passwort eingeben" : "Passwort beim Erst-Login festlegen"}
-                type="password"
-                aria-label="Passwort"
-              />
-              <Button className="w-full" onClick={handlePasswordLogin}>
+              <label className="block space-y-2 text-sm font-semibold text-slate-200">
+                <span>E-Mail</span>
+                <Input
+                  value={email}
+                  onChange={(event) => onEmailChange(event.target.value)}
+                  placeholder="ihre.email@orisus.de"
+                  type="email"
+                  aria-label="E-Mail"
+                  className="border-white/12 bg-[#061421] text-white placeholder:text-slate-500 focus:border-[#30d5c8] focus:ring-[#30d5c8]/10"
+                />
+              </label>
+              <label className="block space-y-2 text-sm font-semibold text-slate-200">
+                <span>Passwort</span>
+                <Input
+                  value={password}
+                  onChange={(event) => onPasswordChange(event.target.value)}
+                  placeholder={passwordConfigured ? "Ihr Passwort" : "Passwort beim Erst-Login festlegen"}
+                  type="password"
+                  aria-label="Passwort"
+                  className="border-white/12 bg-[#061421] text-white placeholder:text-slate-500 focus:border-[#30d5c8] focus:ring-[#30d5c8]/10"
+                />
+              </label>
+              <div className="flex items-center justify-between gap-3 text-xs text-slate-300">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" className="h-4 w-4 rounded border-white/20 bg-transparent accent-[#30d5c8]" />
+                  Angemeldet bleiben
+                </label>
+                <button type="button" className="font-semibold text-[#30d5c8] hover:text-white" onClick={onForgot}>
+                  Passwort vergessen?
+                </button>
+              </div>
+              <Button
+                className="h-12 w-full rounded-lg bg-gradient-to-r from-[#30d5c8] to-[#087b8c] text-white shadow-lg shadow-[#30d5c8]/15 hover:from-[#5fe1d8] hover:to-[#0a8fa1]"
+                onClick={onPasswordLogin}
+              >
                 {passwordConfigured ? "Anmelden" : "Passwort festlegen & anmelden"}
               </Button>
               {isMobileDevice && (
-                <Button className="w-full gap-2" variant="secondary" onClick={handlePasskeyLogin} disabled={passkeyBusy}>
+                <Button
+                  className="w-full gap-2 border-white/12 bg-white/5 text-white hover:bg-white/10"
+                  variant="secondary"
+                  onClick={onPasskeyLogin}
+                  disabled={passkeyBusy}
+                >
                   <Fingerprint className="h-4 w-4" />
                   {passkeyBusy ? "Face ID wird geprüft ..." : "Mit Face ID anmelden"}
                 </Button>
               )}
-              <Button className="w-full" variant="secondary" onClick={() => setStep("forgot")}>
-                Passwort vergessen
-              </Button>
-              {loginMessage && <p className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">{loginMessage}</p>}
-              {passkeyMessage && <p className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">{passkeyMessage}</p>}
+              {loginMessage && <p className="rounded-md border border-amber-400/25 bg-amber-400/10 p-3 text-sm font-semibold text-amber-100">{loginMessage}</p>}
+              {passkeyMessage && <p className="rounded-md border border-amber-400/25 bg-amber-400/10 p-3 text-sm font-semibold text-amber-100">{passkeyMessage}</p>}
             </>
           )}
           {step === "forgot" && (
-            <FormShell
-              title="Passwort zurücksetzen"
-              text="Eine Reset-Anfrage wird an den Admin gesendet."
-            >
-              <Input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
-              <Button className="w-full" onClick={() => { window.location.href = resetMailHref; }}>
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-white">Passwort zurücksetzen</h3>
+                <p className="mt-1 text-sm text-slate-400">Eine Reset-Anfrage wird an den Admin gesendet.</p>
+              </div>
+              <Input
+                value={email}
+                onChange={(event) => onEmailChange(event.target.value)}
+                placeholder="ihre.email@orisus.de"
+                type="email"
+                className="border-white/12 bg-[#061421] text-white placeholder:text-slate-500 focus:border-[#30d5c8] focus:ring-[#30d5c8]/10"
+              />
+              <Button
+                className="w-full rounded-lg bg-gradient-to-r from-[#30d5c8] to-[#087b8c] text-white hover:from-[#5fe1d8] hover:to-[#0a8fa1]"
+                onClick={() => {
+                  window.location.href = resetMailHref;
+                }}
+              >
                 Anfrage an Admin senden
               </Button>
-              <Button className="w-full" variant="ghost" onClick={() => setStep("welcome")}>
+              <Button className="w-full text-slate-200 hover:bg-white/10" variant="ghost" onClick={onWelcome}>
                 Zurück
               </Button>
-            </FormShell>
-          )}
-              </div>
             </div>
-          </Card>
+          )}
+        </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            {[
-              { title: "Sicher & intern", text: "Geschützter Zugriff für autorisierte Nutzer.", icon: ShieldCheck },
-              { title: "Rollenbasiert", text: "Admin- und Info-Zugriff mit klarer Trennung.", icon: ShieldCheck },
-              { title: "Zwei Datenbasen", text: "CFO-Import und Personal-Import sauber getrennt.", icon: CircleDollarSign },
-              { title: "Entscheidungen beschleunigen", text: "Transparenz für Finanzen, Personal und Standorte.", icon: TrendingUp }
-            ].map(({ title, text, icon: Icon }) => (
-              <div key={title} className="rounded-lg border border-border bg-white p-4 shadow-sm">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e3f5f4] text-primary">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <p className="mt-4 text-sm font-bold text-slate-950">{title}</p>
-                <p className="mt-2 text-xs leading-5 text-slate-600">{text}</p>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-center text-xs text-slate-500 lg:text-right">
-            © 2025 Orisus Zahnmedizin MVZ GmbH | Version 1.0 | Internal Use Only
-          </p>
-        </aside>
-
-        <section className="rounded-xl border border-[#153547] bg-[#071927] p-5 text-white shadow-soft lg:hidden">
-          <LandingFeatures />
-          <LandingMockup />
-        </section>
+        <div className="mt-8 flex items-center justify-center gap-2 text-xs font-semibold text-slate-400">
+          <ShieldCheck className="h-4 w-4 text-[#30d5c8]" />
+          Internal Use Only
+        </div>
       </div>
-    </main>
+    </Card>
   );
 }
 
@@ -2973,35 +3077,48 @@ function LandingFeatures() {
   const features = [
     {
       title: "CFO Cockpit",
-      text: "Liquidität, EBITDA, Cashflow, Forderungen und kritische Standorte auf einen Blick.",
-      icon: Gauge
+      text: "Konsolidierte Kennzahlen, EBITDA, Liquidität und Performance auf einen Blick.",
+      icon: TrendingUp
     },
     {
-      title: "BWA bis Cashflow",
-      text: "Vom vorläufigen Ergebnis über Adjustments bis zum Cashflow - je Standort und konsolidiert.",
-      icon: FileBarChart
+      title: "Standortsteuerung",
+      text: "Vergleich und Entwicklung aller Praxisstandorte seit Zugehörigkeit zur Gruppe.",
+      icon: Building2
     },
     {
-      title: "Banken, Board & Earn-Out",
-      text: "Kapitaldienst, Darlehen, Restschuld, Earn-Out und Board-Pack strukturiert steuerbar.",
+      title: "Cashflow & Konten",
+      text: "Praxiseingänge, Praxiskosten, Annuitäten, Umbuchungen und aktuelle Kontostände.",
+      icon: Wallet
+    },
+    {
+      title: "Darlehen & Earn-Out",
+      text: "Restschuld, Tilgung, Kaufpreise, Earn-Outs und Verpflichtungen je Standort.",
       icon: Landmark
     },
     {
-      title: "Personal & Fehlzeiten",
-      text: "Aktive Mitarbeiter, FTE, AG-Kosten, Krankheitstage und Maßnahmen aus dem Personal-Upload.",
-      icon: Building2
+      title: "Personal",
+      text: "Mitarbeiterstatus, Gehaltsentwicklung, Maßnahmen und Personalstruktur.",
+      icon: Users
+    },
+    {
+      title: "Krankheit / Fehlzeiten",
+      text: "Krankheitstage, Fehlzeitenentwicklung und Standortvergleich.",
+      icon: Stethoscope
     }
   ];
 
   return (
-    <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
       {features.map(({ title, text, icon: Icon }) => (
-        <div key={title} className="rounded-lg border border-white/12 bg-white/[0.04] p-4 shadow-sm backdrop-blur">
-          <div className="flex h-11 w-11 items-center justify-center rounded-md border border-[#30d5c8]/45 bg-[#30d5c8]/10 text-[#30d5c8]">
+        <div
+          key={title}
+          className="rounded-xl border border-white/10 bg-white/[0.045] p-4 text-center shadow-sm backdrop-blur transition hover:border-[#30d5c8]/35 hover:bg-white/[0.075]"
+        >
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-lg border border-[#30d5c8]/35 bg-[#30d5c8]/10 text-[#30d5c8]">
             <Icon className="h-5 w-5" />
           </div>
-          <p className="mt-4 font-bold text-white">{title}</p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
+          <p className="mt-4 text-sm font-bold text-white">{title}</p>
+          <p className="mt-2 text-xs leading-5 text-slate-300">{text}</p>
         </div>
       ))}
     </div>
@@ -3009,119 +3126,69 @@ function LandingFeatures() {
 }
 
 function LandingMockup() {
-  const sideItems = ["CFO Cockpit", "BWA & Finanzen", "Personal-Cockpit", "Krankheit", "Darlehen & Earn-Out", "Uploads", "Reports"];
   const kpis = [
-    ["Gesamtleistung (BWA)", "24,58 Mio. EUR"],
-    ["PVS-Umsatz", "22,14 Mio. EUR"],
-    ["EBITDA", "5,23 Mio. EUR"],
-    ["Aktive MA", "119"],
-    ["Cashflow", "3,12 Mio. EUR"],
-    ["FTE gesamt", "83,8"]
+    ["Gesamtleistung BWA", "24,78 Mio. €", "+ 12,0 % zum Vormonat", "green"],
+    ["Gesamtumsatz PVS", "22,35 Mio. €", "+ 8,7 % zum Vormonat", "green"],
+    ["EBITDA", "5,25 Mio. €", "+ 10,3 % zum Vormonat", "green"],
+    ["Cashflow", "2,31 Mio. €", "+ 18,0 % zum Vormonat", "green"],
+    ["Kontostand", "4,62 Mio. €", "+ 6,0 % zum Vormonat", "green"],
+    ["Offene Forderungen", "1,12 Mio. €", "- 4,2 % zum Vormonat", "green"],
+    ["Aktive Mitarbeiter", "156", "+ 6 zum Vormonat", "green"],
+    ["Krankheitstage", "612", "+ 32 zum Vormonat", "red"]
   ];
-  const bars = [42, 52, 48, 64, 72, 84];
+  const lineA = [33, 41, 47, 52, 61, 66, 72, 79];
+  const lineB = [21, 25, 31, 36, 43, 50, 57, 63];
   const siteBars = [
-    ["Kirchberg", 92],
-    ["Essen", 78],
-    ["Kehl", 63],
-    ["Ulmet", 55],
-    ["Kassel", 36]
+    ["Kirchberg", 68],
+    ["Essen", 61],
+    ["Kassel", 77],
+    ["Ulm", 76],
+    ["Hüttenberg", 69],
+    ["Berlin", 84],
+    ["Leipzig", 82]
   ];
 
   return (
-    <div className="mt-6 overflow-hidden rounded-xl border border-[#30d5c8]/25 bg-[#061521] shadow-2xl">
-      <div className="grid lg:grid-cols-[164px_1fr]">
-        <div className="border-b border-white/10 bg-[#04111d] p-4 lg:border-b-0 lg:border-r">
-          <img src="/orisus-logo.png" alt="Orisus Zahnmedizin" className="w-28 rounded bg-white px-2 py-1" />
-          <div className="mt-5 space-y-1.5">
-            {sideItems.map((item, index) => (
-              <div
-                key={item}
-                className={cn(
-                  "rounded-md px-3 py-2 text-xs font-semibold",
-                  index === 0 ? "bg-white/10 text-white" : "text-slate-400"
-                )}
-              >
-                {item}
+    <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-2xl shadow-black/25 backdrop-blur">
+      <p className="text-sm font-bold text-white">Dashboard Vorschau</p>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {kpis.map(([label, value, trend, tone]) => (
+          <div key={label} className="rounded-lg border border-white/8 bg-[#071827]/86 p-3">
+            <p className="text-[10px] font-bold uppercase text-slate-500">{label}</p>
+            <p className="mt-2 text-base font-bold text-white">{value}</p>
+            <p className={cn("mt-1 text-[10px] font-semibold", tone === "red" ? "text-red-300" : "text-[#30d5c8]")}>{trend}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-white/8 bg-[#071827]/86 p-4">
+          <p className="text-sm font-bold text-white">EBITDA vs. Gesamtleistung</p>
+          <div className="mt-4 grid h-40 grid-cols-8 items-end gap-2 border-b border-l border-white/10 px-2 pb-3">
+            {lineA.map((value, index) => (
+              <div key={index} className="relative flex h-full items-end">
+                <span className="w-full rounded-t bg-gradient-to-t from-[#0d7b86] to-[#30d5c8]/85" style={{ height: `${value}%` }} />
+                <span
+                  className="absolute left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-[#76e6df]"
+                  style={{ bottom: `${lineB[index]}%` }}
+                />
               </div>
             ))}
           </div>
-          <div className="mt-6 text-xs text-slate-500">
-            <p>Datenstand</p>
-            <p className="mt-1 text-slate-300">20.06.2025</p>
+          <div className="mt-3 flex gap-4 text-[11px] text-slate-400">
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#30d5c8]" /> Gesamtleistung</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#76e6df]" /> EBITDA</span>
           </div>
         </div>
 
-        <div className="p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="font-bold text-white">Orisus Management Cockpit</h2>
-            <div className="flex gap-2 text-[11px] text-slate-300">
-              <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5">Zeitraum: YTD 2025</span>
-              <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5">Vergleich: Ist</span>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
-            {kpis.map(([label, value]) => (
-              <div key={label} className="rounded-md bg-white p-3 text-slate-950">
-                <p className="text-[10px] font-bold uppercase text-slate-500">{label}</p>
-                <p className="mt-2 text-sm font-bold">{value}</p>
-                <p className="mt-1 text-[10px] font-semibold text-emerald-700">+ 4,2 %</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 grid gap-3 lg:grid-cols-3">
-            <div className="rounded-lg bg-white p-3 text-slate-950">
-              <p className="text-xs font-bold">EBITDA vs. Gesamtleistung</p>
-              <div className="mt-4 flex h-28 items-end gap-2">
-                {bars.map((bar, index) => (
-                  <div key={index} className="flex flex-1 items-end gap-1">
-                    <span className="w-1/2 rounded-t bg-primary" style={{ height: `${bar}%` }} />
-                    <span className="w-1/2 rounded-t bg-[#30d5c8]" style={{ height: `${Math.max(18, bar * 0.45)}%` }} />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-white p-3 text-slate-950">
-              <p className="text-xs font-bold">Standortampel & EBITDA</p>
-              <div className="mt-4 space-y-3">
-                {siteBars.map(([site, value], index) => (
-                  <div key={site} className="grid grid-cols-[72px_1fr_8px] items-center gap-2 text-[11px]">
-                    <span>{site}</span>
-                    <span className="h-2 rounded-full bg-slate-100">
-                      <span className="block h-2 rounded-full bg-primary" style={{ width: `${value}%` }} />
-                    </span>
-                    <span className={cn("h-2 w-2 rounded-full", index < 3 ? "bg-emerald-500" : "bg-amber-500")} />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-white p-3 text-slate-950">
-              <p className="text-xs font-bold">Cashflow & Personaltrend</p>
-              <div className="mt-4 flex h-28 items-end gap-1.5">
-                {[32, 58, 44, 64, 38, 82, 54, 72].map((value, index) => (
-                  <span
-                    key={index}
-                    className={cn("flex-1 rounded-t", index % 3 === 0 ? "bg-red-400" : "bg-[#30d5c8]")}
-                    style={{ height: `${value}%` }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 grid gap-2 rounded-lg border border-white/10 bg-white/5 p-3 text-white sm:grid-cols-4">
-            {[
-              ["6", "Standorte"],
-              ["360°", "Transparenz"],
-              ["2", "Importstrecken"],
-              ["Admin", "Rollensteuerung"]
-            ].map(([value, label]) => (
-              <div key={label} className="text-center">
-                <p className="text-xl font-bold">{value}</p>
-                <p className="text-xs text-slate-300">{label}</p>
+        <div className="rounded-xl border border-white/8 bg-[#071827]/86 p-4">
+          <p className="text-sm font-bold text-white">Standortvergleich EBITDA</p>
+          <div className="mt-4 flex h-40 items-end gap-2 border-b border-l border-white/10 px-2 pb-3">
+            {siteBars.map(([site, value]) => (
+              <div key={site} className="flex flex-1 flex-col items-center gap-2">
+                <span className="w-full rounded-t bg-gradient-to-t from-[#108493] to-[#42ded4]" style={{ height: `${value}%` }} />
+                <span className="max-w-12 truncate text-[10px] text-slate-400">{site}</span>
               </div>
             ))}
           </div>
