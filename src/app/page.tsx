@@ -5127,14 +5127,55 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       value: metrics.ebitda,
       delta: `${pct(metrics.ebitdaMarge)} Marge | Run-Rate ${eur(metrics.runRateEbitda, true)}`,
       icon: Banknote,
-      status: metrics.ebitdaMarge >= 12 ? "green" : "yellow"
+      status: metrics.ebitdaMarge >= 12 ? "green" : "yellow",
+      info: (
+        <div className="space-y-1">
+          <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
+          {sortSitesByContractStart(sites).map((site) => (
+            <InfoLine key={site.id} label={site.name} value={site.ebitda} />
+          ))}
+          <div className="mt-2 border-t border-border pt-2">
+            <InfoLine label="= EBITDA gesamt" value={metrics.ebitda} strong />
+            <InfoLine label="Gesamtleistung" value={metrics.gesamtleistung} />
+            <p className="mt-1 text-slate-700">
+              EBITDA-Marge: <span className="font-bold">{pct(metrics.ebitdaMarge)}</span>
+            </p>
+            <p className="text-slate-700">
+              Run-Rate: <span className="font-bold">{eur(metrics.runRateEbitda)}</span>
+            </p>
+          </div>
+        </div>
+      )
     },
     {
       label: "Fremdkapital | seit Vertragsstart",
       value: Math.max(0, metrics.aufgenommen - metrics.tilgung),
       delta: `${eur(metrics.aufgenommen, true)} aufgenommen | ${eur(metrics.tilgung, true)} getilgt`,
       icon: Landmark,
-      status: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow"
+      status: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow",
+      info: (
+        <div className="space-y-2">
+          <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
+          <div className="space-y-1">
+            {sortSitesByContractStart(sites).map((site) => (
+              <div key={site.id} className="rounded border border-border bg-white/70 p-2 text-left">
+                <p className="font-semibold text-slate-900">{site.name}</p>
+                <InfoLine label="Aufgenommen" value={site.darlehen.darlehen} />
+                <InfoLine label="- Tilgung" value={-site.darlehen.tilgung} />
+                <InfoLine label="= Restschuld" value={site.darlehen.restschuld} strong />
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 border-t border-border pt-2">
+            <InfoLine label="Aufgenommen gesamt" value={metrics.aufgenommen} />
+            <InfoLine label="- Getilgt gesamt" value={-metrics.tilgung} />
+            <InfoLine label="= Offenes Fremdkapital" value={Math.max(0, metrics.aufgenommen - metrics.tilgung)} strong />
+            <p className="mt-1 text-slate-700">
+              Kapitaldienstfähigkeit: <span className="font-bold">{metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x</span>
+            </p>
+          </div>
+        </div>
+      )
     },
     {
       label: "Kritische Standorte | aktueller Stand",
