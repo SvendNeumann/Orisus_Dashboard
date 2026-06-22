@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-type AccessRole = "admin" | "info";
+type AccessRole = "admin" | "info" | "praxismanagement";
 
 type AccessUserPayload = {
   email?: string;
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json().catch(() => ({}))) as AccessUserPayload;
     const email = normalizeEmail(body.email ?? "");
     const name = (body.name ?? "").trim();
-    const role = body.role === "admin" ? "admin" : "info";
+    const role = body.role === "admin" || body.role === "praxismanagement" ? body.role : "info";
 
     if (!email || !email.includes("@")) return jsonError("Bitte eine gültige E-Mail-Adresse eingeben.");
     if (!name) return jsonError("Bitte einen Namen eingeben.");
@@ -213,7 +213,7 @@ export async function PATCH(request: NextRequest) {
 
     const update: Record<string, string | boolean> = { updated_at: new Date().toISOString() };
     if (typeof body.name === "string") update.name = body.name.trim();
-    if (body.role === "admin" || body.role === "info") update.role = body.role;
+    if (body.role === "admin" || body.role === "info" || body.role === "praxismanagement") update.role = body.role;
     if (typeof body.active === "boolean") update.active = body.active;
 
     await supabaseServiceFetch(`/rest/v1/orisus_user_roles?email=eq.${encodeURIComponent(email)}`, {

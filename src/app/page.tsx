@@ -91,7 +91,7 @@ type Page =
   | "personal-upload";
 
 type AuthStep = "welcome" | "forgot" | "set-password" | "app";
-type UserRole = "admin" | "info";
+type UserRole = "admin" | "info" | "praxismanagement";
 type AccessUser = {
   email: string;
   name: string | null;
@@ -522,6 +522,12 @@ function roleForEmail(email: string | null | undefined): UserRole {
   return adminEmails.includes(normalizedEmail) ? "admin" : "info";
 }
 
+function roleLabel(role: UserRole) {
+  if (role === "admin") return "Admin";
+  if (role === "praxismanagement") return "Praxismanagement";
+  return "Info";
+}
+
 function isPermanentAdminEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase() === permanentAdminEmail;
 }
@@ -534,7 +540,7 @@ function currentUserEmail() {
 function currentUserRole() {
   if (typeof window === "undefined") return "info";
   const storedRole = window.localStorage.getItem(supabaseUserRoleKey);
-  return storedRole === "admin" || storedRole === "info" ? storedRole : roleForEmail(currentUserEmail());
+  return storedRole === "admin" || storedRole === "info" || storedRole === "praxismanagement" ? storedRole : roleForEmail(currentUserEmail());
 }
 
 function currentUserName() {
@@ -643,7 +649,7 @@ async function loadAndRememberAccessProfile(email: string) {
     `/rest/v1/orisus_user_roles?select=email,name,role,active&email=eq.${encodeURIComponent(normalizedEmail)}&active=eq.true&limit=1`
   );
   const profile = rows[0];
-  if (!profile || (profile.role !== "admin" && profile.role !== "info")) {
+  if (!profile || (profile.role !== "admin" && profile.role !== "info" && profile.role !== "praxismanagement")) {
     window.localStorage.removeItem(supabaseUserRoleKey);
     window.localStorage.removeItem(supabaseUserNameKey);
     return false;
@@ -1192,8 +1198,11 @@ const appPageIds: Page[] = [
   "personal-upload"
 ];
 
+const praxisManagementPages: Page[] = ["personal-krankheit", "personal-mitarbeiter", "personal-massnahmen"];
+
 function pagesForRole(role: UserRole): Page[] {
   if (role === "admin") return appPageIds;
+  if (role === "praxismanagement") return praxisManagementPages;
   return appPageIds.filter((page) => !["uploads", "admin", "personal-upload"].includes(page));
 }
 
@@ -1215,7 +1224,20 @@ function navSectionsForRole(role: UserRole) {
 }
 
 function defaultPageForRole(role: UserRole): Page {
+  if (role === "praxismanagement") return "personal-mitarbeiter";
   return pagesForRole(role).includes("cockpit") ? "cockpit" : pagesForRole(role)[0] ?? "cockpit";
+}
+
+function mobileNavForRole(role: UserRole) {
+  if (role === "praxismanagement") {
+    return [
+      { id: "personal-mitarbeiter", label: "Mitarbeiter", icon: UserRound },
+      { id: "personal-krankheit", label: "Krankheit", icon: Stethoscope },
+      { id: "personal-massnahmen", label: "Maßnahmen", icon: CheckCircle2 }
+    ] as const;
+  }
+  const allowedPages = pagesForRole(role);
+  return mobileNav.filter((item) => allowedPages.includes(item.id as Page));
 }
 
 function storedPage(): Page {
@@ -2636,7 +2658,7 @@ export default function HomePage() {
   const allowedPages = useMemo(() => pagesForRole(userRole), [userRole]);
   const personalPages: Page[] = ["personal-cockpit", "personal-krankheit", "personal-mitarbeiter", "personal-massnahmen", "personal-upload"];
   const personalContentPages = personalPages.filter((item) => item !== "personal-upload") as Page[];
-  const visibleMobileNav = mobileNav.filter((item) => allowedPages.includes(item.id as Page));
+  const visibleMobileNav = useMemo(() => mobileNavForRole(userRole), [userRole]);
   const [openNavSections, setOpenNavSections] = useState<Record<string, boolean>>({
     management: true,
     finance: true,
@@ -2744,7 +2766,7 @@ export default function HomePage() {
     <div className="min-h-screen lg:flex">
       <aside className="fixed left-0 top-0 z-30 hidden h-screen w-72 flex-col border-r border-border bg-white/92 px-5 py-6 backdrop-blur lg:flex">
         <div className="shrink-0">
-          <Brand onClick={() => go("cockpit")} />
+          <Brand onClick={() => go(defaultPageForRole(userRole))} />
         </div>
         <nav className="mt-8 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1">
           {visibleNavSections.map((section) => (
@@ -2761,7 +2783,7 @@ export default function HomePage() {
         <div className="shrink-0 rounded-lg border border-border bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Nutzer</p>
           <p className="mt-1 font-semibold">{userDisplayName}</p>
-          <p className="text-sm text-muted-foreground">{isAdmin ? "Admin-Zugang" : "Info-Zugang"}</p>
+          <p className="text-sm text-muted-foreground">{roleLabel(userRole)}-Zugang</p>
           <Button className="mt-4 w-full gap-2" variant="secondary" onClick={reloadCurrentPage}>
             <RefreshCw className="h-4 w-4" />
             Neu laden
@@ -2774,7 +2796,7 @@ export default function HomePage() {
 
       <header className="sticky top-0 z-20 border-b border-border bg-white/88 px-4 py-3 backdrop-blur lg:hidden">
         <div className="flex items-center justify-between">
-          <Brand compact onClick={() => go("cockpit")} />
+          <Brand compact onClick={() => go(defaultPageForRole(userRole))} />
           <button
             aria-label="Menü öffnen"
             className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-white"
@@ -2789,7 +2811,7 @@ export default function HomePage() {
         <div className="fixed inset-0 z-40 bg-slate-950/35 lg:hidden">
           <div className="ml-auto flex h-dvh max-h-dvh w-80 max-w-[86vw] flex-col overflow-hidden bg-white p-5 shadow-soft">
             <div className="shrink-0 flex items-center justify-between">
-              <Brand compact onClick={() => go("cockpit")} />
+              <Brand compact onClick={() => go(defaultPageForRole(userRole))} />
               <button
                 aria-label="Menü schließen"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border"
@@ -2866,7 +2888,7 @@ export default function HomePage() {
           )}
           {personalData && page === "personal-cockpit" && <PersonalCockpit personalData={personalData} />}
           {personalData && page === "personal-krankheit" && <PersonalSickness personalData={personalData} />}
-          {personalData && page === "personal-mitarbeiter" && <PersonalEmployees personalData={personalData} />}
+          {personalData && page === "personal-mitarbeiter" && <PersonalEmployees personalData={personalData} userRole={userRole} />}
           {personalData && page === "personal-massnahmen" && <PersonalActions personalData={personalData} />}
           {page === "personal-upload" && isAdmin && (
             <PersonalUpload
@@ -2881,7 +2903,12 @@ export default function HomePage() {
       </main>
 
       <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-white/95 px-2 pt-2 backdrop-blur lg:hidden">
-        <div className={cn("grid gap-1", visibleMobileNav.length === 5 ? "grid-cols-5" : "grid-cols-4")}>
+        <div
+          className={cn(
+            "grid gap-1",
+            visibleMobileNav.length === 5 ? "grid-cols-5" : visibleMobileNav.length === 3 ? "grid-cols-3" : "grid-cols-4"
+          )}
+        >
           {visibleMobileNav.map((item) => (
             <button
               key={item.id}
@@ -4407,10 +4434,17 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
   );
 }
 
-function PersonalEmployees({ personalData }: { personalData: PersonalDashboardData }) {
+type PersonalEmployeeColumn = {
+  label: string;
+  sensitive?: boolean;
+  render: (employee: PersonalEmployee) => string | number;
+};
+
+function PersonalEmployees({ personalData, userRole }: { personalData: PersonalDashboardData; userRole: UserRole }) {
   const [site, setSite] = useState("Alle Standorte");
   const [status, setStatus] = useState("Alle Status");
   const [search, setSearch] = useState("");
+  const canSeeCompensation = userRole !== "praxismanagement";
   const normalizedSearch = search.trim().toLowerCase();
   const activeEmployees = personalData.employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
   const rows = personalData.employees.filter((employee) => {
@@ -4422,9 +4456,68 @@ function PersonalEmployees({ personalData }: { personalData: PersonalDashboardDa
     const searchMatch = !normalizedSearch || searchable.includes(normalizedSearch);
     return siteMatch && statusMatch && searchMatch;
   });
+  const employeeColumns: PersonalEmployeeColumn[] = [
+    { label: "Mitarbeiter", render: (employee) => employee.name || employee.id },
+    { label: "Standort", render: (employee) => employee.site },
+    { label: "Status", render: (employee) => employee.status },
+    { label: "Funktion", render: (employee) => employee.functionName },
+    { label: "Bereich", render: (employee) => employee.area },
+    { label: "Eintritt", render: (employee) => employee.entryDate },
+    { label: "Wochenstunden", render: (employee) => employee.weeklyHours.toLocaleString("de-DE", { maximumFractionDigits: 1 }) },
+    { label: "Fixgehalt", sensitive: true, render: (employee) => (employee.fixedSalary ? eur(employee.fixedSalary) : "") },
+    { label: "Stundenlohn Fixgehalt", sensitive: true, render: (employee) => (employee.hourlyWage ? eur(employee.hourlyWage) : "") },
+    { label: "AG-Aufwand", sensitive: true, render: (employee) => (employee.employerCost ? eur(employee.employerCost) : "") },
+    { label: "Bemerkungen", render: (employee) => employee.note }
+  ];
+  const visibleColumns = employeeColumns.filter((column) => canSeeCompensation || !column.sensitive);
+  const exportTitle = `Mitarbeiterübersicht - ${site} - ${status}${search ? ` - Suche: ${search}` : ""}`;
+  const exportDescription = `Export der aktuell gefilterten Ansicht. Zeilen: ${rows.length}. Rolle: ${roleLabel(userRole)}.`;
+  const printEmployeeList = () => {
+    window.setTimeout(() => window.print(), 50);
+  };
 
   return (
     <section className="space-y-5">
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 12mm;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #employee-export-pdf,
+          #employee-export-pdf * {
+            visibility: visible !important;
+          }
+          #employee-export-pdf {
+            display: block !important;
+            position: absolute;
+            inset: 0 auto auto 0;
+            width: 100%;
+            padding: 0;
+            background: white;
+            color: #0f172a;
+          }
+          #employee-export-pdf table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+          }
+          #employee-export-pdf th {
+            background: #0f6f82;
+            color: white;
+            text-align: left;
+          }
+          #employee-export-pdf th,
+          #employee-export-pdf td {
+            border: 1px solid #d7dee8;
+            padding: 6px;
+            vertical-align: top;
+          }
+        }
+      `}</style>
       <PageTitle title="Mitarbeiterübersicht" text="Stammdaten, Beschäftigungsart, Funktion und Vergütungsdaten aus Input_Mitarbeiter." />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Aktive Mitarbeiter" value={activeEmployees.length} plain delta="nur Status Aktiv" icon={Users} status="green" />
@@ -4436,13 +4529,15 @@ function PersonalEmployees({ personalData }: { personalData: PersonalDashboardDa
           icon={Gauge}
           status="green"
         />
-        <KpiCard
-          label="AG-Aufwand aktiv"
-          value={activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0)}
-          delta="monatlich laut Import"
-          icon={BadgeEuro}
-          status="yellow"
-        />
+        {canSeeCompensation && (
+          <KpiCard
+            label="AG-Aufwand aktiv"
+            value={activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0)}
+            delta="monatlich laut Import"
+            icon={BadgeEuro}
+            status="yellow"
+          />
+        )}
         <KpiCard label="Gefilterte Zeilen" value={rows.length} plain delta="aktuelle Tabellenansicht" icon={UserRound} status="green" />
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -4459,43 +4554,56 @@ function PersonalEmployees({ personalData }: { personalData: PersonalDashboardDa
           <option>Alle Status</option>
           {personalData.settings.statuses.map((item) => <option key={item}>{item}</option>)}
         </Select>
+        <Button className="gap-2" variant="secondary" onClick={printEmployeeList}>
+          <FileBarChart className="h-4 w-4" />
+          PDF exportieren
+        </Button>
       </div>
       <Card className="overflow-hidden">
         <ResponsiveTable>
           <thead>
             <tr>
-              <TableHead>Mitarbeiter</TableHead>
-              <TableHead>Standort</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Funktion</TableHead>
-              <TableHead>Bereich</TableHead>
-              <TableHead>Eintritt</TableHead>
-              <TableHead>Wochenstunden</TableHead>
-              <TableHead>Fixgehalt</TableHead>
-              <TableHead>Stundenlohn Fixgehalt</TableHead>
-              <TableHead>AG-Aufwand</TableHead>
-              <TableHead>Bemerkungen</TableHead>
+              {visibleColumns.map((column) => (
+                <TableHead key={column.label}>{column.label}</TableHead>
+              ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((employee) => (
               <tr key={employee.id}>
-                <TableCell strong>{employee.name || employee.id}</TableCell>
-                <TableCell>{employee.site}</TableCell>
-                <TableCell>{employee.status}</TableCell>
-                <TableCell>{employee.functionName}</TableCell>
-                <TableCell>{employee.area}</TableCell>
-                <TableCell>{employee.entryDate}</TableCell>
-                <TableCell>{employee.weeklyHours.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
-                <TableCell>{employee.fixedSalary ? eur(employee.fixedSalary) : ""}</TableCell>
-                <TableCell>{employee.hourlyWage ? eur(employee.hourlyWage) : ""}</TableCell>
-                <TableCell>{employee.employerCost ? eur(employee.employerCost) : ""}</TableCell>
-                <TableCell>{employee.note}</TableCell>
+                {visibleColumns.map((column, index) => (
+                  <TableCell key={`${employee.id}-${column.label}`} strong={index === 0}>
+                    {column.render(employee)}
+                  </TableCell>
+                ))}
               </tr>
             ))}
           </tbody>
         </ResponsiveTable>
       </Card>
+      <div id="employee-export-pdf" className="hidden">
+        <h1 className="text-2xl font-bold">Orisus Mitarbeiterübersicht</h1>
+        <p className="mt-2 text-sm text-slate-600">{exportTitle}</p>
+        <p className="mt-1 text-sm text-slate-600">{exportDescription}</p>
+        <table className="mt-5">
+          <thead>
+            <tr>
+              {visibleColumns.map((column) => (
+                <th key={`export-${column.label}`}>{column.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((employee) => (
+              <tr key={`export-${employee.id}`}>
+                {visibleColumns.map((column) => (
+                  <td key={`export-${employee.id}-${column.label}`}>{column.render(employee)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -9701,6 +9809,7 @@ function AccessUserManagement() {
         <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="E-Mail, z. B. max@orisus.de" type="email" />
         <Select value={role} onChange={(event) => setRole(event.target.value as UserRole)}>
           <option value="info">Info-Rolle</option>
+          <option value="praxismanagement">Praxismanagement</option>
           <option value="admin">Admin</option>
         </Select>
         <Button onClick={createUser} disabled={busy}>
@@ -9739,6 +9848,7 @@ function AccessUserManagement() {
                       disabled={isLockedAdmin}
                     >
                       <option value="info">Info-Rolle</option>
+                      <option value="praxismanagement">Praxismanagement</option>
                       <option value="admin">Admin</option>
                     </Select>
                   </td>
@@ -9775,7 +9885,8 @@ function AccessUserManagement() {
         </table>
       </div>
       <div className="p-4 text-sm text-muted-foreground">
-        Info-Rolle: lesen, keine Uploads, kein Zurücksetzen, keine Regeländerung. Admin: vollständiger Zugriff.
+        Info-Rolle: lesen, keine Uploads, kein Zurücksetzen, keine Regeländerung. Praxismanagement: nur Krankheit,
+        Personalmaßnahmen und Mitarbeiterübersicht ohne Gehalts- und AG-Kostenfelder. Admin: vollständiger Zugriff.
       </div>
     </Card>
   );
