@@ -1234,7 +1234,7 @@ const navSections = [
       { id: "darlehen", label: "Darlehen & Earn-Out", icon: Landmark },
       { id: "board", label: "Board-Pack", icon: FileBarChart },
       { id: "banken", label: "Bankenreporting", icon: ShieldCheck },
-      { id: "analysen", label: "Analysen", icon: BarChart3 }
+      { id: "analysen", label: "Benchmarking", icon: BarChart3 }
     ]
   },
   {
@@ -5882,7 +5882,7 @@ function Insights({ setPage }: { setPage: (page: Page) => void }) {
         ))}
       </div>
       <Button className="mt-4 w-full sm:w-auto" variant="secondary" onClick={() => setPage("analysen")}>
-        Analysen öffnen
+        Benchmarking öffnen
       </Button>
     </Card>
   );
@@ -8943,7 +8943,7 @@ function Analysen({
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="flex flex-wrap items-end gap-3">
-            <h1 className="text-3xl font-extrabold text-white">Analyse</h1>
+            <h1 className="text-3xl font-extrabold text-white">Benchmarking</h1>
             <p className="pb-1 text-sm font-semibold text-slate-300">Standort-Benchmarking</p>
           </div>
           <p className="mt-2 max-w-3xl text-sm text-slate-300">
