@@ -5029,32 +5029,32 @@ function KpiCard({
   const positive = !delta.startsWith("-");
   const [infoOpen, setInfoOpen] = useState(false);
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md table-total text-primary">
+    <Card className="relative flex min-h-[12.5rem] flex-col items-center justify-center p-5 text-center">
+      <div className="absolute right-4 top-4 flex items-center gap-2">
+        {info && (
+          <button
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:text-primary"
+            type="button"
+            aria-label={`${label} erklären`}
+            onClick={() => setInfoOpen((open) => !open)}
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        )}
+        <StatusDot status={status} />
+      </div>
+      <div className="flex flex-col items-center">
+        <div className="flex h-11 w-11 items-center justify-center rounded-md table-total text-primary">
           <Icon className="h-5 w-5" />
-        </div>
-        <div className="flex items-center gap-2">
-          {info && (
-            <button
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:text-primary"
-              type="button"
-              aria-label={`${label} erklären`}
-              onClick={() => setInfoOpen((open) => !open)}
-            >
-              <Info className="h-4 w-4" />
-            </button>
-          )}
-          <StatusDot status={status} />
         </div>
       </div>
       <p className="mt-4 text-sm font-semibold text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-bold tracking-tight">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
-      <div className={cn("mt-3 flex items-center gap-1 text-sm font-semibold", positive ? "text-emerald-700" : "text-red-700")}>
+      <div className={cn("mt-3 flex items-center justify-center gap-1 text-sm font-semibold", positive ? "text-emerald-700" : "text-red-700")}>
         {positive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
         <span>{delta}</span>
       </div>
-      {infoOpen && info && <div className="mt-3 rounded-md border border-border bg-slate-50 p-3 text-xs leading-5 text-slate-700">{info}</div>}
+      {infoOpen && info && <div className="mt-3 w-full rounded-md border border-border bg-slate-50 p-3 text-center text-xs leading-5 text-slate-700">{info}</div>}
       <p className="mt-2 text-xs text-muted-foreground">Ampelstatus nach vorläufiger CFO-Logik.</p>
     </Card>
   );
@@ -5694,13 +5694,13 @@ function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void
 function Mini({ label, value, info }: { label: string; value: string; info?: React.ReactNode }) {
   const [infoOpen, setInfoOpen] = useState(false);
   return (
-    <div className="relative rounded-md bg-slate-50 p-3">
-      <div className="flex items-start justify-between gap-2">
+    <div className="relative flex min-h-24 flex-col items-center justify-center rounded-md bg-slate-50 p-4 text-center">
+      <div className="flex items-start justify-center gap-2">
         <p className="text-xs font-semibold text-muted-foreground">{label}</p>
         {info ? (
           <button
             type="button"
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-white text-cyan-800 shadow-sm"
+            className="absolute right-3 top-3 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-white text-cyan-800 shadow-sm"
             aria-label={`${label} erklären`}
             onClick={() => setInfoOpen((open) => !open)}
           >
@@ -5708,9 +5708,9 @@ function Mini({ label, value, info }: { label: string; value: string; info?: Rea
           </button>
         ) : null}
       </div>
-      <p className="mt-1 font-bold">{value}</p>
+      <p className="mt-2 break-words font-bold">{value}</p>
       {infoOpen && info ? (
-        <div className="absolute right-2 top-9 z-20 w-72 rounded-md border border-border bg-white p-3 text-xs shadow-lg">
+        <div className="absolute right-2 top-10 z-20 w-72 rounded-md border border-border bg-white p-3 text-left text-xs shadow-lg">
           {info}
         </div>
       ) : null}
@@ -7252,9 +7252,9 @@ function KennzahlenEntwicklung({
 
 function KennzahlTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white p-4 text-center">
+    <div className="flex min-h-32 flex-col items-center justify-center bg-white p-5 text-center">
       <p className="text-xs font-bold uppercase text-foreground">{label}</p>
-      <p className="mt-5 text-2xl font-bold text-primary">{value}</p>
+      <p className="mt-4 text-2xl font-bold text-primary">{value}</p>
     </div>
   );
 }
