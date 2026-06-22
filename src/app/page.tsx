@@ -126,7 +126,7 @@ const importPersistenceDbName = "orisus-cfo-dashboard";
 const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
-const importDashboardSchemaVersion = "2026-06-22-cockpit-honorar-period-v13";
+const importDashboardSchemaVersion = "2026-06-22-cockpit-honorar-period-v14";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const personalImportPersistenceReportKey = "personal-report";
 const personalImportPersistenceDashboardKey = "personal-dashboard";
@@ -2393,7 +2393,7 @@ function isPureBehandlerHonorarRow(row: Record<string, unknown>) {
   const standardMetric = normalizeMetric(row.Standard_Kennzahl);
   if (!datenbereich.startsWith("behandler")) return false;
   if (["ranking", "stamm"].some((term) => kategorie.includes(term))) return false;
-  if (metric !== "honorarumsatz" || standardMetric !== "honorarumsatz") return false;
+  if (metric !== "honorarumsatz" && standardMetric !== "honorarumsatz") return false;
   const combinedKey = normalizeMetric(
     [row.Kennzahl, row.Standard_Kennzahl, row.Kategorie, row.Standard_Kategorie, row.Objekt_Name, row.Werttyp, row.Standard_Werttyp]
       .map(asText)
@@ -2414,7 +2414,7 @@ function isPureBehandlerEigenlaborRow(row: Record<string, unknown>) {
   const standardMetric = normalizeMetric(row.Standard_Kennzahl);
   if (!datenbereich.startsWith("behandler")) return false;
   if (["ranking", "stamm"].some((term) => kategorie.includes(term))) return false;
-  if (metric !== "eigenlaborumsatz" || standardMetric !== "eigenlaborumsatz") return false;
+  if (metric !== "eigenlaborumsatz" && standardMetric !== "eigenlaborumsatz") return false;
   const combinedKey = normalizeMetric(
     [row.Kennzahl, row.Standard_Kennzahl, row.Kategorie, row.Standard_Kategorie, row.Objekt_Name, row.Werttyp, row.Standard_Werttyp]
       .map(asText)
@@ -2422,6 +2422,22 @@ function isPureBehandlerEigenlaborRow(row: Record<string, unknown>) {
   );
   if (["pvs", "gesamtumsatz", "gesamtleistung", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return false;
   return true;
+}
+
+function isPureBehandlerTotalRow(row: Record<string, unknown>) {
+  const datenbereich = normalizeMetric(row.Datenbereich);
+  const kategorie = normalizeMetric([row.Kategorie, row.Standard_Kategorie].map(asText).join(" "));
+  const metric = normalizeMetric(row.Kennzahl);
+  const standardMetric = normalizeMetric(row.Standard_Kennzahl);
+  const combinedKey = normalizeMetric(
+    [row.Kennzahl, row.Standard_Kennzahl, row.Detailbezeichnung, row.Unterkategorie, row.Kategorie, row.Standard_Kategorie, row.Objekt_Name]
+      .map(asText)
+      .join(" ")
+  );
+  if (!datenbereich.startsWith("behandler")) return false;
+  if (["ranking", "stamm"].some((term) => kategorie.includes(term))) return false;
+  if (["pvs", "gesamtleistung"].some((term) => combinedKey.includes(term))) return false;
+  return metric === "umsatz_gesamt" || standardMetric === "umsatz_gesamt" || combinedKey.includes("honorar_eigenlabor");
 }
 
 function behandlerTotalRevenueFromRows(rows: Record<string, unknown>[]) {
@@ -2441,6 +2457,39 @@ function latestBehandlerHonorarMonth(rows: Record<string, unknown>[], year: numb
 function behandlerHonorarPeriodLabel(rows: Record<string, unknown>[], year: number) {
   const latestMonth = latestBehandlerHonorarMonth(rows, year);
   return latestMonth ? `YTD ${year} bis ${bwaMonths[latestMonth - 1]}` : `Geschäftsjahr ${year}`;
+}
+
+function latestBehandlerHonorarMonthFromDetailRows(rows: ImportedBehandlerDetailRow[], year: number) {
+  return rows.reduce((latest, row) => {
+    Object.entries(row.honorarByMonth).forEach(([period, value]) => {
+      const [periodYear, periodMonth] = period.split("-").map(Number);
+      if (periodYear === year && periodMonth >= 1 && periodMonth <= 12 && Math.abs(value) > 0) {
+        latest = Math.max(latest, periodMonth);
+      }
+    });
+    return latest;
+  }, 0);
+}
+
+function behandlerHonorarPeriodLabelFromDetailRows(rows: ImportedBehandlerDetailRow[], year: number) {
+  const latestMonth = latestBehandlerHonorarMonthFromDetailRows(rows, year);
+  return latestMonth ? `YTD ${year} bis ${bwaMonths[latestMonth - 1]}` : `Geschäftsjahr ${year}`;
+}
+
+function topBehandlerFromDetailRows(rows: ImportedBehandlerDetailRow[], latestYear: number, latestMonth = 12): TopBehandlerEntry[] {
+  return rows
+    .map((row) => ({
+      name: row.name,
+      standort: row.siteName,
+      honorar: Object.entries(row.honorarByMonth).reduce((sum, [period, value]) => {
+        const [year, month] = period.split("-").map(Number);
+        if (year !== latestYear || month < 1 || month > latestMonth) return sum;
+        return sum + value;
+      }, 0)
+    }))
+    .filter((entry) => entry.honorar > 0)
+    .sort((a, b) => b.honorar - a.honorar)
+    .slice(0, 6);
 }
 
 function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: number, latestMonth = 12): TopBehandlerEntry[] {
@@ -2481,6 +2530,8 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   const fallbackByName = new Map(sortSitesByContractStart(standorte).map((site) => [site.name, site]));
   const consolidationRows = consolidationRowsFromWorkbook(workbook);
   const managementReceivablesBySite = managementOpenReceivablesFromWorkbook(workbook);
+  const exportRows = exportRowsFromWorkbook(workbook);
+  const behandlerDetailRows = buildImportedBehandlerDetailRows(rows, exportRows, report);
   const periodSiteNames = report.standorte.filter((siteName) => {
     const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     return rows.some(
@@ -2641,7 +2692,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     };
   });
 
-  const latestBehandlerMonth = latestBehandlerHonorarMonth(rows, latestYear) || 12;
+  const latestBehandlerMonth = latestBehandlerHonorarMonthFromDetailRows(behandlerDetailRows, latestYear) || latestBehandlerHonorarMonth(rows, latestYear) || 12;
 
   return {
     schemaVersion: importDashboardSchemaVersion,
@@ -2649,13 +2700,13 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     fileName,
     sites,
     monthly: monthlyData,
-    topBehandler: topBehandlerFromRows(rows, latestYear, latestBehandlerMonth),
-    topBehandlerPeriod: behandlerHonorarPeriodLabel(rows, latestYear),
+    topBehandler: topBehandlerFromDetailRows(behandlerDetailRows, latestYear, latestBehandlerMonth),
+    topBehandlerPeriod: behandlerHonorarPeriodLabelFromDetailRows(behandlerDetailRows, latestYear),
     bwaRows: buildImportedBwaRows(rows, report),
     pvsRevenueRows: buildImportedPvsRevenueRows(workbook, rows, report, latestYear),
-    behandlerHonorarRows: buildImportedBehandlerHonorarRows(rows, report),
+    behandlerHonorarRows: buildImportedBehandlerHonorarRows(behandlerDetailRows, report),
     behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
-    behandlerDetailRows: buildImportedBehandlerDetailRows(rows, report),
+    behandlerDetailRows,
     bankMovementRows: buildImportedBankMovementRows(workbook, rows, latestYear, report),
     report
   };
@@ -5854,36 +5905,122 @@ function buildImportedPvsRevenueRows(workbook: XLSX.WorkBook, rows: Record<strin
   });
 }
 
-function buildImportedBehandlerHonorarRows(rows: Record<string, unknown>[], report: ImportReport): ImportedPeriodValueRow[] {
+function exportRowsFromWorkbook(workbook: XLSX.WorkBook) {
+  const exportSheetNames = workbook.SheetNames.filter((sheetName) => /^export_/i.test(sheetName) || /_export$/i.test(sheetName));
+  const relevantHeaders = new Set([
+    "Standort_ID",
+    "Standortname",
+    "Datenbereich",
+    "Kategorie",
+    "Unterkategorie",
+    "Kennzahl",
+    "Detailbezeichnung",
+    "Objekt_Typ",
+    "Objekt_Name",
+    "Jahr",
+    "Monat",
+    "Datum",
+    "Wert",
+    "Einheit",
+    "Werttyp",
+    "Aktivstatus_Monat",
+    "Standard_Datenbereich",
+    "Standard_Kategorie",
+    "Standard_Kennzahl",
+    "Standard_Jahr",
+    "Standard_Monat",
+    "Standard_Werttyp"
+  ]);
+  const records: Record<string, unknown>[] = [];
+
+  exportSheetNames.forEach((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return;
+    const sheetRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: null,
+      raw: true,
+      blankrows: false
+    });
+
+    sheetRows.forEach((headerRow, headerRowIndex) => {
+      const blockStarts = headerRow
+        .map((cell, column) => ({ column, key: normalizeMetric(cell) }))
+        .filter((entry) => entry.key === "standort_id")
+        .map((entry) => entry.column);
+
+      blockStarts.forEach((startColumn) => {
+        const headerMap = new Map<string, number>();
+        const maxColumn = Math.min(headerRow.length, startColumn + 40);
+        for (let column = startColumn; column < maxColumn; column += 1) {
+          const header = asText(headerRow[column]);
+          if (relevantHeaders.has(header)) headerMap.set(header, column);
+        }
+
+        if (!headerMap.has("Standortname") || !headerMap.has("Datenbereich") || !headerMap.has("Kennzahl") || !headerMap.has("Wert")) return;
+
+        for (let rowIndex = headerRowIndex + 1; rowIndex < sheetRows.length; rowIndex += 1) {
+          const row = sheetRows[rowIndex] ?? [];
+          if (normalizeMetric(row[startColumn]) === "standort_id") break;
+
+          const record: Record<string, unknown> = {};
+          headerMap.forEach((column, header) => {
+            record[header] = row[column] ?? null;
+          });
+
+          if (!asText(record.Standortname) || !asText(record.Datenbereich) || !asText(record.Kennzahl)) continue;
+          records.push(record);
+        }
+      });
+    });
+  });
+
+  return records;
+}
+
+function buildImportedBehandlerHonorarRows(detailRows: ImportedBehandlerDetailRow[], report: ImportReport): ImportedPeriodValueRow[] {
   const validYears = report.jahre.filter((year) => year > 1900);
   return report.standorte.map((siteName) => {
-    const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
-    const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
+    const siteId = siteIdForName(siteName);
+    const siteRows = detailRows.filter((row) => row.siteId === siteId);
     const valuesByYear = Object.fromEntries(
-      validYears.map((year) => [String(year), pureBehandlerHonorarFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year))])
+      validYears.map((year) => [
+        String(year),
+        siteRows.reduce(
+          (sum, row) =>
+            sum +
+            Object.entries(row.honorarByMonth).reduce((monthSum, [period, value]) => {
+              const [periodYear] = period.split("-").map(Number);
+              return periodYear === year ? monthSum + value : monthSum;
+            }, 0),
+          0
+        )
+      ])
     );
     const valuesByMonth = Object.fromEntries(
       validYears.flatMap((year) =>
         Array.from({ length: 12 }, (_, index) => {
           const month = index + 1;
-          const value = pureBehandlerHonorarFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
+          const period = `${year}-${month}`;
+          const value = siteRows.reduce((sum, row) => sum + (row.honorarByMonth[period] ?? 0), 0);
           return [`${year}-${month}`, value];
         })
       )
     );
     return {
-      siteId: siteIdForName(siteName),
+      siteId,
       siteName,
       valuesByYear,
       valuesByMonth,
-      contractValue: pureBehandlerHonorarFromRows(siteRows)
+      contractValue: siteRows.reduce((sum, row) => sum + Object.values(row.honorarByMonth).reduce((monthSum, value) => monthSum + value, 0), 0)
     };
   });
 }
 
-function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], report: ImportReport): ImportedBehandlerDetailRow[] {
+function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], exportRows: Record<string, unknown>[], report: ImportReport): ImportedBehandlerDetailRow[] {
   const siteByName = new Map(standorte.map((site) => [site.name.toLowerCase(), site]));
   const grouped = new Map<string, ImportedBehandlerDetailRow>();
+  const priorityByValue = new Map<string, number>();
   const ensureEntry = (siteName: string, name: string) => {
     const site = siteByName.get(siteName.toLowerCase()) ?? standorte[0];
     const key = `${site.id}::${normalizeMetric(name)}`;
@@ -5900,12 +6037,22 @@ function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], repor
     grouped.set(key, next);
     return next;
   };
+  const setValue = (target: Record<string, number>, monthKey: string, priorityKey: string, value: number, priority: number) => {
+    const currentPriority = priorityByValue.get(priorityKey) ?? 0;
+    if (priority < currentPriority) return;
+    target[monthKey] = value;
+    priorityByValue.set(priorityKey, priority);
+  };
 
-  rows.forEach((row) => {
+  [
+    ...rows.map((row) => ({ row, priority: 1 })),
+    ...exportRows.map((row) => ({ row, priority: 2 }))
+  ].forEach(({ row, priority }) => {
     if (isExcludedPlanRow(row)) return;
     const isHonorar = isPureBehandlerHonorarRow(row);
     const isEigenlabor = isPureBehandlerEigenlaborRow(row);
-    if (!isHonorar && !isEigenlabor) return;
+    const isTotal = isPureBehandlerTotalRow(row);
+    if (!isHonorar && !isEigenlabor && !isTotal) return;
 
     const siteName = asText(row.Standortname);
     const name = asText(row.Objekt_Name || row.Behandler || row.Behandlername);
@@ -5918,9 +6065,21 @@ function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], repor
 
     const entry = ensureEntry(siteName, name);
     const monthKey = `${year}-${month}`;
-    if (isHonorar) entry.honorarByMonth[monthKey] = (entry.honorarByMonth[monthKey] ?? 0) + value;
-    if (isEigenlabor) entry.eigenlaborByMonth[monthKey] = (entry.eigenlaborByMonth[monthKey] ?? 0) + value;
-    entry.totalByMonth[monthKey] = (entry.honorarByMonth[monthKey] ?? 0) + (entry.eigenlaborByMonth[monthKey] ?? 0);
+    const valueKey = `${entry.siteId}::${normalizeMetric(name)}::${monthKey}`;
+    if (isHonorar) setValue(entry.honorarByMonth, monthKey, `${valueKey}::honorar`, value, priority);
+    if (isEigenlabor) setValue(entry.eigenlaborByMonth, monthKey, `${valueKey}::eigenlabor`, value, priority);
+    if (isTotal) setValue(entry.totalByMonth, monthKey, `${valueKey}::total`, value, priority);
+  });
+
+  grouped.forEach((entry) => {
+    const monthKeys = new Set([...Object.keys(entry.honorarByMonth), ...Object.keys(entry.eigenlaborByMonth), ...Object.keys(entry.totalByMonth)]);
+    monthKeys.forEach((monthKey) => {
+      const honorar = entry.honorarByMonth[monthKey] ?? 0;
+      const eigenlabor = entry.eigenlaborByMonth[monthKey] ?? 0;
+      const total = entry.totalByMonth[monthKey];
+      if (total != null && honorar && !eigenlabor && total > honorar) entry.eigenlaborByMonth[monthKey] = total - honorar;
+      if (total == null || honorar || eigenlabor) entry.totalByMonth[monthKey] = (entry.honorarByMonth[monthKey] ?? 0) + (entry.eigenlaborByMonth[monthKey] ?? 0);
+    });
   });
 
   const totalFor = (entry: ImportedBehandlerDetailRow) => Object.values(entry.totalByMonth).reduce((sum, value) => sum + value, 0);
@@ -9399,8 +9558,41 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
   const open = totalPotential - paid;
   const dueNow = sites.reduce((sum, site) => sum + (isEarnOutDue(site) ? site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt : 0), 0);
   const notYetDue = Math.max(0, open - dueNow);
-  const runRateProvision = sites.reduce((sum, site) => sum + projectedEarnOutForSite(site, period).projectedEarnOut, 0);
+  const earnOutBreakdown = sortSitesByContractStart(sites).map((site) => ({
+    site,
+    dueStatus: earnOutDueStatus(site),
+    projection: projectedEarnOutForSite(site, period)
+  }));
+  const runRateProvision = earnOutBreakdown.reduce((sum, row) => sum + row.projection.projectedEarnOut, 0);
   const runRateAchievement = totalPotential ? (runRateProvision / totalPotential) * 100 : 0;
+  const expectedObligationInfo = (
+    <div className="space-y-3">
+      <p className="font-semibold text-slate-950">Erwartete Earn-Out-Verpflichtung nach aktueller Run-Rate</p>
+      <p>
+        Zeitraum: {period}. Je Standort wird das EBITDA seit Praxisstart auf eine p.a.-Run-Rate hochgerechnet und gegen Ziel-EBITDA p.a.,
+        Untergrenze, Reduktionsfaktor und offenes Earn-Out-Potenzial gespiegelt.
+      </p>
+      <div className="space-y-2">
+        {earnOutBreakdown.map(({ site, dueStatus, projection }) => (
+          <div key={site.id} className="rounded-md border border-border bg-white p-2">
+            <div className="flex items-start justify-between gap-3 font-semibold text-slate-950">
+              <span>{site.name}</span>
+              <span>{eur(projection.projectedEarnOut)}</span>
+            </div>
+            <div className="mt-1 grid gap-1 text-[11px] text-slate-600 sm:grid-cols-2">
+              <span>Run-Rate EBITDA p.a.: {eur(projection.projectedEbitda)}</span>
+              <span>Ziel EBITDA p.a.: {eur(projection.target)}</span>
+              <span>Untergrenze: {projection.untergrenze ? eur(projection.untergrenze) : "nicht hinterlegt"}</span>
+              <span>Fälligkeit: {site.darlehen.earnOutFaelligAm || "offen"} ({dueStatus.label})</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-border pt-2 font-semibold text-slate-950">
+        Summe erwartete Verpflichtung: {eur(runRateProvision)}
+      </div>
+    </div>
+  );
 
   return (
     <Card className="p-4">
@@ -9417,7 +9609,7 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
         <Mini label="Earn-Out Potenzial" value={eur(totalPotential)} />
         <Mini label="Aktuell fällig" value={eur(dueNow)} />
         <Mini label="Noch nicht fällig" value={eur(notYetDue)} />
-        <Mini label="Erwartete Verpflichtung" value={eur(runRateProvision)} />
+        <Mini label="Erwartete Verpflichtung" value={eur(runRateProvision)} info={expectedObligationInfo} />
         <Mini label="Vorsorgequote" value={pct(runRateAchievement)} />
       </div>
       <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-muted-foreground">
