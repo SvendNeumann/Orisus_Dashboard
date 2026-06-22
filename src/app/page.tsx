@@ -1010,7 +1010,7 @@ const statusMap: Record<Status, { label: string; dot: string; tone: "green" | "y
 const navSections = [
   {
     id: "management",
-    label: "Management",
+    label: "Zusammenfassung",
     items: [
       { id: "cockpit", label: "CFO Cockpit", icon: Home },
       { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users }
