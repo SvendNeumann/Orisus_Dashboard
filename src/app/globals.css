@@ -213,6 +213,28 @@ select {
   color: #0f172a;
 }
 
+.app-shell select {
+  color: #eefbfb !important;
+  background-color: rgba(16, 44, 62, 0.94) !important;
+  border-color: rgba(178, 226, 229, 0.28) !important;
+  color-scheme: dark;
+}
+
+.app-shell select option {
+  color: #eefbfb;
+  background-color: #123145;
+}
+
+.app-shell select:focus {
+  border-color: #30d5c8 !important;
+  box-shadow: 0 0 0 4px rgba(48, 213, 200, 0.14);
+}
+
+.app-shell select:disabled {
+  color: rgba(238, 251, 251, 0.52) !important;
+  background-color: rgba(16, 44, 62, 0.52) !important;
+}
+
 .app-shell .data-table tbody td:not(.table-total):not(.table-section):not(.table-ratio):not(.table-cashflow) {
   background-color: rgba(19, 49, 67, 0.52);
 }
