@@ -3102,8 +3102,14 @@ export default function HomePage() {
           {page === "uploads" && isAdmin && (
             <Uploads
               userRole={userRole}
-              onImportConfirmed={(data) => setImportedData(repairImportedCashflowData(data))}
-              onImportReset={() => setImportedData(null)}
+              onImportConfirmed={(data) => {
+                setImportedData(repairImportedCashflowData(data));
+                window.setTimeout(reloadCurrentPage, 150);
+              }}
+              onImportReset={() => {
+                setImportedData(null);
+                window.setTimeout(reloadCurrentPage, 150);
+              }}
             />
           )}
           {personalData && page === "personal-cockpit" && <PersonalCockpit personalData={personalData} />}
@@ -3113,8 +3119,14 @@ export default function HomePage() {
           {page === "personal-upload" && isAdmin && (
             <PersonalUpload
               userRole={userRole}
-              onImportConfirmed={(data) => setPersonalData(data)}
-              onImportReset={() => setPersonalData(null)}
+              onImportConfirmed={(data) => {
+                setPersonalData(data);
+                window.setTimeout(reloadCurrentPage, 150);
+              }}
+              onImportReset={() => {
+                setPersonalData(null);
+                window.setTimeout(reloadCurrentPage, 150);
+              }}
             />
           )}
           {page === "reports" && <Reports />}
