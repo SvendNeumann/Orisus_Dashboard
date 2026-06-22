@@ -6287,7 +6287,14 @@ function KennzahlenEntwicklung({
   const totalCashflow = activeSites.reduce((sum, site) => sum + site.cashflow, 0);
   const totalTarget = activeSites.reduce((sum, site) => sum + (targetBySite[site.id] ?? 0), 0);
   const averageTargetAchievement = totalTarget ? (totalEbitda / totalTarget) * 100 : 0;
-  const monthlyPeriod = defaultBwaPeriodFor(importedData);
+  const monthlyPeriods = bwaPeriodOptionsFor(importedData);
+  const [monthlyPeriod, setMonthlyPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  useEffect(() => {
+    if (!monthlyPeriods.includes(monthlyPeriod)) {
+      setMonthlyPeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [importedData, monthlyPeriod, monthlyPeriods]);
+  const filteredMonthlyData = bwaChartDataForPeriod(importedData, monthlyData, monthlyPeriod);
   const weakest = activeSites
     .map((site) => ({ site, achievement: (site.ebitda / (targetBySite[site.id] || 1)) * 100 }))
     .sort((a, b) => a.achievement - b.achievement)[0];
@@ -6315,7 +6322,16 @@ function KennzahlenEntwicklung({
       </Card>
 
       <KennzahlenStandortTable targetBySite={targetBySite} sites={activeSites} monthlyData={monthlyData} />
-      <MonthlyEbitdaTable targetBySite={targetBySite} sites={activeSites} monthlyData={monthlyData} periodLabel={monthlyPeriod} />
+      <MonthlyEbitdaTable
+        targetBySite={targetBySite}
+        sites={activeSites}
+        monthlyData={filteredMonthlyData}
+        importedData={importedData}
+        periodLabel={monthlyPeriod}
+        availablePeriods={monthlyPeriods}
+        period={monthlyPeriod}
+        setPeriod={setMonthlyPeriod}
+      />
     </section>
   );
 }
@@ -6409,24 +6425,66 @@ function MonthlyEbitdaTable({
   targetBySite,
   sites = standorte,
   monthlyData = monthly,
-  periodLabel
+  importedData,
+  periodLabel,
+  availablePeriods,
+  period,
+  setPeriod
 }: {
   targetBySite: Record<string, number>;
   sites?: DashboardSite[];
   monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
   periodLabel: string;
+  availablePeriods?: string[];
+  period?: string;
+  setPeriod?: (period: string) => void;
 }) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
-  const rows = monthlyData.map((month, monthIndex) => {
-    const totalPositiveEbitda = activeSites.reduce((sum, site) => sum + Math.max(0, site.ebitda), 0) || 1;
-    const siteValues = Object.fromEntries(
-      activeSites.map((site) => [site.id, Math.round(month.ebitda * (Math.max(0, site.ebitda) / totalPositiveEbitda))])
-    ) as Record<string, number>;
+  const selection = selectedBwaPeriod(periodLabel);
+  const periodYear = selection.year;
+  const targetTotal = activeSites.reduce((sum, site) => sum + (targetBySite[site.id] ?? 0), 0);
+  const importedMetricRow = (siteId: string) => importedData?.bwaRows.find((row) => row.siteId === siteId && row.metricKey === "ebitda");
+  const rowSource = importedData?.bwaRows?.length
+    ? !selection.year
+      ? importedData.report.jahre
+          .filter((year) => year >= 1900)
+          .map((year) => ({
+            label: String(year),
+            siteValues: Object.fromEntries(
+              activeSites.map((site) => [site.id, Math.round(importedMetricRow(site.id)?.valuesByYear[String(year)] ?? 0)])
+            ) as Record<string, number>
+          }))
+          .filter((row) => Object.values(row.siteValues).some((value) => value !== 0))
+      : (
+          selection.months?.length
+            ? selection.months
+            : Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+                activeSites.some((site) => importedMetricRow(site.id)?.hasDataByMonth[`${selection.year}-${month}`])
+              )
+        ).map((month) => ({
+          label: `${bwaMonths[month - 1] ?? String(month)} ${String(selection.year).slice(-2)}`,
+          siteValues: Object.fromEntries(
+            activeSites.map((site) => [site.id, Math.round(importedMetricRow(site.id)?.valuesByMonth[`${selection.year}-${month}`] ?? 0)])
+          ) as Record<string, number>
+        }))
+    : monthlyData.map((month) => {
+        const totalPositiveEbitda = activeSites.reduce((sum, site) => sum + Math.max(0, site.ebitda), 0) || 1;
+        return {
+          label: periodYear ? `${month.month} ${String(periodYear).slice(-2)}` : month.month,
+          siteValues: Object.fromEntries(
+            activeSites.map((site) => [site.id, Math.round(month.ebitda * (Math.max(0, site.ebitda) / totalPositiveEbitda))])
+          ) as Record<string, number>
+        };
+      });
+
+  const rows = rowSource.map((source, monthIndex) => {
+    const siteValues = source.siteValues;
     const totalValue = Object.values(siteValues).reduce((sum, value) => sum + value, 0);
-    const targetTakeover = Math.round(Object.values(targetBySite).reduce((sum, value) => sum + value, 0) * ((monthIndex + 1) / Math.max(monthlyData.length, 1)));
+    const targetTakeover = Math.round(targetTotal * ((monthIndex + 1) / Math.max(rowSource.length, 1)));
     const targetBank = Math.round(targetTakeover * 0.885);
     return {
-      month: `${month.month} 26`,
+      month: source.label,
       siteValues,
       totalValue,
       cumulative: 0,
@@ -6448,9 +6506,18 @@ function MonthlyEbitdaTable({
 
   return (
     <Card className="overflow-hidden">
-      <div className="table-head p-3 font-bold text-white">MONATLICHE EBITDA-ÜBERSICHT JE STANDORT | {periodLabel}</div>
+      <div className="flex flex-col gap-3 table-head p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+        <div className="font-bold">MONATLICHE EBITDA-ÜBERSICHT JE STANDORT | {periodLabel}</div>
+        {availablePeriods?.length && period && setPeriod ? (
+          <Select className="w-full bg-white text-foreground sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
+            {availablePeriods.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </Select>
+        ) : null}
+      </div>
       <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">
-        Auswertung: 2026 | Ist-EBITDA je Monat und Standort | Zielabweichung kumuliert gegen Übernahme und Bank/KV
+        Auswertung: {periodLabel} | Ist-EBITDA je Monat und Standort | Zielabweichung kumuliert gegen Übernahme und Bank/KV
       </div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
