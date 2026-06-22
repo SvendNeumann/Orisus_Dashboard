@@ -51,6 +51,15 @@ async function supabaseServiceFetch<T>(path: string, init?: RequestInit): Promis
   return (await response.json()) as T;
 }
 
+function readableSupabaseError(text: string, fallback: string) {
+  try {
+    const data = JSON.parse(text) as { msg?: string; message?: string; error?: string; error_description?: string };
+    return data.msg || data.message || data.error_description || data.error || fallback;
+  } catch {
+    return text || fallback;
+  }
+}
+
 async function sendSupabaseInvite(email: string, name: string) {
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -70,7 +79,7 @@ async function sendSupabaseInvite(email: string, name: string) {
   if (!response.ok) {
     const text = await response.text();
     if (response.status === 422 || /already|registered|exists/i.test(text)) return;
-    throw new Error(text || "Einladung konnte nicht versendet werden.");
+    throw new Error(readableSupabaseError(text, "Einladung konnte nicht versendet werden."));
   }
 }
 
@@ -110,62 +119,74 @@ async function requireAdmin(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const denied = await requireAdmin(request);
-  if (denied) return denied;
+  try {
+    const denied = await requireAdmin(request);
+    if (denied) return denied;
 
-  const users = await supabaseServiceFetch(
-    "/rest/v1/orisus_user_roles?select=email,name,role,active,created_at,updated_at&order=name.asc.nullslast,email.asc"
-  );
-  return NextResponse.json({ users });
+    const users = await supabaseServiceFetch(
+      "/rest/v1/orisus_user_roles?select=email,name,role,active,created_at,updated_at&order=name.asc.nullslast,email.asc"
+    );
+    return NextResponse.json({ users });
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : "Zugänge konnten nicht geladen werden.", 500);
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const denied = await requireAdmin(request);
-  if (denied) return denied;
+  try {
+    const denied = await requireAdmin(request);
+    if (denied) return denied;
 
-  const body = (await request.json().catch(() => ({}))) as AccessUserPayload;
-  const email = normalizeEmail(body.email ?? "");
-  const name = (body.name ?? "").trim();
-  const role = body.role === "admin" ? "admin" : "info";
+    const body = (await request.json().catch(() => ({}))) as AccessUserPayload;
+    const email = normalizeEmail(body.email ?? "");
+    const name = (body.name ?? "").trim();
+    const role = body.role === "admin" ? "admin" : "info";
 
-  if (!email || !email.includes("@")) return jsonError("Bitte eine gültige E-Mail-Adresse eingeben.");
-  if (!name) return jsonError("Bitte einen Namen eingeben.");
+    if (!email || !email.includes("@")) return jsonError("Bitte eine gültige E-Mail-Adresse eingeben.");
+    if (!name) return jsonError("Bitte einen Namen eingeben.");
 
-  await supabaseServiceFetch("/rest/v1/orisus_user_roles?on_conflict=email", {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-    body: JSON.stringify({
-      email,
-      name,
-      role,
-      active: true,
-      updated_at: new Date().toISOString()
-    })
-  });
+    await supabaseServiceFetch("/rest/v1/orisus_user_roles?on_conflict=email", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({
+        email,
+        name,
+        role,
+        active: true,
+        updated_at: new Date().toISOString()
+      })
+    });
 
-  await sendSupabaseInvite(email, name);
+    await sendSupabaseInvite(email, name);
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : "Zugang konnte nicht angelegt werden.", 500);
+  }
 }
 
 export async function PATCH(request: NextRequest) {
-  const denied = await requireAdmin(request);
-  if (denied) return denied;
+  try {
+    const denied = await requireAdmin(request);
+    if (denied) return denied;
 
-  const body = (await request.json().catch(() => ({}))) as AccessUserPayload;
-  const email = normalizeEmail(body.email ?? "");
-  if (!email || !email.includes("@")) return jsonError("Bitte eine gültige E-Mail-Adresse eingeben.");
+    const body = (await request.json().catch(() => ({}))) as AccessUserPayload;
+    const email = normalizeEmail(body.email ?? "");
+    if (!email || !email.includes("@")) return jsonError("Bitte eine gültige E-Mail-Adresse eingeben.");
 
-  const update: Record<string, string | boolean> = { updated_at: new Date().toISOString() };
-  if (typeof body.name === "string") update.name = body.name.trim();
-  if (body.role === "admin" || body.role === "info") update.role = body.role;
-  if (typeof body.active === "boolean") update.active = body.active;
+    const update: Record<string, string | boolean> = { updated_at: new Date().toISOString() };
+    if (typeof body.name === "string") update.name = body.name.trim();
+    if (body.role === "admin" || body.role === "info") update.role = body.role;
+    if (typeof body.active === "boolean") update.active = body.active;
 
-  await supabaseServiceFetch(`/rest/v1/orisus_user_roles?email=eq.${encodeURIComponent(email)}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify(update)
-  });
+    await supabaseServiceFetch(`/rest/v1/orisus_user_roles?email=eq.${encodeURIComponent(email)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(update)
+    });
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : "Zugang konnte nicht aktualisiert werden.", 500);
+  }
 }
