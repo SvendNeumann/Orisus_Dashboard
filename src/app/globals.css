@@ -73,8 +73,49 @@ body {
 
 button,
 input,
+textarea,
 select {
   font: inherit;
+}
+
+.app-shell input,
+.app-shell textarea,
+.app-shell select {
+  color: #102a3a !important;
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(178, 226, 229, 0.42) !important;
+  box-shadow: 0 12px 28px rgba(4, 21, 33, 0.12);
+  caret-color: #0f6f82;
+  color-scheme: light;
+}
+
+.app-shell input::placeholder,
+.app-shell textarea::placeholder {
+  color: rgba(16, 42, 58, 0.52) !important;
+  opacity: 1;
+}
+
+.app-shell input:focus,
+.app-shell textarea:focus,
+.app-shell select:focus {
+  border-color: #30d5c8 !important;
+  box-shadow: 0 0 0 4px rgba(48, 213, 200, 0.14), 0 12px 28px rgba(4, 21, 33, 0.12);
+  outline: none;
+}
+
+.app-shell input:disabled,
+.app-shell textarea:disabled,
+.app-shell select:disabled {
+  color: rgba(16, 42, 58, 0.52) !important;
+  background-color: rgba(255, 255, 255, 0.58) !important;
+}
+
+.app-shell input:-webkit-autofill,
+.app-shell input:-webkit-autofill:hover,
+.app-shell input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #102a3a !important;
+  box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.96) inset, 0 0 0 4px rgba(48, 213, 200, 0.14) !important;
+  caret-color: #0f6f82;
 }
 
 .safe-bottom {
@@ -213,27 +254,9 @@ select {
   color: #0f172a;
 }
 
-.app-shell select {
-  color: #102a3a !important;
-  background-color: rgba(255, 255, 255, 0.96) !important;
-  border-color: rgba(178, 226, 229, 0.42) !important;
-  box-shadow: 0 12px 28px rgba(4, 21, 33, 0.12);
-  color-scheme: light;
-}
-
 .app-shell select option {
   color: #102a3a;
   background-color: #ffffff;
-}
-
-.app-shell select:focus {
-  border-color: #30d5c8 !important;
-  box-shadow: 0 0 0 4px rgba(48, 213, 200, 0.14);
-}
-
-.app-shell select:disabled {
-  color: rgba(16, 42, 58, 0.52) !important;
-  background-color: rgba(255, 255, 255, 0.58) !important;
 }
 
 .app-shell .data-table tbody td:not(.table-total):not(.table-section):not(.table-ratio):not(.table-cashflow) {
