@@ -2864,9 +2864,11 @@ function AuthFlow({
             className="pointer-events-none absolute -left-28 top-6 hidden w-[42rem] max-w-none opacity-[0.055] sm:block"
           />
           <div className="relative">
-            <div className="w-40 rounded-md bg-white/95 px-3 py-2 shadow-lg shadow-black/20 sm:w-48">
-              <img src="/orisus-logo.png" alt="Orisus Zahnmedizin" className="h-auto w-full" />
-            </div>
+            <img
+              src="/orisus-logo.png"
+              alt="Orisus Zahnmedizin"
+              className="h-auto w-40 drop-shadow-[0_12px_28px_rgba(0,0,0,0.35)] sm:w-48"
+            />
 
             <div className="mx-auto mt-8 max-w-3xl text-left lg:mt-12 lg:text-center">
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#30d5c8]">Interne Steuerungsplattform</p>
