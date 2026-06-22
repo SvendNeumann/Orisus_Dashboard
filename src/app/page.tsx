@@ -788,7 +788,8 @@ async function accessUsersApi<T>(method = "GET", body?: unknown): Promise<T> {
     const data = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Zugangsverwaltung konnte nicht aktualisiert werden.");
   }
-  return (await response.json()) as T;
+  const text = await response.text();
+  return (text ? JSON.parse(text) : { ok: true }) as T;
 }
 
 async function loadConfirmedImportData() {
@@ -9153,6 +9154,27 @@ function AccessUserManagement() {
     }
   };
 
+  const deleteUser = async (user: AccessUser) => {
+    setMessage("");
+    if (isPermanentAdminEmail(user.email)) {
+      setMessage("Der feste Admin-Zugang kann nicht gelöscht werden.");
+      return;
+    }
+    const confirmed = window.confirm(`Zugang für ${user.name || user.email} wirklich vollständig löschen?`);
+    if (!confirmed) return;
+    try {
+      const result = await accessUsersApi<{ ok: boolean; authDeleted?: number; authWarning?: string }>("DELETE", { email: user.email });
+      setMessage(
+        result.authWarning
+          ? "App-Zugang gelöscht. Hinweis: Der Supabase-Auth-Benutzer konnte nicht automatisch entfernt werden, der App-Zugriff ist aber gesperrt."
+          : "Zugang vollständig gelöscht."
+      );
+      await loadUsers();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Zugang konnte nicht gelöscht werden.");
+    }
+  };
+
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border p-4">
@@ -9216,13 +9238,20 @@ function AccessUserManagement() {
                     <Badge tone={user.active || isLockedAdmin ? "green" : "neutral"}>{user.active || isLockedAdmin ? "Aktiv" : "Deaktiviert"}</Badge>
                   </td>
                   <td className="border-b border-r border-border p-3">
-                    <Button
-                      variant={user.active ? "secondary" : "primary"}
-                      onClick={() => updateUser(user, { active: !user.active })}
-                      disabled={isLockedAdmin}
-                    >
-                      {isLockedAdmin ? "Nicht löschbar" : user.active ? "Zugriff entziehen" : "Reaktivieren"}
-                    </Button>
+                    <div className="flex min-w-44 flex-col gap-2 sm:flex-row">
+                      <Button
+                        variant={user.active ? "secondary" : "primary"}
+                        onClick={() => updateUser(user, { active: !user.active })}
+                        disabled={isLockedAdmin}
+                      >
+                        {isLockedAdmin ? "Nicht löschbar" : user.active ? "Zugriff entziehen" : "Reaktivieren"}
+                      </Button>
+                      {!isLockedAdmin && (
+                        <Button variant="danger" onClick={() => deleteUser(user)}>
+                          Löschen
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

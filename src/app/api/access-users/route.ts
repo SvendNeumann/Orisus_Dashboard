@@ -50,7 +50,9 @@ async function supabaseServiceFetch<T>(path: string, init?: RequestInit): Promis
     throw new Error(text || `Supabase request failed with ${response.status}`);
   }
   if (response.status === 204) return null as T;
-  return (await response.json()) as T;
+  const text = await response.text();
+  if (!text) return null as T;
+  return JSON.parse(text) as T;
 }
 
 function readableSupabaseError(text: string, fallback: string) {
@@ -97,6 +99,17 @@ async function ensurePermanentAdminRole() {
       updated_at: new Date().toISOString()
     })
   });
+}
+
+async function deleteSupabaseAuthUser(email: string) {
+  const listedUsers = await supabaseServiceFetch<{ users?: Array<{ id: string; email?: string }> }>("/auth/v1/admin/users?per_page=1000");
+  const matchingUsers = (listedUsers?.users ?? []).filter((user) => normalizeEmail(user.email ?? "") === email);
+  for (const user of matchingUsers) {
+    await supabaseServiceFetch(`/auth/v1/admin/users/${encodeURIComponent(user.id)}`, {
+      method: "DELETE"
+    });
+  }
+  return matchingUsers.length;
 }
 
 async function requesterEmail(request: NextRequest) {
@@ -212,5 +225,34 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Zugang konnte nicht aktualisiert werden.", 500);
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const denied = await requireAdmin(request);
+    if (denied) return denied;
+
+    const body = (await request.json().catch(() => ({}))) as AccessUserPayload;
+    const email = normalizeEmail(body.email ?? "");
+    if (!email || !email.includes("@")) return jsonError("Bitte eine gültige E-Mail-Adresse eingeben.");
+    if (email === permanentAdminEmail) return jsonError("Der feste Admin-Zugang kann nicht gelöscht werden.", 403);
+
+    await supabaseServiceFetch(`/rest/v1/orisus_user_roles?email=eq.${encodeURIComponent(email)}`, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" }
+    });
+
+    let authDeleted = 0;
+    let authWarning = "";
+    try {
+      authDeleted = await deleteSupabaseAuthUser(email);
+    } catch (error) {
+      authWarning = error instanceof Error ? error.message : "Supabase Auth-Benutzer konnte nicht automatisch entfernt werden.";
+    }
+
+    return NextResponse.json({ ok: true, authDeleted, authWarning });
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : "Zugang konnte nicht gelöscht werden.", 500);
   }
 }
