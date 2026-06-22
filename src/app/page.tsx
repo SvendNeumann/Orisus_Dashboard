@@ -4783,6 +4783,13 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       status: metrics.kontostand > 500000 ? "green" : "yellow"
     },
     {
+      label: "Offene Forderungen | aktueller Stand",
+      value: metrics.forderungen,
+      delta: "Konsolidiert seit Vertragsstart",
+      icon: FileBarChart,
+      status: metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green"
+    },
+    {
       label: "Free Cashflow | seit Vertragsstart",
       value: metrics.cashflow,
       delta: "nach Tilgung, Investitionen, Umbuchungen",
@@ -4809,6 +4816,13 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       delta: `${pct(metrics.ebitdaMarge)} Marge | Run-Rate ${eur(metrics.runRateEbitda, true)}`,
       icon: Banknote,
       status: metrics.ebitdaMarge >= 12 ? "green" : "yellow"
+    },
+    {
+      label: "Fremdkapital | seit Vertragsstart",
+      value: Math.max(0, metrics.aufgenommen - metrics.tilgung),
+      delta: `${eur(metrics.aufgenommen, true)} aufgenommen | ${eur(metrics.tilgung, true)} getilgt`,
+      icon: Landmark,
+      status: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow"
     },
     {
       label: "Kritische Standorte | aktueller Stand",
@@ -4838,20 +4852,6 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
           )}
         </div>
       )
-    },
-    {
-      label: "Offene Forderungen | aktueller Stand",
-      value: metrics.forderungen,
-      delta: "Konsolidiert seit Vertragsstart",
-      icon: FileBarChart,
-      status: metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green"
-    },
-    {
-      label: "Fremdkapital | seit Vertragsstart",
-      value: Math.max(0, metrics.aufgenommen - metrics.tilgung),
-      delta: `${eur(metrics.aufgenommen, true)} aufgenommen | ${eur(metrics.tilgung, true)} getilgt`,
-      icon: Landmark,
-      status: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow"
     }
   ] satisfies Array<{
     label: string;
