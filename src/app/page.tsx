@@ -27,6 +27,7 @@ import {
   BarChart3,
   Building2,
   CheckCircle2,
+  ChevronDown,
   CircleDollarSign,
   FileBarChart,
   FileUp,
@@ -1006,24 +1007,49 @@ const statusMap: Record<Status, { label: string; dot: string; tone: "green" | "y
   red: { label: "Handlungsbedarf", dot: "bg-red-500", tone: "red" }
 };
 
-const desktopNav = [
-  { id: "cockpit", label: "Cockpit", icon: Home },
-  { id: "kennzahlen", label: "Orisus Kennzahlen/Entwicklung", icon: BarChart3 },
-  { id: "performance", label: "Orisus Performance", icon: TrendingUp },
-  { id: "standorte", label: "Standorte", icon: Building2 },
-  { id: "bwa", label: "BWA", icon: FileBarChart },
-  { id: "cashflow", label: "Cashflow", icon: Wallet },
-  { id: "darlehen", label: "Darlehen & Earn-Out", icon: Landmark },
-  { id: "banken", label: "Bankenreporting", icon: ShieldCheck },
-  { id: "board", label: "Board-Pack", icon: FileBarChart },
-  { id: "uploads", label: "Uploads", icon: FileUp },
-  { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users },
-  { id: "personal-krankheit", label: "Krankheit / Fehlzeiten", icon: Stethoscope },
-  { id: "personal-mitarbeiter", label: "Mitarbeiterübersicht", icon: UserRound },
-  { id: "personal-massnahmen", label: "Personalmaßnahmen", icon: CheckCircle2 },
-  { id: "personal-upload", label: "Personal-Upload", icon: FileUp },
-  { id: "reports", label: "Reports", icon: FileBarChart },
-  { id: "admin", label: "Admin / KPI-Regeln", icon: Lock }
+const navSections = [
+  {
+    id: "management",
+    label: "Management",
+    items: [
+      { id: "cockpit", label: "Cockpit", icon: Home },
+      { id: "kennzahlen", label: "Kennzahlen / Entwicklung", icon: BarChart3 },
+      { id: "performance", label: "Orisus Performance", icon: TrendingUp },
+      { id: "standorte", label: "Standorte", icon: Building2 },
+      { id: "analysen", label: "Analysen", icon: BarChart3 }
+    ]
+  },
+  {
+    id: "finance",
+    label: "BWA & Finanzen",
+    items: [
+      { id: "bwa", label: "BWA", icon: FileBarChart },
+      { id: "cashflow", label: "Cashflow", icon: Wallet },
+      { id: "darlehen", label: "Darlehen & Earn-Out", icon: Landmark },
+      { id: "banken", label: "Bankenreporting", icon: ShieldCheck },
+      { id: "board", label: "Board-Pack", icon: FileBarChart }
+    ]
+  },
+  {
+    id: "personal",
+    label: "Personal",
+    items: [
+      { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users },
+      { id: "personal-krankheit", label: "Krankheit / Fehlzeiten", icon: Stethoscope },
+      { id: "personal-mitarbeiter", label: "Mitarbeiterübersicht", icon: UserRound },
+      { id: "personal-massnahmen", label: "Personalmaßnahmen", icon: CheckCircle2 },
+      { id: "personal-upload", label: "Personal-Upload", icon: FileUp }
+    ]
+  },
+  {
+    id: "admin",
+    label: "Administration",
+    items: [
+      { id: "uploads", label: "CFO-Upload", icon: FileUp },
+      { id: "reports", label: "Reports", icon: FileBarChart },
+      { id: "admin", label: "Admin / KPI-Regeln", icon: Lock }
+    ]
+  }
 ] as const;
 
 const mobileNav = [
@@ -2406,8 +2432,19 @@ export default function HomePage() {
   const adminOnlyPages: Page[] = ["uploads", "admin", "personal-upload"];
   const personalPages: Page[] = ["personal-cockpit", "personal-krankheit", "personal-mitarbeiter", "personal-massnahmen", "personal-upload"];
   const personalContentPages = personalPages.filter((item) => item !== "personal-upload") as Page[];
-  const visibleDesktopNav = desktopNav.filter((item) => isAdmin || !adminOnlyPages.includes(item.id as Page));
   const visibleMobileNav = mobileNav.filter((item) => isAdmin || !adminOnlyPages.includes(item.id as Page));
+  const [openNavSections, setOpenNavSections] = useState<Record<string, boolean>>({
+    management: true,
+    finance: true,
+    personal: false,
+    admin: false
+  });
+  const visibleNavSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => isAdmin || !adminOnlyPages.includes(item.id as Page))
+    }))
+    .filter((section) => section.items.length > 0);
 
   const selected = useMemo(
     () => dashboardSites.find((site) => site.id === selectedSite) ?? dashboardSites[0] ?? standorte[0],
@@ -2426,6 +2463,14 @@ export default function HomePage() {
       setPage("cockpit");
     }
   }, [isAdmin, page]);
+
+  useEffect(() => {
+    const activeSection = navSections.find((section) =>
+      section.items.some((item) => item.id === page || (item.id === "standorte" && page === "standort-detail"))
+    );
+    if (!activeSection) return;
+    setOpenNavSections((current) => ({ ...current, [activeSection.id]: true }));
+  }, [page]);
 
   useEffect(() => {
     if (authStep !== "app") return;
@@ -2489,14 +2534,15 @@ export default function HomePage() {
         <div className="shrink-0">
           <Brand onClick={() => go("cockpit")} />
         </div>
-        <nav className="mt-8 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pb-4 pr-1">
-          {visibleDesktopNav.map((item) => (
-            <NavButton
-              key={item.id}
-              active={page === item.id || (item.id === "standorte" && page === "standort-detail")}
-              icon={item.icon}
-              label={item.label}
-              onClick={() => go(item.id as Page)}
+        <nav className="mt-8 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-4 pr-1">
+          {visibleNavSections.map((section) => (
+            <NavSection
+              key={section.id}
+              section={section}
+              page={page}
+              open={Boolean(openNavSections[section.id])}
+              onToggle={() => setOpenNavSections((current) => ({ ...current, [section.id]: !current[section.id] }))}
+              onGo={go}
             />
           ))}
         </nav>
@@ -2537,14 +2583,15 @@ export default function HomePage() {
               </button>
             </div>
             <div className="mt-7 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-24 pr-1">
-              <nav className="space-y-1">
-                {visibleDesktopNav.map((item) => (
-                  <NavButton
-                    key={item.id}
-                    active={page === item.id || (item.id === "standorte" && page === "standort-detail")}
-                    icon={item.icon}
-                    label={item.label}
-                    onClick={() => go(item.id as Page)}
+              <nav className="space-y-3">
+                {visibleNavSections.map((section) => (
+                  <NavSection
+                    key={section.id}
+                    section={section}
+                    page={page}
+                    open={Boolean(openNavSections[section.id])}
+                    onToggle={() => setOpenNavSections((current) => ({ ...current, [section.id]: !current[section.id] }))}
+                    onGo={go}
                   />
                 ))}
               </nav>
@@ -3128,6 +3175,56 @@ function NavButton({
       <Icon className="h-5 w-5" />
       <span>{label}</span>
     </button>
+  );
+}
+
+function NavSection({
+  section,
+  page,
+  open,
+  onToggle,
+  onGo
+}: {
+  section: {
+    id: string;
+    label: string;
+    items: { id: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  };
+  page: Page;
+  open: boolean;
+  onToggle: () => void;
+  onGo: (page: Page) => void;
+}) {
+  const hasActiveItem = section.items.some((item) => item.id === page || (item.id === "standorte" && page === "standort-detail"));
+
+  return (
+    <div className="rounded-lg border border-transparent">
+      <button
+        type="button"
+        className={cn(
+          "flex h-9 w-full items-center justify-between rounded-md px-3 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground transition hover:bg-muted hover:text-foreground",
+          hasActiveItem && "bg-primary/5 text-primary"
+        )}
+        onClick={onToggle}
+        aria-expanded={open}
+      >
+        <span>{section.label}</span>
+        <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1">
+          {section.items.map((item) => (
+            <NavButton
+              key={item.id}
+              active={page === item.id || (item.id === "standorte" && page === "standort-detail")}
+              icon={item.icon}
+              label={item.label}
+              onClick={() => onGo(item.id as Page)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
