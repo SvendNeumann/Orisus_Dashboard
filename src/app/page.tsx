@@ -2848,11 +2848,12 @@ function AuthFlow({
             <div className="mt-7 max-w-3xl">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#30d5c8]">Interne Steuerungsplattform</p>
               <h1 className="mt-4 max-w-4xl text-3xl font-bold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
-                Die zentrale Steuerungsplattform für die gesamte Orisus-Gruppe.
+                Die zentrale Steuerungsplattform für Finanzen, Standorte und Personal der Orisus-Gruppe.
               </h1>
               <p className="mt-5 max-w-3xl text-base leading-7 text-slate-300 sm:text-lg">
-                Alle wirtschaftlichen Kennzahlen, Standorte, Cashflow, BWA, Finanzierungsdaten und Performance-KPIs
-                auf einer Zahlenbasis. Für fundierte Entscheidungen. In Echtzeit.
+                CFO-Cockpit, BWA bis Cashflow, Bankenreporting, Darlehen, Earn-Out, Standortsteuerung,
+                Personalstruktur und Fehlzeiten auf einer konsistenten Datenbasis. Für schnelle Entscheidungen
+                in Geschäftsführung, Controlling und Management.
               </p>
             </div>
 
@@ -2872,8 +2873,8 @@ function AuthFlow({
               <p className="mt-7 text-xs font-bold uppercase tracking-[0.16em] text-primary">Geschützter Zugang</p>
               <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-950">Orisus CFO Dashboard</h2>
               <div className="mt-4 space-y-2 text-base leading-7 text-slate-600">
-                <p>Interne Management-Plattform für Geschäftsführung und Controlling.</p>
-                <p>Zugriff auf CFO-Cockpit, Cashflow, BWA, Standortsteuerung und Finanzierungsdaten.</p>
+                <p>Interne Management-Plattform für Geschäftsführung, Controlling und Personalsteuerung.</p>
+                <p>Zugriff auf CFO-Cockpit, BWA, Cashflow, Standorte, Bankenreporting, Personal-KPIs und Uploads.</p>
               </div>
 
               <div className="mt-8 space-y-4">
@@ -2921,11 +2922,12 @@ function AuthFlow({
             </div>
           </Card>
 
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
             {[
               { title: "Sicher & intern", text: "Geschützter Zugriff für autorisierte Nutzer.", icon: ShieldCheck },
-              { title: "Daten auf einer Basis", text: "Ein Import. Alle Zahlen. Volle Konsistenz.", icon: CircleDollarSign },
-              { title: "Entscheidungen beschleunigen", text: "Transparenz in Echtzeit für schnellere Entscheidungen.", icon: TrendingUp }
+              { title: "Rollenbasiert", text: "Admin- und Info-Zugriff mit klarer Trennung.", icon: ShieldCheck },
+              { title: "Zwei Datenbasen", text: "CFO-Import und Personal-Import sauber getrennt.", icon: CircleDollarSign },
+              { title: "Entscheidungen beschleunigen", text: "Transparenz für Finanzen, Personal und Standorte.", icon: TrendingUp }
             ].map(({ title, text, icon: Icon }) => (
               <div key={title} className="rounded-lg border border-border bg-white p-4 shadow-sm">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e3f5f4] text-primary">
@@ -2954,23 +2956,23 @@ function AuthFlow({
 function LandingFeatures() {
   const features = [
     {
-      title: "Daily CFO Cockpit",
-      text: "Alle wichtigen Kennzahlen auf einen Blick - täglich aktualisiert.",
+      title: "CFO Cockpit",
+      text: "Liquidität, EBITDA, Cashflow, Forderungen und kritische Standorte auf einen Blick.",
       icon: Gauge
     },
     {
       title: "BWA bis Cashflow",
-      text: "Von der BWA über Umsatz bis zum Cashflow - lückenlos integriert.",
+      text: "Vom vorläufigen Ergebnis über Adjustments bis zum Cashflow - je Standort und konsolidiert.",
       icon: FileBarChart
     },
     {
-      title: "Banken & Board",
-      text: "Reporting-ready für Banken, Investoren und die Geschäftsführung.",
+      title: "Banken, Board & Earn-Out",
+      text: "Kapitaldienst, Darlehen, Restschuld, Earn-Out und Board-Pack strukturiert steuerbar.",
       icon: Landmark
     },
     {
-      title: "Standortsteuerung",
-      text: "Vergleichen, steuern und entwickeln - jeden Standort im Blick.",
+      title: "Personal & Fehlzeiten",
+      text: "Aktive Mitarbeiter, FTE, AG-Kosten, Krankheitstage und Maßnahmen aus dem Personal-Upload.",
       icon: Building2
     }
   ];
@@ -2991,14 +2993,14 @@ function LandingFeatures() {
 }
 
 function LandingMockup() {
-  const sideItems = ["Cockpit", "Standorte", "Analysen", "Cashflow", "Darlehen & Earn-Out", "Uploads", "Reports"];
+  const sideItems = ["CFO Cockpit", "BWA & Finanzen", "Personal-Cockpit", "Krankheit", "Darlehen & Earn-Out", "Uploads", "Reports"];
   const kpis = [
     ["Gesamtleistung (BWA)", "24,58 Mio. EUR"],
-    ["Gesamtumsatz (PVS)", "22,14 Mio. EUR"],
+    ["PVS-Umsatz", "22,14 Mio. EUR"],
     ["EBITDA", "5,23 Mio. EUR"],
-    ["EBITDA-Marge", "21,3 %"],
+    ["Aktive MA", "119"],
     ["Cashflow", "3,12 Mio. EUR"],
-    ["Kontostand", "11,78 Mio. EUR"]
+    ["FTE gesamt", "83,8"]
   ];
   const bars = [42, 52, 48, 64, 72, 84];
   const siteBars = [
@@ -3035,7 +3037,7 @@ function LandingMockup() {
 
         <div className="p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="font-bold text-white">CFO Konzern Cockpit</h2>
+            <h2 className="font-bold text-white">Orisus Management Cockpit</h2>
             <div className="flex gap-2 text-[11px] text-slate-300">
               <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5">Zeitraum: YTD 2025</span>
               <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5">Vergleich: Ist</span>
@@ -3066,7 +3068,7 @@ function LandingMockup() {
             </div>
 
             <div className="rounded-lg bg-white p-3 text-slate-950">
-              <p className="text-xs font-bold">EBITDA je Standort</p>
+              <p className="text-xs font-bold">Standortampel & EBITDA</p>
               <div className="mt-4 space-y-3">
                 {siteBars.map(([site, value], index) => (
                   <div key={site} className="grid grid-cols-[72px_1fr_8px] items-center gap-2 text-[11px]">
@@ -3081,7 +3083,7 @@ function LandingMockup() {
             </div>
 
             <div className="rounded-lg bg-white p-3 text-slate-950">
-              <p className="text-xs font-bold">Cashflow Entwicklung</p>
+              <p className="text-xs font-bold">Cashflow & Personaltrend</p>
               <div className="mt-4 flex h-28 items-end gap-1.5">
                 {[32, 58, 44, 64, 38, 82, 54, 72].map((value, index) => (
                   <span
@@ -3098,8 +3100,8 @@ function LandingMockup() {
             {[
               ["6", "Standorte"],
               ["360°", "Transparenz"],
-              ["1", "Datenbasis"],
-              ["100 %", "Entscheidungsstärke"]
+              ["2", "Importstrecken"],
+              ["Admin", "Rollensteuerung"]
             ].map(([value, label]) => (
               <div key={label} className="text-center">
                 <p className="text-xl font-bold">{value}</p>
