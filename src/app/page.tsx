@@ -625,6 +625,19 @@ function rememberSupabaseSession(session: SupabaseAuthResponse, fallbackEmail: s
   return true;
 }
 
+async function refreshSupabaseSession() {
+  const refreshToken = window.localStorage.getItem(supabaseRefreshTokenKey);
+  if (!refreshToken) return null;
+  const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: supabaseHeaders(""),
+    body: JSON.stringify({ refresh_token: refreshToken })
+  });
+  if (!response.ok) return null;
+  const session = (await response.json()) as SupabaseAuthResponse;
+  return rememberSupabaseSession(session, currentUserEmail(), false) ? session : null;
+}
+
 async function signInSupabaseUser(identifier: string, password: string) {
   const authEmail = authEmailForLoginIdentifier(identifier);
   const loginResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
@@ -670,6 +683,19 @@ async function completeSupabasePasswordChange(token = currentSupabaseAccessToken
 
 async function loadSupabaseAuthUser(token = currentSupabaseAccessToken()) {
   return supabaseFetch<{ id?: string; email?: string; app_metadata?: Record<string, unknown> }>("/auth/v1/user", undefined, token);
+}
+
+async function validateStoredSupabaseSession() {
+  if (!isSupabaseConfigured()) return true;
+  let token = currentSupabaseAccessToken();
+  let user = token ? await loadSupabaseAuthUser(token).catch(() => null) : null;
+  if (!user?.email) {
+    const refreshed = await refreshSupabaseSession();
+    token = refreshed?.access_token ?? "";
+    user = token ? await loadSupabaseAuthUser(token).catch(() => null) : null;
+  }
+  if (!user?.email) return false;
+  return loadAndRememberAccessProfile(user.email);
 }
 
 function authParamsFromCurrentUrl() {
@@ -2827,13 +2853,39 @@ export default function HomePage() {
   );
 
   useEffect(() => {
-    if (window.localStorage.getItem(authStorageKey) === "true") {
-      setUserEmail(currentUserEmail());
-      setUserDisplayName(currentUserName());
-      setUserRole(currentUserRole());
-      setAuthProfileReady(true);
-      setAuthStep("app");
-    }
+    if (window.localStorage.getItem(authStorageKey) !== "true") return;
+    let isMounted = true;
+    validateStoredSupabaseSession()
+      .then((isValid) => {
+        if (!isMounted) return;
+        if (!isValid) {
+          window.localStorage.removeItem(authStorageKey);
+          window.localStorage.removeItem(activePageStorageKey);
+          window.localStorage.removeItem(activeSiteStorageKey);
+          clearSupabaseSession();
+          setUserEmail("");
+          setUserDisplayName("Svend Neumann");
+          setUserRole("info");
+          setAuthProfileReady(false);
+          setAuthStep("welcome");
+          return;
+        }
+        setUserEmail(currentUserEmail());
+        setUserDisplayName(currentUserName());
+        setUserRole(currentUserRole());
+        setAuthProfileReady(true);
+        setAuthStep("app");
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        window.localStorage.removeItem(authStorageKey);
+        clearSupabaseSession();
+        setAuthProfileReady(false);
+        setAuthStep("welcome");
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {

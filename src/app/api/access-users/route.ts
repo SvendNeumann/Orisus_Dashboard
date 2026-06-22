@@ -30,9 +30,53 @@ const adminFallbackEmails = new Set([
   "sven.neumann@resos.de",
   "svend.neumann@resos.de"
 ]);
+const rateLimitWindowMs = 60_000;
+const rateLimitMaxRequests = 30;
+const mutationRateLimitMaxRequests = 12;
+const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function clientIp(request: NextRequest) {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
+function sameOriginRequest(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === request.nextUrl.host;
+  } catch {
+    return false;
+  }
+}
+
+function checkRateLimit(request: NextRequest, scope: string, maxRequests = rateLimitMaxRequests) {
+  const key = `${scope}:${clientIp(request)}`;
+  const now = Date.now();
+  const current = rateLimitBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    rateLimitBuckets.set(key, { count: 1, resetAt: now + rateLimitWindowMs });
+    return null;
+  }
+  current.count += 1;
+  if (current.count > maxRequests) {
+    return jsonError("Zu viele Anfragen. Bitte kurz warten und erneut versuchen.", 429);
+  }
+  return null;
+}
+
+function requestGuard(request: NextRequest, mutation = false) {
+  if (!sameOriginRequest(request)) {
+    return jsonError("Anfrage wurde aus Sicherheitsgründen blockiert.", 403);
+  }
+  return checkRateLimit(request, mutation ? "access-users:write" : "access-users:read", mutation ? mutationRateLimitMaxRequests : rateLimitMaxRequests);
 }
 
 function normalizeEmail(email: string) {
@@ -213,6 +257,8 @@ async function requireAdmin(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const guarded = requestGuard(request);
+    if (guarded) return guarded;
     const denied = await requireAdmin(request);
     if (denied) return denied;
 
@@ -247,6 +293,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const guarded = requestGuard(request, true);
+    if (guarded) return guarded;
     const denied = await requireAdmin(request);
     if (denied) return denied;
 
@@ -287,6 +335,8 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const guarded = requestGuard(request, true);
+    if (guarded) return guarded;
     const denied = await requireAdmin(request);
     if (denied) return denied;
 
@@ -331,6 +381,8 @@ export async function PATCH(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const guarded = requestGuard(request, true);
+    if (guarded) return guarded;
     if (!supabaseUrl || !serviceRoleKey) {
       return jsonError("Supabase Secret Key fehlt in Vercel.", 503);
     }
@@ -344,6 +396,8 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const guarded = requestGuard(request, true);
+    if (guarded) return guarded;
     const denied = await requireAdmin(request);
     if (denied) return denied;
 
