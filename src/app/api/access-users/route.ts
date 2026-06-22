@@ -51,6 +51,29 @@ async function supabaseServiceFetch<T>(path: string, init?: RequestInit): Promis
   return (await response.json()) as T;
 }
 
+async function sendSupabaseInvite(email: string, name: string) {
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
+  const body: Record<string, unknown> = {
+    email,
+    data: { name }
+  };
+  if (appUrl) body.redirect_to = appUrl;
+
+  const response = await fetch(`${supabaseUrl}/auth/v1/invite`, {
+    method: "POST",
+    headers: serviceHeaders(),
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    if (response.status === 422 || /already|registered|exists/i.test(text)) return;
+    throw new Error(text || "Einladung konnte nicht versendet werden.");
+  }
+}
+
 async function requesterEmail(request: NextRequest) {
   const authorization = request.headers.get("authorization") ?? "";
   const token = authorization.replace(/^Bearer\s+/i, "").trim();
@@ -119,6 +142,8 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString()
     })
   });
+
+  await sendSupabaseInvite(email, name);
 
   return NextResponse.json({ ok: true });
 }

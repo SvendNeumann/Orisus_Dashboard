@@ -563,7 +563,7 @@ function rememberSupabaseSession(session: SupabaseAuthResponse, fallbackEmail: s
   return true;
 }
 
-async function signInOrCreateSupabaseUser(email: string, password: string) {
+async function signInSupabaseUser(email: string, password: string) {
   const loginResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
     method: "POST",
     headers: supabaseHeaders(""),
@@ -575,19 +575,7 @@ async function signInOrCreateSupabaseUser(email: string, password: string) {
     return rememberSupabaseSession(session, email);
   }
 
-  const signupResponse = await fetch(`${supabaseUrl}/auth/v1/signup`, {
-    method: "POST",
-    headers: supabaseHeaders(""),
-    body: JSON.stringify({ email, password })
-  });
-
-  if (!signupResponse.ok) {
-    const text = await signupResponse.text();
-    throw new Error(text || "Supabase Auth fehlgeschlagen.");
-  }
-
-  const signupSession = (await signupResponse.json()) as SupabaseAuthResponse;
-  return rememberSupabaseSession(signupSession, email);
+  throw new Error("Login fehlgeschlagen.");
 }
 
 async function loadAndRememberAccessProfile(email: string) {
@@ -2891,7 +2879,7 @@ function AuthFlow({
 
     if (isSupabaseConfigured()) {
       try {
-        const isAuthenticated = await signInOrCreateSupabaseUser(normalizedEmail, password);
+        const isAuthenticated = await signInSupabaseUser(normalizedEmail, password);
         if (!isAuthenticated) {
           setLoginMessage("Bitte bestätige den Zugang über die Supabase-E-Mail oder prüfe die Login-Daten.");
           return;
@@ -2908,7 +2896,7 @@ function AuthFlow({
         setStep("app");
         return;
       } catch {
-        setLoginMessage("Login nicht möglich. Bitte Passwort prüfen oder Passwort zurücksetzen.");
+        setLoginMessage("Login nicht möglich. Bitte Zugang, Passwort oder Einladung prüfen.");
         return;
       }
     }
@@ -3074,7 +3062,7 @@ function LandingLoginCard({
                 <Input
                   value={password}
                   onChange={(event) => onPasswordChange(event.target.value)}
-                  placeholder={passwordConfigured ? "Ihr Passwort" : "Passwort beim Erst-Login festlegen"}
+                  placeholder="Ihr Passwort"
                   type="password"
                   aria-label="Passwort"
                   className="border-white/12 bg-[#061421] text-white placeholder:text-slate-500 focus:border-[#30d5c8] focus:ring-[#30d5c8]/10"
@@ -3093,7 +3081,7 @@ function LandingLoginCard({
                 className="h-12 w-full rounded-lg bg-gradient-to-r from-[#30d5c8] to-[#087b8c] text-white shadow-lg shadow-[#30d5c8]/15 hover:from-[#5fe1d8] hover:to-[#0a8fa1]"
                 onClick={onPasswordLogin}
               >
-                {passwordConfigured ? "Anmelden" : "Passwort festlegen & anmelden"}
+                Anmelden
               </Button>
               {isMobileDevice && (
                 <Button
@@ -9058,7 +9046,7 @@ function AccessUserManagement() {
       setName("");
       setEmail("");
       setRole("info");
-      setMessage("Zugang angelegt. Die Person kann sich mit der Mail anmelden und beim Erst-Login ihr Passwort setzen.");
+      setMessage("Zugang angelegt und Einladung versendet. Die Person setzt ihr Passwort über den Einladungslink.");
       await loadUsers();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Zugang konnte nicht angelegt werden.");

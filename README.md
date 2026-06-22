@@ -65,7 +65,7 @@ Rollenlogik live:
 - `admin`: darf CFO- und Personal-Uploads bestaetigen/zuruecksetzen, KPI-Regeln sehen/aendern und alle Bereiche nutzen.
 - `info`: darf die App lesen, aber keine Uploads bestaetigen, keine Daten zuruecksetzen und keine Regeln aendern.
 
-Die Schreibrechte werden nicht nur in der App-Oberflaeche, sondern ueber Supabase Row Level Security abgesichert. Die App-Zugaenge stehen in `public.orisus_user_roles`; nur aktive Nutzer duerfen Importdaten lesen, und nur Admins duerfen Importdaten schreiben, aktualisieren oder loeschen. Neue App-Nutzer werden im Admin-Bereich angelegt und koennen beim Erst-Login ihr Passwort setzen.
+Die Schreibrechte werden nicht nur in der App-Oberflaeche, sondern ueber Supabase Row Level Security abgesichert. Die App-Zugaenge stehen in `public.orisus_user_roles`; nur aktive Nutzer duerfen Importdaten lesen, und nur Admins duerfen Importdaten schreiben, aktualisieren oder loeschen. Neue App-Nutzer werden ausschliesslich im Admin-Bereich angelegt und per Einladung aktiviert; eine Selbstregistrierung ueber die Startseite ist deaktiviert.
 
 Solange Supabase nicht konfiguriert ist, nutzt die App weiterhin den lokalen persistenten Browser-Speicher.
 
