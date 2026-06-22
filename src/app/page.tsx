@@ -7423,7 +7423,7 @@ function MonthlyEbitdaTable({
       <div className="flex flex-col gap-3 table-head p-3 text-white sm:flex-row sm:items-center sm:justify-between">
         <div className="font-bold">MONATLICHE EBITDA-ÜBERSICHT JE STANDORT | {periodLabel}</div>
         {availablePeriods?.length && period && setPeriod ? (
-          <Select className="w-full bg-white text-foreground sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
+          <Select className="w-full sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
             {availablePeriods.map((option) => (
               <option key={option}>{option}</option>
             ))}
@@ -8816,7 +8816,7 @@ function SiteBankCashflowCard({ site, rows }: { site: DashboardSite; rows: Impor
     <Card className="overflow-hidden">
       <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
         <span className="font-bold">{site.name} | Bank-Cashflow | {performancePeriodLabel(period)}</span>
-        <Select className="w-full bg-white text-foreground sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
+        <Select className="w-full sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
           {availablePeriods.map((option) => (
             <option key={option} value={option}>
               {performancePeriodLabel(option)}
