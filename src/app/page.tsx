@@ -3841,16 +3841,6 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
     site: site.site,
     days: personalData.sicknessEntries.filter((entry) => entry.site === site.site && entry.year === selectedYear).reduce((sum, entry) => sum + entry.days, 0)
   }));
-  const statusRows = uniqueSortedText(active.map((employee) => employee.status)).map((status) => ({
-    name: status,
-    value: active.filter((employee) => employee.status === status).length
-  }));
-  const statusColors = ["#0f766e", "#0891b2", "#f59e0b", "#ef4444"];
-  const statusTotal = statusRows.reduce((sum, row) => sum + row.value, 0);
-  const renderStatusLabel = ({ name, value }: { name?: string; value?: number }) => {
-    if (!value) return "";
-    return `${name}: ${value}`;
-  };
   const operationalRows = siteRows.map((site) => {
     const siteEmployees = personalData.employees.filter((employee) => employee.site === site.site);
     const activeEmployees = siteEmployees.filter(isActiveStatus);
@@ -4134,39 +4124,6 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
                   <span className="text-xs font-semibold text-muted-foreground">
                     ({personnelCostTotal ? pct((row.value / personnelCostTotal) * 100) : "0 %"})
                   </span>
-                </p>
-              </div>
-            ))}
-          </div>
-        </ChartCard>
-        <ChartCard title="Statusverteilung | aktive Mitarbeiter" icon={PieIcon}>
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie
-                data={statusRows}
-                dataKey="value"
-                nameKey="name"
-                innerRadius={54}
-                outerRadius={84}
-                label={false}
-                labelLine={false}
-              >
-                {statusRows.map((_, index) => (
-                  <Cell key={index} fill={statusColors[index % statusColors.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value, name) => [`${value}`, name]} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {statusRows.map((row, index) => (
-              <div key={row.name} className="rounded-md bg-slate-50 p-3">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColors[index % statusColors.length] }} />
-                  <span className="text-sm font-semibold">{row.name}</span>
-                </div>
-                <p className="mt-1 text-lg font-bold">
-                  {row.value} <span className="text-xs font-semibold text-muted-foreground">({statusTotal ? pct((row.value / statusTotal) * 100) : "0 %"})</span>
                 </p>
               </div>
             ))}
