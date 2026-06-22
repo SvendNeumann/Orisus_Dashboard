@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 :root {
-  --background: 211 58% 8%;
-  --foreground: 195 38% 94%;
-  --card: 207 58% 12%;
-  --card-foreground: 195 38% 94%;
-  --muted: 207 42% 18%;
-  --muted-foreground: 204 20% 70%;
-  --border: 191 26% 25%;
+  --background: 204 43% 16%;
+  --foreground: 194 31% 94%;
+  --card: 202 43% 20%;
+  --card-foreground: 194 31% 94%;
+  --muted: 200 31% 24%;
+  --muted-foreground: 203 19% 74%;
+  --border: 193 22% 34%;
   --primary: 177 66% 51%;
   --primary-foreground: 0 0% 100%;
   --accent: 172 64% 44%;
@@ -28,8 +28,8 @@ body {
   margin: 0;
   color: hsl(var(--foreground));
   background:
-    radial-gradient(circle at top left, rgba(48, 213, 200, 0.14), transparent 34rem),
-    linear-gradient(180deg, #061421 0%, #0a1825 100%);
+    radial-gradient(circle at top left, rgba(48, 213, 200, 0.12), transparent 34rem),
+    linear-gradient(180deg, #102a3a 0%, #143344 100%);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -37,9 +37,9 @@ body {
   min-height: 100vh;
   color: #eefbfb;
   background:
-    radial-gradient(circle at 16% 8%, rgba(48, 213, 200, 0.16), transparent 31rem),
-    radial-gradient(circle at 82% 18%, rgba(7, 123, 140, 0.14), transparent 29rem),
-    linear-gradient(135deg, #061421 0%, #081a29 44%, #0b2230 100%);
+    radial-gradient(circle at 14% 7%, rgba(48, 213, 200, 0.17), transparent 34rem),
+    radial-gradient(circle at 82% 18%, rgba(117, 190, 199, 0.12), transparent 31rem),
+    linear-gradient(135deg, #102a3a 0%, #143649 45%, #173e4d 100%);
 }
 
 .app-shell::before {
@@ -48,8 +48,8 @@ body {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
   background-size: 64px 64px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.46), transparent 70%);
 }
@@ -60,9 +60,9 @@ body {
 .app-bottom-nav,
 .app-user-panel,
 .app-nav-controls {
-  border-color: rgba(148, 211, 215, 0.16) !important;
-  background: rgba(5, 18, 31, 0.88) !important;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+  border-color: rgba(178, 226, 229, 0.2) !important;
+  background: rgba(12, 34, 49, 0.9) !important;
+  box-shadow: 0 20px 64px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(18px);
 }
 
@@ -90,30 +90,32 @@ select {
 }
 
 .table-head {
-  background: linear-gradient(135deg, #0d7280, #0a4f61);
+  background: linear-gradient(135deg, #168190, #0f6274);
   color: hsl(var(--primary-foreground));
+  letter-spacing: 0.02em;
 }
 
 .table-subhead {
-  background: linear-gradient(135deg, #0b6271, #083d4d);
+  background: linear-gradient(135deg, #197586, #125568);
   color: hsl(var(--primary-foreground));
+  letter-spacing: 0.02em;
 }
 
 .table-section {
-  background: rgba(48, 213, 200, 0.08);
+  background: rgba(178, 226, 229, 0.13);
   color: hsl(var(--foreground));
 }
 
 .table-cashflow {
-  background: rgba(26, 185, 150, 0.08);
+  background: rgba(26, 185, 150, 0.12);
 }
 
 .table-total {
-  background: rgba(48, 213, 200, 0.09);
+  background: rgba(178, 226, 229, 0.14);
 }
 
 .summary-row > td {
-  background: rgba(48, 213, 200, 0.11) !important;
+  background: rgba(178, 226, 229, 0.16) !important;
   font-weight: 700;
 }
 
@@ -122,11 +124,11 @@ select {
 }
 
 .table-ratio {
-  background: rgba(48, 213, 200, 0.07);
+  background: rgba(178, 226, 229, 0.11);
 }
 
 .table-grid-bg {
-  background: rgba(148, 211, 215, 0.16);
+  background: rgba(178, 226, 229, 0.22);
 }
 
 .app-shell .bg-white,
@@ -135,12 +137,12 @@ select {
 .app-shell .bg-white\/88,
 .app-shell .bg-white\/92,
 .app-shell .bg-white\/95 {
-  background-color: rgba(7, 24, 39, 0.78) !important;
+  background-color: rgba(19, 49, 67, 0.86) !important;
 }
 
 .app-shell .bg-slate-50,
 .app-shell .bg-slate-100 {
-  background-color: rgba(13, 35, 52, 0.74) !important;
+  background-color: rgba(28, 65, 82, 0.72) !important;
 }
 
 .app-shell .border-border,
@@ -156,12 +158,12 @@ select {
 }
 
 .app-shell .text-slate-700 {
-  color: #c9dcdf !important;
+  color: #d4e5e8 !important;
 }
 
 .app-shell .text-muted-foreground,
 .app-shell .text-slate-500 {
-  color: #9fb8bf !important;
+  color: #b5cbd1 !important;
 }
 
 .app-shell .bg-cyan-50,
@@ -196,19 +198,37 @@ select {
 
 .app-shell .shadow-sm,
 .app-shell .shadow-soft {
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18) !important;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.14) !important;
 }
 
 .app-shell .recharts-cartesian-grid line {
-  stroke: rgba(148, 211, 215, 0.14);
+  stroke: rgba(178, 226, 229, 0.2);
 }
 
 .app-shell .recharts-text {
-  fill: #9fb8bf;
+  fill: #b5cbd1;
 }
 
 .app-shell .recharts-tooltip-wrapper {
   color: #0f172a;
+}
+
+.app-shell .data-table tbody td:not(.table-total):not(.table-section):not(.table-ratio):not(.table-cashflow) {
+  background-color: rgba(19, 49, 67, 0.52);
+}
+
+.app-shell .data-table tbody tr:nth-child(even) td:not(.table-total):not(.table-section):not(.table-ratio):not(.table-cashflow) {
+  background-color: rgba(25, 61, 80, 0.5);
+}
+
+.app-shell .data-table th,
+.app-shell .data-table td {
+  border-color: rgba(178, 226, 229, 0.18) !important;
+}
+
+.app-shell .data-table tbody tr.table-total td,
+.app-shell .data-table tbody tr.summary-row td {
+  background-color: rgba(178, 226, 229, 0.16) !important;
 }
 
 .data-table {

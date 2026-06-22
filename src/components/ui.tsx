@@ -8,7 +8,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-lg border border-white/10 bg-[#071827]/82 text-card-foreground shadow-[0_18px_54px_rgba(0,0,0,0.22)] backdrop-blur",
+        "rounded-lg border border-white/12 bg-[#123145]/86 text-card-foreground shadow-[0_16px_44px_rgba(0,0,0,0.16)] backdrop-blur",
         className
       )}
       {...props}
@@ -30,8 +30,8 @@ export function Button({
         variant === "primary" &&
           "bg-gradient-to-r from-[#30d5c8] to-[#087b8c] text-white shadow-lg shadow-[#30d5c8]/10 hover:from-[#5fe1d8] hover:to-[#0a8fa1]",
         variant === "secondary" &&
-          "border border-white/12 bg-white/5 text-foreground hover:border-[#30d5c8]/35 hover:bg-white/10",
-        variant === "ghost" && "text-foreground hover:bg-white/8",
+          "border border-white/14 bg-white/8 text-foreground hover:border-[#30d5c8]/35 hover:bg-white/13",
+        variant === "ghost" && "text-foreground hover:bg-white/10",
         variant === "danger" && "bg-red-600 text-white hover:bg-red-700",
         className
       )}
@@ -47,7 +47,7 @@ export function Input({
   return (
     <input
       className={cn(
-        "h-11 w-full rounded-md border border-white/12 bg-[#061421]/78 px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-[#30d5c8] focus:ring-4 focus:ring-[#30d5c8]/10",
+        "h-11 w-full rounded-md border border-white/14 bg-[#102c3e]/82 px-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-[#30d5c8] focus:ring-4 focus:ring-[#30d5c8]/10",
         className
       )}
       {...props}
@@ -63,7 +63,7 @@ export function Select({
   return (
     <select
       className={cn(
-        "h-10 rounded-md border border-white/12 bg-[#061421]/78 px-3 text-sm font-medium text-foreground outline-none focus:border-[#30d5c8] focus:ring-4 focus:ring-[#30d5c8]/10",
+        "h-10 rounded-md border border-white/14 bg-[#102c3e]/82 px-3 text-sm font-medium text-foreground outline-none focus:border-[#30d5c8] focus:ring-4 focus:ring-[#30d5c8]/10",
         className
       )}
       {...props}
@@ -88,7 +88,7 @@ export function Badge({
         tone === "yellow" && "bg-amber-400/12 text-amber-300",
         tone === "red" && "bg-red-400/12 text-red-300",
         tone === "blue" && "bg-[#30d5c8]/12 text-[#79eee7]",
-        tone === "neutral" && "bg-white/8 text-slate-300",
+        tone === "neutral" && "bg-white/10 text-slate-200",
         className
       )}
       {...props}
