@@ -82,7 +82,7 @@ type Page =
   | "personal-massnahmen"
   | "personal-upload";
 
-type AuthStep = "welcome" | "forgot" | "app";
+type AuthStep = "welcome" | "forgot" | "set-password" | "app";
 type UserRole = "admin" | "info";
 type AccessUser = {
   email: string;
@@ -588,6 +588,22 @@ async function signInSupabaseUser(email: string, password: string) {
   }
 
   throw new Error("Login fehlgeschlagen.");
+}
+
+async function updateSupabaseUserPassword(password: string, token = currentSupabaseAccessToken()) {
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    method: "PUT",
+    headers: supabaseHeaders(token),
+    body: JSON.stringify({ password })
+  });
+
+  if (!response.ok) {
+    throw new Error("Passwort konnte nicht gesetzt werden.");
+  }
+}
+
+async function loadSupabaseAuthUser(token = currentSupabaseAccessToken()) {
+  return supabaseFetch<{ email?: string }>("/auth/v1/user", undefined, token);
 }
 
 async function loadAndRememberAccessProfile(email: string) {
@@ -2862,10 +2878,35 @@ function AuthFlow({
   const [password, setPassword] = useState("");
   const [loginMessage, setLoginMessage] = useState("");
   const [passwordConfigured, setPasswordConfigured] = useState(false);
+  const [inviteToken, setInviteToken] = useState("");
 
   useEffect(() => {
     setPasswordConfigured(window.localStorage.getItem(authPasswordConfiguredKey) === "true");
   }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const queryParams = new URLSearchParams(window.location.search);
+    const token = hashParams.get("access_token") || queryParams.get("access_token") || "";
+    const refreshToken = hashParams.get("refresh_token") || queryParams.get("refresh_token") || "";
+    const type = hashParams.get("type") || queryParams.get("type") || "";
+    if (!token || (type && !["invite", "recovery"].includes(type))) return;
+
+    setInviteToken(token);
+    rememberSupabaseSession({ access_token: token, refresh_token: refreshToken }, email);
+    loadSupabaseAuthUser(token)
+      .then((user) => {
+        if (user.email) {
+          setEmail(user.email);
+          window.localStorage.setItem(supabaseUserEmailKey, user.email);
+        }
+      })
+      .catch(() => undefined);
+    setLoginMessage("Einladung bestätigt. Bitte lege jetzt dein Passwort fest.");
+    setStep("set-password");
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }, [email, setStep]);
 
   useEffect(() => {
     const updateDeviceMode = () => {
@@ -2958,6 +2999,31 @@ function AuthFlow({
     if (password.length < 6) {
       setLoginMessage("Bitte ein Passwort mit mindestens 6 Zeichen eingeben.");
       return;
+    }
+
+    if (step === "set-password") {
+      try {
+        const token = inviteToken || currentSupabaseAccessToken();
+        await updateSupabaseUserPassword(password, token);
+        const authUser = await loadSupabaseAuthUser(token).catch(() => null);
+        const sessionEmail = authUser?.email || currentUserEmail() || normalizedEmail;
+        window.localStorage.setItem(supabaseUserEmailKey, sessionEmail);
+        const hasAppAccess = await loadAndRememberAccessProfile(sessionEmail);
+        if (!hasAppAccess) {
+          clearSupabaseSession();
+          window.localStorage.removeItem(authStorageKey);
+          setLoginMessage("Der Zugang wurde bestätigt, aber für diese E-Mail ist noch keine aktive App-Rolle angelegt.");
+          return;
+        }
+        window.localStorage.setItem(authPasswordConfiguredKey, "true");
+        setPasswordConfigured(true);
+        setPassword("");
+        setStep("app");
+        return;
+      } catch {
+        setLoginMessage("Passwort konnte nicht gesetzt werden. Bitte Einladungslink erneut öffnen oder Admin kontaktieren.");
+        return;
+      }
     }
 
     if (isSupabaseConfigured()) {
@@ -3180,6 +3246,42 @@ function LandingLoginCard({
               {loginMessage && <p className="rounded-md border border-amber-400/25 bg-amber-400/10 p-3 text-sm font-semibold text-amber-100">{loginMessage}</p>}
               {passkeyMessage && <p className="rounded-md border border-amber-400/25 bg-amber-400/10 p-3 text-sm font-semibold text-amber-100">{passkeyMessage}</p>}
             </>
+          )}
+          {step === "set-password" && (
+            <div className="space-y-4">
+              <div className="rounded-md border border-[#30d5c8]/25 bg-[#30d5c8]/10 p-3 text-sm font-semibold text-[#b8fff8]">
+                Einladung bestätigt. Bitte lege jetzt dein persönliches Passwort fest.
+              </div>
+              <label className="block space-y-2 text-sm font-semibold text-slate-200">
+                <span>E-Mail</span>
+                <Input
+                  value={email}
+                  onChange={(event) => onEmailChange(event.target.value)}
+                  placeholder="ihre.email@orisus.de"
+                  type="email"
+                  aria-label="E-Mail"
+                  className="border-white/12 bg-[#061421] text-white placeholder:text-slate-500 focus:border-[#30d5c8] focus:ring-[#30d5c8]/10"
+                />
+              </label>
+              <label className="block space-y-2 text-sm font-semibold text-slate-200">
+                <span>Neues Passwort</span>
+                <Input
+                  value={password}
+                  onChange={(event) => onPasswordChange(event.target.value)}
+                  placeholder="Mindestens 6 Zeichen"
+                  type="password"
+                  aria-label="Neues Passwort"
+                  className="border-white/12 bg-[#061421] text-white placeholder:text-slate-500 focus:border-[#30d5c8] focus:ring-[#30d5c8]/10"
+                />
+              </label>
+              <Button
+                className="h-12 w-full rounded-lg bg-gradient-to-r from-[#30d5c8] to-[#087b8c] text-white shadow-lg shadow-[#30d5c8]/15 hover:from-[#5fe1d8] hover:to-[#0a8fa1]"
+                onClick={onPasswordLogin}
+              >
+                Passwort speichern und anmelden
+              </Button>
+              {loginMessage && <p className="rounded-md border border-amber-400/25 bg-amber-400/10 p-3 text-sm font-semibold text-amber-100">{loginMessage}</p>}
+            </div>
           )}
           {step === "forgot" && (
             <div className="space-y-4">
