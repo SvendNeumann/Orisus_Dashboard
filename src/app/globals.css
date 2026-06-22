@@ -82,11 +82,22 @@ select {
 .app-shell textarea,
 .app-shell select {
   color: #102a3a !important;
+  -webkit-text-fill-color: #102a3a !important;
   background-color: rgba(255, 255, 255, 0.96) !important;
   border-color: rgba(178, 226, 229, 0.42) !important;
   box-shadow: 0 12px 28px rgba(4, 21, 33, 0.12);
   caret-color: #0f6f82;
   color-scheme: light;
+}
+
+.app-shell input[type="search"],
+.app-shell input[type="text"],
+.app-shell input[type="email"],
+.app-shell input[type="password"],
+.app-shell input:not([type]) {
+  color: #102a3a !important;
+  -webkit-text-fill-color: #102a3a !important;
+  background: rgba(255, 255, 255, 0.96) !important;
 }
 
 .app-shell input::placeholder,
@@ -98,6 +109,8 @@ select {
 .app-shell input:focus,
 .app-shell textarea:focus,
 .app-shell select:focus {
+  color: #102a3a !important;
+  -webkit-text-fill-color: #102a3a !important;
   border-color: #30d5c8 !important;
   box-shadow: 0 0 0 4px rgba(48, 213, 200, 0.14), 0 12px 28px rgba(4, 21, 33, 0.12);
   outline: none;
