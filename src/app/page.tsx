@@ -3202,8 +3202,8 @@ function NavSection({
       <button
         type="button"
         className={cn(
-          "flex h-9 w-full items-center justify-between rounded-md px-3 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground transition hover:bg-muted hover:text-foreground",
-          hasActiveItem && "bg-primary/5 text-primary"
+          "flex h-9 w-full items-center justify-between rounded-md border border-slate-200/70 bg-slate-100/80 px-3 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground transition hover:border-primary/20 hover:bg-primary/5 hover:text-primary",
+          hasActiveItem && "border-primary/20 bg-primary/8 text-primary shadow-sm"
         )}
         onClick={onToggle}
         aria-expanded={open}
