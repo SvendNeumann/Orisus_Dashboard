@@ -4,21 +4,26 @@ type AccessRole = "admin" | "info" | "praxismanagement";
 
 type AccessUserPayload = {
   email?: string;
+  username?: string;
   name?: string;
+  password?: string;
   role?: AccessRole;
   active?: boolean;
+  action?: "complete-password-change";
 };
 
 type AuthAdminUser = {
   id: string;
   email?: string;
   last_sign_in_at?: string | null;
+  app_metadata?: Record<string, unknown> | null;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SECRET_KEY ?? "";
 const permanentAdminEmail = "svend.neumann@orisus.de";
 const permanentAdminName = "Svend Neumann";
+const appLoginEmailDomain = "login.orisus.internal";
 const adminFallbackEmails = new Set([
   permanentAdminEmail,
   "sven.neumann@orisus.de",
@@ -32,6 +37,25 @@ function jsonError(message: string, status = 400) {
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function normalizeUsername(username: string) {
+  return username.trim().toLowerCase().replace(/\s+/g, ".");
+}
+
+function authEmailForIdentifier(identifier: string) {
+  const value = normalizeUsername(identifier);
+  if (value.includes("@")) return normalizeEmail(value);
+  return `${value}@${appLoginEmailDomain}`;
+}
+
+function usernameFromAuthEmail(email: string) {
+  const normalized = normalizeEmail(email);
+  return normalized.endsWith(`@${appLoginEmailDomain}`) ? normalized.replace(`@${appLoginEmailDomain}`, "") : normalized;
+}
+
+function isValidLoginName(username: string) {
+  return /^[a-z0-9._-]{3,64}$/.test(normalizeUsername(username));
 }
 
 function serviceHeaders(extra?: HeadersInit) {
@@ -70,29 +94,6 @@ function readableSupabaseError(text: string, fallback: string) {
   }
 }
 
-async function sendSupabaseInvite(email: string, name: string) {
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
-  const body: Record<string, unknown> = {
-    email,
-    data: { name }
-  };
-  if (appUrl) body.redirect_to = `${appUrl}/?auth=invite&email=${encodeURIComponent(email)}`;
-
-  const response = await fetch(`${supabaseUrl}/auth/v1/invite`, {
-    method: "POST",
-    headers: serviceHeaders(),
-    body: JSON.stringify(body)
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    if (response.status === 422 || /already|registered|exists/i.test(text)) return;
-    throw new Error(readableSupabaseError(text, "Einladung konnte nicht versendet werden."));
-  }
-}
-
 async function ensurePermanentAdminRole() {
   await supabaseServiceFetch("/rest/v1/orisus_user_roles?on_conflict=email", {
     method: "POST",
@@ -107,15 +108,72 @@ async function ensurePermanentAdminRole() {
   });
 }
 
-async function deleteSupabaseAuthUser(email: string) {
+async function listSupabaseAuthUsers() {
   const listedUsers = await supabaseServiceFetch<{ users?: AuthAdminUser[] }>("/auth/v1/admin/users?per_page=1000");
-  const matchingUsers = (listedUsers?.users ?? []).filter((user) => normalizeEmail(user.email ?? "") === email);
+  return listedUsers.users ?? [];
+}
+
+async function findSupabaseAuthUsers(email: string) {
+  const listedUsers = await listSupabaseAuthUsers();
+  return listedUsers.filter((user) => normalizeEmail(user.email ?? "") === email);
+}
+
+async function deleteSupabaseAuthUser(email: string) {
+  const matchingUsers = await findSupabaseAuthUsers(email);
   for (const user of matchingUsers) {
     await supabaseServiceFetch(`/auth/v1/admin/users/${encodeURIComponent(user.id)}`, {
       method: "DELETE"
     });
   }
   return matchingUsers.length;
+}
+
+async function createOrUpdateSupabaseAuthUser(email: string, name: string, password: string, mustChangePassword: boolean) {
+  const matchingUsers = await findSupabaseAuthUsers(email);
+  const existingUser = matchingUsers[0];
+  const body = {
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { name },
+    app_metadata: {
+      ...(existingUser?.app_metadata ?? {}),
+      must_change_password: mustChangePassword
+    }
+  };
+  if (existingUser) {
+    await supabaseServiceFetch(`/auth/v1/admin/users/${encodeURIComponent(existingUser.id)}`, {
+      method: "PUT",
+      body: JSON.stringify(body)
+    });
+    return existingUser.id;
+  }
+  const created = await supabaseServiceFetch<AuthAdminUser>("/auth/v1/admin/users", {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+  return created.id;
+}
+
+async function markOwnPasswordChanged(request: NextRequest) {
+  const authorization = request.headers.get("authorization") ?? "";
+  const token = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (!token) return jsonError("Keine aktive Sitzung.", 401);
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (!response.ok) return jsonError("Sitzung konnte nicht bestätigt werden.", 401);
+  const user = (await response.json()) as { id?: string; app_metadata?: Record<string, unknown> };
+  if (!user.id) return jsonError("Benutzer konnte nicht ermittelt werden.", 401);
+
+  await supabaseServiceFetch(`/auth/v1/admin/users/${encodeURIComponent(user.id)}`, {
+    method: "PUT",
+    body: JSON.stringify({ app_metadata: { ...(user.app_metadata ?? {}), must_change_password: false } })
+  });
+  return NextResponse.json({ ok: true });
 }
 
 async function requesterEmail(request: NextRequest) {
@@ -169,10 +227,17 @@ export async function GET(request: NextRequest) {
         .filter((user) => user.email)
         .map((user) => [normalizeEmail(user.email ?? ""), user.last_sign_in_at ?? null])
     );
+    const mustChangeByEmail = new Map(
+      (authUsers.users ?? [])
+        .filter((user) => user.email)
+        .map((user) => [normalizeEmail(user.email ?? ""), Boolean(user.app_metadata?.must_change_password)])
+    );
     return NextResponse.json({
       users: users.map((user) => ({
         ...user,
-        last_sign_in_at: lastSignInByEmail.get(normalizeEmail(String(user.email ?? ""))) ?? null
+        username: usernameFromAuthEmail(String(user.email ?? "")),
+        last_sign_in_at: lastSignInByEmail.get(normalizeEmail(String(user.email ?? ""))) ?? null,
+        must_change_password: mustChangeByEmail.get(normalizeEmail(String(user.email ?? ""))) ?? false
       }))
     });
   } catch (error) {
@@ -186,14 +251,22 @@ export async function POST(request: NextRequest) {
     if (denied) return denied;
 
     const body = (await request.json().catch(() => ({}))) as AccessUserPayload;
-    const email = normalizeEmail(body.email ?? "");
+    const rawIdentifier = body.username || body.email || "";
+    const email = authEmailForIdentifier(rawIdentifier);
+    const username = normalizeUsername(body.username || usernameFromAuthEmail(email));
     const name = (body.name ?? "").trim();
+    const password = (body.password ?? "").trim();
     const role = body.role === "admin" || body.role === "praxismanagement" ? body.role : "info";
 
-    if (!email || !email.includes("@")) return jsonError("Bitte eine gültige E-Mail-Adresse eingeben.");
+    if (!rawIdentifier.trim()) return jsonError("Bitte einen Login-Namen eingeben.");
+    if (!rawIdentifier.includes("@") && !isValidLoginName(username)) {
+      return jsonError("Login-Name bitte mit 3-64 Zeichen aus Buchstaben, Zahlen, Punkt, Unterstrich oder Bindestrich eingeben.");
+    }
     if (!name) return jsonError("Bitte einen Namen eingeben.");
+    if (password.length < 8) return jsonError("Bitte ein Erstpasswort mit mindestens 8 Zeichen eingeben.");
 
     const isPermanentAdmin = email === permanentAdminEmail;
+    await createOrUpdateSupabaseAuthUser(email, isPermanentAdmin ? permanentAdminName : name, password, true);
     await supabaseServiceFetch("/rest/v1/orisus_user_roles?on_conflict=email", {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
@@ -206,9 +279,7 @@ export async function POST(request: NextRequest) {
       })
     });
 
-    await sendSupabaseInvite(email, isPermanentAdmin ? permanentAdminName : name);
-
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, username: usernameFromAuthEmail(email) });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Zugang konnte nicht angelegt werden.", 500);
   }
@@ -223,15 +294,28 @@ export async function PATCH(request: NextRequest) {
     const email = normalizeEmail(body.email ?? "");
     if (!email || !email.includes("@")) return jsonError("Bitte eine gültige E-Mail-Adresse eingeben.");
 
-    if (email === permanentAdminEmail) {
+    const update: Record<string, string | boolean> = { updated_at: new Date().toISOString() };
+    const isPermanentAdmin = email === permanentAdminEmail;
+    if (typeof body.name === "string" && !isPermanentAdmin) update.name = body.name.trim();
+    if ((body.role === "admin" || body.role === "info" || body.role === "praxismanagement") && !isPermanentAdmin) update.role = body.role;
+    if (typeof body.active === "boolean" && !isPermanentAdmin) update.active = body.active;
+    if (typeof body.password === "string" && body.password.trim()) {
+      if (body.password.trim().length < 8) return jsonError("Bitte ein Passwort mit mindestens 8 Zeichen eingeben.");
+      const rows = await supabaseServiceFetch<Array<{ name: string | null }>>(
+        `/rest/v1/orisus_user_roles?select=name&email=eq.${encodeURIComponent(email)}&limit=1`
+      );
+      await createOrUpdateSupabaseAuthUser(
+        email,
+        isPermanentAdmin ? permanentAdminName : rows[0]?.name || usernameFromAuthEmail(email),
+        body.password.trim(),
+        true
+      );
+    }
+
+    if (isPermanentAdmin) {
       await ensurePermanentAdminRole();
       return NextResponse.json({ ok: true, locked: true });
     }
-
-    const update: Record<string, string | boolean> = { updated_at: new Date().toISOString() };
-    if (typeof body.name === "string") update.name = body.name.trim();
-    if (body.role === "admin" || body.role === "info" || body.role === "praxismanagement") update.role = body.role;
-    if (typeof body.active === "boolean") update.active = body.active;
 
     await supabaseServiceFetch(`/rest/v1/orisus_user_roles?email=eq.${encodeURIComponent(email)}`, {
       method: "PATCH",
@@ -242,6 +326,19 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Zugang konnte nicht aktualisiert werden.", 500);
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    if (!supabaseUrl || !serviceRoleKey) {
+      return jsonError("Supabase Secret Key fehlt in Vercel.", 503);
+    }
+    const body = (await request.json().catch(() => ({}))) as AccessUserPayload;
+    if (body.action !== "complete-password-change") return jsonError("Unbekannte Aktion.");
+    return markOwnPasswordChanged(request);
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : "Passwortstatus konnte nicht aktualisiert werden.", 500);
   }
 }
 

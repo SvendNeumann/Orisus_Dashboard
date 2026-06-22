@@ -94,9 +94,11 @@ type AuthStep = "welcome" | "forgot" | "set-password" | "app";
 type UserRole = "admin" | "info" | "praxismanagement";
 type AccessUser = {
   email: string;
+  username?: string;
   name: string | null;
   role: UserRole;
   active: boolean;
+  must_change_password?: boolean;
   last_sign_in_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -148,6 +150,35 @@ const adminEmails = [
 ];
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const appLoginEmailDomain = "login.orisus.internal";
+
+function normalizeAuthEmail(email: string | null | undefined) {
+  return (email ?? "").trim().toLowerCase();
+}
+
+function normalizeLoginIdentifier(identifier: string) {
+  return identifier.trim().toLowerCase().replace(/\s+/g, ".");
+}
+
+function authEmailForLoginIdentifier(identifier: string) {
+  const normalized = normalizeLoginIdentifier(identifier);
+  return normalized.includes("@") ? normalizeAuthEmail(normalized) : `${normalized}@${appLoginEmailDomain}`;
+}
+
+function loginNameFromAuthEmail(email: string | null | undefined) {
+  const normalized = normalizeAuthEmail(email);
+  return normalized.endsWith(`@${appLoginEmailDomain}`) ? normalized.replace(`@${appLoginEmailDomain}`, "") : normalized;
+}
+
+function isValidLoginIdentifier(identifier: string) {
+  const normalized = normalizeLoginIdentifier(identifier);
+  if (normalized.includes("@")) return normalized.length >= 5 && normalized.includes(".");
+  return /^[a-z0-9._-]{3,64}$/.test(normalized);
+}
+
+function authUserMustChangePassword(user: SupabaseAuthResponse["user"] | { app_metadata?: Record<string, unknown> } | null | undefined) {
+  return Boolean(user?.app_metadata?.must_change_password);
+}
 const supabaseImportTableName = "orisus_confirmed_imports";
 
 type AcquisitionTerms = {
@@ -264,7 +295,9 @@ type SupabaseAuthResponse = {
   access_token?: string;
   refresh_token?: string;
   user?: {
+    id?: string;
     email?: string;
+    app_metadata?: Record<string, unknown>;
   };
   error?: string;
   msg?: string;
@@ -592,16 +625,18 @@ function rememberSupabaseSession(session: SupabaseAuthResponse, fallbackEmail: s
   return true;
 }
 
-async function signInSupabaseUser(email: string, password: string) {
+async function signInSupabaseUser(identifier: string, password: string) {
+  const authEmail = authEmailForLoginIdentifier(identifier);
   const loginResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
     method: "POST",
     headers: supabaseHeaders(""),
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email: authEmail, password })
   });
 
   if (loginResponse.ok) {
     const session = (await loginResponse.json()) as SupabaseAuthResponse;
-    return rememberSupabaseSession(session, email);
+    rememberSupabaseSession(session, authEmail);
+    return session;
   }
 
   throw new Error("Login fehlgeschlagen.");
@@ -619,8 +654,22 @@ async function updateSupabaseUserPassword(password: string, token = currentSupab
   }
 }
 
+async function completeSupabasePasswordChange(token = currentSupabaseAccessToken()) {
+  const response = await fetch("/api/access-users", {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ action: "complete-password-change" })
+  });
+  if (!response.ok) {
+    throw new Error("Passwortstatus konnte nicht aktualisiert werden.");
+  }
+}
+
 async function loadSupabaseAuthUser(token = currentSupabaseAccessToken()) {
-  return supabaseFetch<{ email?: string }>("/auth/v1/user", undefined, token);
+  return supabaseFetch<{ id?: string; email?: string; app_metadata?: Record<string, unknown> }>("/auth/v1/user", undefined, token);
 }
 
 function authParamsFromCurrentUrl() {
@@ -3204,9 +3253,9 @@ function AuthFlow({
 
   const handlePasswordLogin = async () => {
     setLoginMessage("");
-    const normalizedEmail = email.trim();
-    if (!normalizedEmail || !normalizedEmail.includes("@")) {
-      setLoginMessage("Bitte eine gültige E-Mail-Adresse eingeben.");
+    const loginIdentifier = email.trim();
+    if (!isValidLoginIdentifier(loginIdentifier)) {
+      setLoginMessage("Bitte einen gültigen Login-Namen eingeben.");
       return;
     }
     if (password.length < 6) {
@@ -3218,8 +3267,9 @@ function AuthFlow({
       try {
         const token = inviteToken || currentSupabaseAccessToken();
         await updateSupabaseUserPassword(password, token);
+        await completeSupabasePasswordChange(token);
         const authUser = await loadSupabaseAuthUser(token).catch(() => null);
-        const sessionEmail = authUser?.email || currentUserEmail() || normalizedEmail;
+        const sessionEmail = authUser?.email || currentUserEmail() || authEmailForLoginIdentifier(loginIdentifier);
         window.localStorage.setItem(supabaseUserEmailKey, sessionEmail);
         const hasAppAccess = await loadAndRememberAccessProfile(sessionEmail);
         if (!hasAppAccess) {
@@ -3234,23 +3284,32 @@ function AuthFlow({
         setStep("app");
         return;
       } catch {
-        setLoginMessage("Passwort konnte nicht gesetzt werden. Bitte Einladungslink erneut öffnen oder Admin kontaktieren.");
+        setLoginMessage("Passwort konnte nicht gesetzt werden. Bitte Admin kontaktieren.");
         return;
       }
     }
 
     if (isSupabaseConfigured()) {
       try {
-        const isAuthenticated = await signInSupabaseUser(normalizedEmail, password);
-        if (!isAuthenticated) {
-          setLoginMessage("Bitte bestätige den Zugang über die Supabase-E-Mail oder prüfe die Login-Daten.");
+        const session = await signInSupabaseUser(loginIdentifier, password);
+        if (!session.access_token) {
+          setLoginMessage("Bitte Login-Daten prüfen.");
           return;
         }
-        const hasAppAccess = await loadAndRememberAccessProfile(normalizedEmail);
+        const authEmail = session.user?.email || authEmailForLoginIdentifier(loginIdentifier);
+        if (authUserMustChangePassword(session.user)) {
+          window.localStorage.removeItem(authStorageKey);
+          window.localStorage.setItem(supabaseUserEmailKey, authEmail);
+          setPassword("");
+          setLoginMessage("Bitte lege jetzt dein persönliches Passwort fest.");
+          setStep("set-password");
+          return;
+        }
+        const hasAppAccess = await loadAndRememberAccessProfile(authEmail);
         if (!hasAppAccess) {
           clearSupabaseSession();
           window.localStorage.removeItem(authStorageKey);
-          setLoginMessage("Für diese E-Mail ist noch kein App-Zugang angelegt. Bitte Admin-Zugang anlegen lassen.");
+          setLoginMessage("Für diesen Login-Namen ist noch kein App-Zugang angelegt.");
           return;
         }
         window.localStorage.setItem(authPasswordConfiguredKey, "true");
@@ -3258,7 +3317,7 @@ function AuthFlow({
         setStep("app");
         return;
       } catch {
-        setLoginMessage("Login nicht möglich. Bitte Zugang, Passwort oder Einladung prüfen.");
+        setLoginMessage("Login nicht möglich. Bitte Login-Name oder Passwort prüfen.");
         return;
       }
     }
@@ -3271,7 +3330,7 @@ function AuthFlow({
   };
 
   const resetMailHref = `mailto:sven.neumann@resos.de?subject=${encodeURIComponent("Orisus CFO Dashboard - Passwort zurücksetzen")}&body=${encodeURIComponent(
-    `Bitte Passwort-Zugang zurücksetzen für: ${email.trim() || "svend.neumann@orisus.de"}`
+    `Bitte Passwort-Zugang zurücksetzen für Login: ${email.trim() || "svend.neumann"}`
   )}`;
 
   return (
@@ -3409,13 +3468,13 @@ function LandingLoginCard({
           {step === "welcome" && (
             <>
               <label className="block space-y-2 text-sm font-semibold text-slate-200">
-                <span>E-Mail</span>
+                <span>Login-Name</span>
                 <Input
                   value={email}
                   onChange={(event) => onEmailChange(event.target.value)}
-                  placeholder="ihre.email@orisus.de"
-                  type="email"
-                  aria-label="E-Mail"
+                  placeholder="z. B. svend.neumann"
+                  type="text"
+                  aria-label="Login-Name"
                   className="border-white/12 bg-[#061421] text-white placeholder:text-slate-500 focus:border-[#30d5c8] focus:ring-[#30d5c8]/10"
                 />
               </label>
@@ -3463,16 +3522,16 @@ function LandingLoginCard({
           {step === "set-password" && (
             <div className="space-y-4">
               <div className="rounded-md border border-[#30d5c8]/25 bg-[#30d5c8]/10 p-3 text-sm font-semibold text-[#b8fff8]">
-                Einladung bestätigt. Bitte lege jetzt dein persönliches Passwort fest.
+                Erstlogin erkannt. Bitte lege jetzt dein persönliches Passwort fest.
               </div>
               <label className="block space-y-2 text-sm font-semibold text-slate-200">
-                <span>E-Mail</span>
+                <span>Login-Name</span>
                 <Input
                   value={email}
                   onChange={(event) => onEmailChange(event.target.value)}
-                  placeholder="ihre.email@orisus.de"
-                  type="email"
-                  aria-label="E-Mail"
+                  placeholder="z. B. svend.neumann"
+                  type="text"
+                  aria-label="Login-Name"
                   className="border-white/12 bg-[#061421] text-white placeholder:text-slate-500 focus:border-[#30d5c8] focus:ring-[#30d5c8]/10"
                 />
               </label>
@@ -3505,8 +3564,8 @@ function LandingLoginCard({
               <Input
                 value={email}
                 onChange={(event) => onEmailChange(event.target.value)}
-                placeholder="ihre.email@orisus.de"
-                type="email"
+                placeholder="Login-Name oder E-Mail"
+                type="text"
                 className="border-white/12 bg-[#061421] text-white placeholder:text-slate-500 focus:border-[#30d5c8] focus:ring-[#30d5c8]/10"
               />
               <Button
@@ -9933,7 +9992,8 @@ function AdminKpiRules() {
 function AccessUserManagement() {
   const [users, setUsers] = useState<AccessUser[]>([]);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [initialPassword, setInitialPassword] = useState("");
   const [role, setRole] = useState<UserRole>("info");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -9955,16 +10015,34 @@ function AccessUserManagement() {
     setMessage("");
     setBusy(true);
     try {
-      await accessUsersApi("POST", { name, email, role });
+      await accessUsersApi("POST", { name, username, password: initialPassword, role });
       setName("");
-      setEmail("");
+      setUsername("");
+      setInitialPassword("");
       setRole("info");
-      setMessage("Zugang angelegt und Einladung versendet. Die Person setzt ihr Passwort über den Einladungslink.");
+      setMessage("Zugang angelegt. Die Person meldet sich mit Login-Name und Erstpasswort an und vergibt danach ein neues Passwort.");
       await loadUsers();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Zugang konnte nicht angelegt werden.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const resetUserPassword = async (user: AccessUser) => {
+    setMessage("");
+    const newPassword = window.prompt(`Neues Erstpasswort für ${user.name || loginNameFromAuthEmail(user.email)} eingeben:`);
+    if (!newPassword) return;
+    if (newPassword.trim().length < 8) {
+      setMessage("Bitte ein Erstpasswort mit mindestens 8 Zeichen eingeben.");
+      return;
+    }
+    try {
+      await accessUsersApi("PATCH", { email: user.email, password: newPassword.trim() });
+      setMessage("Passwort gesetzt. Die Person muss beim nächsten Login ein eigenes Passwort vergeben.");
+      await loadUsers();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Passwort konnte nicht gesetzt werden.");
     }
   };
 
@@ -10006,15 +10084,21 @@ function AccessUserManagement() {
           <div>
             <h2 className="font-bold">App-Zugänge</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Für externe App-Nutzer: Name, E-Mail und Rolle anlegen. Nur aktive Zugänge dürfen Dashboard-Daten lesen.
+              Für externe App-Nutzer: Name, Login-Name, Erstpasswort und Rolle anlegen. Beim Erstlogin wird ein neues Passwort verlangt.
             </p>
           </div>
           <Badge tone="blue">Admin verwaltet</Badge>
         </div>
       </div>
-      <div className="grid gap-3 border-b border-border p-4 lg:grid-cols-[1fr_1.3fr_0.7fr_auto]">
+      <div className="grid gap-3 border-b border-border p-4 lg:grid-cols-[1fr_1fr_1fr_0.7fr_auto]">
         <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name, z. B. Max Mustermann" />
-        <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="E-Mail, z. B. max@orisus.de" type="email" />
+        <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Login-Name, z. B. max.mustermann" />
+        <Input
+          value={initialPassword}
+          onChange={(event) => setInitialPassword(event.target.value)}
+          placeholder="Erstpasswort"
+          type="password"
+        />
         <Select value={role} onChange={(event) => setRole(event.target.value as UserRole)}>
           <option value="info">Info-Rolle</option>
           <option value="praxismanagement">Praxismanagement</option>
@@ -10030,7 +10114,7 @@ function AccessUserManagement() {
         <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              {["Name", "E-Mail", "Rolle", "Status", "Aktion", "Letzter Login"].map((head) => (
+              {["Name", "Login-Name", "Rolle", "Status", "Aktion", "Letzter Login"].map((head) => (
                 <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                   {head}
                 </th>
@@ -10045,8 +10129,9 @@ function AccessUserManagement() {
                   <td className="border-b border-r border-border p-3 font-semibold">{user.name || "Ohne Namen"}</td>
                   <td className="border-b border-r border-border p-3">
                     <div className="flex flex-col gap-1">
-                      <span>{user.email}</span>
+                      <span>{user.username || loginNameFromAuthEmail(user.email)}</span>
                       {isLockedAdmin && <span className="text-xs font-semibold text-primary">Fester Admin-Zugang</span>}
+                      {user.must_change_password && !isLockedAdmin && <span className="text-xs font-semibold text-amber-400">Passwortwechsel offen</span>}
                     </div>
                   </td>
                   <td className="border-b border-r border-border p-3">
@@ -10065,6 +10150,12 @@ function AccessUserManagement() {
                   </td>
                   <td className="border-b border-r border-border p-3">
                     <div className="flex min-w-44 flex-col gap-2 sm:flex-row">
+                      <Button
+                        variant="secondary"
+                        onClick={() => resetUserPassword(user)}
+                      >
+                        Passwort setzen
+                      </Button>
                       <Button
                         variant={user.active ? "secondary" : "primary"}
                         onClick={() => updateUser(user, { active: !user.active })}
