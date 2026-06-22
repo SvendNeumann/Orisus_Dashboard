@@ -3110,17 +3110,17 @@ function LandingFeatures() {
   ];
 
   return (
-    <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+    <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {features.map(({ title, text, icon: Icon }) => (
         <div
           key={title}
-          className="rounded-xl border border-white/10 bg-white/[0.045] p-4 text-center shadow-sm backdrop-blur transition hover:border-[#30d5c8]/35 hover:bg-white/[0.075]"
+          className="min-w-0 rounded-xl border border-white/10 bg-white/[0.045] p-4 text-center shadow-sm backdrop-blur transition hover:border-[#30d5c8]/35 hover:bg-white/[0.075]"
         >
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-lg border border-[#30d5c8]/35 bg-[#30d5c8]/10 text-[#30d5c8]">
             <Icon className="h-5 w-5" />
           </div>
-          <p className="mt-4 text-sm font-bold text-white">{title}</p>
-          <p className="mt-2 text-xs leading-5 text-slate-300">{text}</p>
+          <p className="mt-4 break-words text-sm font-bold text-white">{title}</p>
+          <p className="mt-2 break-words text-xs leading-5 text-slate-300">{text}</p>
         </div>
       ))}
     </div>
