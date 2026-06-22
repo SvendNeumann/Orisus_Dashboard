@@ -1013,6 +1013,7 @@ const navSections = [
     label: "Management",
     items: [
       { id: "cockpit", label: "CFO Cockpit", icon: Home },
+      { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users },
       { id: "kennzahlen", label: "Kennzahlen / Entwicklung", icon: BarChart3 },
       { id: "performance", label: "Orisus Performance", icon: TrendingUp },
       { id: "standorte", label: "Standorte", icon: Building2 },
@@ -1034,7 +1035,6 @@ const navSections = [
     id: "personal",
     label: "Personal",
     items: [
-      { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users },
       { id: "personal-krankheit", label: "Krankheit / Fehlzeiten", icon: Stethoscope },
       { id: "personal-mitarbeiter", label: "Mitarbeiterübersicht", icon: UserRound },
       { id: "personal-massnahmen", label: "Personalmaßnahmen", icon: CheckCircle2 }
