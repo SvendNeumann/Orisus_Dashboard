@@ -39,6 +39,7 @@ import {
   Menu,
   PieChart as PieIcon,
   Fingerprint,
+  RefreshCw,
   ShieldCheck,
   Stethoscope,
   TrendingUp,
@@ -127,6 +128,8 @@ const supabaseRefreshTokenKey = "orisus-cfo-supabase-refresh-token";
 const supabaseUserEmailKey = "orisus-cfo-supabase-user-email";
 const supabaseUserRoleKey = "orisus-cfo-supabase-user-role";
 const supabaseUserNameKey = "orisus-cfo-supabase-user-name";
+const activePageStorageKey = "orisus-cfo-active-page";
+const activeSiteStorageKey = "orisus-cfo-active-site";
 const adminEmails = [
   "svend.neumann@orisus.de",
   "sven.neumann@orisus.de",
@@ -1119,6 +1122,39 @@ const quickNav = [
   { id: "banken", label: "Banken" },
   { id: "board", label: "Board" }
 ] as const;
+
+const appPageIds: Page[] = [
+  "cockpit",
+  "kennzahlen",
+  "performance",
+  "standorte",
+  "standort-detail",
+  "analysen",
+  "bwa",
+  "cashflow",
+  "darlehen",
+  "banken",
+  "board",
+  "uploads",
+  "reports",
+  "admin",
+  "personal-cockpit",
+  "personal-krankheit",
+  "personal-mitarbeiter",
+  "personal-massnahmen",
+  "personal-upload"
+];
+
+function storedPage(): Page {
+  if (typeof window === "undefined") return "cockpit";
+  const savedPage = window.localStorage.getItem(activePageStorageKey) as Page | null;
+  return savedPage && appPageIds.includes(savedPage) ? savedPage : "cockpit";
+}
+
+function storedSiteId() {
+  if (typeof window === "undefined") return "kirchberg";
+  return window.localStorage.getItem(activeSiteStorageKey) || "kirchberg";
+}
 
 function eur(value: number, compact = false) {
   if (compact && Math.abs(value) >= 1000000) {
@@ -2490,8 +2526,8 @@ function cfoMetrics(sites: DashboardSite[] = standorte, monthlyData: typeof mont
 
 export default function HomePage() {
   const [authStep, setAuthStep] = useState<AuthStep>("welcome");
-  const [page, setPage] = useState<Page>("cockpit");
-  const [selectedSite, setSelectedSite] = useState("kirchberg");
+  const [page, setPageState] = useState<Page>(storedPage);
+  const [selectedSite, setSelectedSiteState] = useState(storedSiteId);
   const [menuOpen, setMenuOpen] = useState(false);
   const [previousPage, setPreviousPage] = useState<Page | null>(null);
   const [importedData, setImportedData] = useState<ImportedDashboardData | null>(null);
@@ -2499,6 +2535,27 @@ export default function HomePage() {
   const [userEmail, setUserEmail] = useState("");
   const [userDisplayName, setUserDisplayName] = useState("Svend Neumann");
   const [userRole, setUserRole] = useState<UserRole>("info");
+
+  const setPage = (target: Page) => {
+    setPageState(target);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(activePageStorageKey, target);
+    }
+  };
+
+  const setSelectedSite = (siteId: string) => {
+    setSelectedSiteState(siteId);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(activeSiteStorageKey, siteId);
+    }
+  };
+
+  const reloadCurrentPage = () => {
+    window.localStorage.setItem(activePageStorageKey, page);
+    window.localStorage.setItem(activeSiteStorageKey, selectedSite);
+    window.location.reload();
+  };
+
   const dashboardSites = useMemo(() => sortSitesByContractStart(importedData?.sites ?? []), [importedData?.sites]);
   const dashboardMonthly = importedData?.monthly ?? [];
   const isAdmin = userRole === "admin";
@@ -2585,6 +2642,8 @@ export default function HomePage() {
 
   const logout = () => {
     window.localStorage.removeItem(authStorageKey);
+    window.localStorage.removeItem(activePageStorageKey);
+    window.localStorage.removeItem(activeSiteStorageKey);
     clearSupabaseSession();
     setUserEmail("");
     setUserDisplayName("Svend Neumann");
@@ -2629,6 +2688,10 @@ export default function HomePage() {
           <p className="text-xs font-semibold uppercase text-muted-foreground">Nutzer</p>
           <p className="mt-1 font-semibold">{userDisplayName}</p>
           <p className="text-sm text-muted-foreground">{isAdmin ? "Admin-Zugang" : "Info-Zugang"}</p>
+          <Button className="mt-4 w-full gap-2" variant="secondary" onClick={reloadCurrentPage}>
+            <RefreshCw className="h-4 w-4" />
+            Neu laden
+          </Button>
           <Button className="mt-4 w-full" variant="secondary" onClick={logout}>
             Abmelden
           </Button>
@@ -2677,6 +2740,10 @@ export default function HomePage() {
               <div className="mt-6 rounded-lg border border-border bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Sitzung</p>
                 <p className="mt-1 text-sm text-muted-foreground">Du bleibst angemeldet, bis du dich aktiv abmeldest.</p>
+                <Button className="mt-4 w-full gap-2" variant="secondary" onClick={reloadCurrentPage}>
+                  <RefreshCw className="h-4 w-4" />
+                  Neu laden
+                </Button>
                 <Button className="mt-4 w-full" variant="secondary" onClick={logout}>
                   Abmelden
                 </Button>
