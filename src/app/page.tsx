@@ -4666,8 +4666,10 @@ function Cockpit({
   const cockpitPeriodSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, cockpitPeriod)) : sites;
   return (
     <section className="space-y-5">
-      <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Handlungsbedarf." />
-      <DataStatusStrip importedData={importedData} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Handlungsbedarf." />
+        <CompactDataStatus importedData={importedData} />
+      </div>
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} />
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
@@ -4708,6 +4710,22 @@ function Cockpit({
         <Insights setPage={setPage} />
       </div>
     </section>
+  );
+}
+
+function CompactDataStatus({ importedData }: { importedData?: ImportedDashboardData | null }) {
+  const label = importedData ? "Import bestätigt" : "Kein Import";
+  const tone = importedData?.report.status === "warning" ? "yellow" : importedData ? "green" : "red";
+  const dateLabel = importedData ? new Date(importedData.importedAt).toLocaleDateString("de-DE") : "Daten offen";
+
+  return (
+    <div className="flex shrink-0 items-center gap-2 self-start rounded-full border border-border bg-white/75 px-3 py-2 text-xs shadow-sm">
+      <Badge tone={tone}>{label}</Badge>
+      <span className="hidden max-w-[220px] truncate text-muted-foreground sm:inline">
+        {dateLabel}
+        {importedData?.fileName ? ` · ${importedData.fileName}` : ""}
+      </span>
+    </div>
   );
 }
 
