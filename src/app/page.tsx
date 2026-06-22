@@ -60,6 +60,14 @@ import {
 
 type DashboardSite = (typeof standorte)[number];
 type TopBehandlerEntry = { name: string; standort: string; honorar: number };
+type ImportedBehandlerDetailRow = {
+  siteId: string;
+  siteName: string;
+  name: string;
+  honorarByMonth: Record<string, number>;
+  eigenlaborByMonth: Record<string, number>;
+  totalByMonth: Record<string, number>;
+};
 
 type Page =
   | "cockpit"
@@ -115,7 +123,7 @@ const importPersistenceDbName = "orisus-cfo-dashboard";
 const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
-const importDashboardSchemaVersion = "2026-06-22-site-bank-cashflow-v11";
+const importDashboardSchemaVersion = "2026-06-22-site-behandler-detail-v12";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const personalImportPersistenceReportKey = "personal-report";
 const personalImportPersistenceDashboardKey = "personal-dashboard";
@@ -245,6 +253,7 @@ type ImportedDashboardData = {
   pvsRevenueRows?: ImportedPeriodValueRow[];
   behandlerHonorarRows?: ImportedPeriodValueRow[];
   behandlerTotalRows?: ImportedPeriodValueRow[];
+  behandlerDetailRows?: ImportedBehandlerDetailRow[];
   bankMovementRows?: ImportedBankMovementRow[];
   report: ImportReport;
 };
@@ -2394,6 +2403,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     pvsRevenueRows: buildImportedPvsRevenueRows(workbook, rows, report, latestYear),
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(rows, report),
     behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
+    behandlerDetailRows: buildImportedBehandlerDetailRows(rows, report),
     bankMovementRows: buildImportedBankMovementRows(workbook, rows, latestYear, report),
     report
   };
@@ -5403,6 +5413,54 @@ function buildImportedBehandlerHonorarRows(rows: Record<string, unknown>[], repo
   });
 }
 
+function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], report: ImportReport): ImportedBehandlerDetailRow[] {
+  const siteByName = new Map(standorte.map((site) => [site.name.toLowerCase(), site]));
+  const grouped = new Map<string, ImportedBehandlerDetailRow>();
+  const ensureEntry = (siteName: string, name: string) => {
+    const site = siteByName.get(siteName.toLowerCase()) ?? standorte[0];
+    const key = `${site.id}::${normalizeMetric(name)}`;
+    const existing = grouped.get(key);
+    if (existing) return existing;
+    const next: ImportedBehandlerDetailRow = {
+      siteId: site.id,
+      siteName,
+      name,
+      honorarByMonth: {},
+      eigenlaborByMonth: {},
+      totalByMonth: {}
+    };
+    grouped.set(key, next);
+    return next;
+  };
+
+  rows.forEach((row) => {
+    if (isExcludedPlanRow(row)) return;
+    const isHonorar = isPureBehandlerHonorarRow(row);
+    const isEigenlabor = isPureBehandlerEigenlaborRow(row);
+    if (!isHonorar && !isEigenlabor) return;
+
+    const siteName = asText(row.Standortname);
+    const name = asText(row.Objekt_Name || row.Behandler || row.Behandlername);
+    const fallback = siteByName.get(siteName.toLowerCase()) ?? standorte[0];
+    const year = rowYear(row);
+    const month = rowMonth(row);
+    const value = asNumber(row.Wert) ?? 0;
+    if (!siteName || !name || normalizeMetric(name) === "standort" || !year || !month || year < 1900 || month < 1 || month > 12) return;
+    if (!isOnOrAfterStart(row, fallback.start)) return;
+
+    const entry = ensureEntry(siteName, name);
+    const monthKey = `${year}-${month}`;
+    if (isHonorar) entry.honorarByMonth[monthKey] = (entry.honorarByMonth[monthKey] ?? 0) + value;
+    if (isEigenlabor) entry.eigenlaborByMonth[monthKey] = (entry.eigenlaborByMonth[monthKey] ?? 0) + value;
+    entry.totalByMonth[monthKey] = (entry.honorarByMonth[monthKey] ?? 0) + (entry.eigenlaborByMonth[monthKey] ?? 0);
+  });
+
+  const totalFor = (entry: ImportedBehandlerDetailRow) => Object.values(entry.totalByMonth).reduce((sum, value) => sum + value, 0);
+  return [...grouped.values()]
+    .filter((entry) => Math.abs(totalFor(entry)) > 0)
+    .sort((a, b) => a.siteName.localeCompare(b.siteName, "de") || totalFor(b) - totalFor(a) || a.name.localeCompare(b.name, "de"));
+}
+
 function dashboardPerformanceMonthlyValues(workbook: XLSX.WorkBook, titleTerms: string[]) {
   const sheet = workbook.Sheets["Dashboard_Performance"];
   if (!sheet) return new Map<string, Record<number, number>>();
@@ -5732,6 +5790,34 @@ function periodOptionsFromImportedRows(rows?: Pick<ImportedPeriodValueRow, "valu
     const hasYearValue = rows.some((row) => Math.abs(row.valuesByYear[String(year)] ?? 0) > 0);
     return [
       ...(hasYearValue || activeMonths.length ? [`Geschäftsjahr ${year}`] : []),
+      ...(latestMonth ? [`YTD ${year} bis ${bwaMonths[latestMonth - 1]}`] : []),
+      ...activeMonths.map((month) => `${bwaMonths[month - 1]} ${year}`)
+    ];
+  });
+  return [...options, "Gesamte Periode"];
+}
+
+function periodOptionsFromBehandlerDetailRows(rows?: ImportedBehandlerDetailRow[]) {
+  if (!rows?.length) return bwaPeriodOptions;
+  const monthKeys = rows.flatMap((row) => [
+    ...Object.keys(row.honorarByMonth),
+    ...Object.keys(row.eigenlaborByMonth),
+    ...Object.keys(row.totalByMonth)
+  ]);
+  const years = Array.from(
+    new Set(
+      monthKeys
+        .map((key) => Number(key.split("-")[0]))
+        .filter((year) => Number.isFinite(year) && year >= 1900)
+    )
+  ).sort((a, b) => a - b);
+  const options = years.flatMap((year) => {
+    const activeMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+      rows.some((row) => Math.abs(row.totalByMonth[`${year}-${month}`] ?? 0) > 0)
+    );
+    const latestMonth = activeMonths.at(-1);
+    return [
+      ...(activeMonths.length ? [`Geschäftsjahr ${year}`] : []),
       ...(latestMonth ? [`YTD ${year} bis ${bwaMonths[latestMonth - 1]}`] : []),
       ...activeMonths.map((month) => `${bwaMonths[month - 1]} ${year}`)
     ];
@@ -6725,6 +6811,7 @@ function StandortDetail({
       <BwaStatement title={`BWA bis Cashflow ${site.name}`} siteId={site.id} importedData={importedData} />
       <SiteMonthlyBwa site={site} importedData={importedData} />
       <SitePvsMonthlyRevenue site={site} importedData={importedData} monthlyData={monthlyData} />
+      <SiteBehandlerMonthlyRevenue site={site} importedData={importedData} />
     </section>
   );
 }
@@ -7821,6 +7908,152 @@ function SitePvsMonthRow({ label, values, summary }: { label: string; values: (n
   return (
     <tr className={cn(summary && "summary-row")}>
       <td className={cn("sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-bold", summary && "table-total")}>{label}</td>
+      {values.map((value, index) => (
+        <TableCell key={`${label}-${index}`} summary={summary}>{value ? eur(value) : ""}</TableCell>
+      ))}
+      <TableCell strong summary={summary}>{eur(totalValue)}</TableCell>
+      <TableCell strong summary={summary}>{eur(averageValue)}</TableCell>
+    </tr>
+  );
+}
+
+function SiteBehandlerMonthlyRevenue({
+  site,
+  importedData
+}: {
+  site: DashboardSite;
+  importedData?: ImportedDashboardData | null;
+}) {
+  const siteRows = (importedData?.behandlerDetailRows ?? []).filter((row) => row.siteId === site.id);
+  const availablePeriods = periodOptionsFromBehandlerDetailRows(siteRows);
+  const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) {
+      setPeriod(defaultPeriodFromOptions(availablePeriods));
+    }
+  }, [availablePeriods, period]);
+
+  const selection = selectedBwaPeriod(period);
+  const visibleMonths = monthSelectionForPeriod(period);
+  const valueFor = (valuesByMonth: Record<string, number>, month: number) => {
+    if (selection.year) {
+      if (!visibleMonths.has(month)) return null;
+      const value = valuesByMonth[`${selection.year}-${month}`];
+      return value == null ? null : Math.round(value);
+    }
+    const value = Object.entries(valuesByMonth).reduce((sum, [key, value]) => {
+      const entryMonth = Number(key.split("-")[1]);
+      return entryMonth === month ? sum + value : sum;
+    }, 0);
+    return value ? Math.round(value) : null;
+  };
+  const rowValues = (row: ImportedBehandlerDetailRow, key: "honorarByMonth" | "eigenlaborByMonth" | "totalByMonth") =>
+    bwaMonths.map((_, index) => valueFor(row[key], index + 1));
+  const periodTotal = (row: ImportedBehandlerDetailRow) =>
+    rowValues(row, "totalByMonth").reduce<number>((sum, value) => sum + (value ?? 0), 0);
+  const visibleRows = siteRows
+    .map((row) => ({ row, total: periodTotal(row) }))
+    .filter((entry) => Math.abs(entry.total) > 0)
+    .sort((a, b) => b.total - a.total || a.row.name.localeCompare(b.row.name, "de"));
+  const totals = {
+    honorar: bwaMonths.map((_, index) => visibleRows.reduce((sum, entry) => sum + (valueFor(entry.row.honorarByMonth, index + 1) ?? 0), 0)),
+    eigenlabor: bwaMonths.map((_, index) => visibleRows.reduce((sum, entry) => sum + (valueFor(entry.row.eigenlaborByMonth, index + 1) ?? 0), 0)),
+    total: bwaMonths.map((_, index) => visibleRows.reduce((sum, entry) => sum + (valueFor(entry.row.totalByMonth, index + 1) ?? 0), 0))
+  };
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-bold">Behandler-Umsätze {site.name} | {performancePeriodLabel(period)}</span>
+        <Select
+          className="w-full bg-white text-foreground sm:w-64"
+          value={period}
+          onChange={(event) => setPeriod(event.target.value)}
+        >
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>
+              {performancePeriodLabel(option)}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div className="border-b border-border bg-slate-50 p-3 text-sm text-muted-foreground">
+        Monatliche Aufstellung je Behandler: Honorarumsatz plus Eigenlabor-Umsatz ergibt Gesamtumsatz. Quelle ist der bestätigte Excel-Import.
+      </div>
+      <div className="overflow-x-auto">
+        <table className="data-table border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-20 border-b border-r border-border table-head p-2 text-left text-white">Behandler</th>
+              <th className="border-b border-r border-border table-head p-2 text-left text-white">Umsatzart</th>
+              {bwaMonths.map((month) => (
+                <th key={month} className="border-b border-r border-border table-head p-2 text-right text-white">{month}</th>
+              ))}
+              <th className="border-b border-r border-border table-head p-2 text-right text-white">Gesamt</th>
+              <th className="border-b border-r border-border table-head p-2 text-right text-white">Ø Monat</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.length ? (
+              <>
+                {visibleRows.flatMap(({ row }) => {
+                  const honorarValues = rowValues(row, "honorarByMonth");
+                  const eigenlaborValues = rowValues(row, "eigenlaborByMonth");
+                  const totalValues = rowValues(row, "totalByMonth");
+                  return [
+                    <SiteBehandlerRevenueRow key={`${row.name}-honorar`} name={row.name} rowSpan={3} label="Honorarumsatz" values={honorarValues} />,
+                    <SiteBehandlerRevenueRow key={`${row.name}-eigenlabor`} label="Eigenlabor-Umsatz" values={eigenlaborValues} />,
+                    <SiteBehandlerRevenueRow key={`${row.name}-gesamt`} label="Gesamtumsatz" values={totalValues} summary />
+                  ];
+                })}
+                <SiteBehandlerRevenueRow name="Gesamt" rowSpan={3} label="Honorarumsatz" values={totals.honorar} summary />
+                <SiteBehandlerRevenueRow label="Eigenlabor-Umsatz" values={totals.eigenlabor} summary />
+                <SiteBehandlerRevenueRow label="Gesamtumsatz" values={totals.total} summary />
+              </>
+            ) : (
+              <tr>
+                <td className="border-b border-border bg-white p-4 text-sm text-muted-foreground" colSpan={16}>
+                  Für {site.name} sind in diesem Zeitraum keine Behandler-Monatswerte im bestätigten Import vorhanden. Nach einem neuen Excel-Upload werden Honorarumsatz und Eigenlabor hier getrennt dargestellt.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function SiteBehandlerRevenueRow({
+  name,
+  rowSpan,
+  label,
+  values,
+  summary
+}: {
+  name?: string;
+  rowSpan?: number;
+  label: string;
+  values: (number | null)[];
+  summary?: boolean;
+}) {
+  const numericValues = values.filter((value): value is number => value != null);
+  const totalValue = numericValues.reduce((sum, value) => sum + value, 0);
+  const averageValue = totalValue / Math.max(numericValues.filter((value) => value !== 0).length, 1);
+  return (
+    <tr className={cn(summary && "summary-row")}>
+      {name ? (
+        <td
+          rowSpan={rowSpan}
+          className={cn(
+            "sticky left-0 z-10 border-b border-r border-border bg-white p-2 font-bold align-top",
+            summary && "table-total"
+          )}
+        >
+          {name}
+        </td>
+      ) : null}
+      <td className={cn("border-b border-r border-border bg-white p-2 font-semibold", summary && "table-total")}>{label}</td>
       {values.map((value, index) => (
         <TableCell key={`${label}-${index}`} summary={summary}>{value ? eur(value) : ""}</TableCell>
       ))}
