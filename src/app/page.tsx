@@ -1012,7 +1012,7 @@ const navSections = [
     id: "management",
     label: "Management",
     items: [
-      { id: "cockpit", label: "Cockpit", icon: Home },
+      { id: "cockpit", label: "CFO Cockpit", icon: Home },
       { id: "kennzahlen", label: "Kennzahlen / Entwicklung", icon: BarChart3 },
       { id: "performance", label: "Orisus Performance", icon: TrendingUp },
       { id: "standorte", label: "Standorte", icon: Building2 },
