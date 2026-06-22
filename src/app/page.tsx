@@ -3507,75 +3507,77 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
           </tbody>
         </ResponsiveTable>
       </Card>
-      <ChartCard title="AG-Kosten je Standort | aktiver Personalstand" icon={BadgeEuro}>
-        <ResponsiveContainer width="100%" height={280}>
-          <PieChart>
-            <Pie
-              data={personnelCostRows}
-              dataKey="value"
-              nameKey="name"
-              innerRadius={62}
-              outerRadius={98}
-              label={renderPersonnelCostLabel}
-              labelLine={false}
-            >
-              {personnelCostRows.map((_, index) => (
-                <Cell key={index} fill={personnelCostColors[index % personnelCostColors.length]} />
-              ))}
-            </Pie>
-            <Tooltip formatter={(value, name) => [eur(Number(value)), name]} />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {personnelCostRows.map((row, index) => (
-            <div key={row.name} className="rounded-md bg-slate-50 p-3">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: personnelCostColors[index % personnelCostColors.length] }} />
-                <span className="text-sm font-semibold">{row.name}</span>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ChartCard title="AG-Kosten je Standort | aktiver Personalstand" icon={BadgeEuro}>
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie
+                data={personnelCostRows}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={54}
+                outerRadius={84}
+                label={renderPersonnelCostLabel}
+                labelLine={false}
+              >
+                {personnelCostRows.map((_, index) => (
+                  <Cell key={index} fill={personnelCostColors[index % personnelCostColors.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value, name) => [eur(Number(value)), name]} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {personnelCostRows.map((row, index) => (
+              <div key={row.name} className="rounded-md bg-slate-50 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: personnelCostColors[index % personnelCostColors.length] }} />
+                  <span className="text-sm font-semibold">{row.name}</span>
+                </div>
+                <p className="mt-1 text-lg font-bold">
+                  {eur(row.value)}{" "}
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    ({personnelCostTotal ? pct((row.value / personnelCostTotal) * 100) : "0 %"})
+                  </span>
+                </p>
               </div>
-              <p className="mt-1 text-lg font-bold">
-                {eur(row.value)}{" "}
-                <span className="text-xs font-semibold text-muted-foreground">
-                  ({personnelCostTotal ? pct((row.value / personnelCostTotal) * 100) : "0 %"})
-                </span>
-              </p>
-            </div>
-          ))}
-        </div>
-      </ChartCard>
-      <ChartCard title="Statusverteilung | aktueller Personalstand" icon={PieIcon}>
-        <ResponsiveContainer width="100%" height={260}>
-          <PieChart>
-            <Pie
-              data={statusRows}
-              dataKey="value"
-              nameKey="name"
-              innerRadius={58}
-              outerRadius={92}
-              label={renderStatusLabel}
-              labelLine={false}
-            >
-              {statusRows.map((_, index) => (
-                <Cell key={index} fill={statusColors[index % statusColors.length]} />
-              ))}
-            </Pie>
-            <Tooltip formatter={(value, name) => [`${value}`, name]} />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {statusRows.map((row, index) => (
-            <div key={row.name} className="rounded-md bg-slate-50 p-3">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColors[index % statusColors.length] }} />
-                <span className="text-sm font-semibold">{row.name}</span>
+            ))}
+          </div>
+        </ChartCard>
+        <ChartCard title="Statusverteilung | aktueller Personalstand" icon={PieIcon}>
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie
+                data={statusRows}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={54}
+                outerRadius={84}
+                label={renderStatusLabel}
+                labelLine={false}
+              >
+                {statusRows.map((_, index) => (
+                  <Cell key={index} fill={statusColors[index % statusColors.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value, name) => [`${value}`, name]} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {statusRows.map((row, index) => (
+              <div key={row.name} className="rounded-md bg-slate-50 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColors[index % statusColors.length] }} />
+                  <span className="text-sm font-semibold">{row.name}</span>
+                </div>
+                <p className="mt-1 text-lg font-bold">
+                  {row.value} <span className="text-xs font-semibold text-muted-foreground">({statusTotal ? pct((row.value / statusTotal) * 100) : "0 %"})</span>
+                </p>
               </div>
-              <p className="mt-1 text-lg font-bold">
-                {row.value} <span className="text-xs font-semibold text-muted-foreground">({statusTotal ? pct((row.value / statusTotal) * 100) : "0 %"})</span>
-              </p>
-            </div>
-          ))}
-        </div>
-      </ChartCard>
+            ))}
+          </div>
+        </ChartCard>
+      </div>
     </section>
   );
 }
