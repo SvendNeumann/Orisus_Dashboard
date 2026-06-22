@@ -58,7 +58,7 @@ import {
   uploadTypes
 } from "@/data/dashboard";
 
-type DashboardSite = (typeof standorte)[number];
+type DashboardSite = (typeof standorte)[number] & { treatmentRooms?: number };
 type TopBehandlerEntry = { name: string; standort: string; honorar: number };
 type ImportedBehandlerDetailRow = {
   siteId: string;
@@ -1804,6 +1804,45 @@ function lastRowsValue(rows: Record<string, unknown>[], site: string | null, met
   return asNumber(candidates[0]?.Wert) ?? 0;
 }
 
+function latestRowsValueByTerms(
+  rows: Record<string, unknown>[],
+  site: string | null,
+  termGroups: string[][],
+  domains?: string[]
+) {
+  for (const terms of termGroups) {
+    const normalizedTerms = terms.map(normalizeMetric).filter(Boolean);
+    const candidates = rows
+      .filter((row) => {
+        const value = asNumber(row.Wert);
+        if (value == null || value <= 0) return false;
+        if (site && asText(row.Standortname) !== site) return false;
+        const domain = rowDomain(row);
+        if (domains?.length && !metricMatches(domain, domains)) return false;
+        const searchable = [
+          row.Kennzahl,
+          row.Standard_Kennzahl,
+          row.Detailbezeichnung,
+          row.Kategorie,
+          row.Standard_Kategorie,
+          row.Datenbereich,
+          row.Standard_Datenbereich
+        ]
+          .map(normalizeMetric)
+          .join("_");
+        return normalizedTerms.every((term) => searchable.includes(term));
+      })
+      .sort((a, b) => {
+        const yearDelta = (rowYear(b) ?? 0) - (rowYear(a) ?? 0);
+        if (yearDelta) return yearDelta;
+        return (rowMonth(b) ?? 0) - (rowMonth(a) ?? 0);
+      });
+    const value = asNumber(candidates[0]?.Wert);
+    if (value != null) return value;
+  }
+  return 0;
+}
+
 function lastRowsDisplayDate(rows: Record<string, unknown>[], site: string | null, metrics: string[], domains?: string[]) {
   const candidates = rows
     .filter((row) => {
@@ -1842,6 +1881,28 @@ function acquisitionTermsFromRows(siteName: string, rows: Record<string, unknown
     zielEbitdaKaufvertragPa:
       lastRowsValue(rows, siteName, ["ziel_ebitda_kaufvertrag_p_a"], ["stammdaten"]) || fallback.zielEbitdaKaufvertragPa
   };
+}
+
+function treatmentRoomsFromRows(siteName: string, rows: Record<string, unknown>[]) {
+  const value =
+    latestRowsValueByTerms(
+      rows,
+      siteName,
+      [
+        ["behandlungszimmer"],
+        ["anzahl", "behandlungszimmer"],
+        ["behandlung", "zimmer"],
+        ["zimmer"]
+      ],
+      ["stammdaten", "dashboard", "finanzen"]
+    ) ||
+    lastRowsValue(
+      rows,
+      siteName,
+      ["behandlungszimmer", "anzahl_behandlungszimmer", "anzahl_zimmer", "behandlungszimmer_anzahl"],
+      ["stammdaten", "dashboard", "finanzen"]
+    );
+  return value > 0 ? Math.round(value) : 0;
 }
 
 function preferredRowsValue(rows: Record<string, unknown>[], metricGroups: string[][], domains?: string[]) {
@@ -2639,6 +2700,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const zielEbitdaKaufvertrag = Math.round(targetEbitdaForActiveRows(rows, siteName, "kv", siteRows, fallback.start));
     const zielEbitdaUebernahme = Math.round(targetEbitdaForActiveRows(rows, siteName, "uebernahme", siteRows, fallback.start));
     const acquisitionTerms = acquisitionTermsFromRows(siteName, allSiteRows);
+    const treatmentRooms = treatmentRoomsFromRows(siteName, allSiteRows);
     const earnOutFaelligAm = contractPeriodEndForSite(siteName, rows, acquisitionTerms.earnOutFaelligAm);
     const status: Status = ebitdaMarge < 8 || cashflow < 0 ? "red" : ebitdaMarge < 12 ? "yellow" : "green";
 
@@ -2669,6 +2731,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
       sonstigeKostenquote,
       status,
       vorjahrAbweichung: 0,
+      treatmentRooms,
       darlehen: {
         kaufpreis: acquisitionTerms.kaufpreis,
         darlehen,
@@ -8822,7 +8885,7 @@ function Analysen({
 
   const siteRows = sortedSites.map((site, index) => {
     const dentists = activeDentistsBySite.get(site.id) ?? 0;
-    const roomCount = 0;
+    const roomCount = site.treatmentRooms ?? 0;
     const pvsPerDentist = dentists ? site.pvsUmsatz / dentists : null;
     const performancePerDentist = dentists ? site.gesamtleistung / dentists : null;
     const ebitdaPerDentist = dentists ? site.ebitda / dentists : null;
@@ -8883,21 +8946,21 @@ function Analysen({
       selected: indexFor(selectedRow?.pvsPerRoom ?? null, numericAverage((row) => row.pvsPerRoom)),
       group: 100,
       higherIsBetter: true,
-      unavailable: true
+      unavailable: !selectedRow?.rooms
     },
     {
       label: "Gesamtleistung je Behandlungszimmer",
       selected: indexFor(selectedRow?.performancePerRoom ?? null, numericAverage((row) => row.performancePerRoom)),
       group: 100,
       higherIsBetter: true,
-      unavailable: true
+      unavailable: !selectedRow?.rooms
     },
     {
       label: "EBITDA je Behandlungszimmer",
       selected: indexFor(selectedRow?.ebitdaPerRoom ?? null, numericAverage((row) => row.ebitdaPerRoom)),
       group: 100,
       higherIsBetter: true,
-      unavailable: true
+      unavailable: !selectedRow?.rooms
     },
     {
       label: "EBITDA-Marge",
@@ -9095,7 +9158,7 @@ function Analysen({
           ))}
           {hasMissingBasis && (
             <p className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-2 text-xs text-amber-100">
-              Hinweis: Behandlungszimmer sind im aktuellen CFO-Import noch nicht als strukturierte Basis erkannt. Diese Kennzahlen werden nicht künstlich berechnet.
+              Hinweis: Behandlungszimmer sind für den ausgewählten Standort im aktuellen CFO-Import noch nicht als strukturierte Basis erkannt. Diese Kennzahlen werden nicht künstlich berechnet.
             </p>
           )}
         </div>
