@@ -3614,7 +3614,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
                 nameKey="name"
                 innerRadius={54}
                 outerRadius={84}
-                label={renderPersonnelCostLabel}
+                label={false}
                 labelLine={false}
               >
                 {personnelCostRows.map((_, index) => (
@@ -3650,7 +3650,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
                 nameKey="name"
                 innerRadius={54}
                 outerRadius={84}
-                label={renderStatusLabel}
+                label={false}
                 labelLine={false}
               >
                 {statusRows.map((_, index) => (
