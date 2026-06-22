@@ -4780,7 +4780,18 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       value: metrics.kontostand,
       delta: "Konsolidierter Kontostand",
       icon: CircleDollarSign,
-      status: metrics.kontostand > 500000 ? "green" : "yellow"
+      status: metrics.kontostand > 500000 ? "green" : "yellow",
+      info: (
+        <div className="space-y-1">
+          <p className="font-bold text-slate-900">Herleitung aktueller Stand</p>
+          {sites.map((site) => (
+            <InfoLine key={site.id} label={site.name} value={site.kontostand} />
+          ))}
+          <div className="mt-2 border-t border-border pt-2">
+            <InfoLine label="= Konsolidierter Kontostand" value={metrics.kontostand} strong />
+          </div>
+        </div>
+      )
     },
     {
       label: "Offene Forderungen | aktueller Stand",
