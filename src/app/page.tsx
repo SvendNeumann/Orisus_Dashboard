@@ -9024,9 +9024,12 @@ function Analysen({
             inset: 0 auto auto 0 !important;
             width: 100% !important;
             max-width: none !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-            color: #0f172a !important;
+            min-height: 100% !important;
+            padding: 8mm !important;
+            background:
+              radial-gradient(circle at 15% 10%, rgba(20, 184, 166, 0.22), transparent 30%),
+              linear-gradient(135deg, #061725 0%, #0b2232 52%, #0f3440 100%) !important;
+            color: #f8fafc !important;
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
           }
@@ -9045,12 +9048,23 @@ function Analysen({
           .analysis-report h1,
           .analysis-report h2,
           .analysis-report h3,
-          .analysis-report table,
-          .analysis-report th,
-          .analysis-report td {
-            color: #0f172a !important;
+          .analysis-report table {
+            color: #f8fafc !important;
             box-shadow: none !important;
             text-shadow: none !important;
+          }
+
+          .analysis-report p,
+          .analysis-report span,
+          .analysis-report label {
+            color: #dbeafe !important;
+          }
+
+          .analysis-report strong,
+          .analysis-report h1,
+          .analysis-report h2,
+          .analysis-report h3 {
+            color: #ffffff !important;
           }
 
           .analysis-report > div,
@@ -9072,8 +9086,8 @@ function Analysen({
           .analysis-report .rounded-xl,
           .analysis-report .rounded-lg,
           .analysis-report .rounded-md {
-            background: #ffffff !important;
-            border: 1px solid #cbd5e1 !important;
+            background: rgba(8, 31, 45, 0.92) !important;
+            border: 1px solid rgba(125, 211, 252, 0.28) !important;
           }
 
           .analysis-report table {
@@ -9083,14 +9097,62 @@ function Analysen({
           }
 
           .analysis-report th {
-            background: #0f6f82 !important;
+            background: #0f7285 !important;
             color: #ffffff !important;
           }
 
           .analysis-report th,
           .analysis-report td {
-            border: 1px solid #d7dee8 !important;
+            border: 1px solid rgba(148, 163, 184, 0.28) !important;
             padding: 5px !important;
+          }
+
+          .analysis-report td {
+            background: rgba(15, 23, 42, 0.5) !important;
+            color: #f8fafc !important;
+          }
+
+          .analysis-report .bg-teal-500,
+          .analysis-report .bg-teal-500\\/20,
+          .analysis-report .bg-cyan-500,
+          .analysis-report .bg-cyan-400,
+          .analysis-report .bg-emerald-500,
+          .analysis-report .bg-emerald-500\\/60 {
+            background-color: #14b8a6 !important;
+          }
+
+          .analysis-report .bg-slate-400,
+          .analysis-report .bg-slate-500,
+          .analysis-report .bg-slate-600 {
+            background-color: #64748b !important;
+          }
+
+          .analysis-report .bg-amber-400,
+          .analysis-report .bg-amber-400\\/70 {
+            background-color: #f59e0b !important;
+          }
+
+          .analysis-report .bg-red-500,
+          .analysis-report .bg-red-500\\/70 {
+            background-color: #ef4444 !important;
+          }
+
+          .analysis-report .text-emerald-300,
+          .analysis-report .text-emerald-400,
+          .analysis-report .text-green-400 {
+            color: #5eead4 !important;
+          }
+
+          .analysis-report .text-amber-100,
+          .analysis-report .text-amber-300,
+          .analysis-report .text-amber-400 {
+            color: #fde68a !important;
+          }
+
+          .analysis-report .text-red-300,
+          .analysis-report .text-red-400,
+          .analysis-report .text-red-500 {
+            color: #fca5a5 !important;
           }
 
           .analysis-report .bg-emerald-500\\/60,
