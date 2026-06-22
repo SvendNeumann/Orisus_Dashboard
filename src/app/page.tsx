@@ -2369,6 +2369,17 @@ function buildImportReport(workbook: XLSX.WorkBook, fileName: string, workbookSh
   };
 }
 
+function kvEbitdaAchievement(site: DashboardSite) {
+  const target = site.darlehen.zielEbitdaKaufvertrag || site.darlehen.zielEbitda;
+  if (!target || target <= 0) return null;
+  return (site.ebitda / target) * 100;
+}
+
+function isCriticalKvEbitdaGap(site: DashboardSite) {
+  const achievement = kvEbitdaAchievement(site);
+  return achievement !== null && achievement < 85;
+}
+
 function cfoMetrics(sites: DashboardSite[] = standorte, monthlyData: typeof monthly = monthly) {
   const activeSites = sites.filter((site) => site.gesamtleistung > 0);
   const gesamtleistung = totalForSites(sites, "gesamtleistung");
@@ -2392,7 +2403,12 @@ function cfoMetrics(sites: DashboardSite[] = standorte, monthlyData: typeof mont
   const runRateEbitda = monthlyData.length ? (ebitda / monthlyData.length) * 12 : 0;
   const kapitaldienstfaehigkeit = kapitaldienst ? ebitda / kapitaldienst : 0;
   const kritisch = activeSites.filter(
-    (site) => site.status === "red" || site.cashflow < 0 || site.ebitdaMarge < 10 || site.forderungen > site.gesamtleistung * 0.15
+    (site) =>
+      site.status === "red" ||
+      site.cashflow < 0 ||
+      site.ebitdaMarge < 10 ||
+      site.forderungen > site.gesamtleistung * 0.15 ||
+      isCriticalKvEbitdaGap(site)
   );
 
   return {
@@ -4228,12 +4244,16 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
   const metrics = cfoMetrics(sites, monthlyData);
   const riskLabel = metrics.kritisch.length ? metrics.kritisch.map((site) => site.name).join(", ") : "Keine roten Standorte";
   const criticalReasons = metrics.kritisch.map((site) => {
+    const kvAchievement = kvEbitdaAchievement(site);
     const reasons = [
       site.status === "red" ? "Ampel rot" : "",
       site.cashflow < 0 ? `Cashflow negativ (${eur(site.cashflow)})` : "",
       site.ebitdaMarge < 10 ? `EBITDA-Marge unter 10 % (${pct(site.ebitdaMarge)})` : "",
       site.forderungen > site.gesamtleistung * 0.15
         ? `Forderungen über 15 % der Gesamtleistung (${pct((site.forderungen / (site.gesamtleistung || 1)) * 100)})`
+        : "",
+      kvAchievement !== null && kvAchievement < 85
+        ? `Ziel-EBITDA KV mehr als 15 % verfehlt (${pct(kvAchievement)} Zielerreichung)`
         : ""
     ].filter(Boolean);
     return { site: site.name, reasons };
@@ -4306,7 +4326,8 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
           <p className="font-bold text-slate-900">Warum ein Standort kritisch ist</p>
           <p>
             Ein Standort wird hier gezählt, wenn mindestens eine CFO-Regel greift: rote Ampel, Cashflow negativ,
-            EBITDA-Marge unter 10 % oder offene Forderungen über 15 % der Gesamtleistung.
+            EBITDA-Marge unter 10 %, offene Forderungen über 15 % der Gesamtleistung oder Ziel-EBITDA gemäß
+            Kaufvertrag bis zum aktuellen Datenstand unter 85 % erreicht.
           </p>
           {criticalReasons.length ? (
             <div className="space-y-1">
