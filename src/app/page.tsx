@@ -4852,7 +4852,18 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       value: metrics.forderungen,
       delta: "Konsolidiert seit Vertragsstart",
       icon: FileBarChart,
-      status: metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green"
+      status: metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green",
+      info: (
+        <div className="space-y-1">
+          <p className="font-bold text-slate-900">Zusammensetzung aktueller Stand</p>
+          {sites.map((site) => (
+            <InfoLine key={site.id} label={site.name} value={site.forderungen} />
+          ))}
+          <div className="mt-2 border-t border-border pt-2">
+            <InfoLine label="= Offene Forderungen gesamt" value={metrics.forderungen} strong />
+          </div>
+        </div>
+      )
     },
     {
       label: "Free Cashflow | seit Vertragsstart",
