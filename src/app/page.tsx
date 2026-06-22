@@ -2167,10 +2167,16 @@ function targetEbitdaValue(rows: Record<string, unknown>[], siteName: string, mo
   return activeMonths.size ? annualTarget * (activeMonths.size / 12) : 0;
 }
 
-function targetEbitdaForActiveRows(rows: Record<string, unknown>[], siteName: string, mode: "kv" | "uebernahme", activeRows: Record<string, unknown>[]) {
+function targetEbitdaForActiveRows(
+  rows: Record<string, unknown>[],
+  siteName: string,
+  mode: "kv" | "uebernahme",
+  activeRows: Record<string, unknown>[],
+  start: string
+) {
   const periods = new Set(
     activeRows
-      .filter((row) => rowDomain(row) === "bwa" && Math.abs(asNumber(row.Wert) ?? 0) > 0)
+      .filter((row) => rowDomain(row) === "bwa" && isOnOrAfterStart(row, start) && Math.abs(asNumber(row.Wert) ?? 0) > 0)
       .map((row) => {
         const year = rowYear(row);
         const month = rowMonth(row);
@@ -2491,8 +2497,8 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     const fremdlaborquote = gesamtleistung ? (fremdlabor / gesamtleistung) * 100 : 0;
     const personalquote = gesamtleistung ? (personal / gesamtleistung) * 100 : 0;
     const sonstigeKostenquote = gesamtleistung ? Math.max(0, 100 - ebitdaMarge - materialquote - fremdlaborquote - personalquote) : 0;
-    const zielEbitdaKaufvertrag = Math.round(targetEbitdaForActiveRows(rows, siteName, "kv", siteRows));
-    const zielEbitdaUebernahme = Math.round(targetEbitdaForActiveRows(rows, siteName, "uebernahme", siteRows));
+    const zielEbitdaKaufvertrag = Math.round(targetEbitdaForActiveRows(rows, siteName, "kv", siteRows, fallback.start));
+    const zielEbitdaUebernahme = Math.round(targetEbitdaForActiveRows(rows, siteName, "uebernahme", siteRows, fallback.start));
     const acquisitionTerms = acquisitionTermsFromRows(siteName, allSiteRows);
     const earnOutFaelligAm = contractPeriodEndForSite(siteName, rows, acquisitionTerms.earnOutFaelligAm);
     const status: Status = ebitdaMarge < 8 || cashflow < 0 ? "red" : ebitdaMarge < 12 ? "yellow" : "green";
