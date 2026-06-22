@@ -5126,10 +5126,18 @@ function TopBehandlerChart({ data = [] }: { data?: TopBehandlerEntry[] }) {
 
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} layout="vertical" margin={{ left: 16, right: 12 }}>
+      <BarChart data={data} layout="vertical" margin={{ left: 4, right: 12 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
         <XAxis type="number" tickFormatter={(v) => eur(Number(v), true)} />
-        <YAxis type="category" dataKey="name" width={92} tickLine={false} axisLine={false} />
+        <YAxis
+          type="category"
+          dataKey="name"
+          width={78}
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 10, fill: "#64748b" }}
+          tickFormatter={(value) => String(value).length > 16 ? `${String(value).slice(0, 15)}…` : String(value)}
+        />
         <Tooltip formatter={(v) => eur(Number(v))} labelFormatter={(label) => `${label} Honorarumsatz`} />
         <Bar dataKey="honorar" name="Honorarumsatz" fill="#0f766e" radius={[0, 5, 5, 0]} />
       </BarChart>
