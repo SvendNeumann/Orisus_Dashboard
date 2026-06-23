@@ -1609,6 +1609,10 @@ function pct(value: number) {
   return `${value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
 }
 
+function pctOneDecimal(value: number) {
+  return `${value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
+}
+
 function total(key: keyof (typeof standorte)[number]) {
   return standorte.reduce((sum, site) => sum + Number(site[key] ?? 0), 0);
 }
@@ -10100,7 +10104,7 @@ function SiteBehandlerPersonnelCosts({
               <TableCell>{row.type}</TableCell>
               <TableCell>{eur(row.personnelCost)}</TableCell>
               <TableCell>{eur(row.honorar)}</TableCell>
-              <TableCell>{pct(row.pkQuote * 100)}</TableCell>
+              <TableCell>{pctOneDecimal(row.pkQuote * 100)}</TableCell>
             </tr>
           ))}
           {visibleRows.length ? (
@@ -10109,7 +10113,7 @@ function SiteBehandlerPersonnelCosts({
               <TableCell summary>{""}</TableCell>
               <TableCell strong summary>{eur(totals.personnelCost)}</TableCell>
               <TableCell strong summary>{eur(totals.honorar)}</TableCell>
-              <TableCell strong summary>{pct(ratio(totals.personnelCost, totals.honorar))}</TableCell>
+              <TableCell strong summary>{pctOneDecimal(ratio(totals.personnelCost, totals.honorar))}</TableCell>
             </tr>
           ) : (
             <tr>
@@ -14348,9 +14352,9 @@ function pmrPersonnelCostRows(importedData: ImportedDashboardData, siteId: strin
       <td>${reportEscape(row.type)}</td>
       <td>${reportEscape(eur(row.personnelCost))}</td>
       <td>${reportEscape(eur(row.honorar))}</td>
-      <td>${reportEscape(pct(row.pkQuote * 100))}</td>
+      <td>${reportEscape(pctOneDecimal(row.pkQuote * 100))}</td>
     </tr>`).join("")}
-    <tr class="total"><td>Gesamt</td><td></td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.personnelCost, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.honorar, 0)))}</td><td>${reportEscape(pct(ratio(rows.reduce((sum, row) => sum + row.personnelCost, 0), rows.reduce((sum, row) => sum + row.honorar, 0))))}</td></tr>
+    <tr class="total"><td>Gesamt</td><td></td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.personnelCost, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.honorar, 0)))}</td><td>${reportEscape(pctOneDecimal(ratio(rows.reduce((sum, row) => sum + row.personnelCost, 0), rows.reduce((sum, row) => sum + row.honorar, 0))))}</td></tr>
     </tbody>
   </table>`;
 }
