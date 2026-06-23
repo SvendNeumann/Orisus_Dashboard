@@ -11639,7 +11639,7 @@ function BankCashflowControlTable({ sites = standorte, importedData }: { sites?:
         <Mini label="Bank-Cashflow Zeitraum" value={eur(cashflowTotal)} />
         <Mini label="Kontostand Monatsende" value={eur(kontostandTotal)} />
       </div>
-      <div className="overflow-x-auto">
+      <div className="mt-3 overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
@@ -11823,7 +11823,7 @@ function SiteBankCashflowCard({
         <Mini label="Ø Monat" value={eur(selectedAverage)} />
         <Mini label="Kontostand Monatsende" value={eur(latestKontostand)} />
       </div>
-      <div className="overflow-x-auto">
+      <div className="mt-3 overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
