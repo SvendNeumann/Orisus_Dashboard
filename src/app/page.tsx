@@ -1341,6 +1341,15 @@ function storedSiteId() {
   return window.localStorage.getItem(activeSiteStorageKey) || "kirchberg";
 }
 
+function scrollAppToTop() {
+  if (typeof window === "undefined") return;
+  window.requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  });
+}
+
 function eur(value: number, compact = false) {
   if (compact && Math.abs(value) >= 1000000) {
     return `${(value / 1000000).toLocaleString("de-DE", {
@@ -2955,6 +2964,7 @@ export default function HomePage() {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(activePageStorageKey, target);
     }
+    scrollAppToTop();
   };
 
   const setSelectedSite = (siteId: string) => {
@@ -2983,6 +2993,10 @@ export default function HomePage() {
     personal: false,
     admin: false
   });
+
+  useEffect(() => {
+    scrollAppToTop();
+  }, [page, selectedSite]);
   const visibleNavSections = useMemo(() => navSectionsForRole(userRole), [userRole]);
   const selected = useMemo(
     () => dashboardSites.find((site) => site.id === selectedSite) ?? dashboardSites[0] ?? standorte[0],
