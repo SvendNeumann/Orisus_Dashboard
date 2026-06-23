@@ -5193,22 +5193,26 @@ function Cockpit({
         </ChartCard>
       </div>
 
-      <StandortCfoComparison sites={sites} />
-
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
           <CostShareDonut sites={sites} />
         </ChartCard>
       </div>
 
-      <DebtCapitalBlock sites={sites} />
-
-      <CashflowBlock sites={sites} />
-
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <TrafficLights sites={sites} monthlyData={monthlyData} />
         <Insights setPage={setPage} />
       </div>
+
+      <Card className="p-4">
+        <h2 className="font-bold">Detailauswertungen</h2>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+          Das CFO-Cockpit zeigt bewusst nur die verdichtete Management-Sicht. Die vollständige BWA bleibt im Tab BWA,
+          Standortdetails je Praxis bleiben im Standortbereich, Cashflow-Herleitungen im Cashflow-Tab und Darlehen,
+          Earn-Outs sowie Wachstumszahlungen im Tab Darlehen & Earn-Out. Benchmarking und Performance-Auswertungen
+          liegen in den jeweiligen Fachreitern.
+        </p>
+      </Card>
     </section>
   );
 }
