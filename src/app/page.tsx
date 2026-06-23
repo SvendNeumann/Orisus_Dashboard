@@ -6011,9 +6011,31 @@ function Mini({ label, value, info }: { label: string; value: string; info?: Rea
       </div>
       <p className="mt-2 break-words font-bold">{value}</p>
       {infoOpen && info ? (
-        <div className="absolute right-2 top-10 z-20 w-72 rounded-md border border-border bg-white p-3 text-left text-xs shadow-lg">
-          {info}
-        </div>
+        <>
+          <button
+            type="button"
+            aria-label="Info schließen"
+            className="fixed inset-0 z-[90] cursor-default bg-slate-950/45 backdrop-blur-sm"
+            onClick={() => setInfoOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed left-4 right-4 top-24 z-[100] max-h-[72vh] overflow-y-auto rounded-xl border border-border bg-white p-4 text-left text-xs leading-5 text-slate-700 shadow-2xl sm:left-auto sm:right-8 sm:top-28 sm:w-96"
+          >
+            <div className="mb-3 flex items-start justify-between gap-3 border-b border-border pb-2">
+              <p className="font-bold text-slate-950">{label}</p>
+              <button
+                type="button"
+                className="rounded-full border border-border px-2 py-1 text-[11px] font-semibold text-slate-600"
+                onClick={() => setInfoOpen(false)}
+              >
+                Schließen
+              </button>
+            </div>
+            {info}
+          </div>
+        </>
       ) : null}
     </div>
   );
