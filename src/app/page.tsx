@@ -2942,6 +2942,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   });
 
   const latestBehandlerMonth = latestBehandlerHonorarMonthFromDetailRows(behandlerDetailRows, latestYear) || latestBehandlerHonorarMonth(rows, latestYear) || 12;
+  const patientImportRows = [...rows, ...buildEssenPatientExportRows(workbook)];
 
   return {
     schemaVersion: importDashboardSchemaVersion,
@@ -2956,7 +2957,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(behandlerDetailRows, report),
     behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
     behandlerDetailRows,
-    patientRows: buildImportedPatientRows(rows),
+    patientRows: buildImportedPatientRows(patientImportRows),
     bankMovementRows: buildImportedBankMovementRows(workbook, rows, latestYear, report),
     report
   };
@@ -6418,6 +6419,76 @@ const patientMetricDefinitions: Array<{
   { key: "patientsPerRoom", label: "Ø Patienten je Zimmer/Monat", unit: "average", aggregate: "average" }
 ];
 
+const essenPatientExportSheetName = "Essen_Patienten_Export";
+const patientExportMonthColumns = [
+  { index: 5, month: 1 },
+  { index: 6, month: 2 },
+  { index: 7, month: 3 },
+  { index: 8, month: 4 },
+  { index: 9, month: 5 },
+  { index: 10, month: 6 },
+  { index: 11, month: 7 },
+  { index: 12, month: 8 },
+  { index: 13, month: 9 },
+  { index: 14, month: 10 },
+  { index: 15, month: 11 },
+  { index: 16, month: 12 }
+];
+
+function normalizePatientExportValue(value: unknown, unit: string, metric: string) {
+  const numericValue = asNumber(value);
+  if (numericValue == null) return null;
+  const normalizedUnit = unit.toLowerCase();
+  const normalizedMetric = normalizeMetric(metric);
+  if ((normalizedUnit.includes("%") || normalizedMetric.includes("quote")) && Math.abs(numericValue) <= 1) {
+    return numericValue * 100;
+  }
+  return numericValue;
+}
+
+function buildEssenPatientExportRows(workbook: XLSX.WorkBook): Record<string, unknown>[] {
+  const sheet = workbook.Sheets[essenPatientExportSheetName];
+  if (!sheet) return [];
+
+  const matrixRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: null,
+    raw: true,
+    blankrows: false
+  });
+
+  return matrixRows.flatMap((row) => {
+    const category = asText(row[0]);
+    const metric = asText(row[1]);
+    const unit = asText(row[3]);
+    const year = asNumber(row[4]);
+    if (!category || !metric || !year || year < 1900) return [];
+
+    return patientExportMonthColumns.flatMap(({ index, month }) => {
+      const value = normalizePatientExportValue(row[index], unit, metric);
+      if (value == null) return [];
+      return [
+        {
+          Datenbereich: "Operativ",
+          Standard_Datenbereich: "Operativ",
+          Kategorie: category,
+          Standard_Kategorie: category,
+          Kennzahl: metric,
+          Standard_Kennzahl: metric,
+          Einheit: unit,
+          Standortname: "Essen",
+          Jahr: year,
+          Standard_Jahr: year,
+          Monat: month,
+          Standard_Monat: month,
+          Wert: value,
+          Quelle: essenPatientExportSheetName
+        }
+      ];
+    });
+  });
+}
+
 function patientMetricDefinitionForRow(row: Record<string, unknown>) {
   const metric = rowMetric(row);
   const category = rowCategory(row);
@@ -6428,17 +6499,28 @@ function patientMetricDefinitionForRow(row: Record<string, unknown>) {
     category.includes("terminmanagement") ||
     domain.includes("operativ");
   if (!isPatientContext) return null;
-  if (metric === "behandelte_patienten_im_monat") return patientMetricDefinitions.find((definition) => definition.key === "treatedPatients") ?? null;
+  if (metric === "behandelte_patienten_im_monat" || metric === "behandelte_patienten") {
+    return patientMetricDefinitions.find((definition) => definition.key === "treatedPatients") ?? null;
+  }
   if (metric === "neupatienten" || metric === "neupatieten") return patientMetricDefinitions.find((definition) => definition.key === "newPatients") ?? null;
-  if (metric === "alle_termine_gebucht") return patientMetricDefinitions.find((definition) => definition.key === "bookedAppointments") ?? null;
-  if (metric === "davon_nicht_wahrgenommen" || metric === "minus_davon_nicht_wahrgenommen") {
+  if (metric === "alle_termine_gebucht" || metric === "gebuchte_termine") {
+    return patientMetricDefinitions.find((definition) => definition.key === "bookedAppointments") ?? null;
+  }
+  if (
+    metric === "davon_nicht_wahrgenommen" ||
+    metric === "minus_davon_nicht_wahrgenommen" ||
+    metric === "nicht_wahrgenommene_termine" ||
+    metric === "abgesagte_termine"
+  ) {
     return patientMetricDefinitions.find((definition) => definition.key === "missedAppointments") ?? null;
   }
-  if (metric === "davon_wahrgenommen" || metric === "minus_davon_wahrgenommen") {
+  if (metric === "davon_wahrgenommen" || metric === "minus_davon_wahrgenommen" || metric === "wahrgenommene_termine") {
     return patientMetricDefinitions.find((definition) => definition.key === "attendedAppointments") ?? null;
   }
   if (metric === "quote_wahrgenommen") return patientMetricDefinitions.find((definition) => definition.key === "attendanceRate") ?? null;
-  if (metric === "quote_abgesagt") return patientMetricDefinitions.find((definition) => definition.key === "cancellationRate") ?? null;
+  if (metric === "quote_abgesagt" || metric === "terminausfallquote" || metric === "quote_nicht_wahrgenommen") {
+    return patientMetricDefinitions.find((definition) => definition.key === "cancellationRate") ?? null;
+  }
   if (metric.includes("behandelte_patienten_pro_zimmer")) return patientMetricDefinitions.find((definition) => definition.key === "patientsPerRoom") ?? null;
   return null;
 }
@@ -8408,7 +8490,7 @@ function PatientenAuswertungen({ importedData, sites = standorte }: { importedDa
     <div className="space-y-6">
       <PageTitle
         title="Patienten | Auswertungen"
-        text="Patienten-, Termin- und Kapazitätskennzahlen aus dem bestätigten CFO-Import. Essen ist vorbereitet und wird automatisch befüllt, sobald die Patientendaten im Export ergänzt sind."
+        text="Patienten-, Termin- und Kapazitätskennzahlen aus dem bestätigten CFO-Import. Essen wird aus dem Blatt Essen_Patienten_Export ergänzt, sobald die Datei diese Daten enthält."
       />
 
       <Card className="p-4">
@@ -8449,7 +8531,7 @@ function PatientenAuswertungen({ importedData, sites = standorte }: { importedDa
         <div className="mb-4">
           <h2 className="text-lg font-bold">Standortvergleich Patienten & Termine | {period}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Essen bleibt als vorbereitete Zeile sichtbar. Sobald die Patientendaten im Import stehen, wird der Standort automatisch berechnet.
+            Essen wird automatisch aus Essen_Patienten_Export gelesen, wenn das Blatt im bestätigten CFO-Import enthalten ist.
           </p>
         </div>
         <ResponsiveTable>
@@ -8510,7 +8592,7 @@ function PatientenAuswertungen({ importedData, sites = standorte }: { importedDa
       <Card className="p-4">
         <div className="mb-4">
           <h2 className="text-lg font-bold">Monatliche Patientenentwicklung | {yearForMonths}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Behandelte Patienten je Standort. Leere Monate bleiben leer, Essen ist als zukünftige Datenzeile vorbereitet.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Behandelte Patienten je Standort. Leere Monate bleiben leer, Essen wird aus Essen_Patienten_Export ergänzt.</p>
         </div>
         <ResponsiveTable>
           <thead>
