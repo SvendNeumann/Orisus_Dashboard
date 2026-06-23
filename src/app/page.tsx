@@ -9446,7 +9446,8 @@ function Analysen({
 
   const siteRows = sortedSites.map((site, index) => {
     const dentists = activeDentistsBySite.get(site.id) ?? 0;
-    const roomCount = site.treatmentRooms ?? 0;
+    const importedRoomCount = asNumber(site.treatmentRooms);
+    const roomCount = importedRoomCount && importedRoomCount > 0 ? importedRoomCount : staticTreatmentRoomsForSite(site.name);
     const pvsPerDentist = dentists ? site.pvsUmsatz / dentists : null;
     const performancePerDentist = dentists ? site.gesamtleistung / dentists : null;
     const ebitdaPerDentist = dentists ? site.ebitda / dentists : null;
