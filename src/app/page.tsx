@@ -12874,6 +12874,43 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
   );
 }
 
+function UploadSuccessDialog({
+  title,
+  text,
+  onClose
+}: {
+  title: string;
+  text: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#061725]/70 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-lg border border-[#30d5c8]/35 bg-white p-5 text-slate-950 shadow-[0_24px_70px_rgba(0,0,0,0.35)]">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-extrabold">{title}</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">{text}</p>
+          </div>
+          <button
+            type="button"
+            className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+            onClick={onClose}
+            aria-label="Popup schließen"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <Button className="mt-5 w-full" onClick={onClose}>
+          Verstanden
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function PersonalUpload({
   userRole,
   onImportConfirmed,
@@ -12888,6 +12925,8 @@ function PersonalUpload({
   const [pendingDashboardData, setPendingDashboardData] = useState<PersonalDashboardData | null>(null);
   const [importHistory, setImportHistory] = useState<PersonalImportHistoryEntry[]>([]);
   const [previousData, setPreviousData] = useState<PersonalDashboardData | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [successNotice, setSuccessNotice] = useState<{ title: string; text: string } | null>(null);
   const canEdit = canModifyData(userRole);
 
   const refreshImportHistory = () => {
@@ -12941,11 +12980,20 @@ function PersonalUpload({
   async function confirmImport() {
     if (!canEdit) return;
     if ((report.status !== "ready" && report.status !== "warning") || !pendingDashboardData) return;
-    await saveConfirmedPersonalImport(report, pendingDashboardData);
-    setConfirmedReport(report);
-    setPreviousData(pendingDashboardData);
-    refreshImportHistory();
-    onImportConfirmed?.(pendingDashboardData);
+    setIsConfirming(true);
+    try {
+      await saveConfirmedPersonalImport(report, pendingDashboardData);
+      setConfirmedReport(report);
+      setPreviousData(pendingDashboardData);
+      refreshImportHistory();
+      onImportConfirmed?.(pendingDashboardData);
+      setSuccessNotice({
+        title: "Personal-Import bestätigt",
+        text: `${report.fileName || "Die Personal-Arbeitsmappe"} wurde eingelesen und als aktive Datenbasis freigegeben.`
+      });
+    } finally {
+      setIsConfirming(false);
+    }
   }
 
   async function resetImport() {
@@ -12982,6 +13030,13 @@ function PersonalUpload({
 
   return (
     <section className="space-y-5">
+      {successNotice && (
+        <UploadSuccessDialog
+          title={successNotice.title}
+          text={successNotice.text}
+          onClose={() => setSuccessNotice(null)}
+        />
+      )}
       <PageTitle title="Personal-Upload" text="Eigener Import für die Personalübersicht-Arbeitsmappe. Diese Datenbasis ist vom CFO-/BWA-Import getrennt." />
       <Card className="grid gap-3 p-4 md:grid-cols-3">
         <Mini label="Aktueller Importstatus" value={statusLabel} />
@@ -13030,8 +13085,8 @@ function PersonalUpload({
             ))}
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <Button className="w-full" disabled={!canEdit || (report.status !== "ready" && report.status !== "warning")} onClick={confirmImport}>
-              Personal-Import bestätigen
+            <Button className="w-full" disabled={!canEdit || isConfirming || (report.status !== "ready" && report.status !== "warning")} onClick={confirmImport}>
+              {isConfirming ? "Personal-Import wird bestätigt ..." : "Personal-Import bestätigen"}
             </Button>
             <Button className="w-full" variant="secondary" disabled={!canEdit || (!confirmedReport && report.status === "idle")} onClick={resetImport}>
               Personal-Import zurücksetzen
@@ -13086,6 +13141,8 @@ function Uploads({
   const [confirmedReport, setConfirmedReport] = useState<ImportReport | null>(null);
   const [pendingDashboardData, setPendingDashboardData] = useState<ImportedDashboardData | null>(null);
   const [importHistory, setImportHistory] = useState<ImportHistoryEntry[]>([]);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [successNotice, setSuccessNotice] = useState<{ title: string; text: string } | null>(null);
   const canEdit = canModifyData(userRole);
 
   const refreshImportHistory = () => {
@@ -13150,10 +13207,19 @@ function Uploads({
     if (!canEdit) return;
     if ((report.status !== "ready" && report.status !== "warning") || !pendingDashboardData) return;
     const repairedDashboardData = repairImportedCashflowData(pendingDashboardData);
-    await saveConfirmedImport(report, repairedDashboardData);
-    setConfirmedReport(report);
-    refreshImportHistory();
-    onImportConfirmed?.(repairedDashboardData);
+    setIsConfirming(true);
+    try {
+      await saveConfirmedImport(report, repairedDashboardData);
+      setConfirmedReport(report);
+      refreshImportHistory();
+      onImportConfirmed?.(repairedDashboardData);
+      setSuccessNotice({
+        title: "CFO-Import bestätigt",
+        text: `${report.fileName || "Die CFO-Arbeitsmappe"} wurde eingelesen und als aktive Datenbasis freigegeben.`
+      });
+    } finally {
+      setIsConfirming(false);
+    }
   }
 
   async function resetImport() {
@@ -13190,6 +13256,13 @@ function Uploads({
 
   return (
     <section className="space-y-5">
+      {successNotice && (
+        <UploadSuccessDialog
+          title={successNotice.title}
+          text={successNotice.text}
+          onClose={() => setSuccessNotice(null)}
+        />
+      )}
       <PageTitle title="Uploads & Datenstand" text="Zentraler Excel-Import aus der konsolidierten Orisus-Arbeitsmappe mit Blatt-, Zeitraum-, Standort- und Plausibilitätsprüfung." />
       {!canEdit && (
         <Card className="border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
@@ -13267,8 +13340,8 @@ function Uploads({
             ))}
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <Button className="w-full" disabled={!canEdit || (report.status !== "ready" && report.status !== "warning")} onClick={confirmImport}>
-              Importbericht bestätigen
+            <Button className="w-full" disabled={!canEdit || isConfirming || (report.status !== "ready" && report.status !== "warning")} onClick={confirmImport}>
+              {isConfirming ? "Importbericht wird bestätigt ..." : "Importbericht bestätigen"}
             </Button>
             <Button className="w-full" variant="secondary" disabled={!canEdit || (!confirmedReport && report.status === "idle")} onClick={resetImport}>
               Import zurücksetzen

@@ -238,6 +238,7 @@ Import soll persistent in Supabase gespeichert bleiben:
 - Ausloggen oder Browser schliessen darf den bestaetigten Import nicht loeschen.
 - Nach Bestaetigung soll die App automatisch refreshen bzw. Daten neu laden.
 - Im Uploadablauf soll `Importbericht freigegeben` abgehakt werden, sobald bestaetigt.
+- Nach erfolgreicher Bestaetigung von CFO- oder Personal-Import muss ein klares Popup erscheinen, dass der Import eingelesen und als aktive Datenbasis freigegeben wurde.
 
 ## 9. BWA-Logik
 
