@@ -7536,7 +7536,6 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
 
   const rows = importedData?.bwaRows?.length ? buildImportedBwaLines(importedData.bwaRows, period, siteId) : [];
   const contractRows = importedData?.bwaRows?.length ? buildImportedBwaLines(importedData.bwaRows, "Gesamte Periode", siteId) : [];
-  const activeSites = siteId ? (importedData?.sites ?? []).filter((site) => site.id === siteId) : (importedData?.sites ?? []);
 
   return (
     <Card className="overflow-hidden">
@@ -7583,11 +7582,6 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
             );
           })}
         </div>
-      </div>
-      <div className="grid gap-3 border-t border-border bg-slate-50 p-4 text-sm sm:grid-cols-3">
-        <Mini label="Ausgewählte Standorte" value={activeSites.map((site) => site.name).join(", ")} />
-        <Mini label="Periode" value={period} />
-        <Mini label="Datenstatus" value={importedData ? "Excel-Import bestätigt" : "Kein Import aktiv"} />
       </div>
     </Card>
   );
