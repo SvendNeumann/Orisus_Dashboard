@@ -69,6 +69,20 @@ type ImportedBehandlerDetailRow = {
   eigenlaborByMonth: Record<string, number>;
   totalByMonth: Record<string, number>;
 };
+type ImportedPersonnelCostRow = {
+  siteId: string;
+  siteName: string;
+  employeeId: string;
+  name: string;
+  type: string;
+  status: string;
+  year: number;
+  personnelCostByMonth: Record<string, number>;
+  personnelCost: number;
+  honorar: number;
+  pkQuote: number;
+  monthsMaintained: string;
+};
 type PatientMetricKey =
   | "treatedPatients"
   | "newPatients"
@@ -147,7 +161,7 @@ const importPersistenceDbName = "orisus-cfo-dashboard";
 const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
-const importDashboardSchemaVersion = "2026-06-22-cockpit-honorar-period-v14";
+const importDashboardSchemaVersion = "2026-06-23-pmr-personalkosten-v15";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const personalImportPersistenceReportKey = "personal-report";
 const personalImportPersistenceDashboardKey = "personal-dashboard";
@@ -312,6 +326,7 @@ type ImportedDashboardData = {
   behandlerHonorarRows?: ImportedPeriodValueRow[];
   behandlerTotalRows?: ImportedPeriodValueRow[];
   behandlerDetailRows?: ImportedBehandlerDetailRow[];
+  personnelCostRows?: ImportedPersonnelCostRow[];
   bankMovementRows?: ImportedBankMovementRow[];
   patientRows?: ImportedPatientMetricRow[];
   report: ImportReport;
@@ -3048,6 +3063,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   const managementReceivablesBySite = managementOpenReceivablesFromWorkbook(workbook);
   const exportRows = exportRowsFromWorkbook(workbook);
   const behandlerDetailRows = buildImportedBehandlerDetailRows(rows, exportRows, report);
+  const personnelCostRows = buildImportedPersonnelCostRows(workbook);
   const periodSiteNames = report.standorte.filter((siteName) => {
     const fallback = fallbackByName.get(siteName) ?? standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     return rows.some(
@@ -3226,6 +3242,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(behandlerDetailRows, report),
     behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
     behandlerDetailRows,
+    personnelCostRows,
     patientRows: buildImportedPatientRows(patientImportRows),
     bankMovementRows: buildImportedBankMovementRows(workbook, rows, latestYear, report),
     report
@@ -7006,6 +7023,70 @@ function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], expor
   return [...grouped.values()]
     .filter((entry) => Math.abs(totalFor(entry)) > 0)
     .sort((a, b) => a.siteName.localeCompare(b.siteName, "de") || totalFor(b) - totalFor(a) || a.name.localeCompare(b.name, "de"));
+}
+
+function buildImportedPersonnelCostRows(workbook: XLSX.WorkBook): ImportedPersonnelCostRow[] {
+  const monthHeaders = ["Jan", "Feb", "Mrz", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+  const siteById = new Map(standorte.map((site) => [site.id, site.name]));
+  const rows: ImportedPersonnelCostRow[] = [];
+
+  workbook.SheetNames.filter((sheetName) => /personalkosten/i.test(sheetName)).forEach((sheetName) => {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return;
+    const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      defval: null,
+      raw: true,
+      blankrows: false
+    });
+    const headerIndex = rawRows.findIndex((row) => row.some((cell) => asText(cell) === "Behandler_ID") && row.some((cell) => asText(cell) === "PK-Quote"));
+    if (headerIndex < 0) return;
+    const header = rawRows[headerIndex] ?? [];
+    const indexOf = (label: string) => header.findIndex((cell) => asText(cell) === label);
+    const employeeIdIndex = indexOf("Behandler_ID");
+    const nameIndex = indexOf("Behandler");
+    const typeIndex = indexOf("Typ");
+    const statusIndex = indexOf("Status");
+    const yearIndex = indexOf("Jahr");
+    const personnelCostIndex = indexOf("Personalkosten Gesamt");
+    const honorarIndex = indexOf("Honorarumsatz");
+    const pkQuoteIndex = indexOf("PK-Quote");
+    const monthsMaintainedIndex = indexOf("Datenstatus");
+    const monthIndexes = monthHeaders.map((month) => indexOf(month));
+    const sheetSiteName = sheetName.replace(/_?Personalkosten_Expor?t?$/i, "");
+    const siteId = siteIdForName(sheetSiteName);
+    const siteName = siteById.get(siteId) ?? sheetSiteName;
+
+    rawRows.slice(headerIndex + 1).forEach((row) => {
+      const year = Number(row[yearIndex]);
+      const name = asText(row[nameIndex]).trim();
+      if (!year || !name) return;
+      const personnelCostByMonth = Object.fromEntries(
+        monthIndexes.map((columnIndex, index) => [`${year}-${index + 1}`, columnIndex >= 0 ? asNumber(row[columnIndex]) ?? 0 : 0])
+      );
+      const personnelCost = asNumber(row[personnelCostIndex]) ?? Object.values(personnelCostByMonth).reduce((sum, value) => sum + value, 0);
+      const honorar = asNumber(row[honorarIndex]) ?? 0;
+      const pkQuoteRaw = asNumber(row[pkQuoteIndex]) ?? 0;
+      if (!personnelCost && !honorar && !Object.values(personnelCostByMonth).some(Boolean)) return;
+
+      rows.push({
+        siteId,
+        siteName,
+        employeeId: asText(row[employeeIdIndex]),
+        name,
+        type: asText(row[typeIndex]),
+        status: asText(row[statusIndex]),
+        year,
+        personnelCostByMonth,
+        personnelCost,
+        honorar,
+        pkQuote: pkQuoteRaw > 1 ? pkQuoteRaw / 100 : pkQuoteRaw,
+        monthsMaintained: asText(row[monthsMaintainedIndex])
+      });
+    });
+  });
+
+  return rows.sort((a, b) => a.siteName.localeCompare(b.siteName, "de") || a.year - b.year || b.personnelCost - a.personnelCost);
 }
 
 function dashboardPerformanceMonthlyValues(workbook: XLSX.WorkBook, titleTerms: string[]) {
@@ -13294,7 +13375,8 @@ function buildReportDocument({
   periodLabel,
   orientation,
   body,
-  footerNote
+  footerNote,
+  hideHero = false
 }: {
   title: string;
   subtitle: string;
@@ -13302,6 +13384,7 @@ function buildReportDocument({
   orientation: ReportOrientation;
   body: string;
   footerNote?: string;
+  hideHero?: boolean;
 }) {
   return `<!doctype html>
   <html lang="de">
@@ -13399,6 +13482,70 @@ function buildReportDocument({
         .bar-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #14b8a6, #0f8794); }
         .bar-track span.red { background: linear-gradient(90deg, #ef4444, #b91c1c); }
         .bar-track span.yellow { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .pmr-page { display: grid; gap: 9px; }
+        .pmr-header {
+          display: grid;
+          grid-template-columns: 190px 1fr 150px;
+          gap: 14px;
+          align-items: center;
+          border-radius: 16px;
+          padding: 12px 16px;
+          color: white;
+          background: linear-gradient(135deg, #05254a 0%, #0b3556 52%, #0f6670 100%);
+          border: 1px solid rgba(255,255,255,.18);
+        }
+        .pmr-logo img { width: 165px; max-height: 54px; object-fit: contain; filter: brightness(0) invert(1); }
+        .pmr-header h1 { margin: 3px 0 3px; font-size: ${orientation === "landscape" ? "22px" : "19px"}; }
+        .pmr-header p { margin: 0; color: rgba(255,255,255,.76); font-size: 10.5px; }
+        .pmr-meta { display: grid; gap: 3px; justify-items: end; font-size: 10px; color: rgba(255,255,255,.82); }
+        .pmr-meta strong { font-size: 16px; color: white; }
+        .pmr-grid { display: grid; gap: 9px; }
+        .pmr-grid.top { grid-template-columns: ${orientation === "landscape" ? "1.15fr .85fr" : "1fr"}; }
+        .pmr-grid.bottom { grid-template-columns: ${orientation === "landscape" ? "1.15fr .85fr" : "1fr"}; }
+        .pmr-stack { display: grid; gap: 9px; align-content: start; }
+        .pmr-section {
+          overflow: hidden;
+          border-radius: 14px;
+          border: 1px solid #cbdce4;
+          background: white;
+          break-inside: avoid;
+        }
+        .pmr-section h2 {
+          margin: 0;
+          padding: 8px 10px;
+          color: white;
+          background: linear-gradient(135deg, #073e63, #0c7481);
+          font-size: 12px;
+        }
+        .pmr-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: ${orientation === "landscape" ? "8.4px" : "7.2px"}; }
+        .pmr-table.compact { font-size: ${orientation === "landscape" ? "7.7px" : "6.8px"}; }
+        .pmr-table th {
+          padding: 5px 4px;
+          color: white;
+          text-align: right;
+          background: #083b63;
+          border: 1px solid rgba(255,255,255,.28);
+          overflow-wrap: anywhere;
+        }
+        .pmr-table th:first-child, .pmr-table td:first-child { text-align: left; }
+        .pmr-table td {
+          padding: 4px 4px;
+          text-align: right;
+          border: 1px solid #d8e6ed;
+          background: #ffffff;
+          overflow-wrap: anywhere;
+        }
+        .pmr-table tr:nth-child(even) td { background: #f5fafb; }
+        .pmr-table tr.total td { background: #e1f1ea; font-weight: 900; }
+        .pmr-table tr.section td { background: #d8ecf3; color: #07324f; font-weight: 900; text-align: left; }
+        .pmr-table.monthly td, .pmr-table.monthly th { font-size: ${orientation === "landscape" ? "7.3px" : "6.5px"}; }
+        .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; vertical-align: middle; margin-right: 4px; }
+        .status-label { font-weight: 800; font-size: 7.2px; vertical-align: middle; }
+        .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 9px; }
+        .mini-grid div { border-radius: 9px; background: #e8f3f7; border: 1px solid #cce0e8; padding: 8px; }
+        .mini-grid span { display: block; color: #376174; font-size: 8px; font-weight: 800; text-transform: uppercase; }
+        .mini-grid strong { display: block; margin-top: 4px; color: #07324f; font-size: 15px; }
+        .payout p { margin: 0; padding: 0 9px 9px; color: #496577; font-size: 8px; }
         .report-footer {
           margin-top: auto;
           display: flex;
@@ -13418,7 +13565,7 @@ function buildReportDocument({
     </head>
     <body>
       <main class="report-page">
-        <header class="hero">
+        ${hideHero ? "" : `<header class="hero">
           <div class="eyebrow">Report</div>
           <h1>${reportEscape(title)}</h1>
           <p>${reportEscape(subtitle)}</p>
@@ -13429,7 +13576,7 @@ function buildReportDocument({
             <span class="pill">Vertraulich</span>
             <span class="pill">${orientation === "landscape" ? "A4 Querformat" : "A4 Hochformat"}</span>
           </div>
-        </header>
+        </header>`}
         ${body}
         <footer class="report-footer">
           <span>© Orisus Zahnmedizin MVZ GmbH</span>
@@ -13527,6 +13674,261 @@ function bankMovementReportRows(importedData?: ImportedDashboardData | null) {
       eur(valueForDefinition(definition))
     ])
   };
+}
+
+function reportStatusDot(status: Status | "neutral") {
+  const color = status === "green" ? "#16a34a" : status === "yellow" ? "#f59e0b" : status === "red" ? "#dc2626" : "#94a3b8";
+  const label = status === "green" ? "Stabil" : status === "yellow" ? "Beobachten" : status === "red" ? "Handlungsbedarf" : "n/a";
+  return `<span class="status-dot" style="background:${color}"></span><span class="status-label">${reportEscape(label)}</span>`;
+}
+
+function trendStatus(current: number, previous: number, higherIsBetter = true, tolerancePct = 2): Status | "neutral" {
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) return "neutral";
+  const change = ((current - previous) / Math.abs(previous)) * 100;
+  if (Math.abs(change) <= tolerancePct) return "yellow";
+  const improved = higherIsBetter ? change > 0 : change < 0;
+  return improved ? "green" : "red";
+}
+
+function quoteTrendStatus(current: number, previous: number, higherIsBetter = true, tolerancePp = 0.5): Status | "neutral" {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return "neutral";
+  const diff = current - previous;
+  if (Math.abs(diff) <= tolerancePp) return "yellow";
+  const improved = higherIsBetter ? diff > 0 : diff < 0;
+  return improved ? "green" : "red";
+}
+
+function comparisonPeriodFor(period: string, comparisonYear: number) {
+  const selection = selectedBwaPeriod(period);
+  if (selection.months?.length) {
+    if (selection.months.length === 1) return `${bwaMonths[selection.months[0] - 1]} ${comparisonYear}`;
+    return `YTD ${comparisonYear} bis ${bwaMonths[selection.months.at(-1)! - 1]}`;
+  }
+  return `Geschäftsjahr ${comparisonYear}`;
+}
+
+function currentYearFromPeriod(period: string) {
+  return selectedBwaPeriod(period).year ?? new Date().getFullYear();
+}
+
+function latestMonthLabelFromPeriod(period: string) {
+  const months = selectedBwaPeriod(period).months;
+  return months?.length ? bwaMonths[months.at(-1)! - 1] : "Dez";
+}
+
+function pmrBwaLines(importedData: ImportedDashboardData, siteId: string, period: string) {
+  const allowedKeys = new Set(bwaMetricDefinitions.filter((definition) => definition.order <= 570).map((definition) => definition.key));
+  return buildImportedBwaLines(importedData.bwaRows, period, siteId).filter((row) => row.metricKey && allowedKeys.has(row.metricKey as (typeof bwaMetricDefinitions)[number]["key"]));
+}
+
+function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
+  const previousPeriod = comparisonPeriodFor(period, comparisonYear);
+  const currentRows = pmrBwaLines(importedData, siteId, period);
+  const previousRows = new Map(pmrBwaLines(importedData, siteId, previousPeriod).map((row) => [row.metricKey, row]));
+  const costKeys = new Set(["fremdlabor_gesamt", "materialkosten_gesamt", "personalkosten_gesamt", "reparatur_instandhaltung", "miete_nebenkosten", "reise_fortbildung_seminare", "summe_sonstige_kosten"]);
+  const htmlRows = currentRows.map((row) => {
+    const previous = previousRows.get(row.metricKey);
+    const isSectionRow = row.emphasis && row.actual === 0 && !row.percent;
+    const current = row.actual;
+    const previousValue = previous?.actual ?? 0;
+    const status = isSectionRow ? "neutral" : row.percent
+      ? quoteTrendStatus(current, previousValue, !costKeys.has(String(row.metricKey)))
+      : trendStatus(Math.abs(current), Math.abs(previousValue), !costKeys.has(String(row.metricKey)));
+    const deviation = previousValue ? ((current - previousValue) / Math.abs(previousValue)) * 100 : 0;
+    return `<tr class="${row.emphasis ? "total" : ""} ${isSectionRow ? "section" : ""}">
+      <td>${reportEscape(row.label)}</td>
+      <td>${isSectionRow ? "" : reportEscape(row.percent ? pct(current) : eur(current))}</td>
+      <td>${isSectionRow ? "" : reportEscape(row.percent ? pct(previousValue) : eur(previousValue))}</td>
+      <td>${isSectionRow || !previousValue ? "" : reportEscape(pct(deviation))}</td>
+      <td>${isSectionRow ? "" : reportStatusDot(status)}</td>
+    </tr>`;
+  }).join("");
+  return `<table class="pmr-table">
+    <thead><tr><th>Position</th><th>${reportEscape(period)}</th><th>${reportEscape(previousPeriod)}</th><th>Abw.</th><th>Ampel</th></tr></thead>
+    <tbody>${htmlRows}</tbody>
+  </table>`;
+}
+
+function pmrQuoteRows(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
+  const previousPeriod = comparisonPeriodFor(period, comparisonYear);
+  const value = (metricKey: string, targetPeriod = period) => importedBwaMetricValue(importedData.bwaRows, siteId, metricKey, targetPeriod);
+  const quote = (numerator: string, denominator = "summe_umsatz", targetPeriod = period) => ratio(value(numerator, targetPeriod), value(denominator, targetPeriod));
+  const definitions = [
+    { label: "EBITDA-Marge", current: quote("ebitda"), previous: quote("ebitda", "summe_umsatz", previousPeriod), higher: true },
+    { label: "Personalkostenquote", current: ratio(Math.abs(value("personalkosten_gesamt")), value("summe_umsatz")), previous: ratio(Math.abs(value("personalkosten_gesamt", previousPeriod)), value("summe_umsatz", previousPeriod)), higher: false },
+    { label: "Materialquote", current: ratio(Math.abs(value("materialkosten_gesamt")), value("summe_umsatz")), previous: ratio(Math.abs(value("materialkosten_gesamt", previousPeriod)), value("summe_umsatz", previousPeriod)), higher: false },
+    { label: "Fremdlaborquote", current: ratio(Math.abs(value("fremdlabor_gesamt")), value("summe_umsatz")), previous: ratio(Math.abs(value("fremdlabor_gesamt", previousPeriod)), value("summe_umsatz", previousPeriod)), higher: false },
+    { label: "Sachkostenquote", current: ratio(Math.abs(value("summe_sonstige_kosten")), value("summe_umsatz")), previous: ratio(Math.abs(value("summe_sonstige_kosten", previousPeriod)), value("summe_umsatz", previousPeriod)), higher: false },
+    { label: "Deckungsbeitragsquote", current: quote("deckungsbeitrag"), previous: quote("deckungsbeitrag", "summe_umsatz", previousPeriod), higher: true }
+  ];
+  return `<table class="pmr-table compact">
+    <thead><tr><th>Kennzahl</th><th>Aktuell</th><th>Vorjahr</th><th>Delta</th><th>Status</th></tr></thead>
+    <tbody>${definitions.map((row) => {
+      const delta = row.current - row.previous;
+      return `<tr>
+        <td>${reportEscape(row.label)}</td>
+        <td>${reportEscape(pct(row.current))}</td>
+        <td>${reportEscape(pct(row.previous))}</td>
+        <td>${reportEscape(pct(delta))}</td>
+        <td>${reportStatusDot(quoteTrendStatus(row.current, row.previous, row.higher))}</td>
+      </tr>`;
+    }).join("")}</tbody>
+  </table>`;
+}
+
+function periodValueFromMonths(valuesByMonth: Record<string, number>, period: string) {
+  const selection = selectedBwaPeriod(period);
+  if (selection.year && selection.months?.length) return selection.months.reduce((sum, month) => sum + (valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
+  if (selection.year) return Array.from({ length: 12 }, (_, index) => valuesByMonth[`${selection.year}-${index + 1}`] ?? 0).reduce((sum, value) => sum + value, 0);
+  return Object.values(valuesByMonth).reduce((sum, value) => sum + value, 0);
+}
+
+function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
+  const comparisonPeriod = comparisonPeriodFor(period, comparisonYear);
+  const rows = (importedData.behandlerDetailRows ?? [])
+    .filter((row) => row.siteId === siteId)
+    .map((row) => {
+      const honorar = periodValueFromMonths(row.honorarByMonth, period);
+      const eigenlabor = periodValueFromMonths(row.eigenlaborByMonth, period);
+      const total = honorar + eigenlabor;
+      const previousTotal = periodValueFromMonths(row.totalByMonth, comparisonPeriod);
+      return { name: row.name, honorar, eigenlabor, total, previousTotal };
+    })
+    .filter((row) => Math.abs(row.total) > 0 || Math.abs(row.previousTotal) > 0)
+    .sort((a, b) => b.total - a.total);
+  const totalRevenue = rows.reduce((sum, row) => sum + row.total, 0);
+  return `<table class="pmr-table compact">
+    <thead><tr><th>Behandler</th><th>Honorar</th><th>Eigenlabor</th><th>Umsatz gesamt</th><th>Anteil</th><th>VJ</th><th>Delta</th></tr></thead>
+    <tbody>${rows.map((row) => `<tr>
+      <td>${reportEscape(row.name)}</td>
+      <td>${reportEscape(eur(row.honorar))}</td>
+      <td>${reportEscape(eur(row.eigenlabor))}</td>
+      <td>${reportEscape(eur(row.total))}</td>
+      <td>${reportEscape(pct(ratio(row.total, totalRevenue)))}</td>
+      <td>${reportEscape(eur(row.previousTotal))}</td>
+      <td>${reportEscape(eur(row.total - row.previousTotal))}</td>
+    </tr>`).join("")}
+    <tr class="total"><td>Gesamt</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.honorar, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.eigenlabor, 0)))}</td><td>${reportEscape(eur(totalRevenue))}</td><td>100 %</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.previousTotal, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.total - row.previousTotal, 0)))}</td></tr>
+    </tbody>
+  </table>`;
+}
+
+function pmrPersonnelCostRows(importedData: ImportedDashboardData, siteId: string, period: string) {
+  const year = currentYearFromPeriod(period);
+  const providerRows = new Map((importedData.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId).map((row) => [normalizeMetric(row.name), row]));
+  const rows = (importedData.personnelCostRows ?? [])
+    .filter((row) => row.siteId === siteId && row.year === year)
+    .map((row) => {
+      const matchedProvider = providerRows.get(normalizeMetric(row.name));
+      const personnelCost = periodValueFromMonths(row.personnelCostByMonth, period) || row.personnelCost;
+      const honorar = matchedProvider ? periodValueFromMonths(matchedProvider.honorarByMonth, period) : row.honorar;
+      return {
+        ...row,
+        personnelCost,
+        honorar,
+        pkQuote: honorar ? personnelCost / honorar : row.pkQuote
+      };
+    })
+    .filter((row) => row.personnelCost || row.honorar || row.pkQuote)
+    .sort((a, b) => b.personnelCost - a.personnelCost);
+  return `<table class="pmr-table compact">
+    <thead><tr><th>Mitarbeiter</th><th>Typ</th><th>Personalkosten</th><th>Honorarumsatz</th><th>PK-Quote</th><th>Datenstatus</th></tr></thead>
+    <tbody>${rows.map((row) => `<tr>
+      <td>${reportEscape(row.name)}</td>
+      <td>${reportEscape(row.type)}</td>
+      <td>${reportEscape(eur(row.personnelCost))}</td>
+      <td>${reportEscape(eur(row.honorar))}</td>
+      <td>${reportEscape(pct(row.pkQuote * 100))}</td>
+      <td>${reportEscape(row.monthsMaintained || row.status)}</td>
+    </tr>`).join("")}
+    <tr class="total"><td>Gesamt</td><td></td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.personnelCost, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.honorar, 0)))}</td><td>${reportEscape(pct(ratio(rows.reduce((sum, row) => sum + row.personnelCost, 0), rows.reduce((sum, row) => sum + row.honorar, 0))))}</td><td></td></tr>
+    </tbody>
+  </table>`;
+}
+
+function pmrMonthlyEbitdaTable(importedData: ImportedDashboardData, siteId: string, year: number) {
+  const ebitdaRow = importedData.bwaRows.find((row) => row.siteId === siteId && row.metricKey === "ebitda");
+  const performanceRow = importedData.bwaRows.find((row) => row.siteId === siteId && row.metricKey === "summe_umsatz");
+  const margin = (month: number) => ratio(ebitdaRow?.valuesByMonth[`${year}-${month}`] ?? 0, performanceRow?.valuesByMonth[`${year}-${month}`] ?? 0);
+  return `<table class="pmr-table compact monthly">
+    <thead><tr><th>Monat</th>${bwaMonths.map((month) => `<th>${month}</th>`).join("")}<th>Gesamt</th></tr></thead>
+    <tbody>
+      <tr><td>Gesamtleistung</td>${bwaMonths.map((_, index) => `<td>${reportEscape(eur(performanceRow?.valuesByMonth[`${year}-${index + 1}`] ?? 0))}</td>`).join("")}<td>${reportEscape(eur(performanceRow?.valuesByYear[String(year)] ?? 0))}</td></tr>
+      <tr><td>EBITDA</td>${bwaMonths.map((_, index) => `<td>${reportEscape(eur(ebitdaRow?.valuesByMonth[`${year}-${index + 1}`] ?? 0))}</td>`).join("")}<td>${reportEscape(eur(ebitdaRow?.valuesByYear[String(year)] ?? 0))}</td></tr>
+      <tr><td>EBITDA-Marge</td>${bwaMonths.map((_, index) => `<td>${reportEscape(pct(margin(index + 1)))}</td>`).join("")}<td>${reportEscape(pct(ratio(ebitdaRow?.valuesByYear[String(year)] ?? 0, performanceRow?.valuesByYear[String(year)] ?? 0)))}</td></tr>
+    </tbody>
+  </table>`;
+}
+
+function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardData, period: string, comparisonYear: number) {
+  const filteredSite = filteredSiteForPeriod(site, importedData, period);
+  const projection = projectedEarnOutForSite(filteredSite, period);
+  const year = currentYearFromPeriod(period);
+  const periodLabel = performancePeriodLabel(period);
+  const comparisonPeriod = comparisonPeriodFor(period, comparisonYear);
+  const totalPotential = projection.projectedEarnOut + projection.projectedGrowthPayment;
+  return `<div class="pmr-page">
+    <header class="pmr-header">
+      <div class="pmr-logo"><img src="/orisus-logo.png" alt="Orisus Zahnmedizin" /></div>
+      <div><div class="eyebrow">Standortleiter-Report</div><h1>PMR Standort ${reportEscape(site.name)}</h1><p>${reportEscape(periodLabel)} | Vergleich ${reportEscape(comparisonPeriod)}</p></div>
+      <div class="pmr-meta"><strong>${reportEscape(year)}</strong><span>bis ${reportEscape(latestMonthLabelFromPeriod(period))}</span><span>Vertraulich</span></div>
+    </header>
+    <div class="pmr-grid top">
+      <section class="pmr-section wide"><h2>BWA-Überblick bis EBITDA</h2>${pmrBwaReportTable(importedData, site.id, period, comparisonYear)}</section>
+      <div class="pmr-stack">
+        <section class="pmr-section"><h2>Quoten & Kennzahlen</h2>${pmrQuoteRows(importedData, site.id, period, comparisonYear)}</section>
+        <section class="pmr-section payout"><h2>Auszahlungslogik Verkäufer - indikative Hochrechnung</h2>
+          <div class="mini-grid">
+            <div><span>Earn-Out</span><strong>${reportEscape(eur(projection.projectedEarnOut, true))}</strong></div>
+            <div><span>Wachstumszahlung</span><strong>${reportEscape(eur(projection.projectedGrowthPayment, true))}</strong></div>
+            <div><span>Gesamtpotenzial</span><strong>${reportEscape(eur(totalPotential, true))}</strong></div>
+          </div>
+          <p>SOLL EBITDA Vertragslaufzeit: ${reportEscape(eur(projection.contractTargetEbitda))} | EBITDA hochgerechnet: ${reportEscape(eur(projection.projectedContractEbitda))}</p>
+        </section>
+      </div>
+    </div>
+    ${reportKpiGrid([
+      { label: "Gesamtleistung kum.", value: eur(filteredSite.gesamtleistung), detail: periodLabel, tone: "green" },
+      { label: "EBITDA kum.", value: eur(filteredSite.ebitda), detail: `${pct(filteredSite.ebitdaMarge)} Marge`, tone: filteredSite.ebitda >= 0 ? "green" : "red" },
+      { label: "Honorarumsatz inkl. Eigenlabor", value: eur(importedPeriodValue(importedData.behandlerTotalRows?.find((row) => row.siteId === site.id), period)), detail: periodLabel, tone: "blue" },
+      { label: "Deckungsbeitrag kum.", value: eur(importedBwaMetricValue(importedData.bwaRows, site.id, "deckungsbeitrag", period)), detail: "bis EBITDA", tone: "green" },
+      { label: "Zielerreichung EBITDA", value: pct(ratio(filteredSite.ebitda, filteredSite.darlehen.zielEbitdaKaufvertrag || filteredSite.darlehen.zielEbitda)), detail: "Kaufvertrag", tone: "yellow" },
+      { label: "Vergleichsjahr", value: String(comparisonYear), detail: comparisonPeriod, tone: "neutral" }
+    ])}
+    <section class="pmr-section"><h2>Monatsentwicklung EBITDA ${reportEscape(String(year))}</h2>${pmrMonthlyEbitdaTable(importedData, site.id, year)}</section>
+    <div class="pmr-grid bottom">
+      <section class="pmr-section wide"><h2>Behandler-Umsatzboard | ${reportEscape(periodLabel)} | Vergleich ${reportEscape(String(comparisonYear))}</h2>${pmrProviderRows(importedData, site.id, period, comparisonYear)}</section>
+      <section class="pmr-section"><h2>Personalkosten je Behandler | ${reportEscape(periodLabel)}</h2>${pmrPersonnelCostRows(importedData, site.id, period)}</section>
+    </div>
+  </div>`;
+}
+
+function buildPmrReport(
+  selectedSites: DashboardSite[],
+  importedData: ImportedDashboardData | null | undefined,
+  period: string,
+  comparisonYear: number,
+  orientation: ReportOrientation
+) {
+  if (!importedData?.bwaRows?.length || !selectedSites.length) {
+    return buildReportDocument({
+      title: "PMR Standortleiter-Report",
+      subtitle: "Für diesen Report werden ein bestätigter CFO-Import und mindestens ein Standort benötigt.",
+      periodLabel: period,
+      orientation,
+      body: reportSection("Keine Daten", "<p style='padding:12px'>Bitte CFO-Import bestätigen und Standort auswählen.</p>")
+    });
+  }
+
+  const pages = selectedSites.map((site, index) => `${index ? '<div class="page-break"></div>' : ""}${buildPmrSitePage(site, importedData, period, comparisonYear)}`).join("");
+  return buildReportDocument({
+    title: "PMR Standortleiter-Report",
+    subtitle: `Standortbezogener Monatsreport mit BWA bis EBITDA, Quoten, Earn-Out-Hochrechnung, Behandlerumsatz und Personalkosten. Zeitraum: ${performancePeriodLabel(period)}.`,
+    periodLabel: performancePeriodLabel(period),
+    orientation,
+    hideHero: true,
+    body: pages
+  });
 }
 
 function reportOrientationLabel(orientation: ReportOrientation) {
@@ -13712,18 +14114,46 @@ function Reports({
   importedData?: ImportedDashboardData | null;
 }) {
   const rules = useKpiRules();
+  const pmrPeriodOptions = useMemo(() => bwaPeriodOptionsFor(importedData), [importedData]);
+  const [pmrPeriod, setPmrPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const currentPmrYear = currentYearFromPeriod(pmrPeriod);
+  const pmrComparisonYears = (importedData?.report.jahre ?? [currentPmrYear - 1])
+    .filter((year) => year >= 1900 && year !== currentPmrYear)
+    .sort((a, b) => b - a);
+  const [pmrComparisonYear, setPmrComparisonYear] = useState(String(pmrComparisonYears.find((year) => year < currentPmrYear) ?? currentPmrYear - 1));
+  const activeReportSites = useMemo(
+    () => sortSitesByContractStart(sites).filter((site) => site.gesamtleistung || importedData?.bwaRows?.some((row) => row.siteId === site.id)),
+    [importedData, sites]
+  );
+  const [pmrSelectedSiteIds, setPmrSelectedSiteIds] = useState<string[]>(() => activeReportSites.map((site) => site.id));
   const [reportOrientations, setReportOrientations] = useState<Record<string, ReportOrientation>>({
+    pmr: "landscape",
     monthly: "portrait",
     management: "landscape",
     bank: "landscape",
     site: "landscape"
   });
+  useEffect(() => {
+    if (!pmrPeriodOptions.includes(pmrPeriod)) setPmrPeriod(defaultBwaPeriodFor(importedData));
+  }, [importedData, pmrPeriod, pmrPeriodOptions]);
+  useEffect(() => {
+    const availableIds = new Set(activeReportSites.map((site) => site.id));
+    setPmrSelectedSiteIds((current) => {
+      const next = current.filter((id) => availableIds.has(id));
+      const resolved = next.length ? next : activeReportSites.map((site) => site.id);
+      return resolved.length === current.length && resolved.every((id, index) => id === current[index]) ? current : resolved;
+    });
+  }, [activeReportSites]);
   const updateReportOrientation = (id: string, value: string) => {
     setReportOrientations((current) => ({
       ...current,
       [id]: value === "portrait" ? "portrait" : "landscape"
     }));
   };
+  const togglePmrSite = (siteId: string) => {
+    setPmrSelectedSiteIds((current) => current.includes(siteId) ? current.filter((id) => id !== siteId) : [...current, siteId]);
+  };
+  const selectedPmrSites = activeReportSites.filter((site) => pmrSelectedSiteIds.includes(site.id));
   const reportCards = [
     {
       id: "monthly",
@@ -13763,6 +14193,61 @@ function Reports({
           <Mini label="Standorte" value={String(sites.filter((site) => site.gesamtleistung > 0).length)} />
           <Mini label="Format" value="A4 Hoch / Quer" />
           <Mini label="Ausgabe" value="PDF / Druck" />
+        </div>
+      </Card>
+      <Card className="p-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="max-w-2xl">
+            <FileBarChart className="h-8 w-8 text-primary" />
+            <h2 className="mt-3 text-xl font-bold">Standortleiter-PMR</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Standortbezogener Report mit BWA bis EBITDA, Quoten, Earn-Out-Hochrechnung, Behandlerumsatz und Personalkosten je Behandler.
+            </p>
+          </div>
+          <div className="grid w-full gap-3 xl:max-w-3xl xl:grid-cols-4">
+            <label className="grid gap-1 text-xs font-bold uppercase text-muted-foreground">
+              Zeitraum
+              <Select value={pmrPeriod} onChange={(event) => setPmrPeriod(event.target.value)}>
+                {pmrPeriodOptions.map((option) => <option key={option}>{option}</option>)}
+              </Select>
+            </label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-muted-foreground">
+              Vergleichsjahr
+              <Select value={pmrComparisonYear} onChange={(event) => setPmrComparisonYear(event.target.value)}>
+                {[...new Set([Number(pmrComparisonYear), ...pmrComparisonYears])].filter(Boolean).map((year) => <option key={year} value={year}>{year}</option>)}
+              </Select>
+            </label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-muted-foreground">
+              Druckformat
+              <Select value={reportOrientations.pmr} onChange={(event) => updateReportOrientation("pmr", event.target.value)}>
+                <option value="portrait">A4 Hochformat</option>
+                <option value="landscape">A4 Querformat</option>
+              </Select>
+            </label>
+            <Button
+              className="self-end"
+              variant="secondary"
+              onClick={() => openPrintableReport(
+                "PMR Standortleiter-Report",
+                buildPmrReport(selectedPmrSites, importedData, pmrPeriod, Number(pmrComparisonYear), reportOrientations.pmr)
+              )}
+            >
+              PMR öffnen
+            </Button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {activeReportSites.map((site) => (
+            <label key={site.id} className="flex items-center gap-2 rounded-md border border-border bg-white/70 p-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[#30d5c8]"
+                checked={pmrSelectedSiteIds.includes(site.id)}
+                onChange={() => togglePmrSite(site.id)}
+              />
+              {site.name}
+            </label>
+          ))}
         </div>
       </Card>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
