@@ -9040,6 +9040,64 @@ function Analysen({
   const hasMissingBasis = benchmarkItems.some((item) => item.unavailable);
   const displaySiteName = viewMode === "Intern" ? selectedSite?.name ?? "Ausgewählter Standort" : "Ausgewählter Standort";
   const periodOptions = importedData ? bwaPeriodOptionsFor(importedData) : ["YTD 2026", "aktueller Monat", "Geschäftsjahr", "Gesamt seit Praxisstart", "freier Zeitraum"];
+  const basisRows = [
+    {
+      label: "Gesamtumsatz je Zahnarzt",
+      own: selectedRow?.pvsPerDentist ?? null,
+      comparison: numericAverage((row) => row.pvsPerDentist),
+      type: "currency" as const,
+      basis: `${selectedRow?.dentists ?? 0} aktive Zahnärzte`
+    },
+    {
+      label: "Gesamtleistung je Zahnarzt",
+      own: selectedRow?.performancePerDentist ?? null,
+      comparison: numericAverage((row) => row.performancePerDentist),
+      type: "currency" as const,
+      basis: `${selectedRow?.dentists ?? 0} aktive Zahnärzte`
+    },
+    {
+      label: "EBITDA je Zahnarzt",
+      own: selectedRow?.ebitdaPerDentist ?? null,
+      comparison: numericAverage((row) => row.ebitdaPerDentist),
+      type: "currency" as const,
+      basis: `${selectedRow?.dentists ?? 0} aktive Zahnärzte`
+    },
+    {
+      label: "Gesamtumsatz je Behandlungszimmer",
+      own: selectedRow?.pvsPerRoom ?? null,
+      comparison: numericAverage((row) => row.pvsPerRoom),
+      type: "currency" as const,
+      basis: `${selectedRow?.rooms ?? 0} Behandlungszimmer`
+    },
+    {
+      label: "Gesamtleistung je Behandlungszimmer",
+      own: selectedRow?.performancePerRoom ?? null,
+      comparison: numericAverage((row) => row.performancePerRoom),
+      type: "currency" as const,
+      basis: `${selectedRow?.rooms ?? 0} Behandlungszimmer`
+    },
+    {
+      label: "EBITDA je Behandlungszimmer",
+      own: selectedRow?.ebitdaPerRoom ?? null,
+      comparison: numericAverage((row) => row.ebitdaPerRoom),
+      type: "currency" as const,
+      basis: `${selectedRow?.rooms ?? 0} Behandlungszimmer`
+    },
+    {
+      label: "EBITDA-Marge",
+      own: selectedRow?.ebitdaMargin ?? null,
+      comparison: marginGroup,
+      type: "percent" as const,
+      basis: "EBITDA / Gesamtleistung"
+    },
+    {
+      label: "Forderungsquote",
+      own: selectedRow?.receivablesRatio ?? null,
+      comparison: numericAverage((row) => row.receivablesRatio),
+      type: "percent" as const,
+      basis: "Forderungen / PVS-Umsatz"
+    }
+  ];
 
   return (
     <section className="analysis-report w-full max-w-full overflow-hidden space-y-5">
@@ -9283,6 +9341,13 @@ function Analysen({
         </div>
       </div>
 
+      <BenchmarkBasisTable
+        rows={basisRows}
+        siteName={viewMode === "Intern" ? selectedSite?.name ?? "Ausgewählter Standort" : "Ausgewählter Standort"}
+        comparison={comparison}
+        period={period}
+      />
+
       <div className="analysis-print-block grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {benchmarkItems.map((item) => (
           <BenchmarkKpiCard key={item.label} {...item} />
@@ -9367,6 +9432,61 @@ function Analysen({
         <span>Exportdatum: {new Date().toLocaleDateString("de-DE")}</span>
       </div>
     </section>
+  );
+}
+
+function BenchmarkBasisTable({
+  rows,
+  siteName,
+  comparison,
+  period
+}: {
+  rows: { label: string; own: number | null; comparison: number | null; type: "currency" | "percent"; basis: string }[];
+  siteName: string;
+  comparison: string;
+  period: string;
+}) {
+  const formatBasisValue = (value: number | null, type: "currency" | "percent") => {
+    if (value == null || !Number.isFinite(value)) return "n. v.";
+    return type === "currency" ? eur(value) : pct(value);
+  };
+
+  return (
+    <div className="analysis-print-block min-w-0 overflow-hidden rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-white">Eigene Rechenbasis | {siteName}</h3>
+          <p className="mt-1 text-sm text-slate-300">
+            Absolute Werte, aus denen die Benchmarking-Indizes für {period} berechnet werden.
+          </p>
+        </div>
+        <div className="rounded-lg border border-teal-200/20 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100">
+          100 %-Vergleich: {comparison}
+        </div>
+      </div>
+      <div className="mt-4 max-w-full overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+        <table className="w-full min-w-[680px] border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Kennzahl</th>
+              <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Berechnungsbasis</th>
+              <th className="border border-white/10 bg-white/5 p-2 text-right text-slate-200">Eigener Wert</th>
+              <th className="border border-white/10 bg-white/5 p-2 text-right text-slate-200">100 %-Vergleichswert</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label}>
+                <td className="border border-white/10 p-2 font-semibold text-white">{row.label}</td>
+                <td className="border border-white/10 p-2 text-slate-300">{row.basis}</td>
+                <td className="border border-white/10 p-2 text-right font-bold text-teal-100">{formatBasisValue(row.own, row.type)}</td>
+                <td className="border border-white/10 p-2 text-right font-semibold text-slate-100">{formatBasisValue(row.comparison, row.type)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
