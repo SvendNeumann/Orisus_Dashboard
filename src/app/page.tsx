@@ -1737,6 +1737,18 @@ function siteIdForName(siteName: string) {
   return standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase())?.id ?? normalizeSiteId(siteName);
 }
 
+const treatmentRoomsBySiteId: Record<string, number> = {
+  kirchberg: 4,
+  essen: 5,
+  kehl: 5,
+  ulmet: 12,
+  huettenberg: 4
+};
+
+function staticTreatmentRoomsForSite(siteName: string) {
+  return treatmentRoomsBySiteId[siteIdForName(siteName)] ?? 0;
+}
+
 function acquisitionTermsForSite(siteName: string) {
   return acquisitionTermsBySiteId[siteIdForName(siteName)] ?? emptyAcquisitionTerms;
 }
@@ -1893,6 +1905,9 @@ function acquisitionTermsFromRows(siteName: string, rows: Record<string, unknown
 }
 
 function treatmentRoomsFromRows(siteName: string, rows: Record<string, unknown>[]) {
+  const staticRooms = staticTreatmentRoomsForSite(siteName);
+  if (staticRooms > 0) return staticRooms;
+
   const value =
     latestRowsValueByTerms(
       rows,
@@ -9318,7 +9333,7 @@ function Analysen({
           ))}
           {hasMissingBasis && (
             <p className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-2 text-xs text-amber-100">
-              Hinweis: Behandlungszimmer sind für den ausgewählten Standort im aktuellen CFO-Import noch nicht als strukturierte Basis erkannt. Diese Kennzahlen werden nicht künstlich berechnet.
+              Hinweis: Für diesen Standort ist noch keine Behandlungszimmer-Basis hinterlegt. Für Kirchberg, Essen, Kehl, Ulmet und Hüttenberg nutzt das Benchmarking feste Standort-Stammdaten.
             </p>
           )}
         </div>
