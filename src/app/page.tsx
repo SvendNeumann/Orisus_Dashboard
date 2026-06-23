@@ -5051,11 +5051,6 @@ function Cockpit({
 
       <DebtCapitalBlock sites={sites} />
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Ranking title="EBITDA je Standort | seit Vertragsstart" metric="ebitda" sites={sites} />
-        <Ranking title="Gesamtleistung je Standort | seit Vertragsstart" metric="gesamtleistung" sites={sites} />
-      </div>
-
       <CashflowBlock sites={sites} />
 
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
