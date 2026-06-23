@@ -10209,6 +10209,13 @@ function monthsBetweenGermanDates(startValue: string, endValue: string) {
   return Math.max(1, (end.year - start.year) * 12 + end.month - start.month + 1);
 }
 
+function contractMonthsForSite(site: DashboardSite, elapsedMonths: number) {
+  if (site.start && site.darlehen.earnOutFaelligAm) {
+    return monthsBetweenGermanDates(site.start, site.darlehen.earnOutFaelligAm);
+  }
+  return Math.max(elapsedMonths, 12);
+}
+
 function isEarnOutDue(site: DashboardSite) {
   const dueDate = displayDateValue(site.darlehen.earnOutFaelligAm);
   return dueDate != null && dueDate <= Date.now();
@@ -10245,6 +10252,10 @@ function projectedEarnOutForSite(site: DashboardSite, period: string) {
       projectedGrowthPayment: 0,
       growthFactor: terms.wachstumsfaktor || 0,
       excessEbitda: 0,
+      contractMonths: 0,
+      projectedContractEbitda: 0,
+      contractTargetEbitda: 0,
+      contractExcessEbitda: 0,
       achievement: 0,
       untergrenze: terms.untergrenze,
       target
@@ -10253,10 +10264,14 @@ function projectedEarnOutForSite(site: DashboardSite, period: string) {
   const elapsedMonths = monthsSinceStartForPeriod(site, period);
   const averageMonthlyEbitda = site.ebitda / Math.max(elapsedMonths, 1);
   const projectedEbitda = Math.round(averageMonthlyEbitda * 12);
+  const contractMonths = contractMonthsForSite(site, elapsedMonths);
+  const projectedContractEbitda = Math.round(averageMonthlyEbitda * contractMonths);
+  const contractTargetEbitda = Math.round(target * (contractMonths / 12));
   const untergrenze = terms.untergrenze || 0;
   const reduktionsfaktor = terms.reduktionsfaktor || 0;
   const growthFactor = terms.wachstumsfaktor || 0;
   const excessEbitda = Math.max(0, projectedEbitda - target);
+  const contractExcessEbitda = Math.max(0, projectedContractEbitda - contractTargetEbitda);
   const achievement = target ? projectedEbitda / target : 0;
   let projectedEarnOut = 0;
 
@@ -10275,9 +10290,13 @@ function projectedEarnOutForSite(site: DashboardSite, period: string) {
     averageMonthlyEbitda,
     elapsedMonths,
     projectedEarnOut: Math.round(Math.min(open, Math.max(0, projectedEarnOut))),
-    projectedGrowthPayment: Math.round(excessEbitda * growthFactor),
+    projectedGrowthPayment: Math.round(contractExcessEbitda * growthFactor),
     growthFactor,
     excessEbitda,
+    contractMonths,
+    projectedContractEbitda,
+    contractTargetEbitda,
+    contractExcessEbitda,
     achievement,
     untergrenze,
     target
@@ -10296,16 +10315,17 @@ function GrowthPaymentInfo({ site, projection, period }: { site: DashboardSite; 
     <div className="space-y-2">
       <p className="font-semibold text-slate-950">Herleitung potenzielle Wachstumszahlung</p>
       <p className="text-slate-600">
-        Basis ist das durchschnittliche EBITDA seit Vertragsstart. Dieses wird auf eine p.a.-Run-Rate hochgerechnet und gegen das
-        Ziel-EBITDA p.a. gemäß Kaufvertrag gespiegelt.
+        Basis ist das durchschnittliche EBITDA seit Vertragsstart. Dieses wird auf die gesamte Vertragslaufzeit hochgerechnet und gegen
+        das Ziel-EBITDA gemäß Kaufvertrag für dieselbe Vertragslaufzeit gespiegelt.
       </p>
       <div className="space-y-1">
         <InfoLine label={`${site.name}: EBITDA seit Start`} value={site.ebitda} />
         <InfoTextLine label={`÷ Monate seit Start (${period})`} value={projection.elapsedMonths.toLocaleString("de-DE")} />
         <InfoLine label="= Ø EBITDA je Monat" value={projection.averageMonthlyEbitda} />
-        <InfoLine label="× 12 = Run-Rate EBITDA p.a." value={projection.projectedEbitda} strong />
-        <InfoLine label="- Ziel EBITDA p.a. Kaufvertrag" value={-projection.target} />
-        <InfoLine label="= Mehr-EBITDA p.a." value={projection.excessEbitda} strong />
+        <InfoTextLine label="× Vertragslaufzeit" value={`${projection.contractMonths.toLocaleString("de-DE")} Monate`} />
+        <InfoLine label="= Hochgerechnetes EBITDA Vertragslaufzeit" value={projection.projectedContractEbitda} strong />
+        <InfoLine label="- Ziel-EBITDA Vertragslaufzeit" value={-projection.contractTargetEbitda} />
+        <InfoLine label="= Mehr-EBITDA Vertragslaufzeit" value={projection.contractExcessEbitda} strong />
       </div>
       <div className="rounded-md bg-slate-50 p-2 text-slate-700">
         Wachstumslogik: {growthFactorLabel(projection.growthFactor)}
