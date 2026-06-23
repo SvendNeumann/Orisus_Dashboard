@@ -5076,7 +5076,7 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
   );
   const maxRelativeMonth = Math.max(...relativeMonthlyRows.flatMap((row) => row.relativeValues), 0);
   const relativeHeatTone = (value: number) => {
-    if (!value || !maxRelativeMonth) return undefined;
+    if (!value || !maxRelativeMonth) return "rgba(15, 118, 110, 0.10)";
     const intensity = Math.max(0.15, Math.min(value / maxRelativeMonth, 1));
     return `rgba(15, 118, 110, ${0.12 + intensity * 0.34})`;
   };
@@ -5260,7 +5260,7 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
                   <td
                     key={`${row.site}-relative-${bwaMonths[index]}`}
                     className="table-number-col border-b border-r border-border p-2 text-right tabular-nums"
-                    style={{ backgroundColor: relativeHeatTone(value) ?? "white" }}
+                    style={{ backgroundColor: relativeHeatTone(value) }}
                   >
                     {value ? formatOneDecimal(value) : ""}
                   </td>
