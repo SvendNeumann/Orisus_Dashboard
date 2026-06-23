@@ -233,6 +233,21 @@ select {
   background-color: rgba(239, 68, 68, 0.12) !important;
 }
 
+.app-shell select,
+.app-shell select.bg-white\/95,
+.app-shell select[class*="bg-white"] {
+  color: #102a3a !important;
+  -webkit-text-fill-color: #102a3a !important;
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(178, 226, 229, 0.42) !important;
+  color-scheme: light;
+}
+
+.app-shell select option {
+  color: #102a3a;
+  background-color: #ffffff;
+}
+
 .app-shell .text-cyan-800,
 .app-shell .text-cyan-700,
 .app-shell .text-emerald-700 {
