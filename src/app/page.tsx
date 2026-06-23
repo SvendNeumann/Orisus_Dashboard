@@ -4694,10 +4694,26 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
     .map((row) => ({ name: row.site, value: Math.round(row.personnelCosts) }));
   const personnelCostTotal = personnelCostRows.reduce((sum, row) => sum + row.value, 0);
   const personnelCostColors = ["#0f766e", "#0891b2", "#0369a1", "#14b8a6", "#f59e0b", "#64748b"];
-  const renderPersonnelCostLabel = ({ name, value }: { name?: string; value?: number }) => {
-    if (!value) return "";
-    return `${name}: ${eur(value)}`;
-  };
+  const daysInSelectedYear = new Date(selectedYear, 1, 29).getMonth() === 1 ? 366 : 365;
+  const topSickEmployees = Array.from(
+    personalData.sicknessEntries
+      .filter((entry) => entry.year === selectedYear)
+      .reduce((map, entry) => {
+        const key = entry.employeeId || `${entry.employeeName}-${entry.site}`;
+        const existing = map.get(key) ?? {
+          employee: entry.employeeName || entry.employeeId || "Unbekannt",
+          site: entry.site,
+          days: 0
+        };
+        existing.days += entry.days;
+        if (!existing.site && entry.site) existing.site = entry.site;
+        map.set(key, existing);
+        return map;
+      }, new Map<string, { employee: string; site: string; days: number }>())
+      .values()
+  )
+    .sort((a, b) => b.days - a.days)
+    .slice(0, 10);
   const costOverviewRows = siteRows.map((site) => {
     const activeEmployees = personalData.employees.filter((employee) => employee.site === site.site && isActiveStatus(employee));
     const teamEmployees = activeEmployees.filter((employee) => !employee.isDentist);
@@ -4952,6 +4968,45 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
             ))}
           </div>
         </ChartCard>
+        <Card className="overflow-hidden">
+          <div className="table-head p-4 text-white">
+            <h2 className="font-bold">Top 10 Krankheitstage Mitarbeiter | {selectedYear}</h2>
+          </div>
+          <ResponsiveTable>
+            <thead>
+              <tr>
+                <TableHead>Rang</TableHead>
+                <TableHead>Mitarbeiter</TableHead>
+                <TableHead>Standort</TableHead>
+                <TableHead>Krankheitstage</TableHead>
+                <TableHead>Anteil Jahr</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {topSickEmployees.map((row, index) => (
+                <tr key={`${row.employee}-${row.site}`}>
+                  <TableCell strong>{index + 1}</TableCell>
+                  <TableCell strong>{row.employee}</TableCell>
+                  <TableCell>{row.site}</TableCell>
+                  <TableCell>{row.days.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</TableCell>
+                  <TableCell>{pct((row.days / daysInSelectedYear) * 100)}</TableCell>
+                </tr>
+              ))}
+              {!topSickEmployees.length && (
+                <tr>
+                  <TableCell strong>Keine Daten</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                </tr>
+              )}
+            </tbody>
+          </ResponsiveTable>
+          <p className="border-t border-border bg-slate-50 p-3 text-xs text-muted-foreground">
+            Anteil Jahr = Krankheitstage des Mitarbeiters im ausgewählten Jahr geteilt durch {daysInSelectedYear} Kalendertage.
+          </p>
+        </Card>
       </div>
     </section>
   );
