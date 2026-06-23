@@ -161,7 +161,7 @@ const importPersistenceDbName = "orisus-cfo-dashboard";
 const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
-const importDashboardSchemaVersion = "2026-06-23-pmr-personalkosten-v15";
+const importDashboardSchemaVersion = "2026-06-23-bwa-praxiskosten-v16";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const personalImportPersistenceReportKey = "personal-report";
 const personalImportPersistenceDashboardKey = "personal-dashboard";
@@ -1344,7 +1344,7 @@ const bwaMetricDefinitions = [
   { key: "section_ebitda", label: "4. Sachkosten / EBITDA", section: "4. Sachkosten / EBITDA", order: 400, source: [], emphasis: true },
   { key: "miete_nebenkosten", label: "Miete / Nebenkosten", section: "4. Sachkosten / EBITDA", order: 410, source: ["raum_energiekosten"] },
   { key: "reise_fortbildung_seminare", label: "Reise / Fortbildung / Seminare", section: "4. Sachkosten / EBITDA", order: 420, source: ["reise_fortbildungskosten"] },
-  { key: "summe_sonstige_kosten", label: "Summe sonstige Kosten", section: "4. Sachkosten / EBITDA", order: 490, source: ["sach_sonstige_kosten", "sonstige_kosten"], emphasis: true },
+  { key: "summe_sonstige_kosten", label: "Summe sonstige Kosten", section: "4. Sachkosten / EBITDA", order: 490, source: ["sach_sonstige_kosten", "sonstige_kosten"] },
   { key: "ebitda", label: "EBITDA", section: "4. Sachkosten / EBITDA", order: 500, source: ["ebitda"], emphasis: true },
   { key: "ebitda_marge", label: "EBITDA-Marge", section: "4. Sachkosten / EBITDA", order: 510, source: [], percent: true, derived: "ebitda_marge" },
   { key: "ziel_ebitda_kaufvertrag", label: "Ziel-EBITDA gemäß Kaufvertrag", section: "4. Sachkosten / EBITDA", order: 520, source: [], derived: "target_kv" },
@@ -1353,7 +1353,7 @@ const bwaMetricDefinitions = [
   { key: "ziel_ebitda_uebernahme", label: "Ziel-EBITDA gemäß Übernahme", section: "4. Sachkosten / EBITDA", order: 550, source: [], derived: "target_uebernahme" },
   { key: "abweichung_ziel_ebitda_uebernahme_abs", label: "Abw. Ziel-EBITDA Übernahme", section: "4. Sachkosten / EBITDA", order: 560, source: [], derived: "abw_abs_uebernahme" },
   { key: "abweichung_ziel_ebitda_uebernahme_pct", label: "Abw. Ziel-EBITDA Übernahme %", section: "4. Sachkosten / EBITDA", order: 570, source: [], percent: true, derived: "abw_pct_uebernahme" },
-  { key: "operative_prozesskosten_bis_ebitda", label: "Operative Prozesskosten bis EBITDA", section: "4. Sachkosten / EBITDA", order: 580, source: [], emphasis: true, derived: "operative_prozesskosten_bis_ebitda" },
+  { key: "operative_prozesskosten_bis_ebitda", label: "Operative Praxiskosten bis EBITDA", section: "4. Sachkosten / EBITDA", order: 580, source: [], emphasis: true, derived: "operative_prozesskosten_bis_ebitda" },
   { key: "section_ergebnis", label: "5. Unter EBITDA / Vorläufiges Ergebnis", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 600, source: [], emphasis: true },
   { key: "abschreibungen", label: "Abschreibungen", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 610, source: ["abschreibungen"] },
   { key: "zinsen_neutraler_aufwand", label: "Zinsen & neutraler Aufwand", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 620, source: ["zinsen_neutraler_aufwand"] },
@@ -2676,16 +2676,6 @@ function derivedBwaValue(rows: Record<string, unknown>[], siteName: string, key:
   const ebitda = sumMetricForPeriod(rows, siteName, ["ebitda"], year, month);
   const targetKv = targetEbitdaValue(rows, siteName, "kv", year, month);
   const targetUebernahme = targetEbitdaValue(rows, siteName, "uebernahme", year, month);
-  const operativeProcessCostKeys = [
-    "fremdlaborkosten",
-    "materialkosten",
-    "personalkosten",
-    "reparatur_instandhaltungskosten",
-    "raum_energiekosten",
-    "reise_fortbildungskosten",
-    "sach_sonstige_kosten",
-    "sonstige_kosten"
-  ];
   if (key === "gesamtleistungsquote") return totalPerformance ? 100 : 0;
   if (key === "praxisleistungsquote") {
     return ratio(sumMetricForPeriod(rows, siteName, ["praxisleistung"], year, month), totalPerformance);
@@ -2709,7 +2699,7 @@ function derivedBwaValue(rows: Record<string, unknown>[], siteName: string, key:
   if (key === "abw_pct_kv") return ratio(ebitda - targetKv, targetKv);
   if (key === "abw_pct_uebernahme") return ratio(ebitda - targetUebernahme, targetUebernahme);
   if (key === "operative_prozesskosten_bis_ebitda") {
-    return sumMetricForPeriod(rows, siteName, operativeProcessCostKeys, year, month);
+    return totalPerformance - ebitda;
   }
   return 0;
 }
@@ -8018,7 +8008,7 @@ function buildBwaRows(period: string, siteId?: string) {
   const cashflow = base("cashflow");
   const praxiseingaenge = Math.round(pvs * 0.96);
   const sonstigeEingaenge = Math.round(gesamtleistung * 0.018);
-  const praxiskosten = -Math.round(material + fremdlabor + personal + weitereKosten);
+  const praxiskosten = Math.round(gesamtleistung - ebitda);
   const umbuchen = -Math.round(gesamtleistung * 0.025);
 
   const row = (label: string, actual: number, options?: { indent?: boolean; emphasis?: boolean; percent?: boolean; kind?: "cashflow" }) => {
@@ -8059,7 +8049,7 @@ function buildBwaRows(period: string, siteId?: string) {
     row("EC-Terminal", -Math.round(gesamtleistung * 0.001), { indent: true }),
     row("Nicht abziehbare Vorsteuer", -Math.round(gesamtleistung * 0.012), { indent: true }),
     row("Sonstige Kosten", -Math.max(0, weitereKosten - Math.round(gesamtleistung * 0.089)), { indent: true }),
-    row("Summe sonstige Kosten", -weitereKosten, { emphasis: true }),
+    row("Summe sonstige Kosten", -weitereKosten, { indent: true }),
     row("EBITDA", ebitda, { emphasis: true }),
     row("EBITDA-Marge", gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0, { percent: true }),
     row("EBITDA Vorjahr Ist", Math.round(ebitda * 0.72), { indent: true }),
@@ -8214,7 +8204,7 @@ function buildSiteMonthlyBwa(site: (typeof standorte)[number], year: number) {
   const fremdlabor = site.gesamtleistung * (site.fremdlaborquote / 100);
   const personal = site.gesamtleistung * 0.278;
   const weitere = site.gesamtleistung * (site.sonstigeKostenquote / 100);
-  const praxiskosten = -(material + fremdlabor + personal + weitere);
+  const praxiskosten = site.gesamtleistung - site.ebitda;
 
   return [
     row("1. Umsatz", 0, { section: true }),
@@ -8244,7 +8234,7 @@ function buildSiteMonthlyBwa(site: (typeof standorte)[number], year: number) {
     row("EC-Terminal", -site.gesamtleistung * 0.001, { indent: true }),
     row("Nicht abziehbare Vorsteuer", -site.gesamtleistung * 0.012, { indent: true }),
     row("Sonstige Kosten", -Math.max(0, weitere - site.gesamtleistung * 0.089), { indent: true }),
-    row("Sonstige Kosten gesamt", -weitere, { emphasis: true }),
+    row("Summe sonstige Kosten", -weitere, { indent: true }),
     row("EBITDA", site.ebitda, { emphasis: true }),
     row("EBITDA-Marge", site.ebitdaMarge, { percent: true, emphasis: true, contractValue: site.ebitdaMarge }),
     row("EBITDA Vorjahr Ist", site.ebitda * 0.72, { indent: true }),

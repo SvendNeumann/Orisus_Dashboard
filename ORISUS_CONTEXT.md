@@ -320,6 +320,10 @@ Wichtig:
   - Monatliche BWA Jan-Dez, Gesamt, Vorjahr, Durchschnitt, gesamte Vertragsperiode
   - Tabellenkopf sticky/fixiert
 - Unter `Abw. Ziel-EBITDA Uebernahme %` und vor Abschnitt `5. Unter EBITDA / Vorlaeufiges Ergebnis` muss die Zeile `Operative Praxiskosten bis EBITDA` erscheinen.
+- `Operative Praxiskosten bis EBITDA` ist fachlich immer `Summe Umsatz / Gesamtleistung - EBITDA`.
+  - Beispiel Kirchberg Januar 2026: 232.496,67 EUR - 78.277,86 EUR = 154.218,81 EUR, gerundet 154.219 EUR.
+  - Nicht einzelne Kostenkonten aufsummieren, weil sonst doppelte/abweichende Praxiskosten entstehen koennen.
+- `Summe sonstige Kosten` ist eine normale Sachkostenzeile und darf nicht als farbig hervorgehobene Summen-/EBITDA-Zeile formatiert werden.
 - PMR/Standortleiter-Report soll die BWA nur bis inkl. `Abw. EBITDA gg. Uebernahme` bzw. dem fachlich vereinbarten Block bis EBITDA zeigen, nicht den gesamten Ergebnis-/Cashflow-Block.
 
 ## 10. Cashflow-Definitionen
