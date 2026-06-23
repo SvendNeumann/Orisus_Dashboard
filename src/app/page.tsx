@@ -200,6 +200,7 @@ function authUserMustChangePassword(user: SupabaseAuthResponse["user"] | { app_m
   return Boolean(user?.app_metadata?.must_change_password);
 }
 const supabaseImportTableName = "orisus_confirmed_imports";
+const supabaseSettingsTableName = "orisus_app_settings";
 
 type AcquisitionTerms = {
   kaufpreis: number;
@@ -929,6 +930,40 @@ async function clearSupabaseConfirmedImport() {
     },
     token
   ).catch(() => undefined);
+}
+
+async function loadSupabaseAppSetting<T>(key: string) {
+  if (!isSupabaseConfigured()) return null;
+  const token = currentSupabaseAccessToken();
+  if (!token) return null;
+  const rows = await supabaseFetch<Array<{ value: T }>>(
+    `/rest/v1/${supabaseSettingsTableName}?select=value&key=eq.${encodeURIComponent(key)}&limit=1`,
+    undefined,
+    token
+  ).catch(() => []);
+  return rows[0]?.value ?? null;
+}
+
+async function saveSupabaseAppSetting(key: string, value: unknown) {
+  if (!canModifyData(currentUserRole())) return false;
+  if (!isSupabaseConfigured()) return false;
+  const token = currentSupabaseAccessToken();
+  if (!token) return false;
+  await supabaseFetch(
+    `/rest/v1/${supabaseSettingsTableName}?on_conflict=key`,
+    {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify({
+        key,
+        value,
+        updated_at: new Date().toISOString(),
+        updated_by: currentUserEmail() || currentUserName()
+      })
+    },
+    token
+  );
+  return true;
 }
 
 async function accessUsersApi<T>(method = "GET", body?: unknown, retriedAfterRefresh = false): Promise<T> {
@@ -1786,50 +1821,64 @@ const defaultPracticeOpeningHoursBySiteId: Record<string, number> = {
 
 const practiceOpeningHoursStorageKey = "orisus_practice_opening_hours_v1";
 const practiceOpeningHoursChangedEvent = "orisus-practice-opening-hours-changed";
+const practiceOpeningHoursSettingKey = "practice_opening_hours";
 
 function practiceOpeningHoursForSite(siteName: string, openingHoursBySiteId = defaultPracticeOpeningHoursBySiteId) {
   return openingHoursBySiteId[siteIdForName(siteName)] ?? defaultPracticeOpeningHoursBySiteId[siteIdForName(siteName)] ?? 0;
 }
 
-function readPracticeOpeningHours() {
+function normalizePracticeOpeningHours(input: Record<string, unknown> | null | undefined) {
   const defaults = { ...defaultPracticeOpeningHoursBySiteId };
-  if (typeof window === "undefined") return defaults;
+  Object.entries(input ?? {}).forEach(([siteId, value]) => {
+    const numericValue = asNumber(value);
+    if (numericValue != null && numericValue >= 0) defaults[siteIdForName(siteId)] = numericValue;
+  });
+  return defaults;
+}
+
+function readPracticeOpeningHours() {
+  if (typeof window === "undefined") return normalizePracticeOpeningHours(null);
   try {
     const parsed = JSON.parse(window.localStorage.getItem(practiceOpeningHoursStorageKey) ?? "{}") as Record<string, unknown>;
-    Object.entries(parsed).forEach(([siteId, value]) => {
-      const numericValue = asNumber(value);
-      if (numericValue != null && numericValue >= 0) defaults[siteIdForName(siteId)] = numericValue;
-    });
+    return normalizePracticeOpeningHours(parsed);
   } catch {
-    return defaults;
+    return normalizePracticeOpeningHours(null);
   }
-  return defaults;
 }
 
 function usePracticeOpeningHours() {
   const [openingHoursBySiteId, setOpeningHoursState] = useState<Record<string, number>>(() => ({ ...defaultPracticeOpeningHoursBySiteId }));
 
   useEffect(() => {
-    const load = () => setOpeningHoursState(readPracticeOpeningHours());
+    let cancelled = false;
+    const load = () => {
+      const cached = readPracticeOpeningHours();
+      setOpeningHoursState(cached);
+      void loadSupabaseAppSetting<Record<string, unknown>>(practiceOpeningHoursSettingKey).then((setting) => {
+        if (cancelled || !setting) return;
+        const normalized = normalizePracticeOpeningHours(setting);
+        setOpeningHoursState(normalized);
+        window.localStorage.setItem(practiceOpeningHoursStorageKey, JSON.stringify(normalized));
+      });
+    };
     load();
     window.addEventListener("storage", load);
     window.addEventListener(practiceOpeningHoursChangedEvent, load);
     return () => {
+      cancelled = true;
       window.removeEventListener("storage", load);
       window.removeEventListener(practiceOpeningHoursChangedEvent, load);
     };
   }, []);
 
   const setOpeningHoursBySiteId = (next: Record<string, number>) => {
-    const cleaned = { ...defaultPracticeOpeningHoursBySiteId };
-    Object.entries(next).forEach(([siteId, value]) => {
-      if (Number.isFinite(value) && value >= 0) cleaned[siteIdForName(siteId)] = value;
-    });
+    const cleaned = normalizePracticeOpeningHours(next);
     setOpeningHoursState(cleaned);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(practiceOpeningHoursStorageKey, JSON.stringify(cleaned));
       window.dispatchEvent(new Event(practiceOpeningHoursChangedEvent));
     }
+    return cleaned;
   };
 
   return { openingHoursBySiteId, setOpeningHoursBySiteId };
@@ -11722,15 +11771,29 @@ function PracticeOpeningHoursSettings() {
     setDraft(openingHoursBySiteId);
   }, [openingHoursBySiteId]);
 
-  const save = () => {
-    setOpeningHoursBySiteId(draft);
-    setMessage("Praxisöffnungszeiten gespeichert. Benchmarking und Kapazitätskennzahlen nutzen die aktualisierten Werte.");
+  const save = async () => {
+    const cleaned = setOpeningHoursBySiteId(draft);
+    try {
+      const saved = await saveSupabaseAppSetting(practiceOpeningHoursSettingKey, cleaned);
+      setMessage(
+        saved
+          ? "Praxisöffnungszeiten zentral gespeichert. Benchmarking und Kapazitätskennzahlen nutzen die aktualisierten Werte."
+          : "Praxisöffnungszeiten lokal gespeichert. Zentrale Speicherung ist erst mit aktiver Admin-Sitzung verfügbar."
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Praxisöffnungszeiten konnten nicht zentral gespeichert werden.");
+    }
   };
 
-  const reset = () => {
+  const reset = async () => {
     setDraft({ ...defaultPracticeOpeningHoursBySiteId });
-    setOpeningHoursBySiteId(defaultPracticeOpeningHoursBySiteId);
-    setMessage("Praxisöffnungszeiten auf Standardwerte zurückgesetzt.");
+    const cleaned = setOpeningHoursBySiteId(defaultPracticeOpeningHoursBySiteId);
+    try {
+      const saved = await saveSupabaseAppSetting(practiceOpeningHoursSettingKey, cleaned);
+      setMessage(saved ? "Praxisöffnungszeiten zentral auf Standardwerte zurückgesetzt." : "Praxisöffnungszeiten lokal auf Standardwerte zurückgesetzt.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Standardwerte konnten nicht zentral gespeichert werden.");
+    }
   };
 
   return (
@@ -11785,8 +11848,8 @@ function PracticeOpeningHoursSettings() {
           Basis aktuell: Kirchberg 53, Essen 39, Kehl 56, Ulmet 84, Hüttenberg 52,5 Stunden pro Woche.
         </p>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={reset}>Standardwerte</Button>
-          <Button onClick={save}>Öffnungszeiten speichern</Button>
+          <Button variant="secondary" onClick={() => void reset()}>Standardwerte</Button>
+          <Button onClick={() => void save()}>Öffnungszeiten speichern</Button>
         </div>
       </div>
       {message ? <div className="border-t border-border bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</div> : null}
