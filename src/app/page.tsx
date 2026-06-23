@@ -58,7 +58,7 @@ import {
   uploadTypes
 } from "@/data/dashboard";
 
-type DashboardSite = (typeof standorte)[number] & { treatmentRooms?: number };
+type DashboardSite = (typeof standorte)[number] & { treatmentRooms?: number; openingHours?: number };
 type TopBehandlerEntry = { name: string; standort: string; honorar: number };
 type ImportedBehandlerDetailRow = {
   siteId: string;
@@ -1774,6 +1774,65 @@ const treatmentRoomsBySiteId: Record<string, number> = {
 
 function staticTreatmentRoomsForSite(siteName: string) {
   return treatmentRoomsBySiteId[siteIdForName(siteName)] ?? 0;
+}
+
+const defaultPracticeOpeningHoursBySiteId: Record<string, number> = {
+  kirchberg: 53,
+  essen: 39,
+  kehl: 56,
+  ulmet: 84,
+  huettenberg: 52.5
+};
+
+const practiceOpeningHoursStorageKey = "orisus_practice_opening_hours_v1";
+const practiceOpeningHoursChangedEvent = "orisus-practice-opening-hours-changed";
+
+function practiceOpeningHoursForSite(siteName: string, openingHoursBySiteId = defaultPracticeOpeningHoursBySiteId) {
+  return openingHoursBySiteId[siteIdForName(siteName)] ?? defaultPracticeOpeningHoursBySiteId[siteIdForName(siteName)] ?? 0;
+}
+
+function readPracticeOpeningHours() {
+  const defaults = { ...defaultPracticeOpeningHoursBySiteId };
+  if (typeof window === "undefined") return defaults;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(practiceOpeningHoursStorageKey) ?? "{}") as Record<string, unknown>;
+    Object.entries(parsed).forEach(([siteId, value]) => {
+      const numericValue = asNumber(value);
+      if (numericValue != null && numericValue >= 0) defaults[siteIdForName(siteId)] = numericValue;
+    });
+  } catch {
+    return defaults;
+  }
+  return defaults;
+}
+
+function usePracticeOpeningHours() {
+  const [openingHoursBySiteId, setOpeningHoursState] = useState<Record<string, number>>(() => ({ ...defaultPracticeOpeningHoursBySiteId }));
+
+  useEffect(() => {
+    const load = () => setOpeningHoursState(readPracticeOpeningHours());
+    load();
+    window.addEventListener("storage", load);
+    window.addEventListener(practiceOpeningHoursChangedEvent, load);
+    return () => {
+      window.removeEventListener("storage", load);
+      window.removeEventListener(practiceOpeningHoursChangedEvent, load);
+    };
+  }, []);
+
+  const setOpeningHoursBySiteId = (next: Record<string, number>) => {
+    const cleaned = { ...defaultPracticeOpeningHoursBySiteId };
+    Object.entries(next).forEach(([siteId, value]) => {
+      if (Number.isFinite(value) && value >= 0) cleaned[siteIdForName(siteId)] = value;
+    });
+    setOpeningHoursState(cleaned);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(practiceOpeningHoursStorageKey, JSON.stringify(cleaned));
+      window.dispatchEvent(new Event(practiceOpeningHoursChangedEvent));
+    }
+  };
+
+  return { openingHoursBySiteId, setOpeningHoursBySiteId };
 }
 
 function acquisitionTermsForSite(siteName: string) {
@@ -8622,6 +8681,11 @@ function monthsSinceStartForPeriod(site: DashboardSite, period: string) {
   return Math.max(1, (endYear - year) * 12 + endMonth - month + 1);
 }
 
+function openingHoursBasisForPeriod(site: DashboardSite, period: string, weeklyOpeningHours: number) {
+  if (!weeklyOpeningHours) return 0;
+  return weeklyOpeningHours * monthsSinceStartForPeriod(site, period) * 4.33;
+}
+
 function monthSelectionForPeriod(period: string) {
   const selection = selectedBwaPeriod(period);
   return new Set(selection.months?.length ? selection.months : Array.from({ length: 12 }, (_, index) => index + 1));
@@ -9310,6 +9374,7 @@ function Analysen({
   const [selectedSiteId, setSelectedSiteId] = useState(sortedSites[0]?.id ?? sites[0]?.id ?? "kirchberg");
   const [comparison, setComparison] = useState("Gruppendurchschnitt");
   const [viewMode, setViewMode] = useState<"Standortleiter" | "Intern">("Standortleiter");
+  const { openingHoursBySiteId } = usePracticeOpeningHours();
 
   useEffect(() => {
     if (sortedSites.length && !sortedSites.some((site) => site.id === selectedSiteId)) {
@@ -9339,17 +9404,27 @@ function Analysen({
     const pvsPerRoom = roomCount ? site.pvsUmsatz / roomCount : null;
     const performancePerRoom = roomCount ? site.gesamtleistung / roomCount : null;
     const ebitdaPerRoom = roomCount ? site.ebitda / roomCount : null;
+    const weeklyOpeningHours = practiceOpeningHoursForSite(site.id, openingHoursBySiteId);
+    const openingHoursBasis = openingHoursBasisForPeriod(site, period, weeklyOpeningHours);
+    const pvsPerOpeningHour = openingHoursBasis ? site.pvsUmsatz / openingHoursBasis : null;
+    const performancePerOpeningHour = openingHoursBasis ? site.gesamtleistung / openingHoursBasis : null;
+    const ebitdaPerOpeningHour = openingHoursBasis ? site.ebitda / openingHoursBasis : null;
     return {
       site,
       label: site.id === selectedSite?.id ? "Ausgewählter Standort" : `Standort ${String.fromCharCode(65 + index)}`,
       dentists,
       rooms: roomCount,
+      weeklyOpeningHours,
+      openingHoursBasis,
       pvsPerDentist,
       performancePerDentist,
       ebitdaPerDentist,
       pvsPerRoom,
       performancePerRoom,
       ebitdaPerRoom,
+      pvsPerOpeningHour,
+      performancePerOpeningHour,
+      ebitdaPerOpeningHour,
       ebitdaMargin: site.ebitdaMarge,
       receivablesRatio: site.pvsUmsatz ? (site.forderungen / site.pvsUmsatz) * 100 : 0,
       materialquote: site.materialquote,
@@ -9408,6 +9483,27 @@ function Analysen({
       group: 100,
       higherIsBetter: true,
       unavailable: !selectedRow?.rooms
+    },
+    {
+      label: "Gesamtumsatz je Öffnungsstunde",
+      selected: indexFor(selectedRow?.pvsPerOpeningHour ?? null, numericAverage((row) => row.pvsPerOpeningHour)),
+      group: 100,
+      higherIsBetter: true,
+      unavailable: !selectedRow?.weeklyOpeningHours
+    },
+    {
+      label: "Gesamtleistung je Öffnungsstunde",
+      selected: indexFor(selectedRow?.performancePerOpeningHour ?? null, numericAverage((row) => row.performancePerOpeningHour)),
+      group: 100,
+      higherIsBetter: true,
+      unavailable: !selectedRow?.weeklyOpeningHours
+    },
+    {
+      label: "EBITDA je Öffnungsstunde",
+      selected: indexFor(selectedRow?.ebitdaPerOpeningHour ?? null, numericAverage((row) => row.ebitdaPerOpeningHour)),
+      group: 100,
+      higherIsBetter: true,
+      unavailable: !selectedRow?.weeklyOpeningHours
     },
     {
       label: "EBITDA-Marge",
@@ -9489,6 +9585,27 @@ function Analysen({
       comparison: numericAverage((row) => row.ebitdaPerRoom),
       type: "currency" as const,
       basis: `${selectedRow?.rooms ?? 0} Behandlungszimmer`
+    },
+    {
+      label: "Gesamtumsatz je Öffnungsstunde",
+      own: selectedRow?.pvsPerOpeningHour ?? null,
+      comparison: numericAverage((row) => row.pvsPerOpeningHour),
+      type: "currency" as const,
+      basis: `${(selectedRow?.weeklyOpeningHours ?? 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })} Std./Woche × Zeitraum`
+    },
+    {
+      label: "Gesamtleistung je Öffnungsstunde",
+      own: selectedRow?.performancePerOpeningHour ?? null,
+      comparison: numericAverage((row) => row.performancePerOpeningHour),
+      type: "currency" as const,
+      basis: `${(selectedRow?.openingHoursBasis ?? 0).toLocaleString("de-DE", { maximumFractionDigits: 0 })} Öffnungsstunden`
+    },
+    {
+      label: "EBITDA je Öffnungsstunde",
+      own: selectedRow?.ebitdaPerOpeningHour ?? null,
+      comparison: numericAverage((row) => row.ebitdaPerOpeningHour),
+      type: "currency" as const,
+      basis: `${(selectedRow?.openingHoursBasis ?? 0).toLocaleString("de-DE", { maximumFractionDigits: 0 })} Öffnungsstunden`
     },
     {
       label: "EBITDA-Marge",
@@ -11533,6 +11650,7 @@ function AdminKpiRules() {
         text="Interner Einstellungsbereich für App-Zugänge, Rollen, Ampel-Schwellenwerte und Zielerreichungslogik."
       />
       <AccessUserManagement />
+      <PracticeOpeningHoursSettings />
       <Card className="p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -11591,6 +11709,88 @@ function AdminKpiRules() {
         </Card>
       </div>
     </section>
+  );
+}
+
+function PracticeOpeningHoursSettings() {
+  const { openingHoursBySiteId, setOpeningHoursBySiteId } = usePracticeOpeningHours();
+  const [draft, setDraft] = useState<Record<string, number>>(() => ({ ...defaultPracticeOpeningHoursBySiteId }));
+  const [message, setMessage] = useState("");
+  const sortedSites = sortSitesByContractStart(standorte);
+
+  useEffect(() => {
+    setDraft(openingHoursBySiteId);
+  }, [openingHoursBySiteId]);
+
+  const save = () => {
+    setOpeningHoursBySiteId(draft);
+    setMessage("Praxisöffnungszeiten gespeichert. Benchmarking und Kapazitätskennzahlen nutzen die aktualisierten Werte.");
+  };
+
+  const reset = () => {
+    setDraft({ ...defaultPracticeOpeningHoursBySiteId });
+    setOpeningHoursBySiteId(defaultPracticeOpeningHoursBySiteId);
+    setMessage("Praxisöffnungszeiten auf Standardwerte zurückgesetzt.");
+  };
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="font-bold">Praxisöffnungszeiten</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Statische Wochenöffnungszeiten je Standort. Diese Werte werden nicht importiert, sondern hier gepflegt und für Kennzahlen je Öffnungsstunde genutzt.
+          </p>
+        </div>
+        <Badge tone="green">Admin-pflegbar</Badge>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="data-table border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              <th className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">Standort</th>
+              <th className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">Praxisstart</th>
+              <th className="table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white">Öffnungsstunden / Woche</th>
+              <th className="table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white">Standardwert</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedSites.map((site) => {
+              const value = draft[site.id] ?? defaultPracticeOpeningHoursBySiteId[site.id] ?? 0;
+              return (
+                <tr key={site.id}>
+                  <td className="border-b border-r border-border bg-white p-3 font-bold">{site.name}</td>
+                  <td className="border-b border-r border-border bg-white p-3">{site.start}</td>
+                  <td className="border-b border-r border-border bg-white p-3 text-right">
+                    <Input
+                      className="ml-auto w-32 text-right"
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      value={String(value)}
+                      onChange={(event) => setDraft((current) => ({ ...current, [site.id]: Number(event.target.value) || 0 }))}
+                    />
+                  </td>
+                  <td className="border-b border-r border-border bg-white p-3 text-right font-semibold tabular-nums">
+                    {(defaultPracticeOpeningHoursBySiteId[site.id] ?? 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })} Std.
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          Basis aktuell: Kirchberg 53, Essen 39, Kehl 56, Ulmet 84, Hüttenberg 52,5 Stunden pro Woche.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={reset}>Standardwerte</Button>
+          <Button onClick={save}>Öffnungszeiten speichern</Button>
+        </div>
+      </div>
+      {message ? <div className="border-t border-border bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</div> : null}
+    </Card>
   );
 }
 
