@@ -3462,7 +3462,7 @@ export default function HomePage() {
               }}
             />
           )}
-          {page === "reports" && <Reports />}
+          {page === "reports" && <Reports sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {page === "admin" && isAdmin && <AdminKpiRules />}
         </div>
       </main>
@@ -12410,23 +12410,532 @@ function Uploads({
   );
 }
 
-function Reports() {
-  const reports = ["Monatsreport", "YTD-Report", "Standortreport", "Bankenreport", "PDF-Export später"];
+type ReportTone = "green" | "yellow" | "red" | "blue" | "neutral";
+type ReportOrientation = "portrait" | "landscape";
+
+function reportEscape(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function reportDateStamp() {
+  return new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date());
+}
+
+function reportKpiGrid(
+  cards: Array<{
+    label: string;
+    value: string;
+    detail?: string;
+    tone?: ReportTone;
+  }>
+) {
+  return `<div class="kpi-grid">${cards
+    .map(
+      (card) => `<div class="kpi-card ${card.tone ?? "neutral"}">
+        <div class="kpi-label">${reportEscape(card.label)}</div>
+        <div class="kpi-value">${reportEscape(card.value)}</div>
+        ${card.detail ? `<div class="kpi-detail">${reportEscape(card.detail)}</div>` : ""}
+      </div>`
+    )
+    .join("")}</div>`;
+}
+
+function reportTable(
+  headers: string[],
+  rows: Array<Array<string | number>>,
+  options: { compact?: boolean; className?: string } = {}
+) {
+  return `<table class="report-table ${options.compact ? "compact" : ""} ${options.className ?? ""}">
+    <thead><tr>${headers.map((header) => `<th>${reportEscape(header)}</th>`).join("")}</tr></thead>
+    <tbody>${rows
+      .map(
+        (row) =>
+          `<tr>${row
+            .map((cell, index) => `<td class="${index === 0 ? "label-cell" : ""}">${reportEscape(cell)}</td>`)
+            .join("")}</tr>`
+      )
+      .join("")}</tbody>
+  </table>`;
+}
+
+function reportSection(title: string, body: string, subtitle?: string) {
+  return `<section class="report-section">
+    <div class="section-head">
+      <h2>${reportEscape(title)}</h2>
+      ${subtitle ? `<p>${reportEscape(subtitle)}</p>` : ""}
+    </div>
+    ${body}
+  </section>`;
+}
+
+function reportBarList(rows: Array<{ label: string; value: number; max: number; tone?: ReportTone; suffix?: string }>) {
+  return `<div class="bar-list">${rows
+    .map((row) => {
+      const width = row.max ? Math.min(100, Math.max(2, (Math.abs(row.value) / row.max) * 100)) : 0;
+      return `<div class="bar-row">
+        <div class="bar-meta"><strong>${reportEscape(row.label)}</strong><span>${reportEscape(row.suffix ?? eur(row.value, true))}</span></div>
+        <div class="bar-track"><span class="${row.tone ?? "green"}" style="width:${width.toFixed(1)}%"></span></div>
+      </div>`;
+    })
+    .join("")}</div>`;
+}
+
+function buildReportDocument({
+  title,
+  subtitle,
+  orientation,
+  body,
+  footerNote
+}: {
+  title: string;
+  subtitle: string;
+  orientation: ReportOrientation;
+  body: string;
+  footerNote?: string;
+}) {
+  return `<!doctype html>
+  <html lang="de">
+    <head>
+      <meta charset="utf-8" />
+      <title>${reportEscape(title)}</title>
+      <style>
+        @page { size: A4 ${orientation}; margin: 11mm; }
+        * { box-sizing: border-box; }
+        body {
+          margin: 0;
+          color: #12212f;
+          background: #eef5f6;
+          font-family: Inter, Arial, Helvetica, sans-serif;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .report-page { min-height: calc(100vh - 22mm); display: flex; flex-direction: column; gap: 12px; }
+        .hero {
+          border-radius: 18px;
+          padding: 18px 22px;
+          color: white;
+          background: radial-gradient(circle at 18% 0%, rgba(34, 211, 197, .22), transparent 34%),
+            linear-gradient(135deg, #061622 0%, #0b2d3a 48%, #0f6670 100%);
+          border: 1px solid rgba(255,255,255,.18);
+        }
+        .eyebrow { color: #4de3d6; font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+        h1 { margin: 8px 0 6px; font-size: ${orientation === "landscape" ? "25px" : "22px"}; line-height: 1.1; }
+        .hero p { margin: 0; max-width: 840px; color: rgba(255,255,255,.78); font-size: 12px; line-height: 1.45; }
+        .meta-line { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; color: rgba(255,255,255,.74); font-size: 10.5px; }
+        .pill { border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 5px 9px; background: rgba(255,255,255,.08); }
+        .kpi-grid { display: grid; grid-template-columns: repeat(${orientation === "landscape" ? 6 : 3}, 1fr); gap: 8px; }
+        .kpi-card {
+          min-height: 72px;
+          border-radius: 13px;
+          padding: 10px 12px;
+          background: #ffffff;
+          border: 1px solid #d5e0e5;
+          box-shadow: 0 8px 22px rgba(9, 36, 47, .07);
+        }
+        .kpi-card.green { border-left: 4px solid #13b981; }
+        .kpi-card.yellow { border-left: 4px solid #f59e0b; }
+        .kpi-card.red { border-left: 4px solid #dc2626; }
+        .kpi-card.blue { border-left: 4px solid #117989; }
+        .kpi-label { color: #6b7a8b; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+        .kpi-value { margin-top: 7px; color: #0f1b2b; font-size: 18px; line-height: 1.05; font-weight: 900; }
+        .kpi-detail { margin-top: 6px; color: #137667; font-size: 10px; font-weight: 750; }
+        .report-section {
+          border-radius: 16px;
+          overflow: hidden;
+          background: white;
+          border: 1px solid #d5e0e5;
+          box-shadow: 0 8px 22px rgba(9, 36, 47, .06);
+          break-inside: avoid;
+        }
+        .section-head {
+          padding: 10px 13px;
+          background: linear-gradient(135deg, #0e4e5e, #107685);
+          color: white;
+        }
+        .section-head h2 { margin: 0; font-size: 14px; }
+        .section-head p { margin: 4px 0 0; color: rgba(255,255,255,.75); font-size: 10.5px; }
+        .report-table { width: 100%; border-collapse: collapse; font-size: 10.2px; }
+        .report-table.compact { font-size: 9.3px; }
+        .report-table th {
+          padding: 7px 7px;
+          color: white;
+          text-align: right;
+          background: #0b6372;
+          border: 1px solid rgba(255,255,255,.25);
+        }
+        .report-table th:first-child, .report-table td:first-child { text-align: left; }
+        .report-table td {
+          padding: 6px 7px;
+          text-align: right;
+          border: 1px solid #d8e1e6;
+          background: #ffffff;
+        }
+        .report-table tr:nth-child(even) td { background: #f4f8f9; }
+        .report-table tr:last-child td { background: #e5f2f3; font-weight: 900; }
+        .label-cell { font-weight: 750; color: #152234; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .bar-list { padding: 11px 13px; display: grid; gap: 9px; }
+        .bar-row { display: grid; gap: 5px; }
+        .bar-meta { display: flex; justify-content: space-between; gap: 12px; font-size: 10.5px; }
+        .bar-track { height: 9px; border-radius: 999px; overflow: hidden; background: #e5edf0; }
+        .bar-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #14b8a6, #0f8794); }
+        .bar-track span.red { background: linear-gradient(90deg, #ef4444, #b91c1c); }
+        .bar-track span.yellow { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .report-footer {
+          margin-top: auto;
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          color: #5d6b7a;
+          font-size: 9.5px;
+          border-top: 1px solid #ccd8dd;
+          padding-top: 7px;
+        }
+        .page-break { break-before: page; }
+        @media print {
+          body { background: white; }
+          .report-section, .kpi-card, .hero { box-shadow: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <main class="report-page">
+        <header class="hero">
+          <div class="eyebrow">Orisus CFO Dashboard</div>
+          <h1>${reportEscape(title)}</h1>
+          <p>${reportEscape(subtitle)}</p>
+          <div class="meta-line">
+            <span class="pill">Export: ${reportEscape(reportDateStamp())}</span>
+            <span class="pill">Internal Use Only</span>
+            <span class="pill">${orientation === "landscape" ? "A4 Querformat" : "A4 Hochformat"}</span>
+          </div>
+        </header>
+        ${body}
+        <footer class="report-footer">
+          <span>© Orisus Zahnmedizin MVZ GmbH</span>
+          <span>${reportEscape(footerNote ?? "Vertraulich | Nur für Geschäftsführung, Banken und autorisierte Empfänger")}</span>
+          <span>Version 1.0</span>
+        </footer>
+      </main>
+    </body>
+  </html>`;
+}
+
+function openPrintableReport(title: string, html: string) {
+  if (typeof window === "undefined") return;
+  const popup = window.open("", "_blank", "width=1280,height=900");
+  if (!popup) {
+    window.alert("Der Report konnte nicht geöffnet werden. Bitte Pop-ups für diese App erlauben.");
+    return;
+  }
+  popup.document.open();
+  popup.document.write(html);
+  popup.document.close();
+  popup.focus();
+  window.setTimeout(() => popup.print(), 400);
+}
+
+function siteFinancialReportRows(sites: DashboardSite[]) {
+  return sortSitesByContractStart(sites)
+    .filter((site) => site.gesamtleistung || site.ebitda || site.cashflow || site.kontostand || site.forderungen)
+    .map((site) => [
+      site.name,
+      site.start,
+      eur(site.gesamtleistung),
+      eur(site.pvsUmsatz),
+      eur(site.ebitda),
+      pct(site.ebitdaMarge),
+      eur(site.cashflow),
+      eur(site.forderungen),
+      eur(site.kontostand)
+    ]);
+}
+
+function debtReportRows(sites: DashboardSite[]) {
+  return sortSitesByContractStart(sites).map((site) => [
+    site.name,
+    eur(site.darlehen.kaufpreis),
+    eur(site.darlehen.darlehen),
+    eur(site.darlehen.restschuld),
+    eur(site.darlehen.tilgung),
+    eur(site.darlehen.zins),
+    eur(Math.max(0, (site.darlehen.earnOutGesamt ?? 0) - (site.darlehen.earnOutGezahlt ?? 0))),
+    site.darlehen.earnOutFaelligAm ?? ""
+  ]);
+}
+
+function bankMovementReportRows(importedData?: ImportedDashboardData | null) {
+  const rows = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId && row.siteId !== "konzern");
+  const availablePeriods = periodOptionsFromBankMovements(rows);
+  const period = defaultPeriodFromOptions(availablePeriods);
+  const visibleMonths = monthSelectionForPeriod(period);
+  const selection = selectedBwaPeriod(period);
+  const definitions = [
+    { label: "Geldeingang Bank gesamt", key: "geldeingang_bank_gesamt" },
+    { label: "davon Praxisumsatz", key: "davon_praxisumsatz" },
+    { label: "davon sonstiges", key: "davon_sonstiges_erstattungen_etc" },
+    { label: "Geldausgang Bank inkl. Kredit", key: "geldausgang_bank_inkl_kredit" },
+    { label: "davon Praxisausgaben", key: "davon_praxisausgaben" },
+    { label: "davon Tilgung + Zins", key: "davon_tilgung_zins" },
+    { label: "davon Umbuchungen an Orisus ZMVZ", key: "davon_umbuchungen_an_orisus_zmvz" },
+    { label: "Bank-Cashflow vor Intercompany", key: "cashflow_vor_intercompany" },
+    { label: "Bank-Cashflow gesamt", key: "cashflow_gesamt_im_monat" },
+    { label: "Kontostand Monatsende", key: "kontostand_monatsende", snapshot: true }
+  ];
+
+  const valueForDefinition = (definition: (typeof definitions)[number]) => {
+    const matchingRows = rows.filter((row) => normalizeMetric(row.label) === definition.key);
+    if (definition.snapshot) return snapshotValueForRows(matchingRows, period, visibleMonths);
+    return matchingRows.reduce((sum, row) => sum + bankMovementValueForPeriod(row, period), 0);
+  };
+
+  const monthlyValueForDefinition = (definition: (typeof definitions)[number], month: number) => {
+    if (!selection.year) return "";
+    const matchingRows = rows.filter((row) => normalizeMetric(row.label) === definition.key);
+    const key = `${selection.year}-${month}`;
+    if (!matchingRows.some((row) => row.hasValueByMonth[key])) return "";
+    const value = matchingRows.reduce((sum, row) => sum + (row.valuesByMonth[key] ?? 0), 0);
+    return eur(value);
+  };
+
+  return {
+    period,
+    headers: ["Position", ...bwaMonths, "Gesamt"],
+    rows: definitions.map((definition) => [
+      definition.label,
+      ...bwaMonths.map((_, index) => (visibleMonths.has(index + 1) ? monthlyValueForDefinition(definition, index + 1) : "")),
+      eur(valueForDefinition(definition))
+    ])
+  };
+}
+
+function buildManagementReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null) {
+  const metrics = cfoMetrics(sites, monthlyData);
+  const period = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Datenstand";
+  const maxEbitda = Math.max(...sites.map((site) => site.ebitda), 1);
+  const body = [
+    reportKpiGrid([
+      { label: "Aktuelle Liquidität", value: eur(metrics.kontostand), detail: "konsolidierter Kontostand", tone: "green" },
+      { label: "Offene Forderungen", value: eur(metrics.forderungen), detail: "aktueller Stand", tone: metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green" },
+      { label: "Cashflow gem. BWA", value: eur(metrics.cashflow), detail: period, tone: metrics.cashflow >= 0 ? "green" : "red" },
+      { label: "EBITDA", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} Marge`, tone: metrics.ebitdaMarge >= 15 ? "green" : "yellow" },
+      { label: "Fremdkapital", value: eur(metrics.restschuld), detail: "Restschuld konsolidiert", tone: "blue" },
+      { label: "Kapitaldienstfähigkeit", value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "EBITDA / Zins + Tilgung", tone: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow" }
+    ]),
+    `<div class="two-col">${reportSection(
+      "Standortvergleich CFO-Kennzahlen",
+      reportTable(
+        ["Standort", "Start", "Gesamtleistung", "PVS-Umsatz", "EBITDA", "Marge", "Cashflow gem. BWA", "Forderungen", "Kontostand"],
+        siteFinancialReportRows(sites),
+        { compact: true }
+      ),
+      "Seit Vertragsstart bzw. aktueller Importdatenstand."
+    )}${reportSection(
+      "EBITDA je Standort",
+      reportBarList(sortSitesByContractStart(sites).map((site) => ({ label: site.name, value: site.ebitda, max: maxEbitda, tone: site.ebitda >= 0 ? "green" : "red" }))),
+      "Visueller Überblick der Ergebnisbeiträge."
+    )}</div>`
+  ].join("");
+
+  return buildReportDocument({
+    title: "Management-Report",
+    subtitle: "Kompakter CFO-Überblick für Geschäftsführung, Board und interne Steuerung.",
+    orientation: "landscape",
+    body
+  });
+}
+
+function buildBankReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null) {
+  const metrics = cfoMetrics(sites, monthlyData);
+  const bankRows = bankMovementReportRows(importedData);
+  const body = [
+    reportKpiGrid([
+      { label: "Liquidität", value: eur(metrics.kontostand), detail: "aktueller konsolidierter Kontostand", tone: "green" },
+      { label: "Restschuld", value: eur(metrics.restschuld), detail: "konsolidiert", tone: "blue" },
+      { label: "Tilgung", value: eur(metrics.getilgt), detail: "bereits getilgt", tone: "green" },
+      { label: "Kapitaldienst", value: eur(metrics.kapitaldienst), detail: "Tilgung + Zins", tone: "blue" },
+      { label: "Kapitaldienstfähigkeit", value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "EBITDA / Kapitaldienst", tone: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow" },
+      { label: "Offene Forderungen", value: eur(metrics.forderungen), detail: "aktueller Stand", tone: "yellow" }
+    ]),
+    reportSection(
+      `Bankbewegungen | ${performancePeriodLabel(bankRows.period)}`,
+      reportTable(bankRows.headers, bankRows.rows, { compact: true }),
+      "Geldeingänge, Geldausgänge, Bank-Cashflow und Kontostände aus Input_Finanzen."
+    ),
+    reportSection("Finanzierung je Standort", reportTable(["Standort", "Kaufpreis", "Darlehen", "Restschuld", "Tilgung", "Zins", "Earn-Out offen", "Earn-Out fällig"], debtReportRows(sites), { compact: true }))
+  ].join("");
+
+  return buildReportDocument({
+    title: "Bankenreport",
+    subtitle: "Finanzierungs-, Kapitaldienst-, Liquiditäts- und Bank-Cashflow-Übersicht auf Basis des bestätigten Imports.",
+    orientation: "landscape",
+    body
+  });
+}
+
+function buildMonthlyReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null) {
+  const metrics = cfoMetrics(sites, monthlyData);
+  const period = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Datenstand";
+  const body = [
+    reportKpiGrid([
+      { label: "Gesamtleistung", value: eur(metrics.gesamtleistung), detail: period, tone: "green" },
+      { label: "EBITDA", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} Marge`, tone: metrics.ebitda >= 0 ? "green" : "red" },
+      { label: "Cashflow gem. BWA", value: eur(metrics.cashflow), detail: period, tone: metrics.cashflow >= 0 ? "green" : "red" },
+      { label: "Kontostand", value: eur(metrics.kontostand), detail: "aktueller Stand", tone: "green" },
+      { label: "Forderungen", value: eur(metrics.forderungen), detail: "aktueller Stand", tone: "yellow" },
+      { label: "Kritische Standorte", value: String(metrics.kritisch.length), detail: metrics.kritisch.map((site) => site.name).join(", ") || "keine", tone: metrics.kritisch.length ? "yellow" : "green" }
+    ]),
+    reportSection(
+      "Monatliche Ergebnisentwicklung",
+      reportTable(
+        ["Monat", "Gesamtleistung", "EBITDA", "EBITDA-Marge", "Cashflow gem. BWA"],
+        monthlyData.map((entry) => [entry.month, eur(entry.leistung), eur(entry.ebitda), pct(entry.marge), eur(entry.cashflow)])
+      ),
+      "Monatliche Steuerungssicht aus dem aktuellen Import."
+    ),
+    reportSection(
+      "Standortübersicht",
+      reportTable(["Standort", "Start", "Gesamtleistung", "EBITDA", "Marge", "Cashflow gem. BWA", "Forderungen"], siteFinancialReportRows(sites).map((row) => [row[0], row[1], row[2], row[4], row[5], row[6], row[7]]), {
+        compact: true
+      })
+    )
+  ].join("");
+
+  return buildReportDocument({
+    title: "Monatsreport",
+    subtitle: "Druckfertige Steuerungsübersicht mit Ergebnisentwicklung, Cashflow gem. BWA und Standortvergleich.",
+    orientation: "portrait",
+    body
+  });
+}
+
+function buildSiteReport(sites: DashboardSite[], monthlyData: typeof monthly) {
+  const sortedSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung || site.ebitda);
+  const body = sortedSites
+    .map((site, index) => {
+      const max = Math.max(site.gesamtleistung, site.ebitda, site.cashflow, 1);
+      return `${index ? '<div class="page-break"></div>' : ""}${reportSection(
+        `${site.name} | Standortreport`,
+        [
+          reportKpiGrid([
+            { label: "Praxisstart", value: site.start, detail: "Start in der Gruppe", tone: "blue" },
+            { label: "Gesamtleistung", value: eur(site.gesamtleistung), detail: "seit Vertragsstart", tone: "green" },
+            { label: "PVS-Umsatz", value: eur(site.pvsUmsatz), detail: "seit Vertragsstart", tone: "green" },
+            { label: "EBITDA", value: eur(site.ebitda), detail: `${pct(site.ebitdaMarge)} Marge`, tone: site.ebitda >= 0 ? "green" : "red" },
+            { label: "Cashflow gem. BWA", value: eur(site.cashflow), detail: "seit Vertragsstart", tone: site.cashflow >= 0 ? "green" : "red" },
+            { label: "Forderungen", value: eur(site.forderungen), detail: "aktueller Stand", tone: "yellow" }
+          ]),
+          reportBarList([
+            { label: "Gesamtleistung", value: site.gesamtleistung, max, tone: "green" },
+            { label: "EBITDA", value: site.ebitda, max, tone: site.ebitda >= 0 ? "green" : "red" },
+            { label: "Cashflow gem. BWA", value: site.cashflow, max, tone: site.cashflow >= 0 ? "green" : "red" },
+            { label: "Forderungen", value: site.forderungen, max, tone: "yellow" }
+          ]),
+          reportTable(
+            ["Kennzahl", "Wert"],
+            [
+              ["Kontostand aktuell", eur(site.kontostand)],
+              ["Restschuld", eur(site.darlehen.restschuld)],
+              ["Tilgung", eur(site.darlehen.tilgung)],
+              ["Ziel-EBITDA p.a.", eur(site.darlehen.zielEbitda)],
+              ["Earn-Out offen", eur(Math.max(0, (site.darlehen.earnOutGesamt ?? 0) - (site.darlehen.earnOutGezahlt ?? 0)))]
+            ]
+          )
+        ].join(""),
+        "Finanzielle Kurzsicht je Standort für Ausdruck und Weitergabe."
+      )}`;
+    })
+    .join("");
+
+  return buildReportDocument({
+    title: "Standortreport",
+    subtitle: "Je Standort eine kompakte druckfertige Seite mit KPI-Deckblatt, Finanzierungsdaten und Forderungsstand.",
+    orientation: "landscape",
+    body: body || reportSection("Keine Standortdaten", "<p style='padding:12px'>Noch keine Standortdaten verfügbar.</p>")
+  });
+}
+
+function Reports({
+  sites = standorte,
+  monthlyData = monthly,
+  importedData
+}: {
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
+}) {
+  const reportCards = [
+    {
+      title: "Monatsreport",
+      description: "Kompakter CFO-Ausdruck mit KPI-Deckblatt, Monatsentwicklung und Standortübersicht.",
+      orientation: "A4 Hochformat",
+      action: () => openPrintableReport("Monatsreport", buildMonthlyReport(sites, monthlyData, importedData))
+    },
+    {
+      title: "YTD- / Management-Report",
+      description: "Board-taugliche Querformat-Übersicht mit konsolidierten KPIs und Standortvergleich.",
+      orientation: "A4 Querformat",
+      action: () => openPrintableReport("Management-Report", buildManagementReport(sites, monthlyData, importedData))
+    },
+    {
+      title: "Bankenreport",
+      description: "Finanzierungs-, Kapitaldienst-, Forderungs- und Bank-Cashflow-Report für Bankenpartner.",
+      orientation: "A4 Querformat",
+      action: () => openPrintableReport("Bankenreport", buildBankReport(sites, monthlyData, importedData))
+    },
+    {
+      title: "Standortreport",
+      description: "Eine druckfertige Seite je Standort mit Ergebnisqualität, Cashflow gem. BWA und Finanzierung.",
+      orientation: "A4 Querformat",
+      action: () => openPrintableReport("Standortreport", buildSiteReport(sites, monthlyData))
+    }
+  ];
+
   return (
     <section className="space-y-5">
-      <PageTitle title="Reports" text="Platzhalter für spätere CFO- und Bankenberichte." />
+      <PageTitle
+        title="Reports"
+        text="Druckfertige farbige CFO-, Standort- und Bankenreports. Die Ausgabe öffnet als eigenes Drucklayout und kann direkt als PDF gespeichert oder gedruckt werden."
+      />
+      <Card className="p-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          <Mini label="Datenbasis" value={importedData ? "Bestätigter Import" : "Noch offen"} />
+          <Mini label="Standorte" value={String(sites.filter((site) => site.gesamtleistung > 0).length)} />
+          <Mini label="Format" value="A4 farbig" />
+          <Mini label="Ausgabe" value="PDF / Druck" />
+        </div>
+      </Card>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {reports.map((report) => (
-          <Card key={report} className="p-4">
+        {reportCards.map((report) => (
+          <Card key={report.title} className="flex flex-col p-4">
             <FileBarChart className="h-8 w-8 text-primary" />
-            <h2 className="mt-4 text-xl font-bold">{report}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Berichtsvorlage ohne aktive Exportlogik. Exportlogik folgt in Phase 2.</p>
-            <Button className="mt-4 w-full" variant="secondary">
-              Vorschau öffnen
+            <h2 className="mt-4 text-xl font-bold">{report.title}</h2>
+            <p className="mt-2 flex-1 text-sm text-muted-foreground">{report.description}</p>
+            <Badge className="mt-3 w-fit" tone="green">{report.orientation}</Badge>
+            <Button className="mt-4 w-full" variant="secondary" onClick={report.action}>
+              PDF / Druck öffnen
             </Button>
           </Card>
         ))}
       </div>
+      <Card className="p-4">
+        <h2 className="font-bold">Hinweis zur Ausgabe</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Die Reports werden bewusst nicht als Bildschirmfoto erzeugt. Stattdessen wird ein eigenes, farbiges A4-Drucklayout erstellt, damit Tabellen,
+          Kacheln und Seitenumbrüche sauber lesbar bleiben. Im Druckdialog bitte „Hintergrundgrafiken drucken“ aktiv lassen, falls der Browser danach fragt.
+        </p>
+      </Card>
     </section>
   );
 }
