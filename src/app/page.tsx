@@ -7489,6 +7489,11 @@ function defaultBwaPeriodFor(importedData?: ImportedDashboardData | null) {
   return defaultPeriodFromOptions(bwaPeriodOptionsFor(importedData));
 }
 
+function defaultBenchmarkPeriodFor(importedData?: ImportedDashboardData | null) {
+  const options = importedData ? bwaPeriodOptionsFor(importedData) : ["Gesamte Periode"];
+  return options.includes("Gesamte Periode") ? "Gesamte Periode" : defaultPeriodFromOptions(options);
+}
+
 function BwaStatement({ title, siteId, importedData }: { title: string; siteId?: string; importedData?: ImportedDashboardData | null }) {
   const availablePeriods = bwaPeriodOptionsFor(importedData);
   const [period, setPeriod] = useState(() => defaultBwaPeriodFor(importedData));
@@ -10134,7 +10139,8 @@ function Analysen({
   importedData?: ImportedDashboardData | null;
   personalData?: PersonalDashboardData | null;
 }) {
-  const [period, setPeriod] = useState(importedData ? defaultBwaPeriodFor(importedData) : "YTD 2026");
+  const periodOptions = useMemo(() => importedData ? bwaPeriodOptionsFor(importedData) : ["Gesamte Periode"], [importedData]);
+  const [period, setPeriod] = useState(() => defaultBenchmarkPeriodFor(importedData));
   const sortedSites = sortSitesByContractStart(
     sites
       .map((site) => filteredSiteForPeriod(site, importedData, period))
@@ -10144,6 +10150,12 @@ function Analysen({
   const [comparison, setComparison] = useState("Gruppendurchschnitt");
   const [viewMode, setViewMode] = useState<"Standortleiter" | "Intern">("Standortleiter");
   const { openingHoursBySiteId } = usePracticeOpeningHours();
+
+  useEffect(() => {
+    if (!periodOptions.includes(period)) {
+      setPeriod(defaultBenchmarkPeriodFor(importedData));
+    }
+  }, [importedData, period, periodOptions]);
 
   useEffect(() => {
     if (sortedSites.length && !sortedSites.some((site) => site.id === selectedSiteId)) {
@@ -10177,7 +10189,7 @@ function Analysen({
     const ebitdaPerOpeningHour = openingHoursBasis ? site.ebitda / openingHoursBasis : null;
     return {
       site,
-      label: site.id === selectedSite?.id ? "Ausgewählter Standort" : `Standort ${String.fromCharCode(65 + index)}`,
+      label: site.name,
       dentists: dentistHeadcount,
       dentistCapacity,
       dentistFte,
@@ -10401,7 +10413,7 @@ function Analysen({
     { label: "Personalkostenquote", value: (selectedRow?.personalquote ?? 0) - costGroup.personalquote },
     { label: "Sonstige Kostenquote", value: (selectedRow?.sonstigeKostenquote ?? 0) - costGroup.sonstigeKostenquote }
   ].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
-  const displaySiteName = viewMode === "Intern" ? selectedSite?.name ?? "Ausgewählter Standort" : "Ausgewählter Standort";
+  const displaySiteName = selectedSite?.name ?? "Standort";
   const describeBenchmarkGap = (label: string, selected: number | null | undefined, group: number | null | undefined, higherIsBetter: boolean, formatter = pct) => {
     if (selected == null || group == null || !Number.isFinite(selected) || !Number.isFinite(group)) {
       return `${displaySiteName}: ${label} kann mangels Datenbasis noch nicht bewertet werden.`;
@@ -10426,7 +10438,6 @@ function Analysen({
       : "Patienten- und Termindaten fehlen für den ausgewählten Standort noch im Import."
   ];
   const hasMissingBasis = benchmarkItems.some((item) => item.unavailable);
-  const periodOptions = importedData ? bwaPeriodOptionsFor(importedData) : ["YTD 2026", "aktueller Monat", "Geschäftsjahr", "Gesamt seit Praxisstart", "freier Zeitraum"];
   const basisRows = [
     {
       label: "Gesamtumsatz je Zahnarzt-FTE",
@@ -11093,14 +11104,14 @@ function Analysen({
 
       <BenchmarkBasisTable
         rows={basisRows}
-        siteName={viewMode === "Intern" ? selectedSite?.name ?? "Ausgewählter Standort" : "Ausgewählter Standort"}
+        siteName={selectedSite?.name ?? "Standort"}
         comparison={comparison}
         period={period}
       />
 
       <BenchmarkPatientBasisTable
         rows={patientBasisRows}
-        siteName={viewMode === "Intern" ? selectedSite?.name ?? "Ausgewählter Standort" : "Ausgewählter Standort"}
+        siteName={selectedSite?.name ?? "Standort"}
         comparison={comparison}
         period={period}
       />
