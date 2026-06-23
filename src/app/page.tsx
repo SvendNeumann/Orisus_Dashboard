@@ -10260,6 +10260,7 @@ function BenchmarkBasisTable({
   comparison: string;
   period: string;
 }) {
+  const [open, setOpen] = useState(true);
   const formatBasisValue = (value: number | null, type: "currency" | "percent") => {
     if (value == null || !Number.isFinite(value)) return "n. v.";
     return type === "currency" ? eur(value) : pct(value);
@@ -10267,9 +10268,17 @@ function BenchmarkBasisTable({
 
   return (
     <div className="analysis-print-block min-w-0 overflow-hidden rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <button
+        type="button"
+        className="flex w-full flex-col gap-3 text-left md:flex-row md:items-end md:justify-between"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
         <div>
-          <h3 className="text-lg font-bold text-white">Eigene Rechenbasis | {siteName}</h3>
+          <span className="flex items-center gap-2 text-lg font-bold text-white">
+            Eigene Rechenbasis | {siteName}
+            <ChevronDown className={cn("h-4 w-4 text-teal-200 transition-transform", open && "rotate-180")} />
+          </span>
           <p className="mt-1 text-sm text-slate-300">
             Absolute Werte, aus denen die Benchmarking-Indizes für {period} berechnet werden.
           </p>
@@ -10277,8 +10286,8 @@ function BenchmarkBasisTable({
         <div className="rounded-lg border border-teal-200/20 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100">
           100 %-Vergleich: {comparison}
         </div>
-      </div>
-      <div className="mt-4 max-w-full overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+      </button>
+      {open && <div className="mt-4 max-w-full overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
         <table className="w-full min-w-[680px] border-collapse text-xs">
           <thead>
             <tr>
@@ -10291,7 +10300,19 @@ function BenchmarkBasisTable({
           <tbody>
             {rows.map((row) => (
               <tr key={row.label}>
-                <td className="border border-white/10 p-2 font-semibold text-white">{row.label}</td>
+                <td className="border border-white/10 p-2 font-semibold text-white">
+                  <div className="flex items-center gap-2">
+                    <span>{row.label}</span>
+                    <BenchmarkBasisInfoButton
+                      row={row}
+                      siteName={siteName}
+                      comparison={comparison}
+                      period={period}
+                      formatValue={formatBasisValue}
+                      ownKey="own"
+                    />
+                  </div>
+                </td>
                 <td className="border border-white/10 p-2 text-slate-300">{row.basis}</td>
                 <td className="border border-white/10 p-2 text-right font-bold text-teal-100">{formatBasisValue(row.own, row.type)}</td>
                 <td className="border border-white/10 p-2 text-right font-semibold text-slate-100">{formatBasisValue(row.comparison, row.type)}</td>
@@ -10299,7 +10320,7 @@ function BenchmarkBasisTable({
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -10315,6 +10336,7 @@ function BenchmarkPatientBasisTable({
   comparison: string;
   period: string;
 }) {
+  const [open, setOpen] = useState(true);
   const formatPatientBasisValue = (value: number | null, type: "count" | "average" | "percent") => {
     if (value == null || !Number.isFinite(value)) return "n. v.";
     if (type === "percent") return pct(value);
@@ -10324,9 +10346,17 @@ function BenchmarkPatientBasisTable({
 
   return (
     <div className="analysis-print-block min-w-0 overflow-hidden rounded-xl border border-teal-200/20 bg-teal-400/10 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <button
+        type="button"
+        className="flex w-full flex-col gap-3 text-left md:flex-row md:items-end md:justify-between"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
         <div>
-          <h3 className="text-lg font-bold text-white">Patienten- & Terminbasis | {siteName}</h3>
+          <span className="flex items-center gap-2 text-lg font-bold text-white">
+            Patienten- & Terminbasis | {siteName}
+            <ChevronDown className={cn("h-4 w-4 text-teal-200 transition-transform", open && "rotate-180")} />
+          </span>
           <p className="mt-1 text-sm text-slate-300">
             Absolute Patientendaten und daraus abgeleitete Quoten für {period}. Dadurch ist klar, welche Werte hinter den Patienten-Benchmarks stehen.
           </p>
@@ -10334,8 +10364,8 @@ function BenchmarkPatientBasisTable({
         <div className="rounded-lg border border-teal-200/20 bg-slate-950/35 px-3 py-2 text-xs font-semibold text-teal-100">
           100 %-Vergleich: {comparison}
         </div>
-      </div>
-      <div className="mt-4 max-w-full overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+      </button>
+      {open && <div className="mt-4 max-w-full overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
         <table className="w-full min-w-[680px] border-collapse text-xs">
           <thead>
             <tr>
@@ -10348,7 +10378,19 @@ function BenchmarkPatientBasisTable({
           <tbody>
             {rows.map((row) => (
               <tr key={row.label}>
-                <td className="border border-white/10 p-2 font-semibold text-white">{row.label}</td>
+                <td className="border border-white/10 p-2 font-semibold text-white">
+                  <div className="flex items-center gap-2">
+                    <span>{row.label}</span>
+                    <BenchmarkBasisInfoButton
+                      row={row}
+                      siteName={siteName}
+                      comparison={comparison}
+                      period={period}
+                      formatValue={formatPatientBasisValue}
+                      ownKey="value"
+                    />
+                  </div>
+                </td>
                 <td className="border border-white/10 p-2 text-slate-300">{row.basis}</td>
                 <td className="border border-white/10 p-2 text-right font-bold text-teal-100">{formatPatientBasisValue(row.value, row.type)}</td>
                 <td className="border border-white/10 p-2 text-right font-semibold text-slate-100">{formatPatientBasisValue(row.comparison, row.type)}</td>
@@ -10356,8 +10398,75 @@ function BenchmarkPatientBasisTable({
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
     </div>
+  );
+}
+
+function BenchmarkBasisInfoButton<Row extends { label: string; comparison: number | null; basis: string; type: string }>({
+  row,
+  siteName,
+  comparison,
+  period,
+  formatValue,
+  ownKey
+}: {
+  row: Row & Record<string, number | string | null>;
+  siteName: string;
+  comparison: string;
+  period: string;
+  formatValue: (value: number | null, type: never) => string;
+  ownKey: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ownValue = typeof row[ownKey] === "number" ? row[ownKey] : null;
+  const comparisonValue = row.comparison;
+  const indexValue =
+    ownValue != null && comparisonValue != null && Number.isFinite(ownValue) && Number.isFinite(comparisonValue) && comparisonValue !== 0
+      ? (ownValue / comparisonValue) * 100
+      : null;
+  const deviationValue =
+    ownValue != null && comparisonValue != null && Number.isFinite(ownValue) && Number.isFinite(comparisonValue)
+      ? ownValue - comparisonValue
+      : null;
+  const type = row.type as never;
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`${row.label} herleiten`}
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-teal-200/30 bg-teal-400/10 text-teal-100 transition hover:bg-teal-300/20"
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen(true);
+        }}
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      {open && (
+        <InfoDialog title={`${row.label} | Herleitung`} onClose={() => setOpen(false)}>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">
+            <p className="font-semibold text-slate-950">Benchmarking-Basis</p>
+            <p className="mt-1 text-slate-700">
+              Standort: <strong>{siteName}</strong> · Zeitraum: <strong>{period}</strong> · Vergleich: <strong>{comparison}</strong>
+            </p>
+          </div>
+          <InfoTextLine label="Berechnung / Quelle" value={row.basis} />
+          <InfoTextLine label="Eigener Wert" value={formatValue(ownValue, type)} />
+          <InfoTextLine label="100 %-Vergleichswert" value={formatValue(comparisonValue, type)} />
+          <InfoTextLine
+            label="Indexlogik"
+            value={indexValue == null ? "Nicht berechenbar, weil Basis oder Vergleichswert fehlt." : `${formatValue(ownValue, type)} / ${formatValue(comparisonValue, type)} × 100 = ${pct(indexValue)}`}
+            strong
+          />
+          <InfoTextLine
+            label="Absolute Abweichung"
+            value={deviationValue == null ? "n. v." : formatValue(deviationValue, type)}
+          />
+        </InfoDialog>
+      )}
+    </>
   );
 }
 
