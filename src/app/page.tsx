@@ -13833,7 +13833,7 @@ function buildReportDocument({
         .pmr-header p { margin: 0; color: rgba(255,255,255,.76); font-size: 10.5px; }
         .pmr-meta { display: grid; gap: 3px; justify-items: end; font-size: 10px; color: rgba(255,255,255,.82); }
         .pmr-meta strong { font-size: 16px; color: white; }
-        .pmr-grid { display: grid; gap: 8px; }
+        .pmr-grid { display: grid; gap: 8px; align-items: start; }
         .pmr-grid.top { grid-template-columns: ${orientation === "landscape" ? "1.15fr .85fr" : "1fr"}; }
         .pmr-grid.bottom { grid-template-columns: ${orientation === "landscape" ? "1.15fr .85fr" : "1fr"}; }
         .pmr-stack { display: grid; gap: 8px; align-content: start; }
@@ -13922,30 +13922,32 @@ function buildReportDocument({
         .pmr-document .pmr-meta strong { font-size: 11px; }
         .pmr-document .eyebrow { font-size: 7px; }
         .pmr-document .pmr-grid { gap: 4px; }
-        .pmr-document .pmr-grid.top { grid-template-columns: 1.33fr .67fr; }
+        .pmr-document .pmr-grid.top { grid-template-columns: 1.22fr .78fr; }
         .pmr-document .pmr-grid.bottom { grid-template-columns: 1.08fr .92fr; }
         .pmr-document .pmr-stack { gap: 4px; }
         .pmr-document .pmr-section { border-radius: 8px; }
         .pmr-document .pmr-section h2 { padding: 4px 6px; font-size: 8.2px; }
-        .pmr-document .pmr-table { font-size: 6.15px; line-height: 1.08; }
-        .pmr-document .pmr-table.compact { font-size: 5.9px; }
+        .pmr-document .pmr-table { font-size: 5.95px; line-height: 1.04; }
+        .pmr-document .pmr-table.compact { font-size: 5.55px; }
         .pmr-document .pmr-table.monthly td,
-        .pmr-document .pmr-table.monthly th { font-size: 5.5px; }
-        .pmr-document .pmr-table th { padding: 2px 2px; }
-        .pmr-document .pmr-table td { padding: 1.65px 2px; }
+        .pmr-document .pmr-table.monthly th { font-size: 5.15px; }
+        .pmr-document .pmr-table th { padding: 1.75px 1.8px; }
+        .pmr-document .pmr-table td { padding: 1.35px 1.8px; }
         .pmr-document .pmr-table tr.quote-row td { font-size: 5.75px; }
         .pmr-document .status-dot { width: 5px; height: 5px; margin-right: 2px; }
         .pmr-document .status-label { font-size: 5.2px; }
-        .pmr-document .kpi-grid { gap: 4px; }
-        .pmr-document .kpi-card { min-height: 42px; border-radius: 8px; padding: 6px 7px; box-shadow: none; }
+        .pmr-document .kpi-grid { grid-template-columns: repeat(5, 1fr); gap: 4px; }
+        .pmr-document .kpi-card { min-height: 36px; border-radius: 8px; padding: 5px 7px; box-shadow: none; }
         .pmr-document .kpi-label { font-size: 6.3px; }
-        .pmr-document .kpi-value { margin-top: 3px; font-size: 11.5px; }
-        .pmr-document .kpi-detail { margin-top: 3px; font-size: 6.7px; }
+        .pmr-document .kpi-value { margin-top: 2px; font-size: 10.8px; }
+        .pmr-document .kpi-detail { margin-top: 2px; font-size: 6.3px; }
         .pmr-document .mini-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 5px; }
-        .pmr-document .mini-grid div { border-radius: 7px; padding: 5px; }
-        .pmr-document .mini-grid span { font-size: 5.8px; }
-        .pmr-document .mini-grid strong { margin-top: 2px; font-size: 10px; }
-        .pmr-document .payout p { padding: 0 6px 5px; font-size: 5.8px; line-height: 1.25; }
+        .pmr-document .mini-grid div { border-radius: 7px; padding: 5px; background: linear-gradient(180deg, #edf7fa, #e2f0f5); }
+        .pmr-document .mini-grid span { font-size: 5.55px; }
+        .pmr-document .mini-grid strong { margin-top: 2px; font-size: 9.4px; }
+        .pmr-document .payout p { padding: 0 6px 5px; font-size: 5.55px; line-height: 1.18; }
+        .pmr-document .monthly-section .pmr-table td,
+        .pmr-document .monthly-section .pmr-table th { padding-top: 1.45px; padding-bottom: 1.45px; }
         .pmr-document .report-footer { display: none; }
         @media print {
           body { background: white; }
@@ -14381,6 +14383,8 @@ function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardDa
   const comparisonPeriod = comparisonPeriodFor(period, comparisonYear);
   const expectedPayout = projection.projectedEarnOut + projection.projectedGrowthPayment;
   const earnOutPotential = site.darlehen.earnOutGesamt ?? 0;
+  const targetAchievement = ratio(filteredSite.ebitda, filteredSite.darlehen.zielEbitdaKaufvertrag || filteredSite.darlehen.zielEbitda);
+  const targetAchievementTone: ReportTone = targetAchievement >= 100 ? "green" : targetAchievement >= 80 ? "yellow" : "red";
   return `<div class="pmr-page">
     <header class="pmr-header">
       <div class="pmr-logo"><img src="/orisus-logo.png" alt="Orisus Zahnmedizin" /></div>
@@ -14406,10 +14410,9 @@ function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardDa
       { label: "EBITDA kum.", value: eur(filteredSite.ebitda), detail: `${pct(filteredSite.ebitdaMarge)} Marge`, tone: filteredSite.ebitda >= 0 ? "green" : "red" },
       { label: "Honorarumsatz inkl. Eigenlabor", value: eur(importedPeriodValue(importedData.behandlerTotalRows?.find((row) => row.siteId === site.id), period)), detail: periodLabel, tone: "blue" },
       { label: "Deckungsbeitrag kum.", value: eur(importedBwaMetricValue(importedData.bwaRows, site.id, "deckungsbeitrag", period)), detail: "bis EBITDA", tone: "green" },
-      { label: "Zielerreichung EBITDA", value: pct(ratio(filteredSite.ebitda, filteredSite.darlehen.zielEbitdaKaufvertrag || filteredSite.darlehen.zielEbitda)), detail: "Kaufvertrag", tone: "yellow" },
-      { label: "Vergleichsjahr", value: String(comparisonYear), detail: comparisonPeriod, tone: "neutral" }
+      { label: "Zielerreichung EBITDA", value: pct(targetAchievement), detail: "Kaufvertrag", tone: targetAchievementTone }
     ])}
-    <section class="pmr-section"><h2>Monatsentwicklung EBITDA ${reportEscape(String(year))}</h2>${pmrMonthlyEbitdaTable(importedData, site.id, year)}</section>
+    <section class="pmr-section monthly-section"><h2>Monatsentwicklung EBITDA ${reportEscape(String(year))}</h2>${pmrMonthlyEbitdaTable(importedData, site.id, year)}</section>
     <div class="pmr-grid bottom">
       <section class="pmr-section wide"><h2>Behandler-Umsatzboard | ${reportEscape(periodLabel)} | Vergleich ${reportEscape(String(comparisonYear))}</h2>${pmrProviderRows(importedData, site.id, period, comparisonYear)}</section>
       <section class="pmr-section"><h2>Personalkosten je Behandler | seit Vertragsbeginn</h2>${pmrPersonnelCostRows(importedData, site.id)}</section>
