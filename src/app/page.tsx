@@ -1279,18 +1279,30 @@ const navSections = [
     ]
   },
   {
-    id: "finance",
-    label: "BWA & Finanzen",
+    id: "site-finance",
+    label: "Standorte & BWA",
     items: [
       { id: "standorte", label: "Standorte", icon: Building2 },
       { id: "bwa", label: "BWA", icon: FileBarChart },
       { id: "kennzahlen", label: "Kennzahlen / Entwicklung", icon: BarChart3 },
-      { id: "cashflow", label: "Cashflow", icon: Wallet },
+      { id: "cashflow", label: "Cashflow", icon: Wallet }
+    ]
+  },
+  {
+    id: "performance-analysis",
+    label: "Performance & Benchmarking",
+    items: [
       { id: "performance", label: "Orisus Performance", icon: TrendingUp },
+      { id: "analysen", label: "Benchmarking", icon: BarChart3 }
+    ]
+  },
+  {
+    id: "financing-reporting",
+    label: "Finanzierung & Reporting",
+    items: [
       { id: "darlehen", label: "Darlehen & Earn-Out", icon: Landmark },
       { id: "board", label: "Board-Pack", icon: FileBarChart },
-      { id: "banken", label: "Bankenreporting", icon: ShieldCheck },
-      { id: "analysen", label: "Benchmarking", icon: BarChart3 }
+      { id: "banken", label: "Bankenreporting", icon: ShieldCheck }
     ]
   },
   {
@@ -3140,7 +3152,10 @@ export default function HomePage() {
   const visibleMobileNav = useMemo(() => mobileNavForRole(userRole), [userRole]);
   const [openNavSections, setOpenNavSections] = useState<Record<string, boolean>>({
     management: true,
-    finance: true,
+    "site-finance": false,
+    "performance-analysis": false,
+    "financing-reporting": false,
+    patients: false,
     personal: false,
     admin: false
   });
