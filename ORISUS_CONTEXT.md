@@ -820,6 +820,13 @@ Standortleiter-PMR:
 - Inhalt:
   - Orisus-Logo passend im Report
   - BWA-Ueberblick des Standorts bis EBITDA inkl. wichtiger Unterpositionen
+  - BWA-Ueberblick mit Spalten:
+    - aktuellster Monat des gewaehlten Zeitraums, z. B. Apr 26
+    - Vorjahresmonat, z. B. Apr 25
+    - YTD aktuelles Jahr bis aktueller Monat
+    - YTD Vorjahr bis gleicher Monat
+    - Abweichung
+    - Ampel
   - Quoten & Kennzahlen
   - Earn-Out-/Wachstumszahlungslogik als indikative Hochrechnung
   - Monatsentwicklung EBITDA/Gesamtleistung/Marge/Abweichungen
@@ -836,7 +843,10 @@ Standortleiter-PMR:
   - PK-Quote nur berechnen, wenn Honorarumsatz sinnvoll vorhanden ist
 - Ampellogik:
   - fuer BWA/Quoten & Kennzahlen an Entwicklung/Vorjahresvergleich orientieren
+  - im PMR-BWA-Ueberblick Ampel nur auf Steuerungs-/Gesamtzeilen, nicht auf jeder Detailkontozeile
+  - relevante PMR-Ampelzeilen: Summe Umsatz, Gesamtleistung abzueglich Fremdlabor/Material, Praxisleistung abzueglich operative Kosten, Operative Praxiskosten bis EBITDA, EBITDA
   - bei Personalkosten-Gegenueberstellung keine uebernommene BWA-Ampellogik erzwingen, sondern neutral/kennzahlenorientiert ausweisen
+- PMR-Personalkostentabelle ist fuer Standortleiter gedacht: keine technischen Spalten wie Datenstatus anzeigen.
 
 ## 24. Admin / KPI-Regeln
 

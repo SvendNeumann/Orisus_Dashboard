@@ -13609,7 +13609,7 @@ function buildReportDocument({
         .bar-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #14b8a6, #0f8794); }
         .bar-track span.red { background: linear-gradient(90deg, #ef4444, #b91c1c); }
         .bar-track span.yellow { background: linear-gradient(90deg, #f59e0b, #d97706); }
-        .pmr-page { display: grid; gap: 9px; }
+        .pmr-page { display: grid; gap: 8px; }
         .pmr-header {
           display: grid;
           grid-template-columns: 190px 1fr 150px;
@@ -13626,10 +13626,10 @@ function buildReportDocument({
         .pmr-header p { margin: 0; color: rgba(255,255,255,.76); font-size: 10.5px; }
         .pmr-meta { display: grid; gap: 3px; justify-items: end; font-size: 10px; color: rgba(255,255,255,.82); }
         .pmr-meta strong { font-size: 16px; color: white; }
-        .pmr-grid { display: grid; gap: 9px; }
+        .pmr-grid { display: grid; gap: 8px; }
         .pmr-grid.top { grid-template-columns: ${orientation === "landscape" ? "1.15fr .85fr" : "1fr"}; }
         .pmr-grid.bottom { grid-template-columns: ${orientation === "landscape" ? "1.15fr .85fr" : "1fr"}; }
-        .pmr-stack { display: grid; gap: 9px; align-content: start; }
+        .pmr-stack { display: grid; gap: 8px; align-content: start; }
         .pmr-section {
           overflow: hidden;
           border-radius: 14px;
@@ -13639,15 +13639,15 @@ function buildReportDocument({
         }
         .pmr-section h2 {
           margin: 0;
-          padding: 8px 10px;
+          padding: 7px 9px;
           color: white;
           background: linear-gradient(135deg, #073e63, #0c7481);
-          font-size: 12px;
+          font-size: 11.5px;
         }
-        .pmr-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: ${orientation === "landscape" ? "8.4px" : "7.2px"}; }
+        .pmr-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: ${orientation === "landscape" ? "8.1px" : "7.1px"}; }
         .pmr-table.compact { font-size: ${orientation === "landscape" ? "7.7px" : "6.8px"}; }
         .pmr-table th {
-          padding: 5px 4px;
+          padding: 4px 3px;
           color: white;
           text-align: right;
           background: #083b63;
@@ -13656,19 +13656,25 @@ function buildReportDocument({
         }
         .pmr-table th:first-child, .pmr-table td:first-child { text-align: left; }
         .pmr-table td {
-          padding: 4px 4px;
+          padding: 3px 3px;
           text-align: right;
           border: 1px solid #d8e6ed;
           background: #ffffff;
           overflow-wrap: anywhere;
         }
+        .pmr-table.bwa-overview th:first-child,
+        .pmr-table.bwa-overview td:first-child { width: 25%; }
+        .pmr-table.bwa-overview th:last-child,
+        .pmr-table.bwa-overview td:last-child { width: 9%; text-align: center; }
         .pmr-table tr:nth-child(even) td { background: #f5fafb; }
         .pmr-table tr.total td { background: #e1f1ea; font-weight: 900; }
         .pmr-table tr.section td { background: #d8ecf3; color: #07324f; font-weight: 900; text-align: left; }
         .pmr-table.monthly td, .pmr-table.monthly th { font-size: ${orientation === "landscape" ? "7.3px" : "6.5px"}; }
+        .pmr-table td.positive { color: #15803d; font-weight: 900; }
+        .pmr-table td.negative { color: #dc2626; font-weight: 900; }
         .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; vertical-align: middle; margin-right: 4px; }
         .status-label { font-weight: 800; font-size: 7.2px; vertical-align: middle; }
-        .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 9px; }
+        .mini-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 9px; }
         .mini-grid div { border-radius: 9px; background: #e8f3f7; border: 1px solid #cce0e8; padding: 8px; }
         .mini-grid span { display: block; color: #376174; font-size: 8px; font-weight: 800; text-transform: uppercase; }
         .mini-grid strong { display: block; margin-top: 4px; color: #07324f; font-size: 15px; }
@@ -13843,35 +13849,96 @@ function latestMonthLabelFromPeriod(period: string) {
   return months?.length ? bwaMonths[months.at(-1)! - 1] : "Dez";
 }
 
+function shortYear(year: number) {
+  return String(year).slice(-2);
+}
+
+function pmrLatestMonthFromPeriod(period: string) {
+  const selection = selectedBwaPeriod(period);
+  return selection.months?.at(-1) ?? 12;
+}
+
+function pmrMonthPeriodFor(period: string, year: number) {
+  const month = pmrLatestMonthFromPeriod(period);
+  return `${bwaMonths[month - 1]} ${year}`;
+}
+
+function pmrYtdPeriodFor(period: string, year: number) {
+  const month = pmrLatestMonthFromPeriod(period);
+  return `YTD ${year} bis ${bwaMonths[month - 1]}`;
+}
+
+function pmrMonthHeader(period: string, year: number) {
+  const month = pmrLatestMonthFromPeriod(period);
+  return `${bwaMonths[month - 1]} ${shortYear(year)}`;
+}
+
+function pmrYtdHeader(period: string, year: number) {
+  const month = pmrLatestMonthFromPeriod(period);
+  return `YTD ${shortYear(year)} bis ${bwaMonths[month - 1]}`;
+}
+
 function pmrBwaLines(importedData: ImportedDashboardData, siteId: string, period: string) {
-  const allowedKeys = new Set(bwaMetricDefinitions.filter((definition) => definition.order <= 570).map((definition) => definition.key));
+  const allowedKeys = new Set(bwaMetricDefinitions.filter((definition) => definition.order <= 580).map((definition) => definition.key));
   return buildImportedBwaLines(importedData.bwaRows, period, siteId).filter((row) => row.metricKey && allowedKeys.has(row.metricKey as (typeof bwaMetricDefinitions)[number]["key"]));
 }
 
 function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
-  const previousPeriod = comparisonPeriodFor(period, comparisonYear);
-  const currentRows = pmrBwaLines(importedData, siteId, period);
-  const previousRows = new Map(pmrBwaLines(importedData, siteId, previousPeriod).map((row) => [row.metricKey, row]));
-  const costKeys = new Set(["fremdlabor_gesamt", "materialkosten_gesamt", "personalkosten_gesamt", "reparatur_instandhaltung", "miete_nebenkosten", "reise_fortbildung_seminare", "summe_sonstige_kosten"]);
+  const currentYear = currentYearFromPeriod(period);
+  const currentMonthPeriod = pmrMonthPeriodFor(period, currentYear);
+  const previousMonthPeriod = pmrMonthPeriodFor(period, comparisonYear);
+  const currentYtdPeriod = pmrYtdPeriodFor(period, currentYear);
+  const previousYtdPeriod = pmrYtdPeriodFor(period, comparisonYear);
+  const currentRows = pmrBwaLines(importedData, siteId, currentYtdPeriod);
+  const currentMonthRows = new Map(pmrBwaLines(importedData, siteId, currentMonthPeriod).map((row) => [row.metricKey, row]));
+  const previousMonthRows = new Map(pmrBwaLines(importedData, siteId, previousMonthPeriod).map((row) => [row.metricKey, row]));
+  const previousYtdRows = new Map(pmrBwaLines(importedData, siteId, previousYtdPeriod).map((row) => [row.metricKey, row]));
+  const costKeys = new Set([
+    "fremdlabor_gesamt",
+    "materialkosten_gesamt",
+    "personalkosten_gesamt",
+    "reparatur_instandhaltung",
+    "miete_nebenkosten",
+    "reise_fortbildung_seminare",
+    "summe_sonstige_kosten",
+    "operative_prozesskosten_bis_ebitda"
+  ]);
+  const trafficLightKeys = new Set([
+    "summe_umsatz",
+    "gesamtleistung_abzueglich_fremdlabor_material",
+    "deckungsbeitrag",
+    "operative_prozesskosten_bis_ebitda",
+    "ebitda"
+  ]);
   const htmlRows = currentRows.map((row) => {
-    const previous = previousRows.get(row.metricKey);
+    const currentMonth = currentMonthRows.get(row.metricKey)?.actual ?? 0;
+    const previousMonth = previousMonthRows.get(row.metricKey)?.actual ?? 0;
+    const previousYtd = previousYtdRows.get(row.metricKey);
     const isSectionRow = row.emphasis && row.actual === 0 && !row.percent;
-    const current = row.actual;
-    const previousValue = previous?.actual ?? 0;
-    const status = isSectionRow ? "neutral" : row.percent
-      ? quoteTrendStatus(current, previousValue, !costKeys.has(String(row.metricKey)))
-      : trendStatus(Math.abs(current), Math.abs(previousValue), !costKeys.has(String(row.metricKey)));
-    const deviation = previousValue ? ((current - previousValue) / Math.abs(previousValue)) * 100 : 0;
+    const currentYtd = row.actual;
+    const previousYtdValue = previousYtd?.actual ?? 0;
+    const higherIsBetter = !costKeys.has(String(row.metricKey));
+    const status = !isSectionRow && row.metricKey && trafficLightKeys.has(row.metricKey)
+      ? row.percent
+        ? quoteTrendStatus(currentYtd, previousYtdValue, higherIsBetter)
+        : trendStatus(Math.abs(currentYtd), Math.abs(previousYtdValue), higherIsBetter)
+      : "neutral";
+    const deviation = currentYtd - previousYtdValue;
+    const deviationClass = !isSectionRow && deviation ? (deviation > 0 ? "positive" : "negative") : "";
+    const valueClass = isVarianceRow(row.label) && currentYtd ? (currentYtd > 0 ? "positive" : "negative") : "";
+    const formatted = (value: number) => row.percent ? pct(value) : eur(value);
     return `<tr class="${row.emphasis ? "total" : ""} ${isSectionRow ? "section" : ""}">
       <td>${reportEscape(row.label)}</td>
-      <td>${isSectionRow ? "" : reportEscape(row.percent ? pct(current) : eur(current))}</td>
-      <td>${isSectionRow ? "" : reportEscape(row.percent ? pct(previousValue) : eur(previousValue))}</td>
-      <td>${isSectionRow || !previousValue ? "" : reportEscape(pct(deviation))}</td>
-      <td>${isSectionRow ? "" : reportStatusDot(status)}</td>
+      <td class="${valueClass}">${isSectionRow ? "" : reportEscape(formatted(currentMonth))}</td>
+      <td>${isSectionRow ? "" : reportEscape(formatted(previousMonth))}</td>
+      <td class="${valueClass}">${isSectionRow ? "" : reportEscape(formatted(currentYtd))}</td>
+      <td>${isSectionRow ? "" : reportEscape(formatted(previousYtdValue))}</td>
+      <td class="${deviationClass}">${isSectionRow || !previousYtdValue ? "" : reportEscape(row.percent ? pct(deviation) : eur(deviation))}</td>
+      <td>${status === "neutral" ? "" : reportStatusDot(status)}</td>
     </tr>`;
   }).join("");
-  return `<table class="pmr-table">
-    <thead><tr><th>Position</th><th>${reportEscape(period)}</th><th>${reportEscape(previousPeriod)}</th><th>Abw.</th><th>Ampel</th></tr></thead>
+  return `<table class="pmr-table bwa-overview">
+    <thead><tr><th>Position</th><th>${reportEscape(pmrMonthHeader(period, currentYear))}</th><th>${reportEscape(pmrMonthHeader(period, comparisonYear))}</th><th>${reportEscape(pmrYtdHeader(period, currentYear))}</th><th>${reportEscape(pmrYtdHeader(period, comparisonYear))}</th><th>Abw.</th><th>Ampel</th></tr></thead>
     <tbody>${htmlRows}</tbody>
   </table>`;
 }
@@ -13959,16 +14026,15 @@ function pmrPersonnelCostRows(importedData: ImportedDashboardData, siteId: strin
     .filter((row) => row.personnelCost || row.honorar || row.pkQuote)
     .sort((a, b) => b.personnelCost - a.personnelCost);
   return `<table class="pmr-table compact">
-    <thead><tr><th>Mitarbeiter</th><th>Typ</th><th>Personalkosten</th><th>Honorarumsatz</th><th>PK-Quote</th><th>Datenstatus</th></tr></thead>
+    <thead><tr><th>Mitarbeiter</th><th>Typ</th><th>Personalkosten</th><th>Honorarumsatz</th><th>PK-Quote</th></tr></thead>
     <tbody>${rows.map((row) => `<tr>
       <td>${reportEscape(row.name)}</td>
       <td>${reportEscape(row.type)}</td>
       <td>${reportEscape(eur(row.personnelCost))}</td>
       <td>${reportEscape(eur(row.honorar))}</td>
       <td>${reportEscape(pct(row.pkQuote * 100))}</td>
-      <td>${reportEscape(row.monthsMaintained || row.status)}</td>
     </tr>`).join("")}
-    <tr class="total"><td>Gesamt</td><td></td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.personnelCost, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.honorar, 0)))}</td><td>${reportEscape(pct(ratio(rows.reduce((sum, row) => sum + row.personnelCost, 0), rows.reduce((sum, row) => sum + row.honorar, 0))))}</td><td></td></tr>
+    <tr class="total"><td>Gesamt</td><td></td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.personnelCost, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.honorar, 0)))}</td><td>${reportEscape(pct(ratio(rows.reduce((sum, row) => sum + row.personnelCost, 0), rows.reduce((sum, row) => sum + row.honorar, 0))))}</td></tr>
     </tbody>
   </table>`;
 }
@@ -13989,11 +14055,12 @@ function pmrMonthlyEbitdaTable(importedData: ImportedDashboardData, siteId: stri
 
 function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardData, period: string, comparisonYear: number) {
   const filteredSite = filteredSiteForPeriod(site, importedData, period);
-  const projection = projectedEarnOutForSite(filteredSite, period);
+  const projection = projectedEarnOutForSite(site, period);
   const year = currentYearFromPeriod(period);
   const periodLabel = performancePeriodLabel(period);
   const comparisonPeriod = comparisonPeriodFor(period, comparisonYear);
-  const totalPotential = projection.projectedEarnOut + projection.projectedGrowthPayment;
+  const expectedPayout = projection.projectedEarnOut + projection.projectedGrowthPayment;
+  const earnOutPotential = site.darlehen.earnOutGesamt ?? 0;
   return `<div class="pmr-page">
     <header class="pmr-header">
       <div class="pmr-logo"><img src="/orisus-logo.png" alt="Orisus Zahnmedizin" /></div>
@@ -14006,11 +14073,12 @@ function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardDa
         <section class="pmr-section"><h2>Quoten & Kennzahlen</h2>${pmrQuoteRows(importedData, site.id, period, comparisonYear)}</section>
         <section class="pmr-section payout"><h2>Auszahlungslogik Verkäufer - indikative Hochrechnung</h2>
           <div class="mini-grid">
-            <div><span>Earn-Out</span><strong>${reportEscape(eur(projection.projectedEarnOut, true))}</strong></div>
+            <div><span>Earn-Out aktuell</span><strong>${reportEscape(eur(projection.projectedEarnOut, true))}</strong></div>
             <div><span>Wachstumszahlung</span><strong>${reportEscape(eur(projection.projectedGrowthPayment, true))}</strong></div>
-            <div><span>Gesamtpotenzial</span><strong>${reportEscape(eur(totalPotential, true))}</strong></div>
+            <div><span>Gesamt erwartet</span><strong>${reportEscape(eur(expectedPayout, true))}</strong></div>
+            <div><span>Earn-Out Potenzial</span><strong>${reportEscape(eur(earnOutPotential, true))}</strong></div>
           </div>
-          <p>SOLL EBITDA Vertragslaufzeit: ${reportEscape(eur(projection.contractTargetEbitda))} | EBITDA hochgerechnet: ${reportEscape(eur(projection.projectedContractEbitda))}</p>
+          <p>Run-Rate EBITDA p.a.: ${reportEscape(eur(projection.projectedEbitda))} | SOLL EBITDA Vertragslaufzeit: ${reportEscape(eur(projection.contractTargetEbitda))} | EBITDA hochgerechnet: ${reportEscape(eur(projection.projectedContractEbitda))} | Wachstumslogik: ${reportEscape(growthFactorLabel(projection.growthFactor))}</p>
         </section>
       </div>
     </div>
