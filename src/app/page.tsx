@@ -10507,7 +10507,7 @@ function SiteBankCashflowSection({ sites = standorte, importedData }: { sites?: 
   if (!siteRows.length) {
     return (
       <Card className="p-4">
-        <h2 className="font-bold">Bank-Cashflow je Standort</h2>
+        <h2 className="font-bold">Bankbewegungen je Standort</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Nach dem nächsten bestätigten Excel-Import werden hier die Bank-/Geldbewegungen monatlich je Standort dargestellt.
         </p>
@@ -10518,13 +10518,14 @@ function SiteBankCashflowSection({ sites = standorte, importedData }: { sites?: 
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold">Bank-Cashflow je Standort</h2>
+        <h2 className="text-xl font-bold">Bankbewegungen je Standort</h2>
         <p className="text-sm text-muted-foreground">
-          Monatlicher Cashflow aus Bank / Geldbewegungen aus Input_Finanzen, je Standort mit eigener Zeitraumfilterung.
+          Monatliche Geldeingänge, Geldausgänge, Cashflow und Kontostände aus Bank / Geldbewegungen aus Input_Finanzen,
+          je Standort mit eigener Zeitraumfilterung.
         </p>
       </div>
       {sitesWithRows.map((site) => (
-        <SiteBankCashflowCard key={site.id} site={site} rows={siteRows.filter((row) => row.siteId === site.id)} />
+        <SiteBankCashflowCard key={site.id} site={site} rows={siteRows.filter((row) => row.siteId === site.id)} variant="detail" />
       ))}
     </div>
   );
