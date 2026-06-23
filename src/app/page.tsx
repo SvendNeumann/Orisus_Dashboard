@@ -14417,20 +14417,6 @@ function Reports({
     setPmrSelectedSiteIds((current) => current.includes(siteId) ? current.filter((id) => id !== siteId) : [...current, siteId]);
   };
   const selectedPmrSites = activeReportSites.filter((site) => pmrSelectedSiteIds.includes(site.id));
-  const reportCards = [
-    {
-      id: "monthly",
-      title: "Monatsreport",
-      description: "Kompakter CFO-Ausdruck mit KPI-Deckblatt, Monatsentwicklung und Standortübersicht.",
-      action: (orientation: ReportOrientation) => openPrintableReport("Monatsreport", buildMonthlyReport(sites, monthlyData, importedData, rules, orientation))
-    },
-    {
-      id: "management",
-      title: "YTD- / Management-Report",
-      description: "Board-taugliche Querformat-Übersicht mit konsolidierten KPIs und Standortvergleich.",
-      action: (orientation: ReportOrientation) => openPrintableReport("Management-Report", buildManagementReport(sites, monthlyData, importedData, rules, orientation))
-    }
-  ];
 
   return (
     <section className="space-y-5">
@@ -14529,30 +14515,6 @@ function Reports({
           </div>
         </div>
       </Card>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {reportCards.map((report) => (
-          <Card key={report.title} className="flex flex-col p-4">
-            <FileBarChart className="h-8 w-8 text-primary" />
-            <h2 className="mt-4 text-xl font-bold">{report.title}</h2>
-            <p className="mt-2 flex-1 text-sm text-muted-foreground">{report.description}</p>
-            <div className="mt-4 grid gap-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">Druckformat</label>
-              <Select
-                className="w-full"
-                value={reportOrientations[report.id]}
-                onChange={(event) => updateReportOrientation(report.id, event.target.value)}
-              >
-                <option value="portrait">A4 Hochformat</option>
-                <option value="landscape">A4 Querformat</option>
-              </Select>
-              <Badge className="w-fit" tone="green">{reportOrientationLabel(reportOrientations[report.id])}</Badge>
-            </div>
-            <Button className="mt-4 w-full" variant="secondary" onClick={() => report.action(reportOrientations[report.id])}>
-              PDF / Druck öffnen
-            </Button>
-          </Card>
-        ))}
-      </div>
       <Card className="p-4">
         <h2 className="font-bold">Hinweis zur Ausgabe</h2>
         <p className="mt-2 text-sm text-muted-foreground">

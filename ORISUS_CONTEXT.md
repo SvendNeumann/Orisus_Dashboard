@@ -791,12 +791,12 @@ Reports sollen:
 
 Aktuell sichtbare Report-Auswahl:
 
-- Monatsreport
-- YTD- / Management-Report
 - Standortleiter-PMR
 
 Aus der sichtbaren Report-Auswahl vorerst entfernt:
 
+- Monatsreport
+- YTD- / Management-Report
 - Bankenreport
 - Standortreport
 
