@@ -8448,6 +8448,7 @@ function StandortDetail({
       <SitePvsMonthlyRevenue site={site} importedData={importedData} monthlyData={monthlyData} />
       <SiteBehandlerMonthlyRevenue site={site} importedData={importedData} />
       <SiteBankMovementDetail site={site} importedData={importedData} />
+      <SiteBehandlerPersonnelCosts site={site} importedData={importedData} />
     </section>
   );
 }
@@ -9979,6 +9980,131 @@ function SiteBehandlerRevenueRow({
       <TableCell strong summary={summary}>{eur(totalValue)}</TableCell>
       <TableCell strong summary={summary}>{eur(averageValue)}</TableCell>
     </tr>
+  );
+}
+
+function SiteBehandlerPersonnelCosts({
+  site,
+  importedData
+}: {
+  site: DashboardSite;
+  importedData?: ImportedDashboardData | null;
+}) {
+  const siteCostRows = (importedData?.personnelCostRows ?? []).filter((row) => row.siteId === site.id);
+  const availablePeriods = (() => {
+    if (!siteCostRows.length) return bwaPeriodOptionsFor(importedData);
+    const years = Array.from(new Set(siteCostRows.map((row) => row.year).filter((year) => year >= 1900))).sort((a, b) => a - b);
+    return years.flatMap((year) => {
+      const activeMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+        siteCostRows.some((row) => Math.abs(row.personnelCostByMonth[`${year}-${month}`] ?? 0) > 0)
+      );
+      const latestMonth = activeMonths.at(-1);
+      return [
+        `Geschäftsjahr ${year}`,
+        ...(latestMonth ? [`YTD ${year} bis ${bwaMonths[latestMonth - 1]}`] : []),
+        ...activeMonths.map((month) => `${bwaMonths[month - 1]} ${year}`)
+      ];
+    });
+  })();
+  const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) {
+      setPeriod(defaultPeriodFromOptions(availablePeriods));
+    }
+  }, [availablePeriods, period]);
+
+  const year = currentYearFromPeriod(period);
+  const providerRows = new Map((importedData?.behandlerDetailRows ?? []).filter((row) => row.siteId === site.id).map((row) => [normalizeMetric(row.name), row]));
+  const visibleRows = siteCostRows
+    .filter((row) => row.year === year)
+    .map((row) => {
+      const matchedProvider = providerRows.get(normalizeMetric(row.name));
+      const personnelCost = periodValueFromMonths(row.personnelCostByMonth, period) || row.personnelCost;
+      const honorar = matchedProvider ? periodValueFromMonths(matchedProvider.honorarByMonth, period) : row.honorar;
+      return {
+        ...row,
+        personnelCost,
+        honorar,
+        pkQuote: honorar ? personnelCost / honorar : row.pkQuote
+      };
+    })
+    .filter((row) => row.personnelCost || row.honorar || row.pkQuote)
+    .sort((a, b) => b.personnelCost - a.personnelCost || a.name.localeCompare(b.name, "de"));
+  const totals = visibleRows.reduce(
+    (sum, row) => ({
+      personnelCost: sum.personnelCost + row.personnelCost,
+      honorar: sum.honorar + row.honorar
+    }),
+    { personnelCost: 0, honorar: 0 }
+  );
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+        <span className="font-bold">Personalkosten je Behandler {site.name} | {performancePeriodLabel(period)}</span>
+        <Select
+          className="w-full bg-white text-foreground sm:w-64"
+          value={period}
+          onChange={(event) => setPeriod(event.target.value)}
+        >
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>
+              {performancePeriodLabel(option)}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div className="border-b border-border bg-slate-50 p-3 text-sm text-muted-foreground">
+        Quelle ist der bestätigte CFO-Import aus den Standort-Personalkosten-Tabs. Die Tabelle zeigt alle dort gepflegten Personen des Standorts.
+      </div>
+      <ResponsiveTable>
+        <thead>
+          <tr>
+            <TableHead>Mitarbeiter</TableHead>
+            <TableHead>Typ</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Personalkosten</TableHead>
+            <TableHead>Honorarumsatz</TableHead>
+            <TableHead>PK-Quote</TableHead>
+            <TableHead>Datenstatus</TableHead>
+          </tr>
+        </thead>
+        <tbody>
+          {visibleRows.map((row) => (
+            <tr key={`${row.employeeId}-${row.name}-${row.year}`}>
+              <TableCell strong>{row.name}</TableCell>
+              <TableCell>{row.type}</TableCell>
+              <TableCell>{row.status}</TableCell>
+              <TableCell>{eur(row.personnelCost)}</TableCell>
+              <TableCell>{eur(row.honorar)}</TableCell>
+              <TableCell>{pct(row.pkQuote * 100)}</TableCell>
+              <TableCell>{row.monthsMaintained}</TableCell>
+            </tr>
+          ))}
+          {visibleRows.length ? (
+            <tr className="summary-row">
+              <TableCell strong summary>Gesamt</TableCell>
+              <TableCell summary>{""}</TableCell>
+              <TableCell summary>{""}</TableCell>
+              <TableCell strong summary>{eur(totals.personnelCost)}</TableCell>
+              <TableCell strong summary>{eur(totals.honorar)}</TableCell>
+              <TableCell strong summary>{pct(ratio(totals.personnelCost, totals.honorar))}</TableCell>
+              <TableCell summary>{""}</TableCell>
+            </tr>
+          ) : (
+            <tr>
+              <TableCell strong>Keine Personalkosten-Daten</TableCell>
+              <TableCell>{""}</TableCell>
+              <TableCell>{""}</TableCell>
+              <TableCell>{""}</TableCell>
+              <TableCell>{""}</TableCell>
+              <TableCell>{""}</TableCell>
+              <TableCell>{""}</TableCell>
+            </tr>
+          )}
+        </tbody>
+      </ResponsiveTable>
+    </Card>
   );
 }
 
