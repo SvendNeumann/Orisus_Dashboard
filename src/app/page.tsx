@@ -5188,7 +5188,7 @@ function Cockpit({
         <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Handlungsbedarf." />
         <CompactDataStatus importedData={importedData} />
       </div>
-      <DailyCfoCockpit sites={sites} monthlyData={monthlyData} />
+      <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} />
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard title="Ist EBITDA vs. Ziel-EBITDA Kaufvertrag | seit Vertragsstart" icon={TrendingUp}>
@@ -5269,7 +5269,7 @@ function DataStatusStrip({ importedData }: { importedData?: ImportedDashboardDat
   );
 }
 
-function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; monthlyData: typeof monthly }) {
+function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[]; monthlyData: typeof monthly; period: string }) {
   const metrics = cfoMetrics(sites, monthlyData);
   const riskLabel = metrics.kritisch.length ? metrics.kritisch.map((site) => site.name).join(", ") : "Keine roten Standorte";
   const criticalReasons = metrics.kritisch.map((site) => {
@@ -5306,6 +5306,10 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       sonstigeRueckstellungenBestandsminderungen: 0
     }
   );
+  const earnOutRows = projectedEarnOutRows(sites, period);
+  const expectedEarnOut = earnOutRows.reduce((sum, row) => sum + row.projection.projectedEarnOut, 0);
+  const expectedGrowthPayment = earnOutRows.reduce((sum, row) => sum + row.projection.projectedGrowthPayment, 0);
+  const expectedObligationInfo = <ExpectedObligationInfo rows={earnOutRows} period={period} />;
 
   const kpis = [
     {
@@ -5421,6 +5425,22 @@ function DailyCfoCockpit({ sites, monthlyData }: { sites: DashboardSite[]; month
       )
     },
     {
+      label: "Erwarteter Earn-Out | Run-Rate",
+      value: expectedEarnOut,
+      delta: "Fälligkeit nach Vertragsperiode",
+      icon: BadgeEuro,
+      status: expectedEarnOut > 0 ? "yellow" : "green",
+      info: expectedObligationInfo
+    },
+    {
+      label: "Erwartete Wachstumszahlung | Run-Rate",
+      value: expectedGrowthPayment,
+      delta: "zusätzlich zur Earn-Out-Verpflichtung",
+      icon: TrendingUp,
+      status: expectedGrowthPayment > 0 ? "yellow" : "green",
+      info: expectedObligationInfo
+    },
+    {
       label: "Kritische Standorte | aktueller Stand",
       value: metrics.kritisch.length,
       delta: riskLabel,
@@ -5526,9 +5546,43 @@ function KpiCard({
         {positive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
         <span>{delta}</span>
       </div>
-      {infoOpen && info && <div className="mt-3 w-full rounded-md border border-border bg-slate-50 p-3 text-center text-xs leading-5 text-slate-700">{info}</div>}
+      {infoOpen && info ? (
+        <InfoDialog title={label} onClose={() => setInfoOpen(false)}>
+          {info}
+        </InfoDialog>
+      ) : null}
       <p className="mt-2 text-xs text-muted-foreground">Ampelstatus nach vorläufiger CFO-Logik.</p>
     </Card>
+  );
+}
+
+function InfoDialog({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Info schließen"
+        className="fixed inset-0 z-[190] cursor-default bg-slate-950/75 backdrop-blur-md"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="app-info-popover fixed left-4 right-4 top-[max(5rem,env(safe-area-inset-top))] z-[200] max-h-[74vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 text-left text-sm leading-6 text-slate-900 shadow-2xl sm:left-1/2 sm:right-auto sm:top-24 sm:w-[min(38rem,calc(100vw-3rem))] sm:-translate-x-1/2"
+      >
+        <div className="sticky top-0 z-10 mb-3 flex items-start justify-between gap-3 border-b border-slate-200 bg-white pb-3">
+          <p className="text-base font-bold text-slate-950">{title}</p>
+          <button
+            type="button"
+            className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
+            onClick={onClose}
+          >
+            Schließen
+          </button>
+        </div>
+        <div className="space-y-3">{children}</div>
+      </div>
+    </>
   );
 }
 
@@ -6191,31 +6245,9 @@ function Mini({ label, value, info }: { label: string; value: string; info?: Rea
       </div>
       <p className="mt-2 break-words font-bold">{value}</p>
       {infoOpen && info ? (
-        <>
-          <button
-            type="button"
-            aria-label="Info schließen"
-            className="fixed inset-0 z-[190] cursor-default bg-slate-950/70 backdrop-blur-md"
-            onClick={() => setInfoOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="app-info-popover fixed left-4 right-4 top-[max(5rem,env(safe-area-inset-top))] z-[200] max-h-[72vh] overflow-y-auto rounded-2xl border p-4 text-left text-sm leading-6 shadow-2xl sm:left-1/2 sm:right-auto sm:top-24 sm:w-[min(34rem,calc(100vw-3rem))] sm:-translate-x-1/2"
-          >
-            <div className="mb-3 flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
-              <p className="text-base font-bold text-slate-950">{label}</p>
-              <button
-                type="button"
-                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
-                onClick={() => setInfoOpen(false)}
-              >
-                Schließen
-              </button>
-            </div>
-            <div className="space-y-3">{info}</div>
-          </div>
-        </>
+        <InfoDialog title={label} onClose={() => setInfoOpen(false)}>
+          {info}
+        </InfoDialog>
       ) : null}
     </div>
   );
@@ -11111,20 +11143,94 @@ function GrowthPaymentInfo({ site, projection, period }: { site: DashboardSite; 
   );
 }
 
+type EarnOutProjectionRow = {
+  site: DashboardSite;
+  dueStatus: ReturnType<typeof earnOutDueStatus>;
+  projection: ReturnType<typeof projectedEarnOutForSite>;
+};
+
+function projectedEarnOutRows(sites: DashboardSite[], period: string): EarnOutProjectionRow[] {
+  return sortSitesByContractStart(sites).map((site) => ({
+    site,
+    dueStatus: earnOutDueStatus(site),
+    projection: projectedEarnOutForSite(site, period)
+  }));
+}
+
+function ExpectedObligationInfo({ rows, period }: { rows: EarnOutProjectionRow[]; period: string }) {
+  const expectedEarnOut = rows.reduce((sum, row) => sum + row.projection.projectedEarnOut, 0);
+  const expectedGrowthPayment = rows.reduce((sum, row) => sum + row.projection.projectedGrowthPayment, 0);
+  const totalExpected = expectedEarnOut + expectedGrowthPayment;
+
+  return (
+    <div className="space-y-3">
+      <p className="font-semibold text-slate-950">Erwartete Verpflichtung inklusive Wachstumszahlung</p>
+      <p className="text-slate-700">
+        Zeitraum: {period}. Je Standort wird das bisherige EBITDA seit Praxisstart auf die jeweilige Vertragslaufzeit hochgerechnet.
+        Daraus werden erwarteter Earn-Out und potenzielle Wachstumszahlung abgeleitet. Fällig wird die Zahlung erst nach Ablauf der
+        jeweiligen Vertragsperiode.
+      </p>
+      <div className="space-y-2">
+        {rows.map(({ site, dueStatus, projection }) => {
+          const siteTotal = projection.projectedEarnOut + projection.projectedGrowthPayment;
+          return (
+            <div key={site.id} className="rounded-lg border border-border bg-white p-3">
+              <div className="flex items-start justify-between gap-3 font-semibold text-slate-950">
+                <span>{site.name}</span>
+                <span>{eur(siteTotal)}</span>
+              </div>
+              <div className="mt-2 grid gap-1 text-[11px] text-slate-600 sm:grid-cols-2">
+                <span>Erwarteter Earn-Out: {eur(projection.projectedEarnOut)}</span>
+                <span>Wachstumszahlung: {eur(projection.projectedGrowthPayment)}</span>
+                <span>Fälligkeit: {site.darlehen.earnOutFaelligAm || "offen"}</span>
+                <span>Status: {dueStatus.label}</span>
+                <span>Ø EBITDA je Monat: {eur(projection.averageMonthlyEbitda)}</span>
+                <span>Vertragslaufzeit: {projection.contractMonths.toLocaleString("de-DE")} Monate</span>
+                <span>Ziel-EBITDA Vertragslaufzeit: {eur(projection.contractTargetEbitda)}</span>
+                <span>Mehr-EBITDA Vertragslaufzeit: {eur(projection.contractExcessEbitda)}</span>
+                <span>Wachstumslogik: {growthFactorLabel(projection.growthFactor)}</span>
+                <span>Run-Rate EBITDA p.a.: {eur(projection.projectedEbitda)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="space-y-1 border-t border-border pt-2 font-semibold text-slate-950">
+        <InfoLine label="Erwarteter Earn-Out gesamt" value={expectedEarnOut} />
+        <InfoLine label="+ Erwartete Wachstumszahlung" value={expectedGrowthPayment} />
+        <InfoLine label="= Erwartete Verpflichtung gesamt" value={totalExpected} strong />
+      </div>
+    </div>
+  );
+}
+
 function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
   const restschuld = sites.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
   const earnOut = sites.reduce((sum, site) => sum + site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt, 0);
   const earnOutDueNow = sites.reduce((sum, site) => sum + (isEarnOutDue(site) ? site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt : 0), 0);
   const tilgung = sites.reduce((sum, site) => sum + site.darlehen.tilgung, 0);
   const earnOutPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
+  const earnOutRows = projectedEarnOutRows(sites, earnOutPeriod);
+  const expectedEarnOut = earnOutRows.reduce((sum, row) => sum + row.projection.projectedEarnOut, 0);
+  const expectedGrowthPayment = earnOutRows.reduce((sum, row) => sum + row.projection.projectedGrowthPayment, 0);
+  const expectedObligation = expectedEarnOut + expectedGrowthPayment;
+  const expectedObligationInfo = <ExpectedObligationInfo rows={earnOutRows} period={earnOutPeriod} />;
   return (
     <section className="space-y-5">
       <PageTitle title="Darlehen & Earn-Out" text="Kaufpreise, Restschulden, Zins, Tilgung und Earn-Out-Fortschritt je Standort." />
       <DebtCapitalBlock sites={sites} />
       <EarnOutSummary sites={sites} period={earnOutPeriod} />
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-4">
         <KpiCard label="Gesamte Restschuld" value={restschuld} delta="Konsolidiert" icon={Landmark} status="yellow" />
         <KpiCard label="Earn-Out offen" value={earnOut} delta={`Davon aktuell fällig: ${eur(earnOutDueNow)}`} icon={BadgeEuro} status={earnOutDueNow > 0 ? "yellow" : "green"} />
+        <KpiCard
+          label="Erwartete Verpflichtung | Run-Rate"
+          value={expectedObligation}
+          delta={`Earn-Out ${eur(expectedEarnOut, true)} | Wachstum ${eur(expectedGrowthPayment, true)}`}
+          icon={TrendingUp}
+          status={expectedObligation > 0 ? "yellow" : "green"}
+          info={expectedObligationInfo}
+        />
         <KpiCard label="Tilgung" value={tilgung} delta="Laufend bedient" icon={ShieldCheck} status="green" />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
@@ -11180,41 +11286,12 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
   const open = totalPotential - paid;
   const dueNow = sites.reduce((sum, site) => sum + (isEarnOutDue(site) ? site.darlehen.earnOutGesamt - site.darlehen.earnOutGezahlt : 0), 0);
   const notYetDue = Math.max(0, open - dueNow);
-  const earnOutBreakdown = sortSitesByContractStart(sites).map((site) => ({
-    site,
-    dueStatus: earnOutDueStatus(site),
-    projection: projectedEarnOutForSite(site, period)
-  }));
+  const earnOutBreakdown = projectedEarnOutRows(sites, period);
   const runRateProvision = earnOutBreakdown.reduce((sum, row) => sum + row.projection.projectedEarnOut, 0);
+  const runRateGrowthProvision = earnOutBreakdown.reduce((sum, row) => sum + row.projection.projectedGrowthPayment, 0);
+  const runRateObligation = runRateProvision + runRateGrowthProvision;
   const runRateAchievement = totalPotential ? (runRateProvision / totalPotential) * 100 : 0;
-  const expectedObligationInfo = (
-    <div className="space-y-3">
-      <p className="font-semibold text-slate-950">Erwartete Earn-Out-Verpflichtung nach aktueller Run-Rate</p>
-      <p>
-        Zeitraum: {period}. Je Standort wird das EBITDA seit Praxisstart auf eine p.a.-Run-Rate hochgerechnet und gegen Ziel-EBITDA p.a.,
-        Untergrenze, Reduktionsfaktor und offenes Earn-Out-Potenzial gespiegelt.
-      </p>
-      <div className="space-y-2">
-        {earnOutBreakdown.map(({ site, dueStatus, projection }) => (
-          <div key={site.id} className="rounded-md border border-border bg-white p-2">
-            <div className="flex items-start justify-between gap-3 font-semibold text-slate-950">
-              <span>{site.name}</span>
-              <span>{eur(projection.projectedEarnOut)}</span>
-            </div>
-            <div className="mt-1 grid gap-1 text-[11px] text-slate-600 sm:grid-cols-2">
-              <span>Run-Rate EBITDA p.a.: {eur(projection.projectedEbitda)}</span>
-              <span>Ziel EBITDA p.a.: {eur(projection.target)}</span>
-              <span>Untergrenze: {projection.untergrenze ? eur(projection.untergrenze) : "nicht hinterlegt"}</span>
-              <span>Fälligkeit: {site.darlehen.earnOutFaelligAm || "offen"} ({dueStatus.label})</span>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="border-t border-border pt-2 font-semibold text-slate-950">
-        Summe erwartete Verpflichtung: {eur(runRateProvision)}
-      </div>
-    </div>
-  );
+  const expectedObligationInfo = <ExpectedObligationInfo rows={earnOutBreakdown} period={period} />;
 
   return (
     <Card className="p-4">
@@ -11227,11 +11304,13 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
         </div>
         <Badge tone={open > totalPotential * 0.5 ? "yellow" : "green"}>{pct((paid / (totalPotential || 1)) * 100)} gezahlt</Badge>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-5">
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
         <Mini label="Earn-Out Potenzial" value={eur(totalPotential)} />
         <Mini label="Aktuell fällig" value={eur(dueNow)} />
         <Mini label="Noch nicht fällig" value={eur(notYetDue)} />
-        <Mini label="Erwartete Verpflichtung" value={eur(runRateProvision)} info={expectedObligationInfo} />
+        <Mini label="Erwarteter Earn-Out" value={eur(runRateProvision)} />
+        <Mini label="Erwartete Wachstumszahlung" value={eur(runRateGrowthProvision)} />
+        <Mini label="Erwartete Verpflichtung gesamt" value={eur(runRateObligation)} info={expectedObligationInfo} />
         <Mini label="Vorsorgequote" value={pct(runRateAchievement)} />
       </div>
       <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-muted-foreground">
