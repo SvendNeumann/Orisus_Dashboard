@@ -9956,6 +9956,290 @@ function Analysen({
     }
   ];
 
+  const benchmarkReportValue = (value: number | null | undefined, suffix = "%", unavailable = false) => {
+    if (unavailable || value == null || !Number.isFinite(value)) return "n. v.";
+    return `${value.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`;
+  };
+
+  const benchmarkReportTone = (
+    selected: number | null | undefined,
+    group: number | null | undefined,
+    higherIsBetter = true,
+    unavailable = false
+  ): ReportTone => {
+    if (unavailable || selected == null || group == null || !Number.isFinite(selected) || !Number.isFinite(group)) return "blue";
+    const diff = selected - group;
+    if (Math.abs(diff) < 2) return "yellow";
+    const good = higherIsBetter ? diff >= 0 : diff <= 0;
+    return good ? "green" : "red";
+  };
+
+  const formatBenchmarkBasisValue = (value: number | null | undefined, type: "currency" | "percent") => {
+    if (value == null || !Number.isFinite(value)) return "n. v.";
+    return type === "currency" ? eur(value) : pct(value);
+  };
+
+  const formatPatientBasisValue = (value: number | null | undefined, type: "count" | "average" | "percent") => {
+    if (value == null || !Number.isFinite(value)) return "n. v.";
+    if (type === "percent") return pct(value);
+    return value.toLocaleString("de-DE", { maximumFractionDigits: type === "average" ? 1 : 0 });
+  };
+
+  const heatClassFor = (value: number | null | undefined, reference: number | null | undefined, higherIsBetter = false) => {
+    if (value == null || reference == null || !Number.isFinite(value) || !Number.isFinite(reference)) return "heat-neutral";
+    const diff = value - reference;
+    if (Math.abs(diff) <= 0.5) return "heat-yellow";
+    const good = higherIsBetter ? diff >= 0 : diff <= 0;
+    return good ? "heat-green" : "heat-red";
+  };
+
+  const benchmarkingReportStyles = `<style>
+    .benchmark-note {
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: #e9f7f6;
+      border: 1px solid #b9dfdc;
+      color: #12313c;
+      font-size: 11px;
+      line-height: 1.45;
+      break-inside: avoid;
+    }
+    .benchmark-note strong { color: #0a6f79; }
+    .benchmark-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .benchmark-insights {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      padding: 12px;
+    }
+    .benchmark-insight {
+      border-radius: 12px;
+      border: 1px solid #d4e3e6;
+      background: #f7fbfb;
+      padding: 12px;
+      color: #142536;
+      font-size: 11px;
+      line-height: 1.4;
+      min-height: 80px;
+    }
+    .benchmark-insight strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: #0a6f79;
+    }
+    .heatmap-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.2px;
+    }
+    .heatmap-table th {
+      padding: 7px 6px;
+      color: #ffffff;
+      text-align: right;
+      background: #075b69;
+      border: 1px solid rgba(255,255,255,.25);
+    }
+    .heatmap-table th:first-child,
+    .heatmap-table td:first-child {
+      text-align: left;
+      font-weight: 800;
+    }
+    .heatmap-table td {
+      padding: 7px 6px;
+      text-align: right;
+      border: 1px solid rgba(15, 42, 55, .18);
+      font-weight: 750;
+      color: #102435;
+    }
+    .heat-green { background: #bfeadf; }
+    .heat-yellow { background: #fff0b8; }
+    .heat-red { background: #f6b2ad; }
+    .heat-neutral { background: #eef4f6; color: #607080; }
+    .benchmark-page-break { break-before: page; page-break-before: always; }
+    @media print {
+      .benchmark-note,
+      .heatmap-table td,
+      .heatmap-table th,
+      .benchmark-insight {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>`;
+
+  const openBenchmarkingReport = () => {
+    const financialCards = benchmarkItems.map((item) => {
+      const suffix = item.suffix ?? "%";
+      const unavailable = item.unavailable ?? false;
+      const diff = !unavailable && item.selected != null && item.group != null ? item.selected - item.group : null;
+      return {
+        label: item.label,
+        value: benchmarkReportValue(item.selected, suffix, unavailable),
+        detail: unavailable
+          ? "Berechnungsbasis fehlt"
+          : `Gruppe: ${benchmarkReportValue(item.group, suffix)} | Abw.: ${diff == null ? "n. v." : `${diff >= 0 ? "+" : ""}${diff.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`}`,
+        tone: benchmarkReportTone(item.selected, item.group, item.higherIsBetter, unavailable)
+      };
+    });
+
+    const patientCards = patientBenchmarkItems.map((item) => {
+      const diff = item.selected != null && item.group != null ? item.selected - item.group : null;
+      return {
+        label: item.label,
+        value: benchmarkReportValue(item.selected, item.suffix ?? "%", item.unavailable),
+        detail: item.unavailable
+          ? "Patientendaten fehlen"
+          : `Gruppe: ${benchmarkReportValue(item.group, item.suffix ?? "%")} | Abw.: ${diff == null ? "n. v." : `${diff >= 0 ? "+" : ""}${diff.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${item.suffix ?? "%"}`}`,
+        tone: benchmarkReportTone(item.selected, item.group, item.higherIsBetter, item.unavailable)
+      };
+    });
+
+    const basisTable = reportTable(
+      ["Kennzahl", "Berechnungsbasis", "Eigener Wert", "Gruppendurchschnitt"],
+      basisRows.map((row) => [
+        row.label,
+        row.basis,
+        formatBenchmarkBasisValue(row.own, row.type),
+        formatBenchmarkBasisValue(row.comparison, row.type)
+      ]),
+      { compact: true }
+    );
+
+    const patientBasisTable = reportTable(
+      ["Kennzahl", "Berechnungsbasis", "Eigener Wert", "Gruppendurchschnitt"],
+      patientBasisRows.map((row) => [
+        row.label,
+        row.basis,
+        formatPatientBasisValue(row.value, row.type),
+        formatPatientBasisValue(row.comparison, row.type)
+      ]),
+      { compact: true }
+    );
+
+    const pvsRankingRows = [...siteRows]
+      .filter((row) => Number.isFinite(row.pvsPerDentist ?? NaN))
+      .sort((a, b) => (b.pvsPerDentist ?? 0) - (a.pvsPerDentist ?? 0))
+      .slice(0, 6);
+    const marginRankingRows = [...siteRows]
+      .filter((row) => Number.isFinite(row.ebitdaMargin ?? NaN))
+      .sort((a, b) => (b.ebitdaMargin ?? 0) - (a.ebitdaMargin ?? 0))
+      .slice(0, 6);
+    const pvsRankingMax = Math.max(...pvsRankingRows.map((row) => row.pvsPerDentist ?? 0), 1);
+    const marginRankingMax = Math.max(...marginRankingRows.map((row) => row.ebitdaMargin ?? 0), 1);
+
+    const costHeatmap = `<table class="heatmap-table">
+      <thead>
+        <tr>
+          <th>Standort</th>
+          <th>Materialquote</th>
+          <th>Fremdlaborquote</th>
+          <th>Personalkostenquote</th>
+          <th>Sonstige Kostenquote</th>
+          <th>Gesamtkostenquote</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${siteRows.map((row) => `<tr>
+          <td>${reportEscape(viewMode === "Intern" ? row.site.name : row.label)}</td>
+          <td class="${heatClassFor(row.materialquote, costGroup.materialquote)}">${reportEscape(pct(row.materialquote))}</td>
+          <td class="${heatClassFor(row.fremdlaborquote, costGroup.fremdlaborquote)}">${reportEscape(pct(row.fremdlaborquote))}</td>
+          <td class="${heatClassFor(row.personalquote, costGroup.personalquote)}">${reportEscape(pct(row.personalquote))}</td>
+          <td class="${heatClassFor(row.sonstigeKostenquote, costGroup.sonstigeKostenquote)}">${reportEscape(pct(row.sonstigeKostenquote))}</td>
+          <td class="${heatClassFor(row.gesamtkostenquote, costGroup.gesamtkostenquote)}">${reportEscape(pct(row.gesamtkostenquote))}</td>
+        </tr>`).join("")}
+        <tr>
+          <td>Gruppendurchschnitt</td>
+          <td class="heat-neutral">${reportEscape(pct(costGroup.materialquote))}</td>
+          <td class="heat-neutral">${reportEscape(pct(costGroup.fremdlaborquote))}</td>
+          <td class="heat-neutral">${reportEscape(pct(costGroup.personalquote))}</td>
+          <td class="heat-neutral">${reportEscape(pct(costGroup.sonstigeKostenquote))}</td>
+          <td class="heat-neutral">${reportEscape(pct(costGroup.gesamtkostenquote))}</td>
+        </tr>
+      </tbody>
+    </table>`;
+
+    const patientHeatmap = `<table class="heatmap-table">
+      <thead>
+        <tr>
+          <th>Standort</th>
+          <th>Behandelte Patienten</th>
+          <th>Neupatientenquote</th>
+          <th>Terminwahrnehmung</th>
+          <th>Terminausfallquote</th>
+          <th>Patienten je Zimmer</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${patientSiteRows.map((row) => `<tr>
+          <td>${reportEscape(viewMode === "Intern" ? row.site.name : row.label)}</td>
+          <td class="${heatClassFor(row.treatedPatients, patientAverage((item) => item.treatedPatients), true)}">${reportEscape(formatPatientBasisValue(row.treatedPatients, "count"))}</td>
+          <td class="${heatClassFor(row.newPatientRate, patientAverage((item) => item.newPatientRate), true)}">${reportEscape(formatPatientBasisValue(row.newPatientRate, "percent"))}</td>
+          <td class="${heatClassFor(row.attendanceRate, patientAverage((item) => item.attendanceRate), true)}">${reportEscape(formatPatientBasisValue(row.attendanceRate, "percent"))}</td>
+          <td class="${heatClassFor(row.cancellationRate, patientAverage((item) => item.cancellationRate), false)}">${reportEscape(formatPatientBasisValue(row.cancellationRate, "percent"))}</td>
+          <td class="${heatClassFor(row.patientsPerRoom, patientAverage((item) => item.patientsPerRoom), true)}">${reportEscape(formatPatientBasisValue(row.patientsPerRoom, "average"))}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>`;
+
+    const driverRows = costDrivers.map((driver) => [
+      driver.label,
+      `${driver.value >= 0 ? "+" : ""}${driver.value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %-Pkt.`,
+      driver.value > 0 ? "über Gruppenschnitt" : "unter Gruppenschnitt"
+    ]);
+
+    const body = `${benchmarkingReportStyles}
+      ${reportKpiGrid([...financialCards, ...patientCards])}
+      <div class="benchmark-note">
+        <strong>Leselogik:</strong> 100 % entspricht dem Gruppendurchschnitt im gewählten Zeitraum. Werte über 100 % liegen über dem Vergleich, Werte unter 100 % darunter. Bei Kosten- und Forderungsquoten ist niedriger besser, bei Leistungs-, EBITDA- und Patientenkennzahlen höher besser.
+      </div>
+      <div class="benchmark-page-break"></div>
+      <div class="benchmark-two">
+        ${reportSection(`Eigene Rechenbasis | ${displaySiteName}`, basisTable, `Absolute Werte für ${period}, aus denen die Benchmarking-Indizes berechnet werden.`)}
+        ${reportSection("Patienten- und Terminbasis", patientBasisTable, `Patientenkennzahlen für ${period}; fehlende Daten werden als n. v. ausgewiesen.`)}
+      </div>
+      <div class="benchmark-two">
+        ${reportSection("Ranking Gesamtumsatz je Zahnarzt", reportBarList(pvsRankingRows.map((row) => ({
+          label: viewMode === "Intern" ? row.site.name : row.label,
+          value: row.pvsPerDentist ?? 0,
+          max: pvsRankingMax,
+          tone: row.site.id === selectedSite?.id ? "green" : "blue",
+          suffix: eur(row.pvsPerDentist ?? 0)
+        }))), `Top-Standorte nach normalisiertem PVS-Gesamtumsatz.`)}
+        ${reportSection("Ranking EBITDA-Marge", reportBarList(marginRankingRows.map((row) => ({
+          label: viewMode === "Intern" ? row.site.name : row.label,
+          value: row.ebitdaMargin ?? 0,
+          max: marginRankingMax,
+          tone: row.site.id === selectedSite?.id ? "green" : "blue",
+          suffix: pct(row.ebitdaMargin ?? 0)
+        }))), `EBITDA-Marge im Standortvergleich.`)}
+      </div>
+      <div class="benchmark-page-break"></div>
+      ${reportSection("Kostenquoten im Standortvergleich", costHeatmap, `Ampelfarben gegen Gruppendurchschnitt in ${period}; bei Kostenquoten ist niedriger besser.`)}
+      <div class="benchmark-two">
+        ${reportSection("EBITDA-Margen-Treiber", reportTable(["Treiber", "Abweichung", "Einordnung"], driverRows, { compact: true }), marginGap >= 0 ? "Die Marge liegt über dem Gruppendurchschnitt." : "Die Marge liegt unter dem Gruppendurchschnitt.")}
+        ${reportSection("Management-Hinweise", `<div class="benchmark-insights">${summaryItems.map((item) => `<div class="benchmark-insight"><strong>Insight</strong>${reportEscape(item)}</div>`).join("")}</div>`, "Automatisch aus Benchmarking-Abweichungen und Patienten-/Termindaten abgeleitet.")}
+      </div>
+      <div class="benchmark-page-break"></div>
+      ${reportSection("Patienten- und Terminindikatoren", patientHeatmap, `Vergleich von Patientenbasis, Neupatienten und Terminqualität für ${period}.`)}
+    `;
+
+    openPrintableReport(
+      `Benchmarking-Report ${displaySiteName}`,
+      buildReportDocument({
+        title: `Benchmarking-Report ${displaySiteName}`,
+        subtitle: `Zeitraum: ${period} | Vergleich: ${comparison} | Ansicht: ${viewMode}. Farbig aufbereiteter Report mit KPI-Übersicht, Rechenbasis, Rankings, Kosten-Heatmap, Patientenindikatoren und Handlungshinweisen.`,
+        orientation: "landscape",
+        body,
+        footerNote: "Benchmarking-Report | Vertraulich | Internal Use Only"
+      })
+    );
+  };
+
   return (
     <section className="analysis-report w-full max-w-full overflow-hidden space-y-5">
       <style jsx global>{`
@@ -10127,7 +10411,7 @@ function Analysen({
             Anonymisierte Standortleiter-Ansicht mit normalisierten Kennzahlen, Kostenquoten, Rankings und Handlungsschwerpunkten.
           </p>
         </div>
-        <Button className="analysis-no-print w-full border border-teal-300/40 bg-teal-500/20 text-white shadow-[0_0_24px_rgba(20,184,166,0.22)] hover:bg-teal-500/30 sm:w-auto" onClick={() => window.print()}>
+        <Button className="analysis-no-print w-full border border-teal-300/40 bg-teal-500/20 text-white shadow-[0_0_24px_rgba(20,184,166,0.22)] hover:bg-teal-500/30 sm:w-auto" onClick={openBenchmarkingReport}>
           <FileBarChart className="mr-2 h-4 w-4" />
           PDF exportieren
         </Button>
