@@ -13291,12 +13291,14 @@ function reportBarList(rows: Array<{ label: string; value: number; max: number; 
 function buildReportDocument({
   title,
   subtitle,
+  periodLabel,
   orientation,
   body,
   footerNote
 }: {
   title: string;
   subtitle: string;
+  periodLabel?: string;
   orientation: ReportOrientation;
   body: string;
   footerNote?: string;
@@ -13409,12 +13411,14 @@ function buildReportDocument({
     <body>
       <main class="report-page">
         <header class="hero">
-          <div class="eyebrow">Orisus CFO Dashboard</div>
+          <div class="eyebrow">Report</div>
           <h1>${reportEscape(title)}</h1>
           <p>${reportEscape(subtitle)}</p>
           <div class="meta-line">
-            <span class="pill">Export: ${reportEscape(reportDateStamp())}</span>
-            <span class="pill">Internal Use Only</span>
+            <span class="pill">Report: ${reportEscape(title)}</span>
+            ${periodLabel ? `<span class="pill">Datenstand: ${reportEscape(periodLabel)}</span>` : ""}
+            <span class="pill">Erstellt: ${reportEscape(reportDateStamp())}</span>
+            <span class="pill">Vertraulich</span>
             <span class="pill">${orientation === "landscape" ? "A4 Querformat" : "A4 Hochformat"}</span>
           </div>
         </header>
@@ -13422,7 +13426,7 @@ function buildReportDocument({
         <footer class="report-footer">
           <span>© Orisus Zahnmedizin MVZ GmbH</span>
           <span>${reportEscape(footerNote ?? "Vertraulich | Nur für Geschäftsführung, Banken und autorisierte Empfänger")}</span>
-          <span>Version 1.0</span>
+          <span>Druckexport</span>
         </footer>
       </main>
     </body>
@@ -13548,7 +13552,8 @@ function buildManagementReport(sites: DashboardSite[], monthlyData: typeof month
 
   return buildReportDocument({
     title: "Management-Report",
-    subtitle: "Kompakter CFO-Überblick für Geschäftsführung, Board und interne Steuerung.",
+    subtitle: `Kompakter Überblick für Geschäftsführung, Board und interne Steuerung. Berichtszeitraum: ${period}.`,
+    periodLabel: period,
     orientation: "landscape",
     body
   });
@@ -13576,7 +13581,8 @@ function buildBankReport(sites: DashboardSite[], monthlyData: typeof monthly, im
 
   return buildReportDocument({
     title: "Bankenreport",
-    subtitle: "Finanzierungs-, Kapitaldienst-, Liquiditäts- und Bank-Cashflow-Übersicht auf Basis des bestätigten Imports.",
+    subtitle: `Finanzierungs-, Kapitaldienst-, Liquiditäts- und Bank-Cashflow-Übersicht auf Basis des bestätigten Imports. Berichtszeitraum: ${performancePeriodLabel(bankRows.period)}.`,
+    periodLabel: performancePeriodLabel(bankRows.period),
     orientation: "landscape",
     body
   });
@@ -13612,7 +13618,8 @@ function buildMonthlyReport(sites: DashboardSite[], monthlyData: typeof monthly,
 
   return buildReportDocument({
     title: "Monatsreport",
-    subtitle: "Druckfertige Steuerungsübersicht mit Ergebnisentwicklung, Cashflow gem. BWA und Standortvergleich.",
+    subtitle: `Druckfertige Steuerungsübersicht mit Ergebnisentwicklung, Cashflow gem. BWA und Standortvergleich. Berichtszeitraum: ${period}.`,
+    periodLabel: period,
     orientation: "portrait",
     body
   });
@@ -13658,7 +13665,8 @@ function buildSiteReport(sites: DashboardSite[], monthlyData: typeof monthly) {
 
   return buildReportDocument({
     title: "Standortreport",
-    subtitle: "Je Standort eine kompakte druckfertige Seite mit KPI-Deckblatt, Finanzierungsdaten und Forderungsstand.",
+    subtitle: "Je Standort eine kompakte druckfertige Seite mit KPI-Deckblatt, Finanzierungsdaten und Forderungsstand. Datenstand: seit Vertragsstart bzw. aktueller Import.",
+    periodLabel: "seit Vertragsstart / aktueller Import",
     orientation: "landscape",
     body: body || reportSection("Keine Standortdaten", "<p style='padding:12px'>Noch keine Standortdaten verfügbar.</p>")
   });
