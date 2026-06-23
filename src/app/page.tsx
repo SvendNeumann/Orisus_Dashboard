@@ -8309,6 +8309,11 @@ function formatPatientValue(value: number, unit: ImportedPatientMetricRow["unit"
   return Math.round(value).toLocaleString("de-DE");
 }
 
+function normalizedPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.abs(value) <= 1.5 ? value * 100 : value;
+}
+
 function PatientKpiCard({
   label,
   value,
@@ -9541,10 +9546,51 @@ function Analysen({
       gesamtkostenquote: site.materialquote + site.fremdlaborquote + (site.personalquote ?? 0) + site.sonstigeKostenquote
     };
   });
+  const patientRows = importedData?.patientRows ?? [];
+  const patientSiteRows = siteRows.map((row) => {
+    const treatedPatients = patientMetricPeriodValue(patientRows, row.site.id, "treatedPatients", period);
+    const newPatients = patientMetricPeriodValue(patientRows, row.site.id, "newPatients", period);
+    const bookedAppointments = patientMetricPeriodValue(patientRows, row.site.id, "bookedAppointments", period);
+    const attendedAppointments = patientMetricPeriodValue(patientRows, row.site.id, "attendedAppointments", period);
+    const missedAppointments = patientMetricPeriodValue(patientRows, row.site.id, "missedAppointments", period);
+    const attendanceRateSource = patientMetricPeriodValue(patientRows, row.site.id, "attendanceRate", period);
+    const cancellationRateSource = patientMetricPeriodValue(patientRows, row.site.id, "cancellationRate", period);
+    const importedPatientsPerRoom = patientMetricPeriodValue(patientRows, row.site.id, "patientsPerRoom", period);
+    const attendanceRate = bookedAppointments ? (attendedAppointments / bookedAppointments) * 100 : normalizedPercent(attendanceRateSource);
+    const cancellationRate = bookedAppointments ? (missedAppointments / bookedAppointments) * 100 : normalizedPercent(cancellationRateSource);
+    const newPatientRate = treatedPatients ? (newPatients / treatedPatients) * 100 : 0;
+    const patientsPerRoom = row.rooms ? treatedPatients / row.rooms : importedPatientsPerRoom;
+    const hasPatientData = patientRows.some(
+      (patientRow) =>
+        patientRow.siteId === row.site.id &&
+        (Math.abs(importedPeriodValue(patientRow, period)) > 0 || Object.values(patientRow.valuesByMonth).some((value) => Math.abs(value) > 0))
+    );
+    return {
+      ...row,
+      treatedPatients,
+      newPatients,
+      bookedAppointments,
+      attendedAppointments,
+      missedAppointments,
+      attendanceRate,
+      cancellationRate,
+      newPatientRate,
+      patientsPerRoom,
+      hasPatientData
+    };
+  });
 
   const selectedRow = siteRows.find((row) => row.site.id === selectedSite?.id) ?? siteRows[0];
+  const selectedPatientRow = patientSiteRows.find((row) => row.site.id === selectedSite?.id) ?? patientSiteRows[0];
   const numericAverage = (selector: (row: (typeof siteRows)[number]) => number | null) => {
     const values = siteRows.map(selector).filter((value): value is number => value != null && Number.isFinite(value));
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  };
+  const patientAverage = (selector: (row: (typeof patientSiteRows)[number]) => number | null) => {
+    const values = patientSiteRows
+      .filter((row) => row.hasPatientData)
+      .map(selector)
+      .filter((value): value is number => value != null && Number.isFinite(value));
     return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   };
   const indexFor = (value: number | null, average: number | null) => (value != null && average ? (value / average) * 100 : null);
@@ -9627,6 +9673,39 @@ function Analysen({
       suffix: "%"
     }
   ];
+  const patientBenchmarkItems = [
+    {
+      label: "Patienten je Behandlungszimmer",
+      selected: indexFor(selectedPatientRow?.patientsPerRoom ?? null, patientAverage((row) => row.patientsPerRoom)),
+      group: 100,
+      higherIsBetter: true,
+      unavailable: !selectedPatientRow?.hasPatientData || !selectedPatientRow?.rooms
+    },
+    {
+      label: "Neupatientenquote",
+      selected: selectedPatientRow?.newPatientRate ?? null,
+      group: patientAverage((row) => row.newPatientRate) ?? 0,
+      higherIsBetter: true,
+      suffix: "%",
+      unavailable: !selectedPatientRow?.hasPatientData
+    },
+    {
+      label: "Terminwahrnehmungsquote",
+      selected: selectedPatientRow?.attendanceRate ?? null,
+      group: patientAverage((row) => row.attendanceRate) ?? 0,
+      higherIsBetter: true,
+      suffix: "%",
+      unavailable: !selectedPatientRow?.hasPatientData
+    },
+    {
+      label: "Terminausfallquote",
+      selected: selectedPatientRow?.cancellationRate ?? null,
+      group: patientAverage((row) => row.cancellationRate) ?? 0,
+      higherIsBetter: false,
+      suffix: "%",
+      unavailable: !selectedPatientRow?.hasPatientData
+    }
+  ];
   const marginGroup = numericAverage((row) => row.ebitdaMargin) ?? 0;
   const costGroup = {
     materialquote: numericAverage((row) => row.materialquote) ?? 0,
@@ -9645,7 +9724,10 @@ function Analysen({
   const summaryItems = [
     marginGap >= 0 ? "Die EBITDA-Marge liegt über dem Gruppenschnitt." : "Die EBITDA-Marge liegt unter dem Gruppenschnitt.",
     (selectedRow?.gesamtkostenquote ?? 0) <= costGroup.gesamtkostenquote ? "Die Kostenquoten liegen unter dem Gruppendurchschnitt." : "Die Kostenquoten liegen über dem Gruppendurchschnitt.",
-    (benchmarkItems[0].selected ?? 0) >= 100 ? "Der Gesamtumsatz je Zahnarzt liegt über dem Gruppendurchschnitt." : "Der Gesamtumsatz je Zahnarzt liegt unter dem Gruppendurchschnitt."
+    (benchmarkItems[0].selected ?? 0) >= 100 ? "Der Gesamtumsatz je Zahnarzt liegt über dem Gruppendurchschnitt." : "Der Gesamtumsatz je Zahnarzt liegt unter dem Gruppendurchschnitt.",
+    selectedPatientRow?.hasPatientData
+      ? `Die Terminwahrnehmungsquote liegt bei ${pct(selectedPatientRow.attendanceRate)}.`
+      : "Patienten- und Termindaten fehlen für den ausgewählten Standort noch im Import."
   ];
   const hasMissingBasis = benchmarkItems.some((item) => item.unavailable);
   const displaySiteName = viewMode === "Intern" ? selectedSite?.name ?? "Ausgewählter Standort" : "Ausgewählter Standort";
@@ -9727,6 +9809,64 @@ function Analysen({
       comparison: numericAverage((row) => row.receivablesRatio),
       type: "percent" as const,
       basis: "Forderungen / PVS-Umsatz"
+    }
+  ];
+  const patientBasisRows = [
+    {
+      label: "Behandelte Patienten",
+      value: selectedPatientRow?.treatedPatients ?? null,
+      comparison: patientAverage((row) => row.treatedPatients),
+      type: "count" as const,
+      basis: "Summe im Zeitraum"
+    },
+    {
+      label: "Neupatienten",
+      value: selectedPatientRow?.newPatients ?? null,
+      comparison: patientAverage((row) => row.newPatients),
+      type: "count" as const,
+      basis: "Summe im Zeitraum"
+    },
+    {
+      label: "Patienten je Behandlungszimmer",
+      value: selectedPatientRow?.patientsPerRoom ?? null,
+      comparison: patientAverage((row) => row.patientsPerRoom),
+      type: "average" as const,
+      basis: `${selectedPatientRow?.rooms ?? 0} Behandlungszimmer`
+    },
+    {
+      label: "Neupatientenquote",
+      value: selectedPatientRow?.newPatientRate ?? null,
+      comparison: patientAverage((row) => row.newPatientRate),
+      type: "percent" as const,
+      basis: "Neupatienten / behandelte Patienten"
+    },
+    {
+      label: "Gebuchte Termine",
+      value: selectedPatientRow?.bookedAppointments ?? null,
+      comparison: patientAverage((row) => row.bookedAppointments),
+      type: "count" as const,
+      basis: "Alle gebuchten Termine"
+    },
+    {
+      label: "Wahrgenommene Termine",
+      value: selectedPatientRow?.attendedAppointments ?? null,
+      comparison: patientAverage((row) => row.attendedAppointments),
+      type: "count" as const,
+      basis: "Wahrgenommen / durchgeführt"
+    },
+    {
+      label: "Terminwahrnehmungsquote",
+      value: selectedPatientRow?.attendanceRate ?? null,
+      comparison: patientAverage((row) => row.attendanceRate),
+      type: "percent" as const,
+      basis: "Wahrgenommene Termine / gebuchte Termine"
+    },
+    {
+      label: "Terminausfallquote",
+      value: selectedPatientRow?.cancellationRate ?? null,
+      comparison: patientAverage((row) => row.cancellationRate),
+      type: "percent" as const,
+      basis: "Nicht wahrgenommene Termine / gebuchte Termine"
     }
   ];
 
@@ -9979,8 +10119,21 @@ function Analysen({
         period={period}
       />
 
+      <BenchmarkPatientBasisTable
+        rows={patientBasisRows}
+        siteName={viewMode === "Intern" ? selectedSite?.name ?? "Ausgewählter Standort" : "Ausgewählter Standort"}
+        comparison={comparison}
+        period={period}
+      />
+
       <div className="analysis-print-block grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {benchmarkItems.map((item) => (
+          <BenchmarkKpiCard key={item.label} {...item} />
+        ))}
+      </div>
+
+      <div className="analysis-print-block grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {patientBenchmarkItems.map((item) => (
           <BenchmarkKpiCard key={item.label} {...item} />
         ))}
       </div>
@@ -10021,6 +10174,36 @@ function Analysen({
         </BenchmarkPanel>
         <BenchmarkPanel title="Kostenquoten im Standortvergleich (%)">
           <BenchmarkHeatmap rows={siteRows} group={costGroup} viewMode={viewMode} selectedSiteId={selectedSite?.id} />
+        </BenchmarkPanel>
+      </div>
+
+      <div className="analysis-print-page grid min-w-0 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <BenchmarkPanel title={`Patienten- und Termin-Benchmarking | ${period}`} subtitle="Vergleich von Patientenvolumen, Termintreue und Kapazitätsnutzung je Standort.">
+          <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+            <BenchmarkRanking
+              title="Patienten je Behandlungszimmer (Index)"
+              rows={patientSiteRows.map((row) => ({
+                label: viewMode === "Intern" ? row.site.name : row.label,
+                value: Math.round(indexFor(row.patientsPerRoom, patientAverage((item) => item.patientsPerRoom)) ?? 0),
+                selected: row.site.id === selectedSite?.id
+              }))}
+              suffix="%"
+              max={150}
+            />
+            <BenchmarkRanking
+              title="Terminwahrnehmungsquote"
+              rows={patientSiteRows.map((row) => ({
+                label: viewMode === "Intern" ? row.site.name : row.label,
+                value: row.attendanceRate,
+                selected: row.site.id === selectedSite?.id
+              }))}
+              suffix="%"
+              max={100}
+            />
+          </div>
+        </BenchmarkPanel>
+        <BenchmarkPanel title="Patientenquoten im Standortvergleich">
+          <BenchmarkPatientHeatmap rows={patientSiteRows} viewMode={viewMode} selectedSiteId={selectedSite?.id} />
         </BenchmarkPanel>
       </div>
 
@@ -10112,6 +10295,63 @@ function BenchmarkBasisTable({
                 <td className="border border-white/10 p-2 text-slate-300">{row.basis}</td>
                 <td className="border border-white/10 p-2 text-right font-bold text-teal-100">{formatBasisValue(row.own, row.type)}</td>
                 <td className="border border-white/10 p-2 text-right font-semibold text-slate-100">{formatBasisValue(row.comparison, row.type)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function BenchmarkPatientBasisTable({
+  rows,
+  siteName,
+  comparison,
+  period
+}: {
+  rows: { label: string; value: number | null; comparison: number | null; type: "count" | "average" | "percent"; basis: string }[];
+  siteName: string;
+  comparison: string;
+  period: string;
+}) {
+  const formatPatientBasisValue = (value: number | null, type: "count" | "average" | "percent") => {
+    if (value == null || !Number.isFinite(value)) return "n. v.";
+    if (type === "percent") return pct(value);
+    if (type === "average") return value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+    return Math.round(value).toLocaleString("de-DE");
+  };
+
+  return (
+    <div className="analysis-print-block min-w-0 overflow-hidden rounded-xl border border-teal-200/20 bg-teal-400/10 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-white">Patienten- & Terminbasis | {siteName}</h3>
+          <p className="mt-1 text-sm text-slate-300">
+            Absolute Patientendaten und daraus abgeleitete Quoten für {period}. Dadurch ist klar, welche Werte hinter den Patienten-Benchmarks stehen.
+          </p>
+        </div>
+        <div className="rounded-lg border border-teal-200/20 bg-slate-950/35 px-3 py-2 text-xs font-semibold text-teal-100">
+          100 %-Vergleich: {comparison}
+        </div>
+      </div>
+      <div className="mt-4 max-w-full overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+        <table className="w-full min-w-[680px] border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Kennzahl</th>
+              <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Berechnungsbasis</th>
+              <th className="border border-white/10 bg-white/5 p-2 text-right text-slate-200">Eigener Wert</th>
+              <th className="border border-white/10 bg-white/5 p-2 text-right text-slate-200">100 %-Vergleichswert</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label}>
+                <td className="border border-white/10 p-2 font-semibold text-white">{row.label}</td>
+                <td className="border border-white/10 p-2 text-slate-300">{row.basis}</td>
+                <td className="border border-white/10 p-2 text-right font-bold text-teal-100">{formatPatientBasisValue(row.value, row.type)}</td>
+                <td className="border border-white/10 p-2 text-right font-semibold text-slate-100">{formatPatientBasisValue(row.comparison, row.type)}</td>
               </tr>
             ))}
           </tbody>
@@ -10254,6 +10494,95 @@ function BenchmarkHeatmap({
             <td className="border border-white/10 bg-slate-900 p-2 font-bold text-white">Gruppenschnitt</td>
             {columns.map(([key]) => (
               <td key={key} className="border border-white/10 bg-slate-900 p-2 text-right font-bold text-white">{pct(group[key])}</td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BenchmarkPatientHeatmap({
+  rows,
+  viewMode,
+  selectedSiteId
+}: {
+  rows: Array<{
+    site: DashboardSite;
+    label: string;
+    treatedPatients: number;
+    newPatients: number;
+    patientsPerRoom: number;
+    newPatientRate: number;
+    attendanceRate: number;
+    cancellationRate: number;
+    hasPatientData: boolean;
+  }>;
+  viewMode: "Standortleiter" | "Intern";
+  selectedSiteId?: string;
+}) {
+  const activeRows = rows.filter((row) => row.hasPatientData);
+  const average = (selector: (row: (typeof rows)[number]) => number) => {
+    const values = activeRows.map(selector).filter((value) => Number.isFinite(value));
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  };
+  const group = {
+    treatedPatients: average((row) => row.treatedPatients),
+    patientsPerRoom: average((row) => row.patientsPerRoom),
+    newPatientRate: average((row) => row.newPatientRate),
+    attendanceRate: average((row) => row.attendanceRate),
+    cancellationRate: average((row) => row.cancellationRate)
+  };
+  const columns = [
+    ["treatedPatients", "Patienten", "count", true],
+    ["patientsPerRoom", "Pat. / Zimmer", "average", true],
+    ["newPatientRate", "Neupatientenquote", "percent", true],
+    ["attendanceRate", "Wahrnehmungsquote", "percent", true],
+    ["cancellationRate", "Ausfallquote", "percent", false]
+  ] as const;
+  const heat = (value: number, basis: number, higherIsBetter: boolean) => {
+    if (!Number.isFinite(value) || !basis) return "bg-slate-700/70 text-slate-200";
+    const good = higherIsBetter ? value >= basis : value <= basis;
+    const close = Math.abs(value - basis) <= Math.max(1, basis * 0.08);
+    if (good) return "bg-emerald-500/60 text-white";
+    if (close) return "bg-amber-400/70 text-slate-950";
+    return "bg-red-500/70 text-white";
+  };
+  const formatHeatValue = (value: number, type: "count" | "average" | "percent") => {
+    if (!Number.isFinite(value)) return "n. v.";
+    if (type === "percent") return pct(value);
+    if (type === "average") return value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+    return Math.round(value).toLocaleString("de-DE");
+  };
+
+  return (
+    <div className="max-w-full overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+      <table className="w-full min-w-[620px] border-collapse text-[11px] sm:text-xs">
+        <thead>
+          <tr>
+            <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Standort</th>
+            {columns.map(([, label]) => (
+              <th key={label} className="border border-white/10 bg-white/5 p-2 text-right text-slate-200">{label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.site.id} className={row.site.id === selectedSiteId ? "outline outline-1 outline-cyan-400/70" : ""}>
+              <td className="border border-white/10 p-2 font-semibold text-white">{viewMode === "Intern" ? row.site.name : row.label}</td>
+              {columns.map(([key, , type, higherIsBetter]) => (
+                <td key={key} className={cn("border border-white/10 p-2 text-right font-semibold", heat(row[key], group[key], higherIsBetter))}>
+                  {row.hasPatientData ? formatHeatValue(row[key], type) : "n. v."}
+                </td>
+              ))}
+            </tr>
+          ))}
+          <tr>
+            <td className="border border-white/10 bg-slate-900 p-2 font-bold text-white">Gruppenschnitt</td>
+            {columns.map(([key, , type]) => (
+              <td key={key} className="border border-white/10 bg-slate-900 p-2 text-right font-bold text-white">
+                {formatHeatValue(group[key], type)}
+              </td>
             ))}
           </tr>
         </tbody>
