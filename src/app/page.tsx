@@ -13818,18 +13818,18 @@ function AdminKpiRules() {
                 <tr key={rule.key}>
                   <td className="border-b border-r border-border bg-white p-3 font-bold">{rule.label}</td>
                   <td className="border-b border-r border-border bg-white p-3 text-emerald-700">
-                    <label className="block text-xs font-bold uppercase text-muted-foreground">{greenLabel}</label>
-                    <Input className="mt-1 min-w-28" type="number" step={rule.unit === "multiple" ? 0.1 : 1} value={String(rule.green)} onChange={(event) => updateRule(key, "green", event.target.value)} />
-                    <p className="mt-1 text-xs font-semibold">{kpiRuleText(rule, "green")}</p>
+                    <label className="block text-xs font-extrabold uppercase text-emerald-100">{greenLabel}</label>
+                    <Input className="kpi-rule-input mt-1 min-w-28" type="number" step={rule.unit === "multiple" ? 0.1 : 1} value={String(rule.green)} onChange={(event) => updateRule(key, "green", event.target.value)} />
+                    <p className="mt-1 text-xs font-extrabold text-emerald-100">{kpiRuleText(rule, "green")}</p>
                   </td>
                   <td className="border-b border-r border-border bg-white p-3 text-amber-700">
-                    <label className="block text-xs font-bold uppercase text-muted-foreground">{yellowLabel}</label>
-                    <Input className="mt-1 min-w-28" type="number" step={rule.unit === "multiple" ? 0.1 : 1} value={String(rule.yellow)} onChange={(event) => updateRule(key, "yellow", event.target.value)} />
-                    <p className="mt-1 text-xs font-semibold">{kpiRuleText(rule, "yellow")}</p>
+                    <label className="block text-xs font-extrabold uppercase text-amber-100">{yellowLabel}</label>
+                    <Input className="kpi-rule-input mt-1 min-w-28" type="number" step={rule.unit === "multiple" ? 0.1 : 1} value={String(rule.yellow)} onChange={(event) => updateRule(key, "yellow", event.target.value)} />
+                    <p className="mt-1 text-xs font-extrabold text-amber-100">{kpiRuleText(rule, "yellow")}</p>
                   </td>
-                  <td className="border-b border-r border-border bg-white p-3 text-red-700">{kpiRuleText(rule, "red")}</td>
+                  <td className="border-b border-r border-border bg-white p-3 text-sm font-extrabold text-red-100">{kpiRuleText(rule, "red")}</td>
                   <td className="border-b border-r border-border bg-white p-3">
-                    <Input className="min-w-36" value={rule.owner} onChange={(event) => updateRule(key, "owner", event.target.value)} />
+                    <Input className="kpi-rule-input min-w-36" value={rule.owner} onChange={(event) => updateRule(key, "owner", event.target.value)} />
                   </td>
                 </tr>
                 );
