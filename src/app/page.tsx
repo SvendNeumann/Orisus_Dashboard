@@ -1151,8 +1151,9 @@ async function accessUsersApi<T>(method = "GET", body?: unknown, retriedAfterRef
 async function loadConfirmedImportData() {
   const supabaseDashboard = await loadSupabaseConfirmedImport().catch(() => null);
   if (supabaseDashboard) {
-    await saveLocalConfirmedImport(supabaseDashboard.report, supabaseDashboard);
-    return supabaseDashboard;
+    const repairedImport = repairImportedCashflowData(supabaseDashboard);
+    await saveLocalConfirmedImport(repairedImport.report, repairedImport);
+    return repairedImport;
   }
   const persistentDashboard = await readPersistentValue<ImportedDashboardData>(importPersistenceDashboardKey);
   const localDashboard = !persistentDashboard ? window.localStorage.getItem(importDashboardStorageKey) : null;
@@ -7810,18 +7811,47 @@ function importedBwaMetricValue(importedRows: ImportedBwaRow[] | undefined, site
   return importedPeriodValue(importedRows?.find((row) => row.siteId === siteId && row.metricKey === metricKey), period);
 }
 
+function importedBwaSelectionValue(
+  importedRows: ImportedBwaRow[],
+  siteIds: string[],
+  metricKey: string,
+  selection = { year: null as number | null, months: null as number[] | null }
+) {
+  return importedRows
+    .filter((row) => siteIds.includes(row.siteId) && row.metricKey === metricKey)
+    .reduce((sum, row) => {
+      if (selection.year && selection.months?.length) {
+        return sum + selection.months.reduce((monthSum, month) => monthSum + (row.valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
+      }
+      if (selection.year) return sum + (row.valuesByYear[String(selection.year)] ?? 0);
+      return sum + row.contractValue;
+    }, 0);
+}
+
+function importedPracticeCostsUntilEbitda(
+  importedRows: ImportedBwaRow[],
+  siteIds: string[],
+  selection = { year: null as number | null, months: null as number[] | null }
+) {
+  return (
+    importedBwaSelectionValue(importedRows, siteIds, "summe_umsatz", selection) -
+    importedBwaSelectionValue(importedRows, siteIds, "ebitda", selection)
+  );
+}
+
 function repairImportedCashflowData(importedData: ImportedDashboardData): ImportedDashboardData {
   if (!importedData.bwaRows?.length) return importedData;
   const rowsBySiteMetric = new Map(importedData.bwaRows.map((row) => [`${row.siteId}:${row.metricKey}`, row]));
   const rowFor = (siteId: string, metricKey: string) => rowsBySiteMetric.get(`${siteId}:${metricKey}`);
+  const valueFromMetric = (siteId: string, metricKey: string, periodKey?: string) => {
+    const row = rowFor(siteId, metricKey);
+    if (!row) return 0;
+    if (!periodKey) return row.contractValue;
+    if (periodKey.includes("-")) return row.valuesByMonth[periodKey] ?? 0;
+    return row.valuesByYear[periodKey] ?? 0;
+  };
   const cashflowValue = (siteId: string, periodKey?: string) => {
-    const valueFrom = (metricKey: string) => {
-      const row = rowFor(siteId, metricKey);
-      if (!row) return 0;
-      if (!periodKey) return row.contractValue;
-      if (periodKey.includes("-")) return row.valuesByMonth[periodKey] ?? 0;
-      return row.valuesByYear[periodKey] ?? 0;
-    };
+    const valueFrom = (metricKey: string) => valueFromMetric(siteId, metricKey, periodKey);
     const abschreibungen = valueFrom("cf_abschreibungen") || valueFrom("abschreibungen");
     return (
       valueFrom("vorlaeufiges_ergebnis") +
@@ -7832,16 +7862,19 @@ function repairImportedCashflowData(importedData: ImportedDashboardData): Import
       Math.abs(valueFrom("sonstige_rueckstellungen_bestandsminderungen"))
     );
   };
+  const practiceCostsValue = (siteId: string, periodKey?: string) =>
+    valueFromMetric(siteId, "summe_umsatz", periodKey) - valueFromMetric(siteId, "ebitda", periodKey);
 
   const bwaRows = importedData.bwaRows.map((row) => {
-    if (row.metricKey !== "cashflow_gesamt") return row;
-    const valuesByYear = Object.fromEntries(Object.keys(row.valuesByYear).map((periodKey) => [periodKey, cashflowValue(row.siteId, periodKey)]));
-    const valuesByMonth = Object.fromEntries(Object.keys(row.valuesByMonth).map((periodKey) => [periodKey, cashflowValue(row.siteId, periodKey)]));
+    if (row.metricKey !== "cashflow_gesamt" && row.metricKey !== "operative_prozesskosten_bis_ebitda") return row;
+    const repairedValue = row.metricKey === "cashflow_gesamt" ? cashflowValue : practiceCostsValue;
+    const valuesByYear = Object.fromEntries(Object.keys(row.valuesByYear).map((periodKey) => [periodKey, repairedValue(row.siteId, periodKey)]));
+    const valuesByMonth = Object.fromEntries(Object.keys(row.valuesByMonth).map((periodKey) => [periodKey, repairedValue(row.siteId, periodKey)]));
     return {
       ...row,
       valuesByYear,
       valuesByMonth,
-      contractValue: cashflowValue(row.siteId)
+      contractValue: repairedValue(row.siteId)
     };
   });
 
@@ -7968,7 +8001,7 @@ function filteredSiteForPeriod(site: DashboardSite, importedData: ImportedDashbo
 
 function buildImportedBwaLines(importedRows: ImportedBwaRow[], period: string, siteId?: string): BwaLine[] {
   const selection = selectedBwaPeriod(period);
-  const siteIds = siteId ? [siteId] : Array.from(new Set(importedRows.map((row) => row.siteId)));
+  const siteIds = siteId ? [siteId] : Array.from(new Set(importedRows.map((row) => row.siteId))).filter((id) => id !== "konzern");
   return bwaMetricDefinitions.map((definition) => {
     const sourceRows = importedRows.filter((row) => row.metricKey === definition.key && (!siteId || row.siteId === siteId));
     const isPercent = definitionFlag(definition, "percent");
@@ -7976,14 +8009,17 @@ function buildImportedBwaLines(importedRows: ImportedBwaRow[], period: string, s
     const quoteActual = isPercent
       ? calculateImportedQuote(importedRows, siteIds, definition.key, selection)
       : 0;
-    const actual = sourceRows.reduce((sum, row) => {
-      if (definition.key.startsWith("section_")) return 0;
-      if (selection.year && selection.months?.length) {
-        return sum + selection.months.reduce((monthSum, month) => monthSum + (row.valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
-      }
-      if (selection.year) return sum + (row.valuesByYear[String(selection.year)] ?? 0);
-      return sum + (isPercent ? 0 : row.contractValue);
-    }, 0);
+    const actual =
+      definition.key === "operative_prozesskosten_bis_ebitda"
+        ? importedPracticeCostsUntilEbitda(importedRows, siteIds, selection)
+        : sourceRows.reduce((sum, row) => {
+            if (definition.key.startsWith("section_")) return 0;
+            if (selection.year && selection.months?.length) {
+              return sum + selection.months.reduce((monthSum, month) => monthSum + (row.valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
+            }
+            if (selection.year) return sum + (row.valuesByYear[String(selection.year)] ?? 0);
+            return sum + (isPercent ? 0 : row.contractValue);
+          }, 0);
     return {
       metricKey: definition.key,
       label: definition.label,
