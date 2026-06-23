@@ -10345,13 +10345,6 @@ function Analysen({
       group: numericAverage((row) => row.ebitdaMargin) ?? 0,
       higherIsBetter: true,
       suffix: "%"
-    },
-    {
-      label: "Forderungsquote",
-      selected: selectedRow?.receivablesRatio ?? null,
-      group: numericAverage((row) => row.receivablesRatio) ?? 0,
-      higherIsBetter: false,
-      suffix: "%"
     }
   ];
   const selectedPatientsPerRoomIndex = indexFor(selectedPatientRow?.patientsPerRoom ?? null, patientAverage((row) => row.patientsPerRoom));
@@ -10610,6 +10603,64 @@ function Analysen({
   };
 
   const benchmarkingReportStyles = `<style>
+    .benchmark-document {
+      display: block;
+      gap: 0;
+      background: white;
+    }
+    .benchmark-document .hero {
+      border-radius: 12px;
+      padding: 9px 13px;
+      margin-bottom: 5px;
+    }
+    .benchmark-document .eyebrow { font-size: 7px; }
+    .benchmark-document h1 { margin: 3px 0 2px; font-size: 17px; }
+    .benchmark-document .hero p { font-size: 8px; line-height: 1.25; }
+    .benchmark-document .meta-line { margin-top: 5px; gap: 4px; font-size: 6.8px; }
+    .benchmark-document .pill { padding: 2px 5px; }
+    .benchmark-document .report-footer { display: none; }
+    .benchmark-report-page {
+      height: 196mm;
+      overflow: hidden;
+      display: grid;
+      gap: 5px;
+      align-content: start;
+      break-after: page;
+      page-break-after: always;
+    }
+    .benchmark-report-page:last-of-type {
+      break-after: auto;
+      page-break-after: auto;
+    }
+    .benchmark-document .kpi-grid {
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+    }
+    .benchmark-document .kpi-card {
+      min-height: 47px;
+      border-radius: 8px;
+      padding: 6px 7px;
+      box-shadow: none;
+    }
+    .benchmark-document .kpi-label { font-size: 5.8px; line-height: 1.1; }
+    .benchmark-document .kpi-value { margin-top: 3px; font-size: 11px; }
+    .benchmark-document .kpi-detail { margin-top: 3px; font-size: 5.8px; line-height: 1.15; }
+    .benchmark-document .section-head { padding: 5px 7px; }
+    .benchmark-document .section-head h2 { font-size: 8.2px; }
+    .benchmark-document .section-head p { margin-top: 2px; font-size: 6.4px; line-height: 1.2; }
+    .benchmark-document .report-section {
+      border-radius: 9px;
+      box-shadow: none;
+    }
+    .benchmark-document .report-table.compact,
+    .benchmark-document .report-table {
+      font-size: 6.1px;
+      line-height: 1.08;
+    }
+    .benchmark-document .report-table th,
+    .benchmark-document .report-table td {
+      padding: 2px 2px;
+    }
     .benchmark-note {
       border-radius: 14px;
       padding: 12px 14px;
@@ -10620,32 +10671,48 @@ function Analysen({
       line-height: 1.45;
       break-inside: avoid;
     }
+    .benchmark-document .benchmark-note {
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 7.2px;
+      line-height: 1.25;
+    }
     .benchmark-note strong { color: #0a6f79; }
     .benchmark-two {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      gap: 6px;
+    }
+    .benchmark-report-wide {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 6px;
+    }
+    .benchmark-report-triple {
+      display: grid;
+      grid-template-columns: 0.8fr 1.05fr 1.15fr;
+      gap: 6px;
     }
     .benchmark-insights {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      padding: 12px;
+      grid-template-columns: 1fr;
+      gap: 4px;
+      padding: 6px;
     }
     .benchmark-insight {
-      border-radius: 12px;
+      border-radius: 7px;
       border: 1px solid #d4e3e6;
       background: #f7fbfb;
-      padding: 12px;
+      padding: 5px 6px;
       color: #142536;
-      font-size: 11px;
-      line-height: 1.4;
-      min-height: 80px;
+      font-size: 6.4px;
+      line-height: 1.25;
+      min-height: auto;
     }
     .benchmark-insight strong {
-      display: block;
-      margin-bottom: 6px;
-      font-size: 12px;
+      display: inline;
+      margin-right: 4px;
+      font-size: 6.7px;
       color: #0a6f79;
     }
     .heatmap-table {
@@ -10653,12 +10720,19 @@ function Analysen({
       border-collapse: collapse;
       font-size: 9.2px;
     }
+    .benchmark-document .heatmap-table {
+      font-size: 6.1px;
+      line-height: 1.08;
+    }
     .heatmap-table th {
       padding: 7px 6px;
       color: #ffffff;
       text-align: right;
       background: #075b69;
       border: 1px solid rgba(255,255,255,.25);
+    }
+    .benchmark-document .heatmap-table th {
+      padding: 3px 3px;
     }
     .heatmap-table th:first-child,
     .heatmap-table td:first-child {
@@ -10672,11 +10746,17 @@ function Analysen({
       font-weight: 750;
       color: #102435;
     }
+    .benchmark-document .heatmap-table td {
+      padding: 3px 3px;
+    }
+    .benchmark-document .bar-list { padding: 6px 7px; gap: 5px; }
+    .benchmark-document .bar-row { gap: 3px; }
+    .benchmark-document .bar-meta { font-size: 6.4px; }
+    .benchmark-document .bar-track { height: 5px; }
     .heat-green { background: #bfeadf; }
     .heat-yellow { background: #fff0b8; }
     .heat-red { background: #f6b2ad; }
     .heat-neutral { background: #eef4f6; color: #607080; }
-    .benchmark-page-break { break-before: page; page-break-before: always; }
     @media print {
       .benchmark-note,
       .heatmap-table td,
@@ -10808,40 +10888,48 @@ function Analysen({
       driver.value > 0 ? "über Gruppenschnitt" : "unter Gruppenschnitt"
     ]);
 
+    const rankingSections = `<div class="benchmark-two">
+      ${reportSection("Ranking Gesamtumsatz je Zahnarzt-FTE", reportBarList(pvsRankingRows.map((row) => ({
+        label: row.label,
+        value: row.pvsPerDentist ?? 0,
+        max: pvsRankingMax,
+        tone: row.site.id === selectedSite?.id ? "green" : "blue",
+        suffix: eur(row.pvsPerDentist ?? 0)
+      }))), `Top-Standorte nach normalisiertem PVS-Gesamtumsatz.`)}
+      ${reportSection("Ranking EBITDA-Marge", reportBarList(marginRankingRows.map((row) => ({
+        label: row.label,
+        value: row.ebitdaMargin ?? 0,
+        max: marginRankingMax,
+        tone: row.site.id === selectedSite?.id ? "green" : "blue",
+        suffix: pct(row.ebitdaMargin ?? 0)
+      }))), `EBITDA-Marge im Standortvergleich.`)}
+    </div>`;
+
     const body = `${benchmarkingReportStyles}
-      ${reportKpiGrid([...financialCards, ...patientCards])}
-      <div class="benchmark-note">
-        <strong>Leselogik:</strong> 100 % entspricht dem Gruppendurchschnitt im gewählten Zeitraum. Werte über 100 % liegen über dem Vergleich, Werte unter 100 % darunter. Bei Kosten- und Forderungsquoten ist niedriger besser, bei Leistungs-, EBITDA- und Patientenkennzahlen höher besser.
+      <div class="benchmark-report-page">
+        ${reportKpiGrid([...financialCards, ...patientCards])}
+        <div class="benchmark-note">
+          <strong>Leselogik:</strong> 100 % entspricht dem Gruppendurchschnitt im gewählten Zeitraum. Werte über 100 % liegen über dem Vergleich, Werte unter 100 % darunter. Bei Kostenquoten ist niedriger besser, bei Leistungs-, EBITDA- und Patientenkennzahlen höher besser.
+        </div>
+        <div class="benchmark-report-wide">
+          ${rankingSections}
+          ${reportSection("Standortleiter-Insights", `<div class="benchmark-insights">${summaryItems.map((item) => `<div class="benchmark-insight"><strong>Insight</strong>${reportEscape(item)}</div>`).join("")}</div>`, "Automatisch aus Benchmarking-Abweichungen und Patienten-/Termindaten abgeleitet.")}
+        </div>
+        ${reportSection("Kostenquoten im Standortvergleich", costHeatmap, `Ampelfarben gegen Gruppendurchschnitt in ${period}; bei Kostenquoten ist niedriger besser.`)}
       </div>
-      <div class="benchmark-page-break"></div>
-      <div class="benchmark-two">
-        ${reportSection(`Eigene Rechenbasis | ${displaySiteName}`, basisTable, `Absolute Werte für ${period}, aus denen die Benchmarking-Indizes berechnet werden.`)}
-        ${reportSection("Patienten- und Terminbasis", patientBasisTable, `Patientenkennzahlen für ${period}; fehlende Daten werden als n. v. ausgewiesen.`)}
+      <div class="benchmark-report-page">
+        <div class="benchmark-report-triple">
+          ${reportSection("Patienten- und Terminindikatoren", patientHeatmap, `Patientenbasis, Neupatienten und Terminqualität für ${period}.`)}
+          ${reportSection("EBITDA-Margen-Treiber", reportTable(["Treiber", "Abweichung", "Einordnung"], driverRows, { compact: true }), marginGap >= 0 ? "Die Marge liegt über dem Gruppendurchschnitt." : "Die Marge liegt unter dem Gruppendurchschnitt.")}
+          ${reportSection("Rechenbasis kompakt", reportTable(["Kennzahl", "Eigener Wert", "Gruppenschnitt"], [
+            ...basisRows.slice(0, 6).map((row) => [row.label, formatBenchmarkBasisValue(row.own, row.type), formatBenchmarkBasisValue(row.comparison, row.type)]),
+            ...patientBasisRows.slice(0, 4).map((row) => [row.label, formatPatientBasisValue(row.value, row.type), formatPatientBasisValue(row.comparison, row.type)])
+          ], { compact: true }), "Die vollständige Herleitung bleibt in der App über die Info-Buttons verfügbar.")}
+        </div>
+        <div class="benchmark-note">
+          <strong>Ausgabe:</strong> Der Report ist auf maximal zwei A4-Querformat-Seiten verdichtet. Vergleichsstandorte sind anonymisiert, der ausgewählte Standort bleibt markiert und im Klartext sichtbar.
+        </div>
       </div>
-      <div class="benchmark-two">
-        ${reportSection("Ranking Gesamtumsatz je Zahnarzt-FTE", reportBarList(pvsRankingRows.map((row) => ({
-          label: row.label,
-          value: row.pvsPerDentist ?? 0,
-          max: pvsRankingMax,
-          tone: row.site.id === selectedSite?.id ? "green" : "blue",
-          suffix: eur(row.pvsPerDentist ?? 0)
-        }))), `Top-Standorte nach normalisiertem PVS-Gesamtumsatz.`)}
-        ${reportSection("Ranking EBITDA-Marge", reportBarList(marginRankingRows.map((row) => ({
-          label: row.label,
-          value: row.ebitdaMargin ?? 0,
-          max: marginRankingMax,
-          tone: row.site.id === selectedSite?.id ? "green" : "blue",
-          suffix: pct(row.ebitdaMargin ?? 0)
-        }))), `EBITDA-Marge im Standortvergleich.`)}
-      </div>
-      <div class="benchmark-page-break"></div>
-      ${reportSection("Kostenquoten im Standortvergleich", costHeatmap, `Ampelfarben gegen Gruppendurchschnitt in ${period}; bei Kostenquoten ist niedriger besser.`)}
-      <div class="benchmark-two">
-        ${reportSection("EBITDA-Margen-Treiber", reportTable(["Treiber", "Abweichung", "Einordnung"], driverRows, { compact: true }), marginGap >= 0 ? "Die Marge liegt über dem Gruppendurchschnitt." : "Die Marge liegt unter dem Gruppendurchschnitt.")}
-        ${reportSection("Management-Hinweise", `<div class="benchmark-insights">${summaryItems.map((item) => `<div class="benchmark-insight"><strong>Insight</strong>${reportEscape(item)}</div>`).join("")}</div>`, "Automatisch aus Benchmarking-Abweichungen und Patienten-/Termindaten abgeleitet.")}
-      </div>
-      <div class="benchmark-page-break"></div>
-      ${reportSection("Patienten- und Terminindikatoren", patientHeatmap, `Vergleich von Patientenbasis, Neupatienten und Terminqualität für ${period}.`)}
     `;
 
     openPrintableReport(
@@ -10851,6 +10939,7 @@ function Analysen({
         subtitle: `Zeitraum: ${period} | Vergleich: ${comparison} | Ansicht: ${viewMode}. Farbig aufbereiteter Report mit KPI-Übersicht, Rechenbasis, Rankings, Kosten-Heatmap, Patientenindikatoren und Handlungshinweisen.`,
         orientation: "landscape",
         body,
+        documentClass: "benchmark-document",
         footerNote: "Benchmarking-Report | Vertraulich | Internal Use Only"
       })
     );
@@ -13595,7 +13684,8 @@ function buildReportDocument({
   documentClass?: string;
 }) {
   const isPmrDocument = documentClass.includes("pmr-document");
-  const pageMargin = isPmrDocument ? "5mm" : "11mm";
+  const isBenchmarkDocument = documentClass.includes("benchmark-document");
+  const pageMargin = isPmrDocument ? "5mm" : isBenchmarkDocument ? "7mm" : "11mm";
   return `<!doctype html>
   <html lang="de">
     <head>
