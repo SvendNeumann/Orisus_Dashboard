@@ -68,6 +68,25 @@ type ImportedBehandlerDetailRow = {
   eigenlaborByMonth: Record<string, number>;
   totalByMonth: Record<string, number>;
 };
+type PatientMetricKey =
+  | "treatedPatients"
+  | "newPatients"
+  | "bookedAppointments"
+  | "attendedAppointments"
+  | "missedAppointments"
+  | "attendanceRate"
+  | "cancellationRate"
+  | "patientsPerRoom";
+type ImportedPatientMetricRow = {
+  siteId: string;
+  siteName: string;
+  metricKey: PatientMetricKey;
+  label: string;
+  unit: "count" | "percent" | "average";
+  valuesByYear: Record<string, number>;
+  valuesByMonth: Record<string, number>;
+  contractValue: number;
+};
 
 type Page =
   | "cockpit"
@@ -88,7 +107,8 @@ type Page =
   | "personal-krankheit"
   | "personal-mitarbeiter"
   | "personal-massnahmen"
-  | "personal-upload";
+  | "personal-upload"
+  | "patienten-auswertungen";
 
 type AuthStep = "welcome" | "forgot" | "set-password" | "app";
 type UserRole = "admin" | "info" | "praxismanagement";
@@ -288,6 +308,7 @@ type ImportedDashboardData = {
   behandlerTotalRows?: ImportedPeriodValueRow[];
   behandlerDetailRows?: ImportedBehandlerDetailRow[];
   bankMovementRows?: ImportedBankMovementRow[];
+  patientRows?: ImportedPatientMetricRow[];
   report: ImportReport;
 };
 
@@ -1238,6 +1259,11 @@ const navSections = [
     ]
   },
   {
+    id: "patients",
+    label: "Patienten",
+    items: [{ id: "patienten-auswertungen", label: "Auswertungen", icon: Stethoscope }]
+  },
+  {
     id: "personal",
     label: "Personal",
     items: [
@@ -1285,7 +1311,8 @@ const appPageIds: Page[] = [
   "personal-krankheit",
   "personal-mitarbeiter",
   "personal-massnahmen",
-  "personal-upload"
+  "personal-upload",
+  "patienten-auswertungen"
 ];
 
 const praxisManagementPages: Page[] = ["personal-krankheit", "personal-mitarbeiter", "personal-massnahmen"];
@@ -2809,6 +2836,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(behandlerDetailRows, report),
     behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
     behandlerDetailRows,
+    patientRows: buildImportedPatientRows(rows),
     bankMovementRows: buildImportedBankMovementRows(workbook, rows, latestYear, report),
     report
   };
@@ -3275,6 +3303,7 @@ export default function HomePage() {
           )}
           {importedData && page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} monthlyData={dashboardMonthly} />}
           {importedData && page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} personalData={personalData} />}
+          {importedData && page === "patienten-auswertungen" && <PatientenAuswertungen sites={dashboardSites} importedData={importedData} />}
           {importedData && page === "bwa" && <Bwa importedData={importedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
           {importedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "darlehen" && <Darlehen sites={dashboardSites} importedData={importedData} />}
@@ -6214,6 +6243,121 @@ function buildImportedBehandlerHonorarRows(detailRows: ImportedBehandlerDetailRo
   });
 }
 
+const patientMetricDefinitions: Array<{
+  key: PatientMetricKey;
+  label: string;
+  unit: ImportedPatientMetricRow["unit"];
+  aggregate: "sum" | "average";
+}> = [
+  { key: "treatedPatients", label: "Behandelte Patienten", unit: "count", aggregate: "sum" },
+  { key: "newPatients", label: "Neupatienten", unit: "count", aggregate: "sum" },
+  { key: "bookedAppointments", label: "Gebuchte Termine", unit: "count", aggregate: "sum" },
+  { key: "attendedAppointments", label: "Wahrgenommene Termine", unit: "count", aggregate: "sum" },
+  { key: "missedAppointments", label: "Nicht wahrgenommene Termine", unit: "count", aggregate: "sum" },
+  { key: "attendanceRate", label: "Wahrnehmungsquote", unit: "percent", aggregate: "average" },
+  { key: "cancellationRate", label: "Absagequote", unit: "percent", aggregate: "average" },
+  { key: "patientsPerRoom", label: "Ø Patienten je Zimmer/Monat", unit: "average", aggregate: "average" }
+];
+
+function patientMetricDefinitionForRow(row: Record<string, unknown>) {
+  const metric = rowMetric(row);
+  const category = rowCategory(row);
+  const domain = rowDomain(row);
+  const isPatientContext =
+    category.includes("patienten") ||
+    category.includes("kapazitat") ||
+    category.includes("terminmanagement") ||
+    domain.includes("operativ");
+  if (!isPatientContext) return null;
+  if (metric === "behandelte_patienten_im_monat") return patientMetricDefinitions.find((definition) => definition.key === "treatedPatients") ?? null;
+  if (metric === "neupatienten" || metric === "neupatieten") return patientMetricDefinitions.find((definition) => definition.key === "newPatients") ?? null;
+  if (metric === "alle_termine_gebucht") return patientMetricDefinitions.find((definition) => definition.key === "bookedAppointments") ?? null;
+  if (metric === "davon_nicht_wahrgenommen" || metric === "minus_davon_nicht_wahrgenommen") {
+    return patientMetricDefinitions.find((definition) => definition.key === "missedAppointments") ?? null;
+  }
+  if (metric === "davon_wahrgenommen" || metric === "minus_davon_wahrgenommen") {
+    return patientMetricDefinitions.find((definition) => definition.key === "attendedAppointments") ?? null;
+  }
+  if (metric === "quote_wahrgenommen") return patientMetricDefinitions.find((definition) => definition.key === "attendanceRate") ?? null;
+  if (metric === "quote_abgesagt") return patientMetricDefinitions.find((definition) => definition.key === "cancellationRate") ?? null;
+  if (metric.includes("behandelte_patienten_pro_zimmer")) return patientMetricDefinitions.find((definition) => definition.key === "patientsPerRoom") ?? null;
+  return null;
+}
+
+function buildImportedPatientRows(rows: Record<string, unknown>[]): ImportedPatientMetricRow[] {
+  const grouped = new Map<
+    string,
+    {
+      siteId: string;
+      siteName: string;
+      definition: (typeof patientMetricDefinitions)[number];
+      yearSum: Record<string, number>;
+      yearCount: Record<string, number>;
+      monthSum: Record<string, number>;
+      monthCount: Record<string, number>;
+      contractSum: number;
+      contractCount: number;
+    }
+  >();
+
+  rows.forEach((row) => {
+    const definition = patientMetricDefinitionForRow(row);
+    if (!definition) return;
+    const siteName = asText(row.Standortname);
+    const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
+    const year = rowYear(row);
+    const month = rowMonth(row);
+    const value = asNumber(row.Wert);
+    if (!siteName || value == null || !year || !month || year < 1900 || month < 1 || month > 12) return;
+    if (!isOnOrAfterStart(row, fallback.start)) return;
+
+    const siteId = siteIdForName(siteName);
+    const key = `${siteId}:${definition.key}`;
+    const entry =
+      grouped.get(key) ??
+      {
+        siteId,
+        siteName,
+        definition,
+        yearSum: {},
+        yearCount: {},
+        monthSum: {},
+        monthCount: {},
+        contractSum: 0,
+        contractCount: 0
+      };
+    const yearKey = String(year);
+    const monthKey = `${year}-${month}`;
+    entry.yearSum[yearKey] = (entry.yearSum[yearKey] ?? 0) + value;
+    entry.yearCount[yearKey] = (entry.yearCount[yearKey] ?? 0) + 1;
+    entry.monthSum[monthKey] = (entry.monthSum[monthKey] ?? 0) + value;
+    entry.monthCount[monthKey] = (entry.monthCount[monthKey] ?? 0) + 1;
+    entry.contractSum += value;
+    entry.contractCount += 1;
+    grouped.set(key, entry);
+  });
+
+  return [...grouped.values()]
+    .map((entry) => {
+      const aggregateValue = (sum: number, count: number) => (entry.definition.aggregate === "average" && count ? sum / count : sum);
+      return {
+        siteId: entry.siteId,
+        siteName: entry.siteName,
+        metricKey: entry.definition.key,
+        label: entry.definition.label,
+        unit: entry.definition.unit,
+        valuesByYear: Object.fromEntries(
+          Object.entries(entry.yearSum).map(([year, value]) => [year, aggregateValue(value, entry.yearCount[year] ?? 0)])
+        ),
+        valuesByMonth: Object.fromEntries(
+          Object.entries(entry.monthSum).map(([month, value]) => [month, aggregateValue(value, entry.monthCount[month] ?? 0)])
+        ),
+        contractValue: aggregateValue(entry.contractSum, entry.contractCount)
+      } satisfies ImportedPatientMetricRow;
+    })
+    .sort((a, b) => a.siteName.localeCompare(b.siteName, "de") || a.label.localeCompare(b.label, "de"));
+}
+
 function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], exportRows: Record<string, unknown>[], report: ImportReport): ImportedBehandlerDetailRow[] {
   const siteByName = new Map(standorte.map((site) => [site.name.toLowerCase(), site]));
   const grouped = new Map<string, ImportedBehandlerDetailRow>();
@@ -7979,6 +8123,254 @@ function TableCell({
     >
       {children}
     </td>
+  );
+}
+
+function patientMetricRow(rows: ImportedPatientMetricRow[] | undefined, siteId: string, metricKey: PatientMetricKey) {
+  return rows?.find((row) => row.siteId === siteId && row.metricKey === metricKey);
+}
+
+function patientMetricPeriodValue(rows: ImportedPatientMetricRow[] | undefined, siteId: string, metricKey: PatientMetricKey, period: string) {
+  return importedPeriodValue(patientMetricRow(rows, siteId, metricKey), period);
+}
+
+function formatPatientValue(value: number, unit: ImportedPatientMetricRow["unit"]) {
+  if (!Number.isFinite(value)) return "–";
+  if (unit === "percent") {
+    const percentValue = Math.abs(value) <= 1.5 ? value * 100 : value;
+    return `${percentValue.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
+  }
+  if (unit === "average") return value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+  return Math.round(value).toLocaleString("de-DE");
+}
+
+function PatientKpiCard({
+  label,
+  value,
+  subline,
+  icon: Icon,
+  tone = "green"
+}: {
+  label: string;
+  value: string;
+  subline: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone?: Status;
+}) {
+  return (
+    <Card className="flex min-h-[10rem] flex-col items-center justify-center p-5 text-center">
+      <div className="flex h-11 w-11 items-center justify-center rounded-md table-total text-primary">
+        <Icon className="h-5 w-5" />
+      </div>
+      <p className="mt-4 text-sm font-semibold text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-bold tracking-tight">{value}</p>
+      <div
+        className={cn(
+          "mt-3 flex items-center justify-center gap-1 text-sm font-semibold",
+          tone === "red" ? "text-red-700" : tone === "yellow" ? "text-amber-700" : "text-emerald-700"
+        )}
+      >
+        <ArrowUpRight className="h-4 w-4" />
+        <span>{subline}</span>
+      </div>
+    </Card>
+  );
+}
+
+function PatientenAuswertungen({ importedData, sites = standorte }: { importedData: ImportedDashboardData; sites?: DashboardSite[] }) {
+  const patientRows = importedData.patientRows ?? [];
+  const availablePeriods = periodOptionsFromImportedRows(patientRows);
+  const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
+
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) {
+      setPeriod(defaultPeriodFromOptions(availablePeriods));
+    }
+  }, [availablePeriods, period]);
+
+  const sortedSites = sortSitesByContractStart(sites);
+  const selected = selectedBwaPeriod(period);
+  const yearForMonths =
+    selected.year ??
+    Math.max(
+      ...patientRows.flatMap((row) => Object.keys(row.valuesByMonth).map((key) => Number(key.split("-")[0]))).filter((year) => Number.isFinite(year)),
+      new Date().getFullYear()
+    );
+  const visibleMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+    patientRows.some((row) => Math.abs(row.valuesByMonth[`${yearForMonths}-${month}`] ?? 0) > 0)
+  );
+  const monthsForTable = visibleMonths.length ? visibleMonths : Array.from({ length: 12 }, (_, index) => index + 1);
+
+  const siteSummaries = sortedSites.map((site) => {
+    const treated = patientMetricPeriodValue(patientRows, site.id, "treatedPatients", period);
+    const newPatients = patientMetricPeriodValue(patientRows, site.id, "newPatients", period);
+    const booked = patientMetricPeriodValue(patientRows, site.id, "bookedAppointments", period);
+    const attended = patientMetricPeriodValue(patientRows, site.id, "attendedAppointments", period);
+    const missed = patientMetricPeriodValue(patientRows, site.id, "missedAppointments", period);
+    const attendanceRateSource = patientMetricPeriodValue(patientRows, site.id, "attendanceRate", period);
+    const cancellationRateSource = patientMetricPeriodValue(patientRows, site.id, "cancellationRate", period);
+    const rooms = staticTreatmentRoomsForSite(site.id);
+    const attendanceRate = booked ? attended / booked : attendanceRateSource;
+    const cancellationRate = booked ? missed / booked : cancellationRateSource;
+    const patientsPerRoom = rooms ? treated / rooms : patientMetricPeriodValue(patientRows, site.id, "patientsPerRoom", period);
+    const hasData = patientRows.some(
+      (row) => row.siteId === site.id && (Math.abs(importedPeriodValue(row, period)) > 0 || Object.values(row.valuesByMonth).some((value) => Math.abs(value) > 0))
+    );
+    return { site, treated, newPatients, booked, attended, missed, attendanceRate, cancellationRate, rooms, patientsPerRoom, hasData };
+  });
+
+  const totals = siteSummaries.reduce(
+    (sum, row) => ({
+      treated: sum.treated + row.treated,
+      newPatients: sum.newPatients + row.newPatients,
+      booked: sum.booked + row.booked,
+      attended: sum.attended + row.attended,
+      missed: sum.missed + row.missed,
+      rooms: sum.rooms + row.rooms
+    }),
+    { treated: 0, newPatients: 0, booked: 0, attended: 0, missed: 0, rooms: 0 }
+  );
+  const totalAttendanceRate = totals.booked ? totals.attended / totals.booked : 0;
+  const totalCancellationRate = totals.booked ? totals.missed / totals.booked : 0;
+  const totalPatientsPerRoom = totals.rooms ? totals.treated / totals.rooms : 0;
+
+  return (
+    <div className="space-y-6">
+      <PageTitle
+        title="Patienten | Auswertungen"
+        text="Patienten-, Termin- und Kapazitätskennzahlen aus dem bestätigten CFO-Import. Essen ist vorbereitet und wird automatisch befüllt, sobald die Patientendaten im Export ergänzt sind."
+      />
+
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold">Patientensteuerung | {period}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Auswertung nach Standort: behandelte Patienten, Neupatienten, Terminwahrnehmung und Kapazität je Behandlungszimmer.
+            </p>
+          </div>
+          <Select className="w-full sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
+            {availablePeriods.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </Select>
+        </div>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <PatientKpiCard label={`Behandelte Patienten | ${period}`} value={formatPatientValue(totals.treated, "count")} subline="konsolidiert" icon={Users} />
+        <PatientKpiCard label={`Neupatienten | ${period}`} value={formatPatientValue(totals.newPatients, "count")} subline="aus Exportdaten" icon={UserRoundPlus} />
+        <PatientKpiCard
+          label={`Wahrnehmungsquote | ${period}`}
+          value={formatPatientValue(totalAttendanceRate, "percent")}
+          subline="wahrgenommen / gebucht"
+          icon={CheckCircle2}
+          tone={totalAttendanceRate >= 0.9 ? "green" : totalAttendanceRate >= 0.8 ? "yellow" : "red"}
+        />
+        <PatientKpiCard
+          label={`Patienten je Zimmer | ${period}`}
+          value={formatPatientValue(totalPatientsPerRoom, "average")}
+          subline="Basis statische Zimmer"
+          icon={Building2}
+        />
+      </div>
+
+      <Card className="p-4">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold">Standortvergleich Patienten & Termine | {period}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Essen bleibt als vorbereitete Zeile sichtbar. Sobald die Patientendaten im Import stehen, wird der Standort automatisch berechnet.
+          </p>
+        </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <th className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">Standort</th>
+              <TableHead>Behandelte Patienten</TableHead>
+              <TableHead>Neupatienten</TableHead>
+              <TableHead>Gebuchte Termine</TableHead>
+              <TableHead>Wahrgenommen</TableHead>
+              <TableHead>Nicht wahrgenommen</TableHead>
+              <TableHead>Wahrnehmungsquote</TableHead>
+              <TableHead>Absagequote</TableHead>
+              <TableHead>Zimmer</TableHead>
+              <TableHead>Patienten je Zimmer</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {siteSummaries.map((row) =>
+              row.hasData ? (
+                <tr key={row.site.id}>
+                  <td className="border-b border-r border-border bg-white p-3 font-bold">{row.site.name}</td>
+                  <TableCell strong>{formatPatientValue(row.treated, "count")}</TableCell>
+                  <TableCell>{formatPatientValue(row.newPatients, "count")}</TableCell>
+                  <TableCell>{formatPatientValue(row.booked, "count")}</TableCell>
+                  <TableCell>{formatPatientValue(row.attended, "count")}</TableCell>
+                  <TableCell tone={row.missed > 0 ? "red" : undefined}>{formatPatientValue(row.missed, "count")}</TableCell>
+                  <TableCell tone={row.attendanceRate >= 0.9 ? "green" : row.attendanceRate < 0.8 ? "red" : undefined}>{formatPatientValue(row.attendanceRate, "percent")}</TableCell>
+                  <TableCell tone={row.cancellationRate > 0.12 ? "red" : undefined}>{formatPatientValue(row.cancellationRate, "percent")}</TableCell>
+                  <TableCell>{row.rooms}</TableCell>
+                  <TableCell strong>{formatPatientValue(row.patientsPerRoom, "average")}</TableCell>
+                </tr>
+              ) : (
+                <tr key={row.site.id}>
+                  <td className="border-b border-r border-border bg-white p-3 font-bold">{row.site.name}</td>
+                  <td className="table-total border-b border-r border-border p-3 text-left text-sm font-semibold text-muted-foreground" colSpan={9}>
+                    Patientendaten folgen im Export. Zimmerbasis ist vorbereitet: {row.rooms} Behandlungszimmer.
+                  </td>
+                </tr>
+              )
+            )}
+            <tr className="summary-row">
+              <td className="border-b border-r border-border p-3 font-bold">Gesamt</td>
+              <TableCell strong summary>{formatPatientValue(totals.treated, "count")}</TableCell>
+              <TableCell strong summary>{formatPatientValue(totals.newPatients, "count")}</TableCell>
+              <TableCell strong summary>{formatPatientValue(totals.booked, "count")}</TableCell>
+              <TableCell strong summary>{formatPatientValue(totals.attended, "count")}</TableCell>
+              <TableCell strong summary tone={totals.missed > 0 ? "red" : undefined}>{formatPatientValue(totals.missed, "count")}</TableCell>
+              <TableCell strong summary>{formatPatientValue(totalAttendanceRate, "percent")}</TableCell>
+              <TableCell strong summary tone={totalCancellationRate > 0.12 ? "red" : undefined}>{formatPatientValue(totalCancellationRate, "percent")}</TableCell>
+              <TableCell strong summary>{totals.rooms}</TableCell>
+              <TableCell strong summary>{formatPatientValue(totalPatientsPerRoom, "average")}</TableCell>
+            </tr>
+          </tbody>
+        </ResponsiveTable>
+      </Card>
+
+      <Card className="p-4">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold">Monatliche Patientenentwicklung | {yearForMonths}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Behandelte Patienten je Standort. Leere Monate bleiben leer, Essen ist als zukünftige Datenzeile vorbereitet.</p>
+        </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <th className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">Standort</th>
+              {monthsForTable.map((month) => (
+                <TableHead key={month}>{bwaMonths[month - 1]}</TableHead>
+              ))}
+              <TableHead>Gesamt</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {siteSummaries.map(({ site, hasData }) => {
+              const treatedRow = patientMetricRow(patientRows, site.id, "treatedPatients");
+              const total = monthsForTable.reduce((sum, month) => sum + (treatedRow?.valuesByMonth[`${yearForMonths}-${month}`] ?? 0), 0);
+              return (
+                <tr key={site.id}>
+                  <td className="border-b border-r border-border bg-white p-3 font-bold">{site.name}</td>
+                  {monthsForTable.map((month) => {
+                    const value = treatedRow?.valuesByMonth[`${yearForMonths}-${month}`];
+                    return <TableCell key={month}>{value == null && !hasData ? "–" : value == null ? "" : formatPatientValue(value, "count")}</TableCell>;
+                  })}
+                  <TableCell strong summary>{hasData ? formatPatientValue(total, "count") : "Daten folgen"}</TableCell>
+                </tr>
+              );
+            })}
+          </tbody>
+        </ResponsiveTable>
+      </Card>
+    </div>
   );
 }
 
