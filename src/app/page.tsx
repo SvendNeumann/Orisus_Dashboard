@@ -8314,6 +8314,20 @@ function hasImportedMetricMonthValue(importedRows: ImportedBwaRow[], siteId: str
   return importedRows.some((row) => row.siteId === siteId && row.metricKey === metricKey && row.hasValueByMonth[`${year}-${month}`]);
 }
 
+function hasImportedMetricPeriodValue(importedRows: ImportedBwaRow[], siteId: string, metricKey: string | undefined, period: string) {
+  if (!metricKey) return false;
+  const row = importedRows.find((candidate) => candidate.siteId === siteId && candidate.metricKey === metricKey);
+  if (!row) return false;
+  const selection = selectedBwaPeriod(period);
+  if (selection.year && selection.months?.length) {
+    return selection.months.some((month) => row.hasValueByMonth[`${selection.year}-${month}`]);
+  }
+  if (selection.year) {
+    return Array.from({ length: 12 }, (_, index) => index + 1).some((month) => row.hasValueByMonth[`${selection.year}-${month}`]);
+  }
+  return row.hasDataByYear ? Object.values(row.hasDataByYear).some(Boolean) : Math.abs(row.contractValue) > 0;
+}
+
 function calculateImportedPeriodQuote(importedRows: ImportedBwaRow[], siteIds: string[], key: string, year: number, months: number[]) {
   return calculateImportedQuote(importedRows, siteIds, key, { year, months });
 }
@@ -9985,46 +9999,7 @@ function SiteBehandlerPersonnelCosts({
   site: DashboardSite;
   importedData?: ImportedDashboardData | null;
 }) {
-  const siteCostRows = (importedData?.personnelCostRows ?? []).filter((row) => row.siteId === site.id);
-  const availablePeriods = (() => {
-    if (!siteCostRows.length) return bwaPeriodOptionsFor(importedData);
-    const years = Array.from(new Set(siteCostRows.map((row) => row.year).filter((year) => year >= 1900))).sort((a, b) => a - b);
-    return years.flatMap((year) => {
-      const activeMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
-        siteCostRows.some((row) => Math.abs(row.personnelCostByMonth[`${year}-${month}`] ?? 0) > 0)
-      );
-      const latestMonth = activeMonths.at(-1);
-      return [
-        `Geschäftsjahr ${year}`,
-        ...(latestMonth ? [`YTD ${year} bis ${bwaMonths[latestMonth - 1]}`] : []),
-        ...activeMonths.map((month) => `${bwaMonths[month - 1]} ${year}`)
-      ];
-    });
-  })();
-  const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
-  useEffect(() => {
-    if (!availablePeriods.includes(period)) {
-      setPeriod(defaultPeriodFromOptions(availablePeriods));
-    }
-  }, [availablePeriods, period]);
-
-  const year = currentYearFromPeriod(period);
-  const providerRows = new Map((importedData?.behandlerDetailRows ?? []).filter((row) => row.siteId === site.id).map((row) => [normalizeMetric(row.name), row]));
-  const visibleRows = siteCostRows
-    .filter((row) => row.year === year)
-    .map((row) => {
-      const matchedProvider = providerRows.get(normalizeMetric(row.name));
-      const personnelCost = periodValueFromMonths(row.personnelCostByMonth, period) || row.personnelCost;
-      const honorar = matchedProvider ? periodValueFromMonths(matchedProvider.honorarByMonth, period) : row.honorar;
-      return {
-        ...row,
-        personnelCost,
-        honorar,
-        pkQuote: honorar ? personnelCost / honorar : row.pkQuote
-      };
-    })
-    .filter((row) => row.personnelCost || row.honorar || row.pkQuote)
-    .sort((a, b) => b.personnelCost - a.personnelCost || a.name.localeCompare(b.name, "de"));
+  const visibleRows = personnelCostComparisonRows(importedData, site.id);
   const totals = visibleRows.reduce(
     (sum, row) => ({
       personnelCost: sum.personnelCost + row.personnelCost,
@@ -10035,22 +10010,11 @@ function SiteBehandlerPersonnelCosts({
 
   return (
     <Card className="overflow-hidden">
-      <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
-        <span className="font-bold">Personalkosten je Behandler {site.name} | {performancePeriodLabel(period)}</span>
-        <Select
-          className="w-full bg-white text-foreground sm:w-64"
-          value={period}
-          onChange={(event) => setPeriod(event.target.value)}
-        >
-          {availablePeriods.map((option) => (
-            <option key={option} value={option}>
-              {performancePeriodLabel(option)}
-            </option>
-          ))}
-        </Select>
+      <div className="table-head p-3 text-white">
+        <span className="font-bold">Personalkosten je Behandler {site.name} | seit Vertragsbeginn</span>
       </div>
       <div className="border-b border-border bg-slate-50 p-3 text-sm text-muted-foreground">
-        Quelle ist der bestätigte CFO-Import aus den Standort-Personalkosten-Tabs. Die Tabelle zeigt alle dort gepflegten Personen des Standorts.
+        Quelle ist der bestätigte CFO-Import aus den Standort-Personalkosten-Tabs. Die Tabelle aggregiert Personalkosten und Honorarumsatz über die gesamte Vertragsperiode.
       </div>
       <ResponsiveTable>
         <thead>
@@ -10061,19 +10025,17 @@ function SiteBehandlerPersonnelCosts({
             <TableHead>Personalkosten</TableHead>
             <TableHead>Honorarumsatz</TableHead>
             <TableHead>PK-Quote</TableHead>
-            <TableHead>Datenstatus</TableHead>
           </tr>
         </thead>
         <tbody>
           {visibleRows.map((row) => (
-            <tr key={`${row.employeeId}-${row.name}-${row.year}`}>
+            <tr key={`${row.employeeId}-${row.name}`}>
               <TableCell strong>{row.name}</TableCell>
               <TableCell>{row.type}</TableCell>
               <TableCell>{row.status}</TableCell>
               <TableCell>{eur(row.personnelCost)}</TableCell>
               <TableCell>{eur(row.honorar)}</TableCell>
               <TableCell>{pct(row.pkQuote * 100)}</TableCell>
-              <TableCell>{row.monthsMaintained}</TableCell>
             </tr>
           ))}
           {visibleRows.length ? (
@@ -10084,12 +10046,10 @@ function SiteBehandlerPersonnelCosts({
               <TableCell strong summary>{eur(totals.personnelCost)}</TableCell>
               <TableCell strong summary>{eur(totals.honorar)}</TableCell>
               <TableCell strong summary>{pct(ratio(totals.personnelCost, totals.honorar))}</TableCell>
-              <TableCell summary>{""}</TableCell>
             </tr>
           ) : (
             <tr>
               <TableCell strong>Keine Personalkosten-Daten</TableCell>
-              <TableCell>{""}</TableCell>
               <TableCell>{""}</TableCell>
               <TableCell>{""}</TableCell>
               <TableCell>{""}</TableCell>
@@ -13917,23 +13877,27 @@ function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, 
     const isSectionRow = row.emphasis && row.actual === 0 && !row.percent;
     const currentYtd = row.actual;
     const previousYtdValue = previousYtd?.actual ?? 0;
+    const hasCurrentMonth = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, currentMonthPeriod);
+    const hasPreviousMonth = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, previousMonthPeriod);
+    const hasCurrentYtd = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, currentYtdPeriod);
+    const hasPreviousYtd = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, previousYtdPeriod);
     const higherIsBetter = !costKeys.has(String(row.metricKey));
-    const status = !isSectionRow && row.metricKey && trafficLightKeys.has(row.metricKey)
+    const status = !isSectionRow && hasPreviousYtd && row.metricKey && trafficLightKeys.has(row.metricKey)
       ? row.percent
         ? quoteTrendStatus(currentYtd, previousYtdValue, higherIsBetter)
         : trendStatus(Math.abs(currentYtd), Math.abs(previousYtdValue), higherIsBetter)
       : "neutral";
     const deviation = currentYtd - previousYtdValue;
-    const deviationClass = !isSectionRow && deviation ? (deviation > 0 ? "positive" : "negative") : "";
+    const deviationClass = !isSectionRow && hasPreviousYtd && deviation ? (deviation > 0 ? "positive" : "negative") : "";
     const valueClass = isVarianceRow(row.label) && currentYtd ? (currentYtd > 0 ? "positive" : "negative") : "";
     const formatted = (value: number) => row.percent ? pct(value) : eur(value);
     return `<tr class="${row.emphasis ? "total" : ""} ${isSectionRow ? "section" : ""}">
       <td>${reportEscape(row.label)}</td>
-      <td class="${valueClass}">${isSectionRow ? "" : reportEscape(formatted(currentMonth))}</td>
-      <td>${isSectionRow ? "" : reportEscape(formatted(previousMonth))}</td>
-      <td class="${valueClass}">${isSectionRow ? "" : reportEscape(formatted(currentYtd))}</td>
-      <td>${isSectionRow ? "" : reportEscape(formatted(previousYtdValue))}</td>
-      <td class="${deviationClass}">${isSectionRow || !previousYtdValue ? "" : reportEscape(row.percent ? pct(deviation) : eur(deviation))}</td>
+      <td class="${valueClass}">${isSectionRow || !hasCurrentMonth ? "" : reportEscape(formatted(currentMonth))}</td>
+      <td>${isSectionRow || !hasPreviousMonth ? "" : reportEscape(formatted(previousMonth))}</td>
+      <td class="${valueClass}">${isSectionRow || !hasCurrentYtd ? "" : reportEscape(formatted(currentYtd))}</td>
+      <td>${isSectionRow || !hasPreviousYtd ? "" : reportEscape(formatted(previousYtdValue))}</td>
+      <td class="${deviationClass}">${isSectionRow || !hasPreviousYtd ? "" : reportEscape(row.percent ? pct(deviation) : eur(deviation))}</td>
       <td>${status === "neutral" ? "" : reportStatusDot(status)}</td>
     </tr>`;
   }).join("");
@@ -13946,14 +13910,15 @@ function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, 
 function pmrQuoteRows(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
   const previousPeriod = comparisonPeriodFor(period, comparisonYear);
   const value = (metricKey: string, targetPeriod = period) => importedBwaMetricValue(importedData.bwaRows, siteId, metricKey, targetPeriod);
+  const hasValue = (metricKey: string, targetPeriod = period) => hasImportedMetricPeriodValue(importedData.bwaRows, siteId, metricKey, targetPeriod);
   const quote = (numerator: string, denominator = "summe_umsatz", targetPeriod = period) => ratio(value(numerator, targetPeriod), value(denominator, targetPeriod));
   const definitions = [
-    { label: "EBITDA-Marge", current: quote("ebitda"), previous: quote("ebitda", "summe_umsatz", previousPeriod), higher: true },
-    { label: "Personalkostenquote", current: ratio(Math.abs(value("personalkosten_gesamt")), value("summe_umsatz")), previous: ratio(Math.abs(value("personalkosten_gesamt", previousPeriod)), value("summe_umsatz", previousPeriod)), higher: false },
-    { label: "Materialquote", current: ratio(Math.abs(value("materialkosten_gesamt")), value("summe_umsatz")), previous: ratio(Math.abs(value("materialkosten_gesamt", previousPeriod)), value("summe_umsatz", previousPeriod)), higher: false },
-    { label: "Fremdlaborquote", current: ratio(Math.abs(value("fremdlabor_gesamt")), value("summe_umsatz")), previous: ratio(Math.abs(value("fremdlabor_gesamt", previousPeriod)), value("summe_umsatz", previousPeriod)), higher: false },
-    { label: "Sachkostenquote", current: ratio(Math.abs(value("summe_sonstige_kosten")), value("summe_umsatz")), previous: ratio(Math.abs(value("summe_sonstige_kosten", previousPeriod)), value("summe_umsatz", previousPeriod)), higher: false },
-    { label: "Deckungsbeitragsquote", current: quote("deckungsbeitrag"), previous: quote("deckungsbeitrag", "summe_umsatz", previousPeriod), higher: true }
+    { label: "EBITDA-Marge", current: quote("ebitda"), previous: quote("ebitda", "summe_umsatz", previousPeriod), hasPrevious: hasValue("ebitda", previousPeriod) && hasValue("summe_umsatz", previousPeriod), higher: true },
+    { label: "Personalkostenquote", current: ratio(Math.abs(value("personalkosten_gesamt")), value("summe_umsatz")), previous: ratio(Math.abs(value("personalkosten_gesamt", previousPeriod)), value("summe_umsatz", previousPeriod)), hasPrevious: hasValue("personalkosten_gesamt", previousPeriod) && hasValue("summe_umsatz", previousPeriod), higher: false },
+    { label: "Materialquote", current: ratio(Math.abs(value("materialkosten_gesamt")), value("summe_umsatz")), previous: ratio(Math.abs(value("materialkosten_gesamt", previousPeriod)), value("summe_umsatz", previousPeriod)), hasPrevious: hasValue("materialkosten_gesamt", previousPeriod) && hasValue("summe_umsatz", previousPeriod), higher: false },
+    { label: "Fremdlaborquote", current: ratio(Math.abs(value("fremdlabor_gesamt")), value("summe_umsatz")), previous: ratio(Math.abs(value("fremdlabor_gesamt", previousPeriod)), value("summe_umsatz", previousPeriod)), hasPrevious: hasValue("fremdlabor_gesamt", previousPeriod) && hasValue("summe_umsatz", previousPeriod), higher: false },
+    { label: "Sachkostenquote", current: ratio(Math.abs(value("summe_sonstige_kosten")), value("summe_umsatz")), previous: ratio(Math.abs(value("summe_sonstige_kosten", previousPeriod)), value("summe_umsatz", previousPeriod)), hasPrevious: hasValue("summe_sonstige_kosten", previousPeriod) && hasValue("summe_umsatz", previousPeriod), higher: false },
+    { label: "Deckungsbeitragsquote", current: quote("deckungsbeitrag"), previous: quote("deckungsbeitrag", "summe_umsatz", previousPeriod), hasPrevious: hasValue("deckungsbeitrag", previousPeriod) && hasValue("summe_umsatz", previousPeriod), higher: true }
   ];
   return `<table class="pmr-table compact">
     <thead><tr><th>Kennzahl</th><th>Aktuell</th><th>Vorjahr</th><th>Delta</th><th>Status</th></tr></thead>
@@ -13962,9 +13927,9 @@ function pmrQuoteRows(importedData: ImportedDashboardData, siteId: string, perio
       return `<tr>
         <td>${reportEscape(row.label)}</td>
         <td>${reportEscape(pct(row.current))}</td>
-        <td>${reportEscape(pct(row.previous))}</td>
-        <td>${reportEscape(pct(delta))}</td>
-        <td>${reportStatusDot(quoteTrendStatus(row.current, row.previous, row.higher))}</td>
+        <td>${row.hasPrevious ? reportEscape(pct(row.previous)) : ""}</td>
+        <td>${row.hasPrevious ? reportEscape(pct(delta)) : ""}</td>
+        <td>${row.hasPrevious ? reportStatusDot(quoteTrendStatus(row.current, row.previous, row.higher)) : ""}</td>
       </tr>`;
     }).join("")}</tbody>
   </table>`;
@@ -13975,6 +13940,59 @@ function periodValueFromMonths(valuesByMonth: Record<string, number>, period: st
   if (selection.year && selection.months?.length) return selection.months.reduce((sum, month) => sum + (valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
   if (selection.year) return Array.from({ length: 12 }, (_, index) => valuesByMonth[`${selection.year}-${index + 1}`] ?? 0).reduce((sum, value) => sum + value, 0);
   return Object.values(valuesByMonth).reduce((sum, value) => sum + value, 0);
+}
+
+type PersonnelCostComparisonRow = {
+  employeeId: string;
+  name: string;
+  type: string;
+  status: string;
+  personnelCost: number;
+  honorar: number;
+  pkQuote: number;
+};
+
+function personnelCostComparisonRows(importedData: ImportedDashboardData | null | undefined, siteId: string): PersonnelCostComparisonRow[] {
+  const providerRows = new Map((importedData?.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId).map((row) => [normalizeMetric(row.name), row]));
+  const grouped = new Map<string, PersonnelCostComparisonRow & { fallbackHonorar: number }>();
+
+  (importedData?.personnelCostRows ?? [])
+    .filter((row) => row.siteId === siteId)
+    .forEach((row) => {
+      const key = row.employeeId || normalizeMetric(row.name);
+      const existing = grouped.get(key) ?? {
+        employeeId: row.employeeId,
+        name: row.name,
+        type: row.type,
+        status: row.status,
+        personnelCost: 0,
+        honorar: 0,
+        fallbackHonorar: 0,
+        pkQuote: 0
+      };
+      existing.personnelCost += periodValueFromMonths(row.personnelCostByMonth, "Gesamte Periode") || row.personnelCost;
+      existing.fallbackHonorar += row.honorar;
+      existing.type = existing.type || row.type;
+      existing.status = row.status || existing.status;
+      grouped.set(key, existing);
+    });
+
+  return Array.from(grouped.values())
+    .map((row) => {
+      const matchedProvider = providerRows.get(normalizeMetric(row.name));
+      const honorar = matchedProvider ? periodValueFromMonths(matchedProvider.honorarByMonth, "Gesamte Periode") : row.fallbackHonorar;
+      return {
+        employeeId: row.employeeId,
+        name: row.name,
+        type: row.type,
+        status: row.status,
+        personnelCost: row.personnelCost,
+        honorar,
+        pkQuote: honorar ? row.personnelCost / honorar : 0
+      };
+    })
+    .filter((row) => row.personnelCost || row.honorar || row.pkQuote)
+    .sort((a, b) => b.personnelCost - a.personnelCost || a.name.localeCompare(b.name, "de"));
 }
 
 function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
@@ -14007,24 +14025,8 @@ function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, pe
   </table>`;
 }
 
-function pmrPersonnelCostRows(importedData: ImportedDashboardData, siteId: string, period: string) {
-  const year = currentYearFromPeriod(period);
-  const providerRows = new Map((importedData.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId).map((row) => [normalizeMetric(row.name), row]));
-  const rows = (importedData.personnelCostRows ?? [])
-    .filter((row) => row.siteId === siteId && row.year === year)
-    .map((row) => {
-      const matchedProvider = providerRows.get(normalizeMetric(row.name));
-      const personnelCost = periodValueFromMonths(row.personnelCostByMonth, period) || row.personnelCost;
-      const honorar = matchedProvider ? periodValueFromMonths(matchedProvider.honorarByMonth, period) : row.honorar;
-      return {
-        ...row,
-        personnelCost,
-        honorar,
-        pkQuote: honorar ? personnelCost / honorar : row.pkQuote
-      };
-    })
-    .filter((row) => row.personnelCost || row.honorar || row.pkQuote)
-    .sort((a, b) => b.personnelCost - a.personnelCost);
+function pmrPersonnelCostRows(importedData: ImportedDashboardData, siteId: string) {
+  const rows = personnelCostComparisonRows(importedData, siteId);
   return `<table class="pmr-table compact">
     <thead><tr><th>Mitarbeiter</th><th>Typ</th><th>Personalkosten</th><th>Honorarumsatz</th><th>PK-Quote</th></tr></thead>
     <tbody>${rows.map((row) => `<tr>
@@ -14093,7 +14095,7 @@ function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardDa
     <section class="pmr-section"><h2>Monatsentwicklung EBITDA ${reportEscape(String(year))}</h2>${pmrMonthlyEbitdaTable(importedData, site.id, year)}</section>
     <div class="pmr-grid bottom">
       <section class="pmr-section wide"><h2>Behandler-Umsatzboard | ${reportEscape(periodLabel)} | Vergleich ${reportEscape(String(comparisonYear))}</h2>${pmrProviderRows(importedData, site.id, period, comparisonYear)}</section>
-      <section class="pmr-section"><h2>Personalkosten je Behandler | ${reportEscape(periodLabel)}</h2>${pmrPersonnelCostRows(importedData, site.id, period)}</section>
+      <section class="pmr-section"><h2>Personalkosten je Behandler | seit Vertragsbeginn</h2>${pmrPersonnelCostRows(importedData, site.id)}</section>
     </div>
   </div>`;
 }

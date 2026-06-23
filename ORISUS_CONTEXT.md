@@ -841,12 +841,15 @@ Standortleiter-PMR:
   - Honorarumsatz hinzumatchen, wenn vorhanden
   - Mitarbeiter ohne Honorarumsatz trotzdem zeigen
   - PK-Quote nur berechnen, wenn Honorarumsatz sinnvoll vorhanden ist
+  - immer seit Vertragsbeginn / gesamte Vertragsperiode ausweisen, nicht nach PMR-Zeitraum oder Standortdetail-Filter
+  - Grund: Umsatzbeteiligungen koennen monatsverschoben oder gesammelt ausgezahlt werden; Monats-/YTD-Sichten wuerden die PK-Quote verzerren
 - Ampellogik:
   - fuer BWA/Quoten & Kennzahlen an Entwicklung/Vorjahresvergleich orientieren
   - im PMR-BWA-Ueberblick Ampel nur auf Steuerungs-/Gesamtzeilen, nicht auf jeder Detailkontozeile
   - relevante PMR-Ampelzeilen: Summe Umsatz, Gesamtleistung abzueglich Fremdlabor/Material, Praxisleistung abzueglich operative Kosten, Operative Praxiskosten bis EBITDA, EBITDA
   - bei Personalkosten-Gegenueberstellung keine uebernommene BWA-Ampellogik erzwingen, sondern neutral/kennzahlenorientiert ausweisen
 - PMR-Personalkostentabelle ist fuer Standortleiter gedacht: keine technischen Spalten wie Datenstatus anzeigen.
+- Fehlende Vorjahreswerte in PMR-BWA oder Quoten/Kennzahlen leer lassen, nicht als 0 anzeigen.
 
 ## 24. Admin / KPI-Regeln
 
