@@ -5792,9 +5792,10 @@ function KpiCard({
   const positive = !delta.startsWith("-");
   const [infoOpen, setInfoOpen] = useState(false);
   return (
-    <Card className="relative flex min-h-[12.5rem] flex-col items-center justify-center p-5 text-center">
-      <div className="absolute right-4 top-4 flex items-center gap-2">
-        {info && (
+    <Card className="relative flex min-h-[12.5rem] flex-col p-5 text-center">
+      <div className="mb-3 flex min-h-8 items-start justify-between gap-3">
+        <div className="w-8 shrink-0">
+          {info && (
           <button
             className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:text-primary"
             type="button"
@@ -5803,26 +5804,29 @@ function KpiCard({
           >
             <Info className="h-4 w-4" />
           </button>
-        )}
-        <StatusDot status={status} />
+          )}
+        </div>
+        <div className="flex min-w-0 justify-end">
+          <StatusDot status={status} />
+        </div>
       </div>
-      <div className="flex flex-col items-center">
+      <div className="flex flex-1 flex-col items-center justify-center">
         <div className="flex h-11 w-11 items-center justify-center rounded-md table-total text-primary">
           <Icon className="h-5 w-5" />
         </div>
+        <p className="mt-4 max-w-full text-sm font-semibold text-muted-foreground">{label}</p>
+        <p className="mt-1 text-2xl font-bold tracking-tight">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
+        <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 text-sm font-semibold", positive ? "text-emerald-700" : "text-red-700")}>
+          {positive ? <ArrowUpRight className="h-4 w-4 shrink-0" /> : <ArrowDownRight className="h-4 w-4 shrink-0" />}
+          <span className="min-w-0 break-words">{delta}</span>
+        </div>
+        {infoOpen && info ? (
+          <InfoDialog title={label} onClose={() => setInfoOpen(false)}>
+            {info}
+          </InfoDialog>
+        ) : null}
+        <p className="mt-2 text-xs text-muted-foreground">Ampelstatus nach vorläufiger CFO-Logik.</p>
       </div>
-      <p className="mt-4 text-sm font-semibold text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-bold tracking-tight">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
-      <div className={cn("mt-3 flex items-center justify-center gap-1 text-sm font-semibold", positive ? "text-emerald-700" : "text-red-700")}>
-        {positive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-        <span>{delta}</span>
-      </div>
-      {infoOpen && info ? (
-        <InfoDialog title={label} onClose={() => setInfoOpen(false)}>
-          {info}
-        </InfoDialog>
-      ) : null}
-      <p className="mt-2 text-xs text-muted-foreground">Ampelstatus nach vorläufiger CFO-Logik.</p>
     </Card>
   );
 }
@@ -5877,7 +5881,7 @@ function InfoTextLine({ label, value, strong }: { label: string; value: string; 
 
 function StatusDot({ status, label }: { status: Status; label?: string }) {
   return (
-    <Badge tone={statusMap[status].tone}>
+    <Badge className="max-w-full whitespace-nowrap" tone={statusMap[status].tone}>
       <span className={cn("h-2 w-2 rounded-full", statusMap[status].dot)} />
       {label ?? statusMap[status].label}
     </Badge>
