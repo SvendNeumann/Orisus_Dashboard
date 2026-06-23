@@ -14258,17 +14258,16 @@ function Reports({
     .filter((year) => year >= 1900 && year !== currentPmrYear)
     .sort((a, b) => b - a);
   const [pmrComparisonYear, setPmrComparisonYear] = useState(String(pmrComparisonYears.find((year) => year < currentPmrYear) ?? currentPmrYear - 1));
-  const activeReportSites = useMemo(
-    () => sortSitesByContractStart(sites).filter((site) => site.gesamtleistung || importedData?.bwaRows?.some((row) => row.siteId === site.id)),
-    [importedData, sites]
-  );
+  const activeReportSites = useMemo(() => {
+    const sortedSites = sortSitesByContractStart(sites);
+    const sitesWithReportData = sortedSites.filter((site) => site.gesamtleistung || importedData?.bwaRows?.some((row) => row.siteId === site.id));
+    return sitesWithReportData.length ? sitesWithReportData : sortedSites;
+  }, [importedData, sites]);
   const [pmrSelectedSiteIds, setPmrSelectedSiteIds] = useState<string[]>(() => activeReportSites.map((site) => site.id));
   const [reportOrientations, setReportOrientations] = useState<Record<string, ReportOrientation>>({
     pmr: "landscape",
     monthly: "portrait",
-    management: "landscape",
-    bank: "landscape",
-    site: "landscape"
+    management: "landscape"
   });
   useEffect(() => {
     if (!pmrPeriodOptions.includes(pmrPeriod)) setPmrPeriod(defaultBwaPeriodFor(importedData));
@@ -14303,18 +14302,6 @@ function Reports({
       title: "YTD- / Management-Report",
       description: "Board-taugliche Querformat-Übersicht mit konsolidierten KPIs und Standortvergleich.",
       action: (orientation: ReportOrientation) => openPrintableReport("Management-Report", buildManagementReport(sites, monthlyData, importedData, rules, orientation))
-    },
-    {
-      id: "bank",
-      title: "Bankenreport",
-      description: "Finanzierungs-, Kapitaldienst-, Forderungs- und Bank-Cashflow-Report für Bankenpartner.",
-      action: (orientation: ReportOrientation) => openPrintableReport("Bankenreport", buildBankReport(sites, monthlyData, importedData, rules, orientation))
-    },
-    {
-      id: "site",
-      title: "Standortreport",
-      description: "Eine druckfertige Seite je Standort mit Ergebnisqualität, Cashflow gem. BWA und Finanzierung.",
-      action: (orientation: ReportOrientation) => openPrintableReport("Standortreport", buildSiteReport(sites, monthlyData, orientation))
     }
   ];
 
@@ -14322,26 +14309,26 @@ function Reports({
     <section className="space-y-5">
       <PageTitle
         title="Reports"
-        text="Druckfertige farbige CFO-, Standort- und Bankenreports. Die Ausgabe öffnet als eigenes Drucklayout und kann direkt als PDF gespeichert oder gedruckt werden."
+        text="Druckfertige farbige CFO- und Standortleiter-Reports. Die Ausgabe öffnet als eigenes Drucklayout und kann direkt als PDF gespeichert oder gedruckt werden."
       />
       <Card className="p-4">
         <div className="grid gap-3 md:grid-cols-4">
           <Mini label="Datenbasis" value={importedData ? "Bestätigter Import" : "Noch offen"} />
-          <Mini label="Standorte" value={String(sites.filter((site) => site.gesamtleistung > 0).length)} />
+          <Mini label="Standorte" value={String(activeReportSites.length)} />
           <Mini label="Format" value="A4 Hoch / Quer" />
           <Mini label="Ausgabe" value="PDF / Druck" />
         </div>
       </Card>
       <Card className="p-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-2xl">
+        <div className="grid gap-5">
+          <div className="max-w-3xl">
             <FileBarChart className="h-8 w-8 text-primary" />
             <h2 className="mt-3 text-xl font-bold">Standortleiter-PMR</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               Standortbezogener Report mit BWA bis EBITDA, Quoten, Earn-Out-Hochrechnung, Behandlerumsatz und Personalkosten je Behandler.
             </p>
           </div>
-          <div className="grid w-full gap-3 xl:max-w-3xl xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.2fr_0.9fr_0.9fr_auto]">
             <label className="grid gap-1 text-xs font-bold uppercase text-muted-foreground">
               Zeitraum
               <Select value={pmrPeriod} onChange={(event) => setPmrPeriod(event.target.value)}>
@@ -14364,6 +14351,7 @@ function Reports({
             <Button
               className="self-end"
               variant="secondary"
+              disabled={!selectedPmrSites.length}
               onClick={() => openPrintableReport(
                 "PMR Standortleiter-Report",
                 buildPmrReport(selectedPmrSites, importedData, pmrPeriod, Number(pmrComparisonYear), reportOrientations.pmr)
@@ -14373,18 +14361,45 @@ function Reports({
             </Button>
           </div>
         </div>
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {activeReportSites.map((site) => (
-            <label key={site.id} className="flex items-center gap-2 rounded-md border border-border bg-white/70 p-2 text-sm font-semibold">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-[#30d5c8]"
-                checked={pmrSelectedSiteIds.includes(site.id)}
-                onChange={() => togglePmrSite(site.id)}
-              />
-              {site.name}
-            </label>
-          ))}
+        <div className="mt-5 rounded-lg border border-white/12 bg-white/5 p-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-bold">Standorte auswählen</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {selectedPmrSites.length} von {activeReportSites.length} Standorten für den PMR ausgewählt.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button className="h-9 px-3 text-xs" variant="ghost" onClick={() => setPmrSelectedSiteIds(activeReportSites.map((site) => site.id))}>
+                Alle
+              </Button>
+              <Button className="h-9 px-3 text-xs" variant="ghost" onClick={() => setPmrSelectedSiteIds([])}>
+                Keine
+              </Button>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {activeReportSites.map((site) => {
+              const checked = pmrSelectedSiteIds.includes(site.id);
+              return (
+                <label
+                  key={site.id}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border p-2 text-sm font-semibold transition",
+                    checked ? "border-[#30d5c8]/45 bg-[#30d5c8]/12 text-white" : "border-white/12 bg-white/6 text-muted-foreground"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[#30d5c8]"
+                    checked={checked}
+                    onChange={() => togglePmrSite(site.id)}
+                  />
+                  {site.name}
+                </label>
+              );
+            })}
+          </div>
         </div>
       </Card>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
