@@ -8381,6 +8381,31 @@ function patientMetricPeriodValue(rows: ImportedPatientMetricRow[] | undefined, 
   return importedPeriodValue(patientMetricRow(rows, siteId, metricKey), period);
 }
 
+function patientMetricPeriodOptionalValue(rows: ImportedPatientMetricRow[] | undefined, siteId: string, metricKey: PatientMetricKey, period: string) {
+  const row = patientMetricRow(rows, siteId, metricKey);
+  if (!row) return null;
+  const selection = selectedBwaPeriod(period);
+  if (selection.year && selection.months?.length) {
+    const values = selection.months
+      .map((month) => `${selection.year}-${month}`)
+      .filter((key) => Object.prototype.hasOwnProperty.call(row.valuesByMonth, key))
+      .map((key) => row.valuesByMonth[key])
+      .filter((value) => Number.isFinite(value));
+    if (!values.length) return null;
+    if (row.unit === "percent" || row.unit === "average") {
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+    return values.reduce((sum, value) => sum + value, 0);
+  }
+  if (selection.year) {
+    const key = String(selection.year);
+    if (!Object.prototype.hasOwnProperty.call(row.valuesByYear, key)) return null;
+    const value = row.valuesByYear[key];
+    return Number.isFinite(value) ? value : null;
+  }
+  return Number.isFinite(row.contractValue) ? row.contractValue : null;
+}
+
 function formatPatientValue(value: number, unit: ImportedPatientMetricRow["unit"]) {
   if (!Number.isFinite(value)) return "–";
   if (unit === "percent") {
@@ -9634,23 +9659,39 @@ function Analysen({
   });
   const patientRows = importedData?.patientRows ?? [];
   const patientSiteRows = siteRows.map((row) => {
-    const treatedPatients = patientMetricPeriodValue(patientRows, row.site.id, "treatedPatients", period);
-    const newPatients = patientMetricPeriodValue(patientRows, row.site.id, "newPatients", period);
-    const bookedAppointments = patientMetricPeriodValue(patientRows, row.site.id, "bookedAppointments", period);
-    const attendedAppointments = patientMetricPeriodValue(patientRows, row.site.id, "attendedAppointments", period);
-    const missedAppointments = patientMetricPeriodValue(patientRows, row.site.id, "missedAppointments", period);
-    const attendanceRateSource = patientMetricPeriodValue(patientRows, row.site.id, "attendanceRate", period);
-    const cancellationRateSource = patientMetricPeriodValue(patientRows, row.site.id, "cancellationRate", period);
-    const importedPatientsPerRoom = patientMetricPeriodValue(patientRows, row.site.id, "patientsPerRoom", period);
-    const attendanceRate = bookedAppointments ? (attendedAppointments / bookedAppointments) * 100 : normalizedPercent(attendanceRateSource);
-    const cancellationRate = bookedAppointments ? (missedAppointments / bookedAppointments) * 100 : normalizedPercent(cancellationRateSource);
-    const newPatientRate = treatedPatients ? (newPatients / treatedPatients) * 100 : 0;
-    const patientsPerRoom = row.rooms ? treatedPatients / row.rooms : importedPatientsPerRoom;
-    const hasPatientData = patientRows.some(
-      (patientRow) =>
-        patientRow.siteId === row.site.id &&
-        (Math.abs(importedPeriodValue(patientRow, period)) > 0 || Object.values(patientRow.valuesByMonth).some((value) => Math.abs(value) > 0))
-    );
+    const treatedPatients = patientMetricPeriodOptionalValue(patientRows, row.site.id, "treatedPatients", period);
+    const newPatients = patientMetricPeriodOptionalValue(patientRows, row.site.id, "newPatients", period);
+    const bookedAppointments = patientMetricPeriodOptionalValue(patientRows, row.site.id, "bookedAppointments", period);
+    const attendedAppointments = patientMetricPeriodOptionalValue(patientRows, row.site.id, "attendedAppointments", period);
+    const missedAppointments = patientMetricPeriodOptionalValue(patientRows, row.site.id, "missedAppointments", period);
+    const attendanceRateSource = patientMetricPeriodOptionalValue(patientRows, row.site.id, "attendanceRate", period);
+    const cancellationRateSource = patientMetricPeriodOptionalValue(patientRows, row.site.id, "cancellationRate", period);
+    const importedPatientsPerRoom = patientMetricPeriodOptionalValue(patientRows, row.site.id, "patientsPerRoom", period);
+    const hasAppointmentBase = bookedAppointments != null && bookedAppointments > 0;
+    const attendanceRate =
+      hasAppointmentBase && attendedAppointments != null
+        ? (attendedAppointments / bookedAppointments) * 100
+        : attendanceRateSource != null
+          ? normalizedPercent(attendanceRateSource)
+          : null;
+    const cancellationRate =
+      hasAppointmentBase && missedAppointments != null
+        ? (missedAppointments / bookedAppointments) * 100
+        : cancellationRateSource != null
+          ? normalizedPercent(cancellationRateSource)
+          : null;
+    const newPatientRate = treatedPatients != null && treatedPatients > 0 && newPatients != null ? (newPatients / treatedPatients) * 100 : null;
+    const patientsPerRoom = treatedPatients != null && row.rooms ? treatedPatients / row.rooms : importedPatientsPerRoom;
+    const hasPatientData = [
+      treatedPatients,
+      newPatients,
+      bookedAppointments,
+      attendedAppointments,
+      missedAppointments,
+      attendanceRateSource,
+      cancellationRateSource,
+      importedPatientsPerRoom
+    ].some((value) => value != null);
     return {
       ...row,
       treatedPatients,
@@ -9759,37 +9800,44 @@ function Analysen({
       suffix: "%"
     }
   ];
+  const selectedPatientsPerRoomIndex = indexFor(selectedPatientRow?.patientsPerRoom ?? null, patientAverage((row) => row.patientsPerRoom));
+  const selectedNewPatientRate = selectedPatientRow?.newPatientRate ?? null;
+  const newPatientRateGroup = patientAverage((row) => row.newPatientRate);
+  const selectedAttendanceRate = selectedPatientRow?.attendanceRate ?? null;
+  const attendanceRateGroup = patientAverage((row) => row.attendanceRate);
+  const selectedCancellationRate = selectedPatientRow?.cancellationRate ?? null;
+  const cancellationRateGroup = patientAverage((row) => row.cancellationRate);
   const patientBenchmarkItems = [
     {
       label: "Patienten je Behandlungszimmer",
-      selected: indexFor(selectedPatientRow?.patientsPerRoom ?? null, patientAverage((row) => row.patientsPerRoom)),
+      selected: selectedPatientsPerRoomIndex,
       group: 100,
       higherIsBetter: true,
-      unavailable: !selectedPatientRow?.hasPatientData || !selectedPatientRow?.rooms
+      unavailable: selectedPatientsPerRoomIndex == null || !selectedPatientRow?.rooms
     },
     {
       label: "Neupatientenquote",
-      selected: selectedPatientRow?.newPatientRate ?? null,
-      group: patientAverage((row) => row.newPatientRate) ?? 0,
+      selected: selectedNewPatientRate,
+      group: newPatientRateGroup,
       higherIsBetter: true,
       suffix: "%",
-      unavailable: !selectedPatientRow?.hasPatientData
+      unavailable: selectedNewPatientRate == null || newPatientRateGroup == null
     },
     {
       label: "Terminwahrnehmungsquote",
-      selected: selectedPatientRow?.attendanceRate ?? null,
-      group: patientAverage((row) => row.attendanceRate) ?? 0,
+      selected: selectedAttendanceRate,
+      group: attendanceRateGroup,
       higherIsBetter: true,
       suffix: "%",
-      unavailable: !selectedPatientRow?.hasPatientData
+      unavailable: selectedAttendanceRate == null || attendanceRateGroup == null
     },
     {
       label: "Terminausfallquote",
-      selected: selectedPatientRow?.cancellationRate ?? null,
-      group: patientAverage((row) => row.cancellationRate) ?? 0,
+      selected: selectedCancellationRate,
+      group: cancellationRateGroup,
       higherIsBetter: false,
       suffix: "%",
-      unavailable: !selectedPatientRow?.hasPatientData
+      unavailable: selectedCancellationRate == null || cancellationRateGroup == null
     }
   ];
   const marginGroup = numericAverage((row) => row.ebitdaMargin) ?? 0;
@@ -9811,7 +9859,7 @@ function Analysen({
     marginGap >= 0 ? "Die EBITDA-Marge liegt über dem Gruppenschnitt." : "Die EBITDA-Marge liegt unter dem Gruppenschnitt.",
     (selectedRow?.gesamtkostenquote ?? 0) <= costGroup.gesamtkostenquote ? "Die Kostenquoten liegen unter dem Gruppendurchschnitt." : "Die Kostenquoten liegen über dem Gruppendurchschnitt.",
     (benchmarkItems[0].selected ?? 0) >= 100 ? "Der Gesamtumsatz je Zahnarzt liegt über dem Gruppendurchschnitt." : "Der Gesamtumsatz je Zahnarzt liegt unter dem Gruppendurchschnitt.",
-    selectedPatientRow?.hasPatientData
+    selectedPatientRow?.attendanceRate != null
       ? `Die Terminwahrnehmungsquote liegt bei ${pct(selectedPatientRow.attendanceRate)}.`
       : "Patienten- und Termindaten fehlen für den ausgewählten Standort noch im Import."
   ];
@@ -10552,21 +10600,30 @@ function Analysen({
           <div className="grid min-w-0 gap-5 lg:grid-cols-2">
             <BenchmarkRanking
               title="Patienten je Behandlungszimmer (Index)"
-              rows={patientSiteRows.map((row) => ({
-                label: viewMode === "Intern" ? row.site.name : row.label,
-                value: Math.round(indexFor(row.patientsPerRoom, patientAverage((item) => item.patientsPerRoom)) ?? 0),
-                selected: row.site.id === selectedSite?.id
-              }))}
+              rows={patientSiteRows
+                .map((row) => {
+                  const value = indexFor(row.patientsPerRoom, patientAverage((item) => item.patientsPerRoom));
+                  return value == null
+                    ? null
+                    : {
+                        label: viewMode === "Intern" ? row.site.name : row.label,
+                        value: Math.round(value),
+                        selected: row.site.id === selectedSite?.id
+                      };
+                })
+                .filter((row): row is { label: string; value: number; selected: boolean } => row != null)}
               suffix="%"
               max={150}
             />
             <BenchmarkRanking
               title="Terminwahrnehmungsquote"
-              rows={patientSiteRows.map((row) => ({
-                label: viewMode === "Intern" ? row.site.name : row.label,
-                value: row.attendanceRate,
-                selected: row.site.id === selectedSite?.id
-              }))}
+              rows={patientSiteRows
+                .filter((row) => row.attendanceRate != null)
+                .map((row) => ({
+                  label: viewMode === "Intern" ? row.site.name : row.label,
+                  value: row.attendanceRate ?? 0,
+                  selected: row.site.id === selectedSite?.id
+                }))}
               suffix="%"
               max={100}
             />
@@ -10859,15 +10916,15 @@ function BenchmarkKpiCard({
 }: {
   label: string;
   selected: number | null;
-  group: number;
+  group: number | null;
   higherIsBetter: boolean;
   suffix?: string;
   unavailable?: boolean;
 }) {
-  const deviation = selected == null ? null : selected - group;
+  const deviation = selected == null || group == null ? null : selected - group;
   const good = deviation == null ? false : higherIsBetter ? deviation >= 0 : deviation <= 0;
   const valueText = unavailable || selected == null ? "n. v." : `${selected.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`;
-  const groupText = unavailable || selected == null ? "n. v." : `${group.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`;
+  const groupText = unavailable || selected == null || group == null ? "n. v." : `${group.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`;
   const deviationText = unavailable || deviation == null
     ? "Basis fehlt"
     : `${deviation > 0 ? "+" : ""}${deviation.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %-Pkt.`;
@@ -10989,21 +11046,21 @@ function BenchmarkPatientHeatmap({
   rows: Array<{
     site: DashboardSite;
     label: string;
-    treatedPatients: number;
-    newPatients: number;
-    patientsPerRoom: number;
-    newPatientRate: number;
-    attendanceRate: number;
-    cancellationRate: number;
+    treatedPatients: number | null;
+    newPatients: number | null;
+    patientsPerRoom: number | null;
+    newPatientRate: number | null;
+    attendanceRate: number | null;
+    cancellationRate: number | null;
     hasPatientData: boolean;
   }>;
   viewMode: "Standortleiter" | "Intern";
   selectedSiteId?: string;
 }) {
   const activeRows = rows.filter((row) => row.hasPatientData);
-  const average = (selector: (row: (typeof rows)[number]) => number) => {
-    const values = activeRows.map(selector).filter((value) => Number.isFinite(value));
-    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  const average = (selector: (row: (typeof rows)[number]) => number | null) => {
+    const values = activeRows.map(selector).filter((value): value is number => value != null && Number.isFinite(value));
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   };
   const group = {
     treatedPatients: average((row) => row.treatedPatients),
@@ -11019,16 +11076,16 @@ function BenchmarkPatientHeatmap({
     ["attendanceRate", "Wahrnehmungsquote", "percent", true],
     ["cancellationRate", "Ausfallquote", "percent", false]
   ] as const;
-  const heat = (value: number, basis: number, higherIsBetter: boolean) => {
-    if (!Number.isFinite(value) || !basis) return "bg-slate-700/70 text-slate-200";
+  const heat = (value: number | null, basis: number | null, higherIsBetter: boolean) => {
+    if (value == null || basis == null || !Number.isFinite(value) || !basis) return "bg-slate-700/70 text-slate-200";
     const good = higherIsBetter ? value >= basis : value <= basis;
     const close = Math.abs(value - basis) <= Math.max(1, basis * 0.08);
     if (good) return "bg-emerald-500/60 text-white";
     if (close) return "bg-amber-400/70 text-slate-950";
     return "bg-red-500/70 text-white";
   };
-  const formatHeatValue = (value: number, type: "count" | "average" | "percent") => {
-    if (!Number.isFinite(value)) return "n. v.";
+  const formatHeatValue = (value: number | null | undefined, type: "count" | "average" | "percent") => {
+    if (value == null || !Number.isFinite(value)) return "n. v.";
     if (type === "percent") return pct(value);
     if (type === "average") return value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
     return Math.round(value).toLocaleString("de-DE");
@@ -11051,7 +11108,7 @@ function BenchmarkPatientHeatmap({
               <td className="border border-white/10 p-2 font-semibold text-white">{viewMode === "Intern" ? row.site.name : row.label}</td>
               {columns.map(([key, , type, higherIsBetter]) => (
                 <td key={key} className={cn("border border-white/10 p-2 text-right font-semibold", heat(row[key], group[key], higherIsBetter))}>
-                  {row.hasPatientData ? formatHeatValue(row[key], type) : "n. v."}
+                  {formatHeatValue(row[key], type)}
                 </td>
               ))}
             </tr>
