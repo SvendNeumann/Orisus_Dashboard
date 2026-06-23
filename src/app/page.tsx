@@ -161,6 +161,9 @@ const supabaseUserRoleKey = "orisus-cfo-supabase-user-role";
 const supabaseUserNameKey = "orisus-cfo-supabase-user-name";
 const activePageStorageKey = "orisus-cfo-active-page";
 const activeSiteStorageKey = "orisus-cfo-active-site";
+const kpiRulesSettingKey = "kpi_rules";
+const kpiRulesStorageKey = "orisus-cfo-kpi-rules";
+const kpiRulesChangedEventName = "orisus-cfo-kpi-rules-changed";
 const permanentAdminEmail = "svend.neumann@orisus.de";
 const adminEmails = [
   permanentAdminEmail,
@@ -587,6 +590,147 @@ function roleLabel(role: UserRole) {
 
 function isPermanentAdminEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase() === permanentAdminEmail;
+}
+
+type KpiRuleKey =
+  | "ebitda_marge"
+  | "cashflow_bwa"
+  | "offene_forderungen"
+  | "kostenquote"
+  | "aktuelle_liquiditaet"
+  | "kapitaldienstfaehigkeit"
+  | "ziel_ebitda_kaufvertrag"
+  | "ziel_ebitda_uebernahme";
+
+type KpiRuleDirection = "higher" | "lower";
+
+type KpiRule = {
+  key: KpiRuleKey;
+  label: string;
+  owner: string;
+  unit: "percent" | "currency" | "multiple";
+  direction: KpiRuleDirection;
+  green: number;
+  yellow: number;
+};
+
+type KpiRules = Record<KpiRuleKey, KpiRule>;
+
+const defaultKpiRules: KpiRules = {
+  ebitda_marge: { key: "ebitda_marge", label: "EBITDA-Marge", owner: "CFO", unit: "percent", direction: "higher", green: 15, yellow: 10 },
+  cashflow_bwa: { key: "cashflow_bwa", label: "Cashflow gem. BWA", owner: "CFO", unit: "currency", direction: "higher", green: 0, yellow: 0 },
+  offene_forderungen: { key: "offene_forderungen", label: "Offene Forderungen", owner: "Controlling", unit: "percent", direction: "lower", green: 12, yellow: 18 },
+  kostenquote: { key: "kostenquote", label: "Kostenquote", owner: "Controlling", unit: "percent", direction: "lower", green: 68, yellow: 74 },
+  aktuelle_liquiditaet: { key: "aktuelle_liquiditaet", label: "Aktuelle Liquidität", owner: "CFO", unit: "currency", direction: "higher", green: 500000, yellow: 250000 },
+  kapitaldienstfaehigkeit: { key: "kapitaldienstfaehigkeit", label: "Kapitaldienstfähigkeit", owner: "CFO / Bank", unit: "multiple", direction: "higher", green: 1.5, yellow: 1 },
+  ziel_ebitda_kaufvertrag: { key: "ziel_ebitda_kaufvertrag", label: "Ziel-EBITDA Kaufvertrag", owner: "M&A", unit: "percent", direction: "higher", green: 100, yellow: 85 },
+  ziel_ebitda_uebernahme: { key: "ziel_ebitda_uebernahme", label: "Ziel-EBITDA Übernahme", owner: "M&A", unit: "percent", direction: "higher", green: 100, yellow: 85 }
+};
+
+const kpiRuleOrder: KpiRuleKey[] = [
+  "ebitda_marge",
+  "cashflow_bwa",
+  "offene_forderungen",
+  "kostenquote",
+  "aktuelle_liquiditaet",
+  "kapitaldienstfaehigkeit",
+  "ziel_ebitda_kaufvertrag",
+  "ziel_ebitda_uebernahme"
+];
+
+function normalizeKpiRules(input: Partial<Record<KpiRuleKey, Partial<KpiRule>>> | null | undefined): KpiRules {
+  const normalized = { ...defaultKpiRules } as KpiRules;
+  kpiRuleOrder.forEach((key) => {
+    const fallback = defaultKpiRules[key];
+    const candidate = input?.[key];
+    normalized[key] = {
+      ...fallback,
+      ...candidate,
+      key,
+      label: fallback.label,
+      unit: fallback.unit,
+      direction: fallback.direction,
+      green: Number.isFinite(Number(candidate?.green)) ? Number(candidate?.green) : fallback.green,
+      yellow: Number.isFinite(Number(candidate?.yellow)) ? Number(candidate?.yellow) : fallback.yellow,
+      owner: asText(candidate?.owner || fallback.owner) || fallback.owner
+    };
+  });
+  return normalized;
+}
+
+function readKpiRules() {
+  if (typeof window === "undefined") return normalizeKpiRules(null);
+  try {
+    return normalizeKpiRules(JSON.parse(window.localStorage.getItem(kpiRulesStorageKey) ?? "null"));
+  } catch {
+    return normalizeKpiRules(null);
+  }
+}
+
+function statusByRule(value: number, rule: KpiRule): Status {
+  if (rule.direction === "lower") {
+    if (value <= rule.green) return "green";
+    if (value <= rule.yellow) return "yellow";
+    return "red";
+  }
+  if (value >= rule.green) return "green";
+  if (value >= rule.yellow) return "yellow";
+  return "red";
+}
+
+function statusForSiteByRules(site: DashboardSite, rules: KpiRules): Status {
+  if (statusByRule(site.cashflow, rules.cashflow_bwa) === "red") return "red";
+  return statusByRule(site.ebitdaMarge, rules.ebitda_marge);
+}
+
+function formatKpiRuleValue(rule: KpiRule, value: number) {
+  if (rule.unit === "currency") return eur(value);
+  if (rule.unit === "multiple") return `${value.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`;
+  return pct(value);
+}
+
+function kpiRuleText(rule: KpiRule, band: "green" | "yellow" | "red") {
+  if (rule.direction === "lower") {
+    if (band === "green") return `<= ${formatKpiRuleValue(rule, rule.green)}`;
+    if (band === "yellow") return `${formatKpiRuleValue(rule, rule.green)} bis ${formatKpiRuleValue(rule, rule.yellow)}`;
+    return `> ${formatKpiRuleValue(rule, rule.yellow)}`;
+  }
+  if (band === "green") return `>= ${formatKpiRuleValue(rule, rule.green)}`;
+  if (band === "yellow") return `${formatKpiRuleValue(rule, rule.yellow)} bis ${formatKpiRuleValue(rule, rule.green)}`;
+  return `< ${formatKpiRuleValue(rule, rule.yellow)}`;
+}
+
+function useKpiRules() {
+  const [rules, setRules] = useState<KpiRules>(() => readKpiRules());
+
+  useEffect(() => {
+    let isMounted = true;
+    loadSupabaseAppSetting<Partial<Record<KpiRuleKey, Partial<KpiRule>>>>(kpiRulesSettingKey)
+      .then((setting) => {
+        if (!isMounted || !setting) return;
+        const normalized = normalizeKpiRules(setting);
+        window.localStorage.setItem(kpiRulesStorageKey, JSON.stringify(normalized));
+        setRules(normalized);
+      })
+      .catch(() => undefined);
+    const handleRulesChanged = () => setRules(readKpiRules());
+    window.addEventListener(kpiRulesChangedEventName, handleRulesChanged);
+    return () => {
+      isMounted = false;
+      window.removeEventListener(kpiRulesChangedEventName, handleRulesChanged);
+    };
+  }, []);
+
+  return rules;
+}
+
+async function saveKpiRules(nextRules: KpiRules) {
+  const normalized = normalizeKpiRules(nextRules);
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(kpiRulesStorageKey, JSON.stringify(normalized));
+    window.dispatchEvent(new Event(kpiRulesChangedEventName));
+  }
+  return saveSupabaseAppSetting(kpiRulesSettingKey, normalized);
 }
 
 function currentUserEmail() {
@@ -3182,7 +3326,7 @@ function isCriticalKvEbitdaGap(site: DashboardSite) {
   return achievement !== null && achievement < 85;
 }
 
-function cfoMetrics(sites: DashboardSite[] = standorte, monthlyData: typeof monthly = monthly) {
+function cfoMetrics(sites: DashboardSite[] = standorte, monthlyData: typeof monthly = monthly, rules: KpiRules = defaultKpiRules) {
   const activeSites = sites.filter((site) => site.gesamtleistung > 0);
   const gesamtleistung = totalForSites(sites, "gesamtleistung");
   const ebitda = totalForSites(sites, "ebitda");
@@ -3204,14 +3348,15 @@ function cfoMetrics(sites: DashboardSite[] = standorte, monthlyData: typeof mont
   const ebitdaMarge = gesamtleistung ? (ebitda / gesamtleistung) * 100 : 0;
   const runRateEbitda = monthlyData.length ? (ebitda / monthlyData.length) * 12 : 0;
   const kapitaldienstfaehigkeit = kapitaldienst ? ebitda / kapitaldienst : 0;
-  const kritisch = activeSites.filter(
-    (site) =>
-      site.status === "red" ||
-      site.cashflow < 0 ||
-      site.ebitdaMarge < 10 ||
-      site.forderungen > site.gesamtleistung * 0.15 ||
-      isCriticalKvEbitdaGap(site)
-  );
+  const kritisch = activeSites.filter((site) => {
+    const receivablesRatio = site.gesamtleistung ? (site.forderungen / site.gesamtleistung) * 100 : 0;
+    const kvAchievement = kvEbitdaAchievement(site);
+    return (
+      statusForSiteByRules(site, rules) === "red" ||
+      statusByRule(receivablesRatio, rules.offene_forderungen) === "red" ||
+      (kvAchievement !== null && statusByRule(kvAchievement, rules.ziel_ebitda_kaufvertrag) === "red")
+    );
+  });
 
   return {
     activeSites,
@@ -5395,19 +5540,22 @@ function DataStatusStrip({ importedData }: { importedData?: ImportedDashboardDat
 }
 
 function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[]; monthlyData: typeof monthly; period: string }) {
-  const metrics = cfoMetrics(sites, monthlyData);
-  const riskLabel = metrics.kritisch.length ? metrics.kritisch.map((site) => site.name).join(", ") : "Keine roten Standorte";
-  const criticalReasons = metrics.kritisch.map((site) => {
+  const rules = useKpiRules();
+  const metrics = cfoMetrics(sites, monthlyData, rules);
+  const criticalSites = metrics.kritisch;
+  const riskLabel = criticalSites.length ? criticalSites.map((site) => site.name).join(", ") : "Keine roten Standorte";
+  const criticalReasons = criticalSites.map((site) => {
     const kvAchievement = kvEbitdaAchievement(site);
+    const receivablesRatio = site.gesamtleistung ? (site.forderungen / site.gesamtleistung) * 100 : 0;
     const reasons = [
-      site.status === "red" ? "Ampel rot" : "",
-      site.cashflow < 0 ? `Cashflow gem. BWA negativ (${eur(site.cashflow)})` : "",
-      site.ebitdaMarge < 10 ? `EBITDA-Marge unter 10 % (${pct(site.ebitdaMarge)})` : "",
-      site.forderungen > site.gesamtleistung * 0.15
-        ? `Forderungen über 15 % der Gesamtleistung (${pct((site.forderungen / (site.gesamtleistung || 1)) * 100)})`
+      statusForSiteByRules(site, rules) === "red" ? "Standortampel rot" : "",
+      statusByRule(site.cashflow, rules.cashflow_bwa) === "red" ? `Cashflow gem. BWA kritisch (${eur(site.cashflow)})` : "",
+      statusByRule(site.ebitdaMarge, rules.ebitda_marge) === "red" ? `EBITDA-Marge kritisch (${pct(site.ebitdaMarge)})` : "",
+      statusByRule(receivablesRatio, rules.offene_forderungen) === "red"
+        ? `Forderungen kritisch (${pct(receivablesRatio)} der Gesamtleistung)`
         : "",
-      kvAchievement !== null && kvAchievement < 85
-        ? `Ziel-EBITDA KV mehr als 15 % verfehlt (${pct(kvAchievement)} Zielerreichung)`
+      kvAchievement !== null && statusByRule(kvAchievement, rules.ziel_ebitda_kaufvertrag) === "red"
+        ? `Ziel-EBITDA KV kritisch (${pct(kvAchievement)} Zielerreichung)`
         : ""
     ].filter(Boolean);
     return { site: site.name, reasons };
@@ -5442,7 +5590,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       value: metrics.kontostand,
       delta: "Konsolidierter Kontostand",
       icon: CircleDollarSign,
-      status: metrics.kontostand > 500000 ? "green" : "yellow",
+      status: statusByRule(metrics.kontostand, rules.aktuelle_liquiditaet),
       info: (
         <div className="space-y-1">
           <p className="font-bold text-slate-900">Herleitung aktueller Stand</p>
@@ -5460,7 +5608,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       value: metrics.forderungen,
       delta: "Konsolidiert seit Vertragsstart",
       icon: FileBarChart,
-      status: metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green",
+      status: statusByRule(metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0, rules.offene_forderungen),
       info: (
         <div className="space-y-1">
           <p className="font-bold text-slate-900">Zusammensetzung aktueller Stand</p>
@@ -5478,7 +5626,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       value: metrics.cashflow,
       delta: "nach Tilgung, Investitionen, Umbuchungen",
       icon: Wallet,
-      status: metrics.cashflow >= 0 ? "green" : "red",
+      status: statusByRule(metrics.cashflow, rules.cashflow_bwa),
       info: (
         <div className="space-y-1">
           <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
@@ -5499,7 +5647,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       value: metrics.ebitda,
       delta: `${pct(metrics.ebitdaMarge)} Marge | Run-Rate ${eur(metrics.runRateEbitda, true)}`,
       icon: Banknote,
-      status: metrics.ebitdaMarge >= 12 ? "green" : "yellow",
+      status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge),
       info: (
         <div className="space-y-1">
           <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
@@ -5524,7 +5672,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       value: Math.max(0, metrics.aufgenommen - metrics.tilgung),
       delta: `${eur(metrics.aufgenommen, true)} aufgenommen | ${eur(metrics.tilgung, true)} getilgt`,
       icon: Landmark,
-      status: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow",
+      status: statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
       info: (
         <div className="space-y-2">
           <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
@@ -5567,11 +5715,11 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
     },
     {
       label: "Kritische Standorte | aktueller Stand",
-      value: metrics.kritisch.length,
+      value: criticalSites.length,
       delta: riskLabel,
       icon: Building2,
       plain: true,
-      status: metrics.kritisch.length ? "yellow" : "green",
+      status: criticalSites.length ? "yellow" : "green",
       info: (
         <div className="space-y-2">
           <p className="font-bold text-slate-900">Warum ein Standort kritisch ist</p>
@@ -5987,6 +6135,7 @@ function ReceivablesChart({ sites = standorte }: { sites?: DashboardSite[] }) {
 }
 
 function CostRatios({ site, sites = standorte, periodLabel = "seit Vertragsstart" }: { site?: DashboardSite; sites?: DashboardSite[]; periodLabel?: string }) {
+  const rules = useKpiRules();
   const material = site?.materialquote ?? 9.9;
   const fremdlabor = site?.fremdlaborquote ?? 15.6;
   const personal = site?.personalquote ?? 0;
@@ -6006,7 +6155,7 @@ function CostRatios({ site, sites = standorte, periodLabel = "seit Vertragsstart
     { label: "Materialquote", value: actualMaterial, target: 10.0, status: (actualMaterial <= 10 ? "green" : "yellow") as Status },
     { label: "Fremdlaborquote", value: actualFremdlabor, target: 14.5, status: (actualFremdlabor <= 14.5 ? "green" : "yellow") as Status },
     { label: "Sonstige Kostenquote", value: actualSonstige, target: 36.0, status: (actualSonstige <= 36 ? "green" : "yellow") as Status },
-    { label: "Gesamtkostenquote", value: totalCostRatio, target: 68.0, status: (totalCostRatio <= 68 ? "green" : "yellow") as Status }
+    { label: "Gesamtkostenquote", value: totalCostRatio, target: rules.kostenquote.green, status: statusByRule(totalCostRatio, rules.kostenquote) }
   ];
   return (
     <Card className="p-4">
@@ -6028,26 +6177,23 @@ function CostRatios({ site, sites = standorte, periodLabel = "seit Vertragsstart
 }
 
 function Ranking({ title, metric, sites = standorte }: { title: string; metric: "ebitda" | "gesamtleistung" | "cashflow"; sites?: DashboardSite[] }) {
+  const rules = useKpiRules();
   const rows = [...sites].sort((a, b) => b[metric] - a[metric]);
   const ebitdaTarget = (site: DashboardSite) => site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda;
   const ebitdaRankingStatus = (site: DashboardSite): Status => {
     const target = ebitdaTarget(site);
     if (target > 0) {
       const achievement = (site.ebitda / target) * 100;
-      if (achievement >= 100) return "green";
-      if (achievement >= 85) return "yellow";
-      return "red";
+      return statusByRule(achievement, rules.ziel_ebitda_kaufvertrag);
     }
-    if (site.ebitdaMarge >= 12) return "green";
-    if (site.ebitdaMarge >= 8) return "yellow";
-    return "red";
+    return statusByRule(site.ebitdaMarge, rules.ebitda_marge);
   };
   const performanceRankingStatus = (site: DashboardSite): Status => {
     if (site.gesamtleistung > 0) return "green";
     if (site.gesamtleistung === 0) return "yellow";
     return "red";
   };
-  const cashflowRankingStatus = (site: DashboardSite): Status => (site.cashflow >= 0 ? "green" : "red");
+  const cashflowRankingStatus = (site: DashboardSite): Status => statusByRule(site.cashflow, rules.cashflow_bwa);
   const maxValue = Math.max(...rows.map((site) => Math.abs(site[metric])), 1);
   const statusFor = (site: DashboardSite): Status => {
     if (metric === "ebitda") return ebitdaRankingStatus(site);
@@ -6231,43 +6377,45 @@ function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
 }
 
 function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
-  const metrics = cfoMetrics(sites, monthlyData);
+  const rules = useKpiRules();
+  const metrics = cfoMetrics(sites, monthlyData, rules);
+  const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   const rows = [
     {
       label: "EBITDA-Marge Konzern",
       value: pct(metrics.ebitdaMarge),
-      status: metrics.ebitdaMarge >= 15 ? "green" : metrics.ebitdaMarge >= 10 ? "yellow" : "red",
-      rule: "grün ab 15 %, gelb ab 10 %"
+      status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge),
+      rule: `grün ${kpiRuleText(rules.ebitda_marge, "green")}, gelb ${kpiRuleText(rules.ebitda_marge, "yellow")}`
     },
     {
       label: "Cashflow gem. BWA",
       value: eur(metrics.cashflow),
-      status: metrics.cashflow >= 0 ? "green" : "red",
-      rule: "rot bei negativem Cashflow gem. BWA"
+      status: statusByRule(metrics.cashflow, rules.cashflow_bwa),
+      rule: `grün ${kpiRuleText(rules.cashflow_bwa, "green")}, rot ${kpiRuleText(rules.cashflow_bwa, "red")}`
     },
     {
       label: "Offene Forderungen",
       value: eur(metrics.forderungen),
-      status: metrics.forderungen <= metrics.gesamtleistung * 0.12 ? "green" : metrics.forderungen <= metrics.gesamtleistung * 0.18 ? "yellow" : "red",
-      rule: "Schwelle relativ zur Gesamtleistung"
+      status: statusByRule(receivablesRatio, rules.offene_forderungen),
+      rule: `${pct(receivablesRatio)} der Gesamtleistung | grün ${kpiRuleText(rules.offene_forderungen, "green")}`
     },
     {
       label: "Kostenquote",
       value: pct(metrics.kostenquote),
-      status: metrics.kostenquote <= 68 ? "green" : metrics.kostenquote <= 74 ? "yellow" : "red",
-      rule: "Material, Fremdlabor und sonstige Kosten"
+      status: statusByRule(metrics.kostenquote, rules.kostenquote),
+      rule: `Material, Fremdlabor und sonstige Kosten | grün ${kpiRuleText(rules.kostenquote, "green")}`
     },
     {
       label: "Aktuelle Liquidität",
       value: eur(metrics.kontostand),
-      status: metrics.kontostand >= 500000 ? "green" : metrics.kontostand >= 250000 ? "yellow" : "red",
-      rule: "konsolidierter Kontostand aus Import"
+      status: statusByRule(metrics.kontostand, rules.aktuelle_liquiditaet),
+      rule: `konsolidierter Kontostand | grün ${kpiRuleText(rules.aktuelle_liquiditaet, "green")}`
     },
     {
       label: "Kapitaldienstfähigkeit",
       value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
-      status: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : metrics.kapitaldienstfaehigkeit >= 1 ? "yellow" : "red",
-      rule: "EBITDA / Tilgung plus Zins"
+      status: statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
+      rule: `EBITDA / Tilgung plus Zins | grün ${kpiRuleText(rules.kapitaldienstfaehigkeit, "green")}`
     }
   ] satisfies Array<{ label: string; value: string; status: Status; rule: string }>;
   return (
@@ -8107,6 +8255,7 @@ function StandortDetail({
   importedData?: ImportedDashboardData | null;
   monthlyData?: typeof monthly;
 }) {
+  const rules = useKpiRules();
   const availablePeriods = bwaPeriodOptionsFor(importedData);
   const [period, setPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   useEffect(() => {
@@ -8115,6 +8264,7 @@ function StandortDetail({
     }
   }, [availablePeriods, importedData, period]);
   const filteredSite = filteredSiteForPeriod(site, importedData, period);
+  const filteredSiteStatus = statusForSiteByRules(filteredSite, rules);
   const periodLabel = period === "Gesamte Periode" ? `seit Vertragsstart ${site.start}` : period;
 
   return (
@@ -8128,10 +8278,10 @@ function StandortDetail({
         </Select>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Gesamtleistung" value={filteredSite.gesamtleistung} delta={periodLabel} icon={TrendingUp} status={filteredSite.status} />
-        <KpiCard label="PVS-Umsatz" value={filteredSite.pvsUmsatz} delta={periodLabel} icon={BadgeEuro} status={filteredSite.status} />
-        <KpiCard label="EBITDA" value={filteredSite.ebitda} delta={`${pct(filteredSite.ebitdaMarge)} Marge`} icon={Banknote} status={filteredSite.status} />
-        <KpiCard label="Cashflow gem. BWA" value={filteredSite.cashflow} delta="gem. BWA nach vorläufigem Ergebnis" icon={Wallet} status={filteredSite.status} />
+        <KpiCard label="Gesamtleistung" value={filteredSite.gesamtleistung} delta={periodLabel} icon={TrendingUp} status={filteredSiteStatus} />
+        <KpiCard label="PVS-Umsatz" value={filteredSite.pvsUmsatz} delta={periodLabel} icon={BadgeEuro} status={filteredSiteStatus} />
+        <KpiCard label="EBITDA" value={filteredSite.ebitda} delta={`${pct(filteredSite.ebitdaMarge)} Marge`} icon={Banknote} status={statusByRule(filteredSite.ebitdaMarge, rules.ebitda_marge)} />
+        <KpiCard label="Cashflow gem. BWA" value={filteredSite.cashflow} delta="gem. BWA nach vorläufigem Ergebnis" icon={Wallet} status={statusByRule(filteredSite.cashflow, rules.cashflow_bwa)} />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <CostRatios site={filteredSite} periodLabel={periodLabel} />
@@ -11880,7 +12030,8 @@ function Bankenreporting({
   monthlyData?: typeof monthly;
   importedData?: ImportedDashboardData | null;
 }) {
-  const metrics = cfoMetrics(sites, monthlyData);
+  const rules = useKpiRules();
+  const metrics = cfoMetrics(sites, monthlyData, rules);
   const availablePeriods = bwaPeriodOptionsFor(importedData);
   const [bankChartPeriod, setBankChartPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   const [bankTablePeriod, setBankTablePeriod] = useState(() => defaultBwaPeriodFor(importedData));
@@ -11954,9 +12105,9 @@ function Bankenreporting({
           <h2 className="font-bold">Bankenampel | aktueller Stand</h2>
           <div className="mt-4 space-y-3">
             {[
-              ["EBITDA-Marge", pct(metrics.ebitdaMarge), metrics.ebitdaMarge >= 12 ? "green" : "yellow"],
-              ["Cashflow gem. BWA", eur(metrics.cashflow), metrics.cashflow >= 0 ? "green" : "red"],
-              ["Kapitaldienstfähigkeit", `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow"],
+              ["EBITDA-Marge", pct(metrics.ebitdaMarge), statusByRule(metrics.ebitdaMarge, rules.ebitda_marge)],
+              ["Cashflow gem. BWA", eur(metrics.cashflow), statusByRule(metrics.cashflow, rules.cashflow_bwa)],
+              ["Kapitaldienstfähigkeit", `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)],
               ["Restschuld-Entwicklung", `${pct((metrics.getilgt / (metrics.aufgenommen || 1)) * 100)} getilgt`, "yellow"]
             ].map(([label, value, status]) => (
               <div key={label} className="flex items-center justify-between rounded-md bg-slate-50 p-3">
@@ -12027,7 +12178,8 @@ function BoardPack({
   monthlyData?: typeof monthly;
   importedData?: ImportedDashboardData | null;
 }) {
-  const metrics = cfoMetrics(sites, monthlyData);
+  const rules = useKpiRules();
+  const metrics = cfoMetrics(sites, monthlyData, rules);
   const boardPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
   const summary = [
     `Gesamtleistung YTD liegt bei ${eur(metrics.gesamtleistung, true)}; die Gruppe bleibt auf Wachstumskurs.`,
@@ -12081,9 +12233,9 @@ function BoardPack({
           <h2 className="font-bold">Risiken & Fokus | aktueller Stand</h2>
           <div className="mt-4 space-y-3">
             {[
-              ["Forderungen", `${eur(metrics.forderungen, true)} offen`, metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green"],
-              ["Kostenquote", pct(metrics.kostenquote), metrics.kostenquote > 68 ? "yellow" : "green"],
-              ["Kapitaldienstfähigkeit", `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow"],
+              ["Forderungen", `${eur(metrics.forderungen, true)} offen`, statusByRule(metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0, rules.offene_forderungen)],
+              ["Kostenquote", pct(metrics.kostenquote), statusByRule(metrics.kostenquote, rules.kostenquote)],
+              ["Kapitaldienstfähigkeit", `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)],
               ["Kritische Standorte", `${metrics.kritisch.length} Standort(e)`, metrics.kritisch.length ? "yellow" : "green"]
             ].map(([label, value, status]) => (
               <div key={label} className="flex items-center justify-between rounded-md bg-slate-50 p-3">
@@ -13299,18 +13451,19 @@ function bankMovementReportRows(importedData?: ImportedDashboardData | null) {
   };
 }
 
-function buildManagementReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null) {
-  const metrics = cfoMetrics(sites, monthlyData);
+function buildManagementReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null, rules: KpiRules = defaultKpiRules) {
+  const metrics = cfoMetrics(sites, monthlyData, rules);
   const period = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Datenstand";
   const maxEbitda = Math.max(...sites.map((site) => site.ebitda), 1);
+  const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   const body = [
     reportKpiGrid([
-      { label: "Aktuelle Liquidität", value: eur(metrics.kontostand), detail: "konsolidierter Kontostand", tone: "green" },
-      { label: "Offene Forderungen", value: eur(metrics.forderungen), detail: "aktueller Stand", tone: metrics.forderungen > metrics.gesamtleistung * 0.15 ? "yellow" : "green" },
-      { label: "Cashflow gem. BWA", value: eur(metrics.cashflow), detail: period, tone: metrics.cashflow >= 0 ? "green" : "red" },
-      { label: "EBITDA", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} Marge`, tone: metrics.ebitdaMarge >= 15 ? "green" : "yellow" },
+      { label: "Aktuelle Liquidität", value: eur(metrics.kontostand), detail: "konsolidierter Kontostand", tone: statusMap[statusByRule(metrics.kontostand, rules.aktuelle_liquiditaet)].tone },
+      { label: "Offene Forderungen", value: eur(metrics.forderungen), detail: "aktueller Stand", tone: statusMap[statusByRule(receivablesRatio, rules.offene_forderungen)].tone },
+      { label: "Cashflow gem. BWA", value: eur(metrics.cashflow), detail: period, tone: statusMap[statusByRule(metrics.cashflow, rules.cashflow_bwa)].tone },
+      { label: "EBITDA", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} Marge`, tone: statusMap[statusByRule(metrics.ebitdaMarge, rules.ebitda_marge)].tone },
       { label: "Fremdkapital", value: eur(metrics.restschuld), detail: "Restschuld konsolidiert", tone: "blue" },
-      { label: "Kapitaldienstfähigkeit", value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "EBITDA / Zins + Tilgung", tone: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow" }
+      { label: "Kapitaldienstfähigkeit", value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "EBITDA / Zins + Tilgung", tone: statusMap[statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)].tone }
     ]),
     `<div class="two-col">${reportSection(
       "Standortvergleich CFO-Kennzahlen",
@@ -13335,8 +13488,8 @@ function buildManagementReport(sites: DashboardSite[], monthlyData: typeof month
   });
 }
 
-function buildBankReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null) {
-  const metrics = cfoMetrics(sites, monthlyData);
+function buildBankReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null, rules: KpiRules = defaultKpiRules) {
+  const metrics = cfoMetrics(sites, monthlyData, rules);
   const bankRows = bankMovementReportRows(importedData);
   const body = [
     reportKpiGrid([
@@ -13344,7 +13497,7 @@ function buildBankReport(sites: DashboardSite[], monthlyData: typeof monthly, im
       { label: "Restschuld", value: eur(metrics.restschuld), detail: "konsolidiert", tone: "blue" },
       { label: "Tilgung", value: eur(metrics.getilgt), detail: "bereits getilgt", tone: "green" },
       { label: "Kapitaldienst", value: eur(metrics.kapitaldienst), detail: "Tilgung + Zins", tone: "blue" },
-      { label: "Kapitaldienstfähigkeit", value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "EBITDA / Kapitaldienst", tone: metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow" },
+      { label: "Kapitaldienstfähigkeit", value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "EBITDA / Kapitaldienst", tone: statusMap[statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)].tone },
       { label: "Offene Forderungen", value: eur(metrics.forderungen), detail: "aktueller Stand", tone: "yellow" }
     ]),
     reportSection(
@@ -13363,14 +13516,14 @@ function buildBankReport(sites: DashboardSite[], monthlyData: typeof monthly, im
   });
 }
 
-function buildMonthlyReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null) {
-  const metrics = cfoMetrics(sites, monthlyData);
+function buildMonthlyReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null, rules: KpiRules = defaultKpiRules) {
+  const metrics = cfoMetrics(sites, monthlyData, rules);
   const period = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Datenstand";
   const body = [
     reportKpiGrid([
       { label: "Gesamtleistung", value: eur(metrics.gesamtleistung), detail: period, tone: "green" },
-      { label: "EBITDA", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} Marge`, tone: metrics.ebitda >= 0 ? "green" : "red" },
-      { label: "Cashflow gem. BWA", value: eur(metrics.cashflow), detail: period, tone: metrics.cashflow >= 0 ? "green" : "red" },
+      { label: "EBITDA", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} Marge`, tone: statusMap[statusByRule(metrics.ebitdaMarge, rules.ebitda_marge)].tone },
+      { label: "Cashflow gem. BWA", value: eur(metrics.cashflow), detail: period, tone: statusMap[statusByRule(metrics.cashflow, rules.cashflow_bwa)].tone },
       { label: "Kontostand", value: eur(metrics.kontostand), detail: "aktueller Stand", tone: "green" },
       { label: "Forderungen", value: eur(metrics.forderungen), detail: "aktueller Stand", tone: "yellow" },
       { label: "Kritische Standorte", value: String(metrics.kritisch.length), detail: metrics.kritisch.map((site) => site.name).join(", ") || "keine", tone: metrics.kritisch.length ? "yellow" : "green" }
@@ -13454,24 +13607,25 @@ function Reports({
   monthlyData?: typeof monthly;
   importedData?: ImportedDashboardData | null;
 }) {
+  const rules = useKpiRules();
   const reportCards = [
     {
       title: "Monatsreport",
       description: "Kompakter CFO-Ausdruck mit KPI-Deckblatt, Monatsentwicklung und Standortübersicht.",
       orientation: "A4 Hochformat",
-      action: () => openPrintableReport("Monatsreport", buildMonthlyReport(sites, monthlyData, importedData))
+      action: () => openPrintableReport("Monatsreport", buildMonthlyReport(sites, monthlyData, importedData, rules))
     },
     {
       title: "YTD- / Management-Report",
       description: "Board-taugliche Querformat-Übersicht mit konsolidierten KPIs und Standortvergleich.",
       orientation: "A4 Querformat",
-      action: () => openPrintableReport("Management-Report", buildManagementReport(sites, monthlyData, importedData))
+      action: () => openPrintableReport("Management-Report", buildManagementReport(sites, monthlyData, importedData, rules))
     },
     {
       title: "Bankenreport",
       description: "Finanzierungs-, Kapitaldienst-, Forderungs- und Bank-Cashflow-Report für Bankenpartner.",
       orientation: "A4 Querformat",
-      action: () => openPrintableReport("Bankenreport", buildBankReport(sites, monthlyData, importedData))
+      action: () => openPrintableReport("Bankenreport", buildBankReport(sites, monthlyData, importedData, rules))
     },
     {
       title: "Standortreport",
@@ -13520,16 +13674,43 @@ function Reports({
 }
 
 function AdminKpiRules() {
-  const rules = [
-    { kpi: "EBITDA-Marge", green: ">= 15,0 %", yellow: "10,0 % bis 14,9 %", red: "< 10,0 %", owner: "CFO" },
-    { kpi: "Cashflow gem. BWA", green: ">= 0 EUR", yellow: "n/a", red: "< 0 EUR", owner: "CFO" },
-    { kpi: "Offene Forderungen", green: "<= 12 % der Gesamtleistung", yellow: "12 % bis 18 %", red: "> 18 %", owner: "Controlling" },
-    { kpi: "Kostenquote", green: "<= 68,0 %", yellow: "68,1 % bis 74,0 %", red: "> 74,0 %", owner: "Controlling" },
-    { kpi: "Aktuelle Liquidität", green: ">= 500 TEUR", yellow: "250 TEUR bis 499 TEUR", red: "< 250 TEUR", owner: "CFO" },
-    { kpi: "Kapitaldienstfähigkeit", green: ">= 1,50x", yellow: "1,00x bis 1,49x", red: "< 1,00x", owner: "CFO / Bank" },
-    { kpi: "Ziel-EBITDA Kaufvertrag", green: ">= 100 %", yellow: "85 % bis 99 %", red: "< 85 %", owner: "M&A" },
-    { kpi: "Ziel-EBITDA Übernahme", green: ">= 100 %", yellow: "85 % bis 99 %", red: "< 85 %", owner: "M&A" }
-  ];
+  const persistedRules = useKpiRules();
+  const [draft, setDraft] = useState<KpiRules>(() => persistedRules);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setDraft(persistedRules);
+  }, [persistedRules]);
+
+  const updateRule = (key: KpiRuleKey, field: "green" | "yellow" | "owner", value: string) => {
+    setDraft((current) => ({
+      ...current,
+      [key]: {
+        ...current[key],
+        [field]: field === "owner" ? value : Number(value)
+      }
+    }));
+  };
+
+  const save = async () => {
+    try {
+      const saved = await saveKpiRules(draft);
+      setMessage(saved ? "KPI-Regeln zentral gespeichert und live angewendet." : "KPI-Regeln lokal gespeichert. Zentrale Speicherung ist erst mit aktiver Admin-Sitzung verfügbar.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "KPI-Regeln konnten nicht gespeichert werden.");
+    }
+  };
+
+  const reset = async () => {
+    const defaults = normalizeKpiRules(defaultKpiRules);
+    setDraft(defaults);
+    try {
+      const saved = await saveKpiRules(defaults);
+      setMessage(saved ? "KPI-Regeln zentral auf Standardwerte zurückgesetzt." : "KPI-Regeln lokal auf Standardwerte zurückgesetzt.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "KPI-Regeln konnten nicht zurückgesetzt werden.");
+    }
+  };
 
   return (
     <section className="space-y-5">
@@ -13547,7 +13728,7 @@ function AdminKpiRules() {
               Diese Schwellenwerte steuern die Ampeln für Cockpit, Bankenreporting, Standortdetails und Board-Pack.
             </p>
           </div>
-          <Badge tone="yellow">Admin-konfigurierbar geplant</Badge>
+          <Badge tone="green">Admin-pflegbar</Badge>
         </div>
       </Card>
       <Card className="overflow-hidden">
@@ -13563,18 +13744,43 @@ function AdminKpiRules() {
               </tr>
             </thead>
             <tbody>
-              {rules.map((rule) => (
-                <tr key={rule.kpi}>
-                  <td className="border-b border-r border-border p-3 font-bold">{rule.kpi}</td>
-                  <td className="border-b border-r border-border p-3 text-emerald-700">{rule.green}</td>
-                  <td className="border-b border-r border-border p-3 text-amber-700">{rule.yellow}</td>
-                  <td className="border-b border-r border-border p-3 text-red-700">{rule.red}</td>
-                  <td className="border-b border-r border-border p-3">{rule.owner}</td>
+              {kpiRuleOrder.map((key) => {
+                const rule = draft[key];
+                const greenLabel = rule.direction === "lower" ? "Max. grün" : "Min. grün";
+                const yellowLabel = rule.direction === "lower" ? "Max. gelb" : "Min. gelb";
+                return (
+                <tr key={rule.key}>
+                  <td className="border-b border-r border-border bg-white p-3 font-bold">{rule.label}</td>
+                  <td className="border-b border-r border-border bg-white p-3 text-emerald-700">
+                    <label className="block text-xs font-bold uppercase text-muted-foreground">{greenLabel}</label>
+                    <Input className="mt-1 min-w-28" type="number" step={rule.unit === "multiple" ? 0.1 : 1} value={String(rule.green)} onChange={(event) => updateRule(key, "green", event.target.value)} />
+                    <p className="mt-1 text-xs font-semibold">{kpiRuleText(rule, "green")}</p>
+                  </td>
+                  <td className="border-b border-r border-border bg-white p-3 text-amber-700">
+                    <label className="block text-xs font-bold uppercase text-muted-foreground">{yellowLabel}</label>
+                    <Input className="mt-1 min-w-28" type="number" step={rule.unit === "multiple" ? 0.1 : 1} value={String(rule.yellow)} onChange={(event) => updateRule(key, "yellow", event.target.value)} />
+                    <p className="mt-1 text-xs font-semibold">{kpiRuleText(rule, "yellow")}</p>
+                  </td>
+                  <td className="border-b border-r border-border bg-white p-3 text-red-700">{kpiRuleText(rule, "red")}</td>
+                  <td className="border-b border-r border-border bg-white p-3">
+                    <Input className="min-w-36" value={rule.owner} onChange={(event) => updateRule(key, "owner", event.target.value)} />
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Änderungen werden lokal sofort und bei aktiver Supabase-Admin-Sitzung zentral gespeichert.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => void reset()}>Standardwerte</Button>
+            <Button onClick={() => void save()}>Regeln speichern</Button>
+          </div>
+        </div>
+        {message && <p className="border-t border-border p-4 text-sm font-semibold text-primary">{message}</p>}
       </Card>
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="p-4">
@@ -13592,7 +13798,7 @@ function AdminKpiRules() {
         <Card className="p-4">
           <h2 className="font-bold">Änderungslogik</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Spätere Version: Werte bearbeiten, speichern, Änderungsdatum und verantwortliche Person anzeigen.
+            Werte bearbeiten, speichern und als zentrale App-Einstellung auf Cockpit, Bankenreporting, Standortdetails und Reports anwenden.
           </p>
         </Card>
       </div>

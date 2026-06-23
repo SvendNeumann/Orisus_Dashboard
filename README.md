@@ -25,10 +25,11 @@ SUPABASE_SECRET_KEY=<server-only-secret-key>
 
 `SUPABASE_SERVICE_ROLE_KEY` bzw. `SUPABASE_SECRET_KEY` darf niemals als `NEXT_PUBLIC_...` Variable angelegt werden. Der Key wird nur serverseitig fuer die Admin-Zugangsverwaltung genutzt.
 
-In Supabase werden zwei Importtabellen benoetigt:
+In Supabase werden zwei Importtabellen und eine Settings-Tabelle benoetigt:
 
 - `orisus_confirmed_imports` fuer CFO/BWA/Finanzdaten
 - `orisus_personal_imports` fuer Personaldaten
+- `orisus_app_settings` fuer Admin-pflegbare App-Einstellungen wie KPI-Regeln und Praxisoeffnungszeiten
 
 Jeder bestaetigte Import wird als eigener Historienstand gespeichert; der aktuell genutzte Stand hat `active = true`.
 
@@ -60,6 +61,15 @@ create table if not exists public.orisus_personal_imports (
 );
 
 alter table public.orisus_personal_imports enable row level security;
+
+create table if not exists public.orisus_app_settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now(),
+  updated_by text
+);
+
+alter table public.orisus_app_settings enable row level security;
 ```
 
 Rollenlogik live:
