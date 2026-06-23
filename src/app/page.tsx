@@ -13569,7 +13569,8 @@ function buildReportDocument({
   orientation,
   body,
   footerNote,
-  hideHero = false
+  hideHero = false,
+  documentClass = ""
 }: {
   title: string;
   subtitle: string;
@@ -13578,14 +13579,17 @@ function buildReportDocument({
   body: string;
   footerNote?: string;
   hideHero?: boolean;
+  documentClass?: string;
 }) {
+  const isPmrDocument = documentClass.includes("pmr-document");
+  const pageMargin = isPmrDocument ? "5mm" : "11mm";
   return `<!doctype html>
   <html lang="de">
     <head>
       <meta charset="utf-8" />
       <title>${reportEscape(title)}</title>
       <style>
-        @page { size: A4 ${orientation}; margin: 11mm; }
+        @page { size: A4 ${orientation}; margin: ${pageMargin}; }
         * { box-sizing: border-box; }
         body {
           margin: 0;
@@ -13734,6 +13738,7 @@ function buildReportDocument({
         .pmr-table.bwa-overview td:last-child { width: 9%; text-align: center; }
         .pmr-table tr:nth-child(even) td { background: #f5fafb; }
         .pmr-table tr.total td { background: #e1f1ea; font-weight: 900; }
+        .pmr-table tr.quote-row td { background: #f8fbfc !important; color: #4d6574; font-size: 7px; font-weight: 700; }
         .pmr-table tr.section td { background: #d8ecf3; color: #07324f; font-weight: 900; text-align: left; }
         .pmr-table.monthly td, .pmr-table.monthly th { font-size: ${orientation === "landscape" ? "7.3px" : "6.5px"}; }
         .pmr-table td.positive { color: #15803d; font-weight: 900; }
@@ -13756,14 +13761,65 @@ function buildReportDocument({
           padding-top: 7px;
         }
         .page-break { break-before: page; }
+        .pmr-document {
+          min-height: auto;
+          gap: 0;
+          background: white;
+        }
+        .pmr-document .pmr-page {
+          height: 200mm;
+          page-break-after: always;
+          overflow: hidden;
+          gap: 4px;
+        }
+        .pmr-document .pmr-header {
+          grid-template-columns: 150px 1fr 95px;
+          gap: 8px;
+          border-radius: 10px;
+          padding: 7px 10px;
+        }
+        .pmr-document .pmr-logo img { width: 130px; max-height: 39px; }
+        .pmr-document .pmr-header h1 { font-size: 16px; margin: 1px 0; }
+        .pmr-document .pmr-header p { font-size: 7.8px; }
+        .pmr-document .pmr-meta { font-size: 7.2px; }
+        .pmr-document .pmr-meta strong { font-size: 11px; }
+        .pmr-document .eyebrow { font-size: 7px; }
+        .pmr-document .pmr-grid { gap: 4px; }
+        .pmr-document .pmr-grid.top { grid-template-columns: 1.33fr .67fr; }
+        .pmr-document .pmr-grid.bottom { grid-template-columns: 1.08fr .92fr; }
+        .pmr-document .pmr-stack { gap: 4px; }
+        .pmr-document .pmr-section { border-radius: 8px; }
+        .pmr-document .pmr-section h2 { padding: 4px 6px; font-size: 8.2px; }
+        .pmr-document .pmr-table { font-size: 6.15px; line-height: 1.08; }
+        .pmr-document .pmr-table.compact { font-size: 5.9px; }
+        .pmr-document .pmr-table.monthly td,
+        .pmr-document .pmr-table.monthly th { font-size: 5.5px; }
+        .pmr-document .pmr-table th { padding: 2px 2px; }
+        .pmr-document .pmr-table td { padding: 1.65px 2px; }
+        .pmr-document .pmr-table tr.quote-row td { font-size: 5.75px; }
+        .pmr-document .status-dot { width: 5px; height: 5px; margin-right: 2px; }
+        .pmr-document .status-label { font-size: 5.2px; }
+        .pmr-document .kpi-grid { gap: 4px; }
+        .pmr-document .kpi-card { min-height: 42px; border-radius: 8px; padding: 6px 7px; box-shadow: none; }
+        .pmr-document .kpi-label { font-size: 6.3px; }
+        .pmr-document .kpi-value { margin-top: 3px; font-size: 11.5px; }
+        .pmr-document .kpi-detail { margin-top: 3px; font-size: 6.7px; }
+        .pmr-document .mini-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 5px; }
+        .pmr-document .mini-grid div { border-radius: 7px; padding: 5px; }
+        .pmr-document .mini-grid span { font-size: 5.8px; }
+        .pmr-document .mini-grid strong { margin-top: 2px; font-size: 10px; }
+        .pmr-document .payout p { padding: 0 6px 5px; font-size: 5.8px; line-height: 1.25; }
+        .pmr-document .report-footer { display: none; }
         @media print {
           body { background: white; }
           .report-section, .kpi-card, .hero { box-shadow: none; }
+          .pmr-document .pmr-page { break-after: page; }
+          .pmr-document .pmr-page:last-of-type { break-after: auto; }
         }
       </style>
     </head>
     <body>
-      <main class="report-page">
+      <main class="report-page ${reportEscape(documentClass)}">
         ${hideHero ? "" : `<header class="hero">
           <div class="eyebrow">Report</div>
           <h1>${reportEscape(title)}</h1>
@@ -13976,6 +14032,14 @@ function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, 
     "operative_prozesskosten_bis_ebitda",
     "ebitda"
   ]);
+  const quoteRowKeys = new Set([
+    "gesamtleistungsquote",
+    "praxisleistungsquote",
+    "deckungsbeitragsquote",
+    "ebitda_marge",
+    "abweichung_ziel_ebitda_kaufvertrag_pct",
+    "abweichung_ziel_ebitda_uebernahme_pct"
+  ]);
   const htmlRows = currentRows.map((row) => {
     const currentMonth = currentMonthRows.get(row.metricKey)?.actual ?? 0;
     const previousMonth = previousMonthRows.get(row.metricKey)?.actual ?? 0;
@@ -13988,16 +14052,27 @@ function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, 
     const hasCurrentYtd = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, currentYtdPeriod);
     const hasPreviousYtd = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, previousYtdPeriod);
     const higherIsBetter = !costKeys.has(String(row.metricKey));
-    const status = !isSectionRow && hasPreviousYtd && row.metricKey && trafficLightKeys.has(row.metricKey)
-      ? row.percent
-        ? quoteTrendStatus(currentYtd, previousYtdValue, higherIsBetter)
-        : trendStatus(Math.abs(currentYtd), Math.abs(previousYtdValue), higherIsBetter)
-      : "neutral";
+    const status =
+      row.metricKey === "ebitda"
+        ? (() => {
+            const takeoverTarget = importedBwaMetricValue(importedData.bwaRows, siteId, "ziel_ebitda_uebernahme", currentYtdPeriod);
+            return takeoverTarget ? statusByRule(ratio(currentYtd, takeoverTarget), defaultKpiRules.ziel_ebitda_uebernahme) : "neutral";
+          })()
+        : !isSectionRow && hasPreviousYtd && row.metricKey && trafficLightKeys.has(row.metricKey)
+          ? row.percent
+            ? quoteTrendStatus(currentYtd, previousYtdValue, higherIsBetter)
+            : trendStatus(Math.abs(currentYtd), Math.abs(previousYtdValue), higherIsBetter)
+          : "neutral";
     const deviation = currentYtd - previousYtdValue;
     const deviationClass = !isSectionRow && hasPreviousYtd && deviation ? (deviation > 0 ? "positive" : "negative") : "";
     const valueClass = isVarianceRow(row.label) && currentYtd ? (currentYtd > 0 ? "positive" : "negative") : "";
     const formatted = (value: number) => row.percent ? pct(value) : eur(value);
-    return `<tr class="${row.emphasis ? "total" : ""} ${isSectionRow ? "section" : ""}">
+    const rowClasses = [
+      row.emphasis && !quoteRowKeys.has(String(row.metricKey)) ? "total" : "",
+      quoteRowKeys.has(String(row.metricKey)) ? "quote-row" : "",
+      isSectionRow ? "section" : ""
+    ].filter(Boolean).join(" ");
+    return `<tr class="${rowClasses}">
       <td>${reportEscape(row.label)}</td>
       <td class="${valueClass}">${isSectionRow || !hasCurrentMonth ? "" : reportEscape(formatted(currentMonth))}</td>
       <td>${isSectionRow || !hasPreviousMonth ? "" : reportEscape(formatted(previousMonth))}</td>
@@ -14179,14 +14254,13 @@ function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardDa
       <section class="pmr-section wide"><h2>BWA-Überblick bis EBITDA</h2>${pmrBwaReportTable(importedData, site.id, period, comparisonYear)}</section>
       <div class="pmr-stack">
         <section class="pmr-section"><h2>Quoten & Kennzahlen</h2>${pmrQuoteRows(importedData, site.id, period, comparisonYear)}</section>
-        <section class="pmr-section payout"><h2>Auszahlungslogik Verkäufer - indikative Hochrechnung</h2>
+        <section class="pmr-section payout"><h2>Auszahlungslogik Käufer - indikative Hochrechnung</h2>
           <div class="mini-grid">
-            <div><span>Earn-Out aktuell</span><strong>${reportEscape(eur(projection.projectedEarnOut, true))}</strong></div>
-            <div><span>Wachstumszahlung</span><strong>${reportEscape(eur(projection.projectedGrowthPayment, true))}</strong></div>
-            <div><span>Gesamt erwartet</span><strong>${reportEscape(eur(expectedPayout, true))}</strong></div>
-            <div><span>Earn-Out Potenzial</span><strong>${reportEscape(eur(earnOutPotential, true))}</strong></div>
+            <div><span>Indikativ Earn-Out aktuell</span><strong>${reportEscape(eur(projection.projectedEarnOut, true))}</strong></div>
+            <div><span>Indikative Wachstumszahlung</span><strong>${reportEscape(eur(projection.projectedGrowthPayment, true))}</strong></div>
+            <div><span>Indikativ gesamt erwartet</span><strong>${reportEscape(eur(expectedPayout, true))}</strong></div>
           </div>
-          <p>Run-Rate EBITDA p.a.: ${reportEscape(eur(projection.projectedEbitda))} | SOLL EBITDA Vertragslaufzeit: ${reportEscape(eur(projection.contractTargetEbitda))} | EBITDA hochgerechnet: ${reportEscape(eur(projection.projectedContractEbitda))} | Wachstumslogik: ${reportEscape(growthFactorLabel(projection.growthFactor))}</p>
+          <p>Earn-Out Potenzial: ${reportEscape(eur(earnOutPotential, true))} | Run-Rate EBITDA p.a.: ${reportEscape(eur(projection.projectedEbitda))} | SOLL EBITDA Vertragslaufzeit: ${reportEscape(eur(projection.contractTargetEbitda))} | EBITDA hochgerechnet: ${reportEscape(eur(projection.projectedContractEbitda))} | Wachstumslogik: ${reportEscape(growthFactorLabel(projection.growthFactor))}</p>
         </section>
       </div>
     </div>
@@ -14213,12 +14287,13 @@ function buildPmrReport(
   comparisonYear: number,
   orientation: ReportOrientation
 ) {
+  const printOrientation: ReportOrientation = "landscape";
   if (!importedData?.bwaRows?.length || !selectedSites.length) {
     return buildReportDocument({
       title: "PMR Standortleiter-Report",
       subtitle: "Für diesen Report werden ein bestätigter CFO-Import und mindestens ein Standort benötigt.",
       periodLabel: period,
-      orientation,
+      orientation: printOrientation,
       body: reportSection("Keine Daten", "<p style='padding:12px'>Bitte CFO-Import bestätigen und Standort auswählen.</p>")
     });
   }
@@ -14228,8 +14303,9 @@ function buildPmrReport(
     title: "PMR Standortleiter-Report",
     subtitle: `Standortbezogener Monatsreport mit BWA bis EBITDA, Quoten, Earn-Out-Hochrechnung, Behandlerumsatz und Personalkosten. Zeitraum: ${performancePeriodLabel(period)}.`,
     periodLabel: performancePeriodLabel(period),
-    orientation,
+    orientation: printOrientation,
     hideHero: true,
+    documentClass: "pmr-document",
     body: pages
   });
 }
@@ -14467,7 +14543,7 @@ function Reports({
         <div className="grid gap-3 md:grid-cols-4">
           <Mini label="Datenbasis" value={importedData ? "Bestätigter Import" : "Noch offen"} />
           <Mini label="Standorte" value={String(activeReportSites.length)} />
-          <Mini label="Format" value="A4 Hoch / Quer" />
+          <Mini label="Format" value="A4 Querformat" />
           <Mini label="Ausgabe" value="PDF / Druck" />
         </div>
       </Card>
@@ -14496,7 +14572,6 @@ function Reports({
             <label className="grid gap-1 text-xs font-bold uppercase text-muted-foreground">
               Druckformat
               <Select value={reportOrientations.pmr} onChange={(event) => updateReportOrientation("pmr", event.target.value)}>
-                <option value="portrait">A4 Hochformat</option>
                 <option value="landscape">A4 Querformat</option>
               </Select>
             </label>
