@@ -9855,16 +9855,31 @@ function Analysen({
     { label: "Personalkostenquote", value: (selectedRow?.personalquote ?? 0) - costGroup.personalquote },
     { label: "Sonstige Kostenquote", value: (selectedRow?.sonstigeKostenquote ?? 0) - costGroup.sonstigeKostenquote }
   ].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  const displaySiteName = viewMode === "Intern" ? selectedSite?.name ?? "Ausgewählter Standort" : "Ausgewählter Standort";
+  const describeBenchmarkGap = (label: string, selected: number | null | undefined, group: number | null | undefined, higherIsBetter: boolean, formatter = pct) => {
+    if (selected == null || group == null || !Number.isFinite(selected) || !Number.isFinite(group)) {
+      return `${displaySiteName}: ${label} kann mangels Datenbasis noch nicht bewertet werden.`;
+    }
+    const gap = selected - group;
+    const better = higherIsBetter ? gap >= 0 : gap <= 0;
+    const direction = better ? "besser" : "schwächer";
+    const relation = higherIsBetter
+      ? gap >= 0 ? "über" : "unter"
+      : gap <= 0 ? "unter" : "über";
+    return `${displaySiteName}: ${label} liegt ${formatter(selected)} ${relation} dem Gruppenschnitt (${formatter(group)}), Abweichung ${gap >= 0 ? "+" : ""}${pct(gap)}-Pkt. und damit ${direction}.`;
+  };
+  const selectedPvsPerDentistIndex = benchmarkItems[0].selected;
   const summaryItems = [
-    marginGap >= 0 ? "Die EBITDA-Marge liegt über dem Gruppenschnitt." : "Die EBITDA-Marge liegt unter dem Gruppenschnitt.",
-    (selectedRow?.gesamtkostenquote ?? 0) <= costGroup.gesamtkostenquote ? "Die Kostenquoten liegen unter dem Gruppendurchschnitt." : "Die Kostenquoten liegen über dem Gruppendurchschnitt.",
-    (benchmarkItems[0].selected ?? 0) >= 100 ? "Der Gesamtumsatz je Zahnarzt liegt über dem Gruppendurchschnitt." : "Der Gesamtumsatz je Zahnarzt liegt unter dem Gruppendurchschnitt.",
-    selectedPatientRow?.attendanceRate != null
-      ? `Die Terminwahrnehmungsquote liegt bei ${pct(selectedPatientRow.attendanceRate)}.`
+    describeBenchmarkGap("EBITDA-Marge", selectedRow?.ebitdaMargin, marginGroup, true),
+    describeBenchmarkGap("Gesamtkostenquote", selectedRow?.gesamtkostenquote, costGroup.gesamtkostenquote, false),
+    selectedPvsPerDentistIndex != null
+      ? `${displaySiteName}: Gesamtumsatz je Zahnarzt liegt bei ${pct(selectedPvsPerDentistIndex)} des Gruppenschnitts und damit ${selectedPvsPerDentistIndex >= 100 ? "über" : "unter"} Vergleich.`
+      : `${displaySiteName}: Gesamtumsatz je Zahnarzt kann mangels Zahnarzt- oder Umsatzbasis noch nicht bewertet werden.`,
+    selectedPatientRow?.attendanceRate != null && attendanceRateGroup != null
+      ? describeBenchmarkGap("Terminwahrnehmungsquote", selectedPatientRow.attendanceRate, attendanceRateGroup, true)
       : "Patienten- und Termindaten fehlen für den ausgewählten Standort noch im Import."
   ];
   const hasMissingBasis = benchmarkItems.some((item) => item.unavailable);
-  const displaySiteName = viewMode === "Intern" ? selectedSite?.name ?? "Ausgewählter Standort" : "Ausgewählter Standort";
   const periodOptions = importedData ? bwaPeriodOptionsFor(importedData) : ["YTD 2026", "aktueller Monat", "Geschäftsjahr", "Gesamt seit Praxisstart", "freier Zeitraum"];
   const basisRows = [
     {
@@ -10491,7 +10506,7 @@ function Analysen({
 
       <div className="analysis-print-block min-w-0 rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] lg:grid lg:grid-cols-[1fr_1.4fr] lg:items-center">
         <div>
-          <h2 className="text-2xl font-bold text-white">Standort-Benchmarking</h2>
+          <h2 className="text-2xl font-bold text-white">Standort-Benchmarking: {displaySiteName}</h2>
           <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-200">
             <span>Zeitraum: <strong>{period}</strong></span>
             <span>Vergleich: <strong>{comparison}</strong></span>
