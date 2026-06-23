@@ -5467,7 +5467,7 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
 function PersonalActions({ personalData }: { personalData: PersonalDashboardData }) {
   return (
     <section className="space-y-5">
-      <PageTitle title="Personalmaßnahmen" text="Maßnahmen aus Input_Personalmassnahmen. Ohne Status-Spalte wird der Status in Stufe 1 als offen interpretiert." />
+      <PageTitle title="Personalmaßnahmen" text="Abgeschickte und erledigte Maßnahmen aus Input_Personalmassnahmen." />
       <Card className="overflow-hidden">
         {personalData.actionEntries.length ? (
           <ResponsiveTable>
@@ -5477,7 +5477,6 @@ function PersonalActions({ personalData }: { personalData: PersonalDashboardData
                 <TableHead>Mitarbeiter</TableHead>
                 <TableHead>Standort</TableHead>
                 <TableHead>Maßnahme</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Details</TableHead>
               </tr>
             </thead>
@@ -5488,7 +5487,6 @@ function PersonalActions({ personalData }: { personalData: PersonalDashboardData
                   <TableCell strong>{entry.employeeName || entry.employeeId}</TableCell>
                   <TableCell>{entry.site}</TableCell>
                   <TableCell>{entry.action}</TableCell>
-                  <TableCell>{entry.status}</TableCell>
                   <TableCell>{entry.details}</TableCell>
                 </tr>
               ))}
