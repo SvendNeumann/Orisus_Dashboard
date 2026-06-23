@@ -305,6 +305,53 @@ select {
   background-color: rgba(178, 226, 229, 0.16) !important;
 }
 
+.app-shell .app-info-popover {
+  background: rgba(248, 253, 253, 0.98) !important;
+  border-color: rgba(87, 197, 192, 0.38) !important;
+  color: #102a3a !important;
+  -webkit-text-fill-color: #102a3a !important;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.46), 0 0 0 1px rgba(255, 255, 255, 0.62) inset !important;
+}
+
+.app-shell .app-info-popover p,
+.app-shell .app-info-popover span,
+.app-shell .app-info-popover div {
+  color: #102a3a !important;
+  -webkit-text-fill-color: #102a3a !important;
+}
+
+.app-shell .app-info-popover .text-slate-950,
+.app-shell .app-info-popover .font-semibold,
+.app-shell .app-info-popover .font-bold {
+  color: #071827 !important;
+  -webkit-text-fill-color: #071827 !important;
+}
+
+.app-shell .app-info-popover .text-slate-600,
+.app-shell .app-info-popover .text-slate-700 {
+  color: #395461 !important;
+  -webkit-text-fill-color: #395461 !important;
+}
+
+.app-shell .app-info-popover .text-emerald-700 {
+  color: #047857 !important;
+  -webkit-text-fill-color: #047857 !important;
+}
+
+.app-shell .app-info-popover .text-red-700 {
+  color: #b91c1c !important;
+  -webkit-text-fill-color: #b91c1c !important;
+}
+
+.app-shell .app-info-popover .bg-white,
+.app-shell .app-info-popover .bg-slate-50 {
+  background-color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.app-shell .app-info-popover .border-border {
+  border-color: rgba(15, 98, 116, 0.18) !important;
+}
+
 .data-table {
   width: max-content;
   min-width: 100%;

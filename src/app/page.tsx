@@ -6015,25 +6015,25 @@ function Mini({ label, value, info }: { label: string; value: string; info?: Rea
           <button
             type="button"
             aria-label="Info schließen"
-            className="fixed inset-0 z-[90] cursor-default bg-slate-950/45 backdrop-blur-sm"
+            className="fixed inset-0 z-[190] cursor-default bg-slate-950/70 backdrop-blur-md"
             onClick={() => setInfoOpen(false)}
           />
           <div
             role="dialog"
             aria-modal="true"
-            className="fixed left-4 right-4 top-24 z-[100] max-h-[72vh] overflow-y-auto rounded-xl border border-border bg-white p-4 text-left text-xs leading-5 text-slate-700 shadow-2xl sm:left-auto sm:right-8 sm:top-28 sm:w-96"
+            className="app-info-popover fixed left-4 right-4 top-[max(5rem,env(safe-area-inset-top))] z-[200] max-h-[72vh] overflow-y-auto rounded-2xl border p-4 text-left text-sm leading-6 shadow-2xl sm:left-1/2 sm:right-auto sm:top-24 sm:w-[min(34rem,calc(100vw-3rem))] sm:-translate-x-1/2"
           >
-            <div className="mb-3 flex items-start justify-between gap-3 border-b border-border pb-2">
-              <p className="font-bold text-slate-950">{label}</p>
+            <div className="mb-3 flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+              <p className="text-base font-bold text-slate-950">{label}</p>
               <button
                 type="button"
-                className="rounded-full border border-border px-2 py-1 text-[11px] font-semibold text-slate-600"
+                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
                 onClick={() => setInfoOpen(false)}
               >
                 Schließen
               </button>
             </div>
-            {info}
+            <div className="space-y-3">{info}</div>
           </div>
         </>
       ) : null}
