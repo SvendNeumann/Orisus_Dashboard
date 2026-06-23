@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Cell,
   ComposedChart,
+  LabelList,
   Line,
   Pie,
   PieChart,
@@ -6099,7 +6100,7 @@ function TopBehandlerChart({ data = [] }: { data?: TopBehandlerEntry[] }) {
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={data} layout="vertical" margin={{ left: 4, right: 12 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis type="number" tickFormatter={(v) => eur(Number(v), true)} />
+        <XAxis type="number" hide />
         <YAxis
           type="category"
           dataKey="name"
@@ -6110,7 +6111,16 @@ function TopBehandlerChart({ data = [] }: { data?: TopBehandlerEntry[] }) {
           tickFormatter={(value) => String(value).length > 16 ? `${String(value).slice(0, 15)}…` : String(value)}
         />
         <Tooltip formatter={(v) => eur(Number(v))} labelFormatter={(label) => `${label} Honorarumsatz`} />
-        <Bar dataKey="honorar" name="Honorarumsatz" fill="#0f766e" radius={[0, 5, 5, 0]} />
+        <Bar dataKey="honorar" name="Honorarumsatz" fill="#0f766e" radius={[0, 5, 5, 0]}>
+          <LabelList
+            dataKey="honorar"
+            position="insideRight"
+            formatter={(value: number) => eur(Number(value), true)}
+            fill="#ccfbf1"
+            fontSize={11}
+            fontWeight={700}
+          />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
