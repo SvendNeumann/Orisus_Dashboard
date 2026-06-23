@@ -10111,6 +10111,12 @@ function allocateByMonthlyStructure(totalValue: number, monthlyData: typeof mont
   return fillTwelveMonths(activeValues);
 }
 
+function anonymousBenchmarkSiteLabel(index: number) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  if (index < alphabet.length) return `Standort ${alphabet[index]}`;
+  return `Standort ${index + 1}`;
+}
+
 function Analysen({
   sites = standorte,
   monthlyData = monthly,
@@ -10147,6 +10153,13 @@ function Analysen({
   }, [selectedSiteId, sortedSites]);
 
   const selectedSite = sortedSites.find((site) => site.id === selectedSiteId) ?? sortedSites[0] ?? sites[0];
+  const anonymousLabelsBySiteId = new Map(
+    sortedSites
+      .filter((site) => site.id !== selectedSite?.id)
+      .map((site, index) => [site.id, anonymousBenchmarkSiteLabel(index)])
+  );
+  const benchmarkSiteLabel = (site: DashboardSite) =>
+    site.id === selectedSite?.id ? site.name : anonymousLabelsBySiteId.get(site.id) ?? "Standort";
   const dentistCapacityBySite = useMemo(
     () => dentistCapacityBySiteForPeriod(personalData?.employees ?? [], period),
     [personalData, period]
@@ -10172,7 +10185,7 @@ function Analysen({
     const ebitdaPerOpeningHour = openingHoursBasis ? site.ebitda / openingHoursBasis : null;
     return {
       site,
-      label: site.name,
+      label: benchmarkSiteLabel(site),
       dentists: dentistHeadcount,
       dentistCapacity,
       dentistFte,
@@ -10748,7 +10761,7 @@ function Analysen({
       </thead>
       <tbody>
         ${siteRows.map((row) => `<tr>
-          <td>${reportEscape(viewMode === "Intern" ? row.site.name : row.label)}</td>
+          <td>${reportEscape(row.label)}</td>
           <td class="${heatClassFor(row.materialquote, costGroup.materialquote)}">${reportEscape(pct(row.materialquote))}</td>
           <td class="${heatClassFor(row.fremdlaborquote, costGroup.fremdlaborquote)}">${reportEscape(pct(row.fremdlaborquote))}</td>
           <td class="${heatClassFor(row.personalquote, costGroup.personalquote)}">${reportEscape(pct(row.personalquote))}</td>
@@ -10779,7 +10792,7 @@ function Analysen({
       </thead>
       <tbody>
         ${patientSiteRows.map((row) => `<tr>
-          <td>${reportEscape(viewMode === "Intern" ? row.site.name : row.label)}</td>
+          <td>${reportEscape(row.label)}</td>
           <td class="${heatClassFor(row.treatedPatients, patientAverage((item) => item.treatedPatients), true)}">${reportEscape(formatPatientBasisValue(row.treatedPatients, "count"))}</td>
           <td class="${heatClassFor(row.newPatientRate, patientAverage((item) => item.newPatientRate), true)}">${reportEscape(formatPatientBasisValue(row.newPatientRate, "percent"))}</td>
           <td class="${heatClassFor(row.attendanceRate, patientAverage((item) => item.attendanceRate), true)}">${reportEscape(formatPatientBasisValue(row.attendanceRate, "percent"))}</td>
@@ -10807,14 +10820,14 @@ function Analysen({
       </div>
       <div class="benchmark-two">
         ${reportSection("Ranking Gesamtumsatz je Zahnarzt-FTE", reportBarList(pvsRankingRows.map((row) => ({
-          label: viewMode === "Intern" ? row.site.name : row.label,
+          label: row.label,
           value: row.pvsPerDentist ?? 0,
           max: pvsRankingMax,
           tone: row.site.id === selectedSite?.id ? "green" : "blue",
           suffix: eur(row.pvsPerDentist ?? 0)
         }))), `Top-Standorte nach normalisiertem PVS-Gesamtumsatz.`)}
         ${reportSection("Ranking EBITDA-Marge", reportBarList(marginRankingRows.map((row) => ({
-          label: viewMode === "Intern" ? row.site.name : row.label,
+          label: row.label,
           value: row.ebitdaMargin ?? 0,
           max: marginRankingMax,
           tone: row.site.id === selectedSite?.id ? "green" : "blue",
@@ -11126,7 +11139,7 @@ function Analysen({
             <BenchmarkRanking
               title="Umsatz je Zahnarzt-FTE (Index)"
               rows={siteRows.map((row) => ({
-                label: viewMode === "Intern" ? row.site.name : row.label,
+                label: row.label,
                 value: Math.round(indexFor(row.pvsPerDentist, numericAverage((item) => item.pvsPerDentist)) ?? 0),
                 selected: row.site.id === selectedSite?.id
               }))}
@@ -11136,7 +11149,7 @@ function Analysen({
             <BenchmarkRanking
               title="EBITDA-Marge (%)"
               rows={siteRows.map((row) => ({
-                label: viewMode === "Intern" ? row.site.name : row.label,
+                label: row.label,
                 value: row.ebitdaMargin,
                 selected: row.site.id === selectedSite?.id
               }))}
@@ -11161,7 +11174,7 @@ function Analysen({
                   return value == null
                     ? null
                     : {
-                        label: viewMode === "Intern" ? row.site.name : row.label,
+                        label: row.label,
                         value: Math.round(value),
                         selected: row.site.id === selectedSite?.id
                       };
@@ -11175,7 +11188,7 @@ function Analysen({
               rows={patientSiteRows
                 .filter((row) => row.attendanceRate != null)
                 .map((row) => ({
-                  label: viewMode === "Intern" ? row.site.name : row.label,
+                  label: row.label,
                   value: row.attendanceRate ?? 0,
                   selected: row.site.id === selectedSite?.id
                 }))}
@@ -11573,7 +11586,7 @@ function BenchmarkHeatmap({
         <tbody>
           {rows.map((row) => (
             <tr key={row.site.id} className={row.site.id === selectedSiteId ? "outline outline-1 outline-cyan-400/70" : ""}>
-              <td className="border border-white/10 p-2 font-semibold text-white">{viewMode === "Intern" ? row.site.name : row.label}</td>
+              <td className="border border-white/10 p-2 font-semibold text-white">{row.label}</td>
               {columns.map(([key]) => (
                 <td key={key} className={cn("border border-white/10 p-2 text-right font-semibold", heat(row[key], group[key]))}>
                   {pct(row[key])}
@@ -11660,7 +11673,7 @@ function BenchmarkPatientHeatmap({
         <tbody>
           {rows.map((row) => (
             <tr key={row.site.id} className={row.site.id === selectedSiteId ? "outline outline-1 outline-cyan-400/70" : ""}>
-              <td className="border border-white/10 p-2 font-semibold text-white">{viewMode === "Intern" ? row.site.name : row.label}</td>
+              <td className="border border-white/10 p-2 font-semibold text-white">{row.label}</td>
               {columns.map(([key, , type, higherIsBetter]) => (
                 <td key={key} className={cn("border border-white/10 p-2 text-right font-semibold", heat(row[key], group[key], higherIsBetter))}>
                   {formatHeatValue(row[key], type)}
