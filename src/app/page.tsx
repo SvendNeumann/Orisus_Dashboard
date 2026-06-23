@@ -11607,39 +11607,42 @@ function BankCashflowControlTable({ sites = standorte, importedData }: { sites?:
   const selectedSiteLabel = siteFilter === "gesamt" ? "Konsolidiert" : sitesWithRows.find((site) => site.id === siteFilter)?.name ?? "Standort";
 
   return (
-    <Card className="overflow-hidden">
-      <div className="table-head space-y-3 p-4 text-white">
-        <div>
-          <h2 className="text-xl font-bold">Bankbewegungen | {selectedSiteLabel} | {performancePeriodLabel(period)}</h2>
-          <p className="mt-1 text-sm text-white/75">
-            Vollständige Bank-Cashflow-Tabelle aus Input_Finanzen: Geldeingänge, Geldausgänge, Bank-Cashflow und Kontostände.
-          </p>
+    <div className="space-y-5">
+      <Card className="overflow-hidden">
+        <div className="table-head space-y-3 p-4 text-white">
+          <div>
+            <h2 className="text-xl font-bold">Bankbewegungen | {selectedSiteLabel} | {performancePeriodLabel(period)}</h2>
+            <p className="mt-1 text-sm text-white/75">
+              Vollständige Bank-Cashflow-Tabelle aus Input_Finanzen: Geldeingänge, Geldausgänge, Bank-Cashflow und Kontostände.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[minmax(220px,320px)_minmax(220px,320px)]">
+            <Select value={siteFilter} onChange={(event) => setSiteFilter(event.target.value)}>
+              <option value="gesamt">Gesamt / konsolidiert</option>
+              {sitesWithRows.map((site) => (
+                <option key={site.id} value={site.id}>
+                  {site.name}
+                </option>
+              ))}
+            </Select>
+            <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
+              {availablePeriods.map((option) => (
+                <option key={option} value={option}>
+                  {performancePeriodLabel(option)}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-[minmax(220px,320px)_minmax(220px,320px)]">
-          <Select value={siteFilter} onChange={(event) => setSiteFilter(event.target.value)}>
-            <option value="gesamt">Gesamt / konsolidiert</option>
-            {sitesWithRows.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name}
-              </option>
-            ))}
-          </Select>
-          <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
-            {availablePeriods.map((option) => (
-              <option key={option} value={option}>
-                {performancePeriodLabel(option)}
-              </option>
-            ))}
-          </Select>
+        <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Mini label="Geldeingang Zeitraum" value={eur(eingangTotal)} />
+          <Mini label="Geldausgang Zeitraum" value={eur(ausgangTotal)} />
+          <Mini label="Bank-Cashflow Zeitraum" value={eur(cashflowTotal)} />
+          <Mini label="Kontostand Monatsende" value={eur(kontostandTotal)} />
         </div>
-      </div>
-      <div className="grid gap-3 border-b border-border p-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Mini label="Geldeingang Zeitraum" value={eur(eingangTotal)} />
-        <Mini label="Geldausgang Zeitraum" value={eur(ausgangTotal)} />
-        <Mini label="Bank-Cashflow Zeitraum" value={eur(cashflowTotal)} />
-        <Mini label="Kontostand Monatsende" value={eur(kontostandTotal)} />
-      </div>
-      <div className="mt-3 overflow-x-auto">
+      </Card>
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
@@ -11674,8 +11677,9 @@ function BankCashflowControlTable({ sites = standorte, importedData }: { sites?:
             ))}
           </tbody>
         </table>
-      </div>
-    </Card>
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -11807,23 +11811,26 @@ function SiteBankCashflowCard({
   const rowsToDisplay = variant === "detail" ? bankDetailRows : summaryRowsToDisplay;
 
   return (
-    <Card className="overflow-hidden">
-      <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
-        <span className="font-bold">{site.name} | {variant === "detail" ? "Bankbewegungen" : "Bank-Cashflow"} | {performancePeriodLabel(period)}</span>
-        <Select className="w-full sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
-          {availablePeriods.map((option) => (
-            <option key={option} value={option}>
-              {performancePeriodLabel(option)}
-            </option>
-          ))}
-        </Select>
-      </div>
-      <div className="grid gap-3 border-b border-border p-3 sm:grid-cols-3">
-        <Mini label="Bank-Cashflow Zeitraum" value={eur(selectedCashflow)} />
-        <Mini label="Ø Monat" value={eur(selectedAverage)} />
-        <Mini label="Kontostand Monatsende" value={eur(latestKontostand)} />
-      </div>
-      <div className="mt-3 overflow-x-auto">
+    <div className="space-y-5">
+      <Card className="overflow-hidden">
+        <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+          <span className="font-bold">{site.name} | {variant === "detail" ? "Bankbewegungen" : "Bank-Cashflow"} | {performancePeriodLabel(period)}</span>
+          <Select className="w-full sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
+            {availablePeriods.map((option) => (
+              <option key={option} value={option}>
+                {performancePeriodLabel(option)}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="grid gap-3 p-3 sm:grid-cols-3">
+          <Mini label="Bank-Cashflow Zeitraum" value={eur(selectedCashflow)} />
+          <Mini label="Ø Monat" value={eur(selectedAverage)} />
+          <Mini label="Kontostand Monatsende" value={eur(latestKontostand)} />
+        </div>
+      </Card>
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
@@ -11858,8 +11865,9 @@ function SiteBankCashflowCard({
             ))}
           </tbody>
         </table>
-      </div>
-    </Card>
+        </div>
+      </Card>
+    </div>
   );
 }
 
