@@ -125,7 +125,7 @@ type Page =
   | "personal-upload"
   | "patienten-auswertungen";
 
-type AuthStep = "welcome" | "forgot" | "set-password" | "app";
+type AuthStep = "checking" | "welcome" | "forgot" | "set-password" | "app";
 type UserRole = "admin" | "info" | "praxismanagement";
 type AccessUser = {
   email: string;
@@ -3388,7 +3388,7 @@ function cfoMetrics(sites: DashboardSite[] = standorte, monthlyData: typeof mont
 }
 
 export default function HomePage() {
-  const [authStep, setAuthStep] = useState<AuthStep>("welcome");
+  const [authStep, setAuthStep] = useState<AuthStep>("checking");
   const [page, setPageState] = useState<Page>(storedPage);
   const [selectedSite, setSelectedSiteState] = useState(storedSiteId);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -3399,6 +3399,8 @@ export default function HomePage() {
   const [userDisplayName, setUserDisplayName] = useState("Svend Neumann");
   const [userRole, setUserRole] = useState<UserRole>("info");
   const [authProfileReady, setAuthProfileReady] = useState(false);
+  const [importDataLoading, setImportDataLoading] = useState(false);
+  const [personalDataLoading, setPersonalDataLoading] = useState(false);
 
   const setPage = (target: Page) => {
     setPageState(target);
@@ -3470,7 +3472,10 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    if (window.localStorage.getItem(authStorageKey) !== "true") return;
+    if (window.localStorage.getItem(authStorageKey) !== "true") {
+      setAuthStep("welcome");
+      return;
+    }
     let isMounted = true;
     validateStoredSupabaseSession()
       .then((isValid) => {
@@ -3528,11 +3533,15 @@ export default function HomePage() {
   useEffect(() => {
     if (authStep !== "app") return;
     let isMounted = true;
+    setImportDataLoading(true);
     loadConfirmedImportData()
       .then((savedImport) => {
         if (isMounted && savedImport) setImportedData(savedImport);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (isMounted) setImportDataLoading(false);
+      });
     return () => {
       isMounted = false;
     };
@@ -3541,11 +3550,15 @@ export default function HomePage() {
   useEffect(() => {
     if (authStep !== "app") return;
     let isMounted = true;
+    setPersonalDataLoading(true);
     loadConfirmedPersonalImportData()
       .then((savedImport) => {
         if (isMounted && savedImport) setPersonalData(savedImport);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (isMounted) setPersonalDataLoading(false);
+      });
     return () => {
       isMounted = false;
     };
@@ -3574,6 +3587,20 @@ export default function HomePage() {
     setMenuOpen(false);
     setAuthStep("welcome");
   };
+
+  if (authStep === "checking") {
+    return (
+      <main className="app-shell min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(48,213,200,0.12),transparent_34%),linear-gradient(135deg,#092331,#164c59)] p-4 text-white">
+        <div className="flex min-h-[calc(100vh-2rem)] items-center justify-center">
+          <Card className="w-full max-w-sm p-6 text-center">
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-primary">Orisus Zahnmedizin</p>
+            <h1 className="mt-3 text-2xl font-extrabold">App wird geladen</h1>
+            <p className="mt-2 text-sm text-muted-foreground">Sitzung und Datenstand werden geprüft.</p>
+          </Card>
+        </div>
+      </main>
+    );
+  }
 
   if (authStep !== "app") {
     return <AuthFlow step={authStep} setStep={setPersistentAuthStep} />;
@@ -3688,8 +3715,8 @@ export default function HomePage() {
             previousPage={previousPage}
             onBack={() => go(previousPage ?? "cockpit")}
           />
-          {requiresImport && !importedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
-          {requiresPersonalImport && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
+          {requiresImport && !importDataLoading && !importedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
+          {requiresPersonalImport && !personalDataLoading && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
           {importedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
