@@ -10021,7 +10021,6 @@ function SiteBehandlerPersonnelCosts({
           <tr>
             <TableHead>Mitarbeiter</TableHead>
             <TableHead>Typ</TableHead>
-            <TableHead>Status</TableHead>
             <TableHead>Personalkosten</TableHead>
             <TableHead>Honorarumsatz</TableHead>
             <TableHead>PK-Quote</TableHead>
@@ -10032,7 +10031,6 @@ function SiteBehandlerPersonnelCosts({
             <tr key={`${row.employeeId}-${row.name}`}>
               <TableCell strong>{row.name}</TableCell>
               <TableCell>{row.type}</TableCell>
-              <TableCell>{row.status}</TableCell>
               <TableCell>{eur(row.personnelCost)}</TableCell>
               <TableCell>{eur(row.honorar)}</TableCell>
               <TableCell>{pct(row.pkQuote * 100)}</TableCell>
@@ -10042,7 +10040,6 @@ function SiteBehandlerPersonnelCosts({
             <tr className="summary-row">
               <TableCell strong summary>Gesamt</TableCell>
               <TableCell summary>{""}</TableCell>
-              <TableCell summary>{""}</TableCell>
               <TableCell strong summary>{eur(totals.personnelCost)}</TableCell>
               <TableCell strong summary>{eur(totals.honorar)}</TableCell>
               <TableCell strong summary>{pct(ratio(totals.personnelCost, totals.honorar))}</TableCell>
@@ -10050,7 +10047,6 @@ function SiteBehandlerPersonnelCosts({
           ) : (
             <tr>
               <TableCell strong>Keine Personalkosten-Daten</TableCell>
-              <TableCell>{""}</TableCell>
               <TableCell>{""}</TableCell>
               <TableCell>{""}</TableCell>
               <TableCell>{""}</TableCell>
