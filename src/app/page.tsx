@@ -1193,6 +1193,7 @@ const bwaMetricDefinitions = [
   { key: "ziel_ebitda_uebernahme", label: "Ziel-EBITDA gemäß Übernahme", section: "4. Sachkosten / EBITDA", order: 550, source: [], derived: "target_uebernahme" },
   { key: "abweichung_ziel_ebitda_uebernahme_abs", label: "Abw. Ziel-EBITDA Übernahme", section: "4. Sachkosten / EBITDA", order: 560, source: [], derived: "abw_abs_uebernahme" },
   { key: "abweichung_ziel_ebitda_uebernahme_pct", label: "Abw. Ziel-EBITDA Übernahme %", section: "4. Sachkosten / EBITDA", order: 570, source: [], percent: true, derived: "abw_pct_uebernahme" },
+  { key: "operative_prozesskosten_bis_ebitda", label: "Operative Prozesskosten bis EBITDA", section: "4. Sachkosten / EBITDA", order: 580, source: [], emphasis: true, derived: "operative_prozesskosten_bis_ebitda" },
   { key: "section_ergebnis", label: "5. Unter EBITDA / Vorläufiges Ergebnis", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 600, source: [], emphasis: true },
   { key: "abschreibungen", label: "Abschreibungen", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 610, source: ["abschreibungen"] },
   { key: "zinsen_neutraler_aufwand", label: "Zinsen & neutraler Aufwand", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 620, source: ["zinsen_neutraler_aufwand"] },
@@ -1226,6 +1227,7 @@ const bwaDeductionMetricKeys = new Set([
   "sonstige_kosten",
   "summe_sonstige_kosten",
   "operative_praxiskosten_bis_ebitda",
+  "operative_prozesskosten_bis_ebitda",
   "abschreibungen",
   "zinsen_neutraler_aufwand",
   "steuern_einkommen_ertrag",
@@ -1254,6 +1256,7 @@ const bwaDeductionLabelKeys = new Set([
   "sonstige_kosten_gesamt",
   "summe_sonstige_kosten",
   "operative_praxiskosten_bis_ebitda",
+  "operative_prozesskosten_bis_ebitda",
   "abschreibungen",
   "zinsen_neutraler_aufwand",
   "steuern_vom_einkommen_und_ertrag",
@@ -1794,6 +1797,32 @@ function normalizeMetric(value: unknown) {
     .replace(/^_+|_+$/g, "");
 }
 
+const bankMovementKeyAliases: Record<string, string[]> = {
+  cashflow_gesamt_im_monat: ["bank_cashflow_gesamt_im_monat"],
+  cashflow_vor_intercompany: [
+    "bank_cashflow_vor_intercompany",
+    "cashflow_vor_umbuchungen_intercompany",
+    "bank_cashflow_vor_umbuchungen_intercompany"
+  ],
+  davon_sonstiges_erstattungen_etc: [
+    "davon_sonstiges_miete_ersattungen_etc",
+    "davon_sonstiges_miete_erstattungen_etc"
+  ]
+};
+
+function matchesBankMovementKey(label: unknown, key: string) {
+  const normalizedLabel = normalizeMetric(label);
+  const normalizedKey = normalizeMetric(key);
+  const labelWithoutBankPrefix = normalizedLabel.replace(/^bank_/, "");
+  const aliases = bankMovementKeyAliases[normalizedKey] ?? [];
+  return (
+    normalizedLabel === normalizedKey ||
+    labelWithoutBankPrefix === normalizedKey ||
+    aliases.includes(normalizedLabel) ||
+    aliases.includes(labelWithoutBankPrefix)
+  );
+}
+
 function normalizeSiteId(value: unknown) {
   return asText(value)
     .toLowerCase()
@@ -1821,6 +1850,88 @@ const treatmentRoomsBySiteId: Record<string, number> = {
 
 function staticTreatmentRoomsForSite(siteName: string) {
   return treatmentRoomsBySiteId[siteIdForName(siteName)] ?? 0;
+}
+
+function parseGermanDisplayDate(value: unknown) {
+  const text = asText(value).trim();
+  if (!text) return null;
+  const germanDate = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (germanDate) {
+    const day = Number(germanDate[1]);
+    const month = Number(germanDate[2]);
+    const year = Number(germanDate[3]);
+    const date = new Date(year, month - 1, day);
+    return Number.isFinite(date.getTime()) ? date : null;
+  }
+  const parsed = new Date(text);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function yearFromPeriodLabel(period: string, fallback = 2026) {
+  const match = period.match(/20\d{2}/);
+  return match ? Number(match[0]) : fallback;
+}
+
+function monthDateRange(year: number, month: number) {
+  return {
+    start: new Date(year, month - 1, 1),
+    end: new Date(year, month, 0, 23, 59, 59, 999)
+  };
+}
+
+function personalEmployeeActiveInDateRange(employee: PersonalEmployee, start: Date, end: Date) {
+  const entryDate = parseGermanDisplayDate(employee.entryDate);
+  const exitDate = parseGermanDisplayDate(employee.exitDate);
+  if (entryDate && entryDate > end) return false;
+  if (exitDate && exitDate < start) return false;
+  if (!entryDate && !exitDate && employee.status.toLowerCase() !== "aktiv") return false;
+  return true;
+}
+
+type DentistCapacityBasis = {
+  headcount: number;
+  weeklyHours: number;
+  fte: number;
+  months: number;
+};
+
+function dentistCapacityBySiteForPeriod(employees: PersonalEmployee[], period: string) {
+  const months = Array.from(monthSelectionForPeriod(period));
+  const monthCount = Math.max(months.length, 1);
+  const year = yearFromPeriodLabel(period);
+  const totals = new Map<string, { headcountMonths: number; weeklyHoursMonths: number }>();
+
+  months.forEach((month) => {
+    const { start, end } = monthDateRange(year, month);
+    employees.forEach((employee) => {
+      if (!employee.isDentist) return;
+      if (!personalEmployeeActiveInDateRange(employee, start, end)) return;
+      const siteId = siteIdForName(employee.site);
+      if (!siteId) return;
+      const existing = totals.get(siteId) ?? { headcountMonths: 0, weeklyHoursMonths: 0 };
+      existing.headcountMonths += 1;
+      existing.weeklyHoursMonths += employee.weeklyHours || 0;
+      totals.set(siteId, existing);
+    });
+  });
+
+  const result = new Map<string, DentistCapacityBasis>();
+  totals.forEach((value, siteId) => {
+    const weeklyHours = value.weeklyHoursMonths / monthCount;
+    const headcount = value.headcountMonths / monthCount;
+    result.set(siteId, {
+      headcount,
+      weeklyHours,
+      fte: weeklyHours / 40,
+      months: monthCount
+    });
+  });
+  return result;
+}
+
+function dentistCapacityBasisLabel(capacity?: DentistCapacityBasis) {
+  if (!capacity || !capacity.fte) return "keine Zahnarztstunden im Zeitraum";
+  return `${capacity.fte.toLocaleString("de-DE", { maximumFractionDigits: 1 })} Zahnarzt-FTE (${capacity.weeklyHours.toLocaleString("de-DE", { maximumFractionDigits: 1 })} Std./Woche Ø, ${capacity.headcount.toLocaleString("de-DE", { maximumFractionDigits: 1 })} Köpfe Ø)`;
 }
 
 const defaultPracticeOpeningHoursBySiteId: Record<string, number> = {
@@ -2405,6 +2516,16 @@ function derivedBwaValue(rows: Record<string, unknown>[], siteName: string, key:
   const ebitda = sumMetricForPeriod(rows, siteName, ["ebitda"], year, month);
   const targetKv = targetEbitdaValue(rows, siteName, "kv", year, month);
   const targetUebernahme = targetEbitdaValue(rows, siteName, "uebernahme", year, month);
+  const operativeProcessCostKeys = [
+    "fremdlaborkosten",
+    "materialkosten",
+    "personalkosten",
+    "reparatur_instandhaltungskosten",
+    "raum_energiekosten",
+    "reise_fortbildungskosten",
+    "sach_sonstige_kosten",
+    "sonstige_kosten"
+  ];
   if (key === "gesamtleistungsquote") return totalPerformance ? 100 : 0;
   if (key === "praxisleistungsquote") {
     return ratio(sumMetricForPeriod(rows, siteName, ["praxisleistung"], year, month), totalPerformance);
@@ -2427,6 +2548,9 @@ function derivedBwaValue(rows: Record<string, unknown>[], siteName: string, key:
   if (key === "abw_abs_uebernahme") return ebitda - targetUebernahme;
   if (key === "abw_pct_kv") return ratio(ebitda - targetKv, targetKv);
   if (key === "abw_pct_uebernahme") return ratio(ebitda - targetUebernahme, targetUebernahme);
+  if (key === "operative_prozesskosten_bis_ebitda") {
+    return sumMetricForPeriod(rows, siteName, operativeProcessCostKeys, year, month);
+  }
   return 0;
 }
 
@@ -6783,13 +6907,13 @@ function buildImportedBankMovementRows(
   const definitions = [
     { label: "Geldeingang Bank gesamt", keys: ["geldeingang_bank_gesamt"] },
     { label: "davon Praxisumsatz", keys: ["davon_praxisumsatz"] },
-    { label: "davon sonstiges (Erstattungen etc)", keys: ["davon_sonstiges_miete_ersattungen_etc", "davon_sonstiges_erstattungen_etc"] },
+    { label: "davon sonstiges (Erstattungen etc)", keys: ["davon_sonstiges_miete_ersattungen_etc", "davon_sonstiges_miete_erstattungen_etc", "davon_sonstiges_erstattungen_etc"] },
     { label: "Geldausgang Bank inkl. Kredit", keys: ["geldausgang_bank_inkl_kredit"] },
     { label: "davon Praxisausgaben", keys: ["davon_praxisausgaben"] },
     { label: "davon Tilgung + Zins", keys: ["davon_tilgung_zins"] },
     { label: "davon Umbuchungen an Orisus ZMVZ", keys: ["davon_umbuchungen_an_orisus_zmvz"] },
-    { label: "Bank-Cashflow gesamt im Monat", keys: ["cashflow_gesamt_im_monat"] },
-    { label: "Bank-Cashflow vor Intercompany", keys: ["cashflow_vor_umbuchungen_intercompany"] },
+    { label: "Bank-Cashflow gesamt im Monat", keys: ["cashflow_gesamt_im_monat", "bank_cashflow_gesamt_im_monat"] },
+    { label: "Bank-Cashflow vor Intercompany", keys: ["cashflow_vor_intercompany", "bank_cashflow_vor_intercompany", "cashflow_vor_umbuchungen_intercompany", "bank_cashflow_vor_umbuchungen_intercompany"] },
     { label: "Kontostand Monatsende", keys: ["kontostand_monatsende"], snapshot: true }
   ];
   const dashboardRows = dashboardBankMovementRows(workbook, latestYear);
@@ -9158,7 +9282,7 @@ function BankMovementsTable({
   const selection = selectedBwaPeriod(period);
   const importedRows = (importedData?.bankMovementRows ?? []).filter((row) => !row.siteId || row.siteId === "konzern");
   const selectedMonthKeys = Array.from(visibleMonths).map((month) => `${selection.year ?? ""}-${month}`);
-  const isSnapshotRow = (row: ImportedBankMovementRow) => normalizeMetric(row.label) === "kontostand_monatsende";
+  const isSnapshotRow = (row: ImportedBankMovementRow) => matchesBankMovementKey(row.label, "kontostand_monatsende");
   const monthValueFor = (row: ImportedBankMovementRow, month: number) => {
     if (!selection.year) return null;
     const key = `${selection.year}-${month}`;
@@ -9605,25 +9729,21 @@ function Analysen({
   }, [selectedSiteId, sortedSites]);
 
   const selectedSite = sortedSites.find((site) => site.id === selectedSiteId) ?? sortedSites[0] ?? sites[0];
-  const activeDentistsBySite = useMemo(() => {
-    const result = new Map<string, number>();
-    if (!personalData) return result;
-    personalData.employees.forEach((employee) => {
-      if (employee.status.toLowerCase() !== "aktiv" || !employee.isDentist) return;
-      const siteId = siteIdForName(employee.site);
-      if (!siteId) return;
-      result.set(siteId, (result.get(siteId) ?? 0) + 1);
-    });
-    return result;
-  }, [personalData]);
+  const dentistCapacityBySite = useMemo(
+    () => dentistCapacityBySiteForPeriod(personalData?.employees ?? [], period),
+    [personalData, period]
+  );
 
   const siteRows = sortedSites.map((site, index) => {
-    const dentists = activeDentistsBySite.get(site.id) ?? 0;
+    const dentistCapacity = dentistCapacityBySite.get(site.id);
+    const dentistFte = dentistCapacity?.fte ?? 0;
+    const dentistWeeklyHours = dentistCapacity?.weeklyHours ?? 0;
+    const dentistHeadcount = dentistCapacity?.headcount ?? 0;
     const importedRoomCount = asNumber(site.treatmentRooms);
     const roomCount = importedRoomCount && importedRoomCount > 0 ? importedRoomCount : staticTreatmentRoomsForSite(site.name);
-    const pvsPerDentist = dentists ? site.pvsUmsatz / dentists : null;
-    const performancePerDentist = dentists ? site.gesamtleistung / dentists : null;
-    const ebitdaPerDentist = dentists ? site.ebitda / dentists : null;
+    const pvsPerDentist = dentistFte ? site.pvsUmsatz / dentistFte : null;
+    const performancePerDentist = dentistFte ? site.gesamtleistung / dentistFte : null;
+    const ebitdaPerDentist = dentistFte ? site.ebitda / dentistFte : null;
     const pvsPerRoom = roomCount ? site.pvsUmsatz / roomCount : null;
     const performancePerRoom = roomCount ? site.gesamtleistung / roomCount : null;
     const ebitdaPerRoom = roomCount ? site.ebitda / roomCount : null;
@@ -9635,7 +9755,10 @@ function Analysen({
     return {
       site,
       label: site.id === selectedSite?.id ? "Ausgewählter Standort" : `Standort ${String.fromCharCode(65 + index)}`,
-      dentists,
+      dentists: dentistHeadcount,
+      dentistCapacity,
+      dentistFte,
+      dentistWeeklyHours,
       rooms: roomCount,
       weeklyOpeningHours,
       openingHoursBasis,
@@ -9723,25 +9846,25 @@ function Analysen({
   const indexFor = (value: number | null, average: number | null) => (value != null && average ? (value / average) * 100 : null);
   const benchmarkItems = [
     {
-      label: "Gesamtumsatz je Zahnarzt",
+      label: "Gesamtumsatz je Zahnarzt-FTE",
       selected: indexFor(selectedRow?.pvsPerDentist ?? null, numericAverage((row) => row.pvsPerDentist)),
       group: 100,
       higherIsBetter: true,
-      unavailable: !selectedRow?.dentists
+      unavailable: !selectedRow?.dentistFte
     },
     {
-      label: "Gesamtleistung je Zahnarzt",
+      label: "Gesamtleistung je Zahnarzt-FTE",
       selected: indexFor(selectedRow?.performancePerDentist ?? null, numericAverage((row) => row.performancePerDentist)),
       group: 100,
       higherIsBetter: true,
-      unavailable: !selectedRow?.dentists
+      unavailable: !selectedRow?.dentistFte
     },
     {
-      label: "EBITDA je Zahnarzt",
+      label: "EBITDA je Zahnarzt-FTE",
       selected: indexFor(selectedRow?.ebitdaPerDentist ?? null, numericAverage((row) => row.ebitdaPerDentist)),
       group: 100,
       higherIsBetter: true,
-      unavailable: !selectedRow?.dentists
+      unavailable: !selectedRow?.dentistFte
     },
     {
       label: "Gesamtumsatz je Behandlungszimmer",
@@ -9873,8 +9996,8 @@ function Analysen({
     describeBenchmarkGap("EBITDA-Marge", selectedRow?.ebitdaMargin, marginGroup, true),
     describeBenchmarkGap("Gesamtkostenquote", selectedRow?.gesamtkostenquote, costGroup.gesamtkostenquote, false),
     selectedPvsPerDentistIndex != null
-      ? `${displaySiteName}: Gesamtumsatz je Zahnarzt liegt bei ${pct(selectedPvsPerDentistIndex)} des Gruppenschnitts und damit ${selectedPvsPerDentistIndex >= 100 ? "über" : "unter"} Vergleich.`
-      : `${displaySiteName}: Gesamtumsatz je Zahnarzt kann mangels Zahnarzt- oder Umsatzbasis noch nicht bewertet werden.`,
+      ? `${displaySiteName}: Gesamtumsatz je Zahnarzt-FTE liegt bei ${pct(selectedPvsPerDentistIndex)} des Gruppenschnitts und damit ${selectedPvsPerDentistIndex >= 100 ? "über" : "unter"} Vergleich.`
+      : `${displaySiteName}: Gesamtumsatz je Zahnarzt-FTE kann mangels Zahnarztstunden- oder Umsatzbasis noch nicht bewertet werden.`,
     selectedPatientRow?.attendanceRate != null && attendanceRateGroup != null
       ? describeBenchmarkGap("Terminwahrnehmungsquote", selectedPatientRow.attendanceRate, attendanceRateGroup, true)
       : "Patienten- und Termindaten fehlen für den ausgewählten Standort noch im Import."
@@ -9883,25 +10006,25 @@ function Analysen({
   const periodOptions = importedData ? bwaPeriodOptionsFor(importedData) : ["YTD 2026", "aktueller Monat", "Geschäftsjahr", "Gesamt seit Praxisstart", "freier Zeitraum"];
   const basisRows = [
     {
-      label: "Gesamtumsatz je Zahnarzt",
+      label: "Gesamtumsatz je Zahnarzt-FTE",
       own: selectedRow?.pvsPerDentist ?? null,
       comparison: numericAverage((row) => row.pvsPerDentist),
       type: "currency" as const,
-      basis: `${selectedRow?.dentists ?? 0} aktive Zahnärzte`
+      basis: dentistCapacityBasisLabel(selectedRow?.dentistCapacity)
     },
     {
-      label: "Gesamtleistung je Zahnarzt",
+      label: "Gesamtleistung je Zahnarzt-FTE",
       own: selectedRow?.performancePerDentist ?? null,
       comparison: numericAverage((row) => row.performancePerDentist),
       type: "currency" as const,
-      basis: `${selectedRow?.dentists ?? 0} aktive Zahnärzte`
+      basis: dentistCapacityBasisLabel(selectedRow?.dentistCapacity)
     },
     {
-      label: "EBITDA je Zahnarzt",
+      label: "EBITDA je Zahnarzt-FTE",
       own: selectedRow?.ebitdaPerDentist ?? null,
       comparison: numericAverage((row) => row.ebitdaPerDentist),
       type: "currency" as const,
-      basis: `${selectedRow?.dentists ?? 0} aktive Zahnärzte`
+      basis: dentistCapacityBasisLabel(selectedRow?.dentistCapacity)
     },
     {
       label: "Gesamtumsatz je Behandlungszimmer",
@@ -10266,7 +10389,7 @@ function Analysen({
         ${reportSection("Patienten- und Terminbasis", patientBasisTable, `Patientenkennzahlen für ${period}; fehlende Daten werden als n. v. ausgewiesen.`)}
       </div>
       <div class="benchmark-two">
-        ${reportSection("Ranking Gesamtumsatz je Zahnarzt", reportBarList(pvsRankingRows.map((row) => ({
+        ${reportSection("Ranking Gesamtumsatz je Zahnarzt-FTE", reportBarList(pvsRankingRows.map((row) => ({
           label: viewMode === "Intern" ? row.site.name : row.label,
           value: row.pvsPerDentist ?? 0,
           max: pvsRankingMax,
@@ -10540,7 +10663,7 @@ function Analysen({
             </p>
           </div>
           <div className="rounded-lg border border-white/10 bg-slate-950/35 px-3 py-2 text-xs text-slate-200 md:max-w-xs">
-            Beispiel: 118 % bei „Gesamtumsatz je Zahnarzt“ heißt 18 % über Vergleich. 85 % bei „EBITDA je Behandlungszimmer“ heißt 15 % unter Vergleich.
+            Beispiel: 118 % bei „Gesamtumsatz je Zahnarzt-FTE“ heißt 18 % über Vergleich. 85 % bei „EBITDA je Behandlungszimmer“ heißt 15 % unter Vergleich.
           </div>
         </div>
       </div>
@@ -10584,7 +10707,7 @@ function Analysen({
         <BenchmarkPanel title="Rankings im Standortvergleich">
           <div className="grid min-w-0 gap-5 lg:grid-cols-2">
             <BenchmarkRanking
-              title="Umsatz je Zahnarzt (Index)"
+              title="Umsatz je Zahnarzt-FTE (Index)"
               rows={siteRows.map((row) => ({
                 label: viewMode === "Intern" ? row.site.name : row.label,
                 value: Math.round(indexFor(row.pvsPerDentist, numericAverage((item) => item.pvsPerDentist)) ?? 0),
@@ -11396,13 +11519,19 @@ function bankMovementMonthlyValue(row: ImportedBankMovementRow | undefined, peri
 }
 
 function BankCashflowControlTable({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
-  const siteRows = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId && row.siteId !== "konzern");
+  const allRows = importedData?.bankMovementRows ?? [];
+  const siteRows = allRows.filter((row) => row.siteId && row.siteId !== "konzern");
+  const consolidatedRows = allRows.filter((row) => row.siteId === "konzern");
   const sitesWithRows = sortSitesByContractStart(
-    sites.filter((site) => siteRows.some((row) => row.siteId === site.id && normalizeMetric(row.label) === "cashflow_gesamt_im_monat"))
+    sites.filter((site) => siteRows.some((row) => row.siteId === site.id && matchesBankMovementKey(row.label, "cashflow_gesamt_im_monat")))
   );
   const [siteFilter, setSiteFilter] = useState("gesamt");
-  const selectedSiteIds = siteFilter === "gesamt" ? sitesWithRows.map((site) => site.id) : [siteFilter];
-  const selectedRows = siteRows.filter((row) => selectedSiteIds.includes(row.siteId ?? ""));
+  const selectedRows =
+    siteFilter === "gesamt"
+      ? consolidatedRows.length
+        ? consolidatedRows
+        : siteRows.filter((row) => sitesWithRows.some((site) => site.id === row.siteId))
+      : siteRows.filter((row) => row.siteId === siteFilter);
   const availablePeriods = periodOptionsFromBankMovements(selectedRows);
   const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
 
@@ -11416,7 +11545,7 @@ function BankCashflowControlTable({ sites = standorte, importedData }: { sites?:
     if (!availablePeriods.includes(period)) setPeriod(defaultPeriodFromOptions(availablePeriods));
   }, [availablePeriods, period]);
 
-  if (!siteRows.length) {
+  if (!allRows.length) {
     return (
       <Card className="p-4">
         <h2 className="font-bold">Bankbewegungen</h2>
@@ -11429,7 +11558,7 @@ function BankCashflowControlTable({ sites = standorte, importedData }: { sites?:
 
   const selection = selectedBwaPeriod(period);
   const visibleMonths = monthSelectionForPeriod(period);
-  const rowsByKey = (key: string) => selectedRows.filter((row) => normalizeMetric(row.label) === key);
+  const rowsByKey = (key: string) => selectedRows.filter((row) => matchesBankMovementKey(row.label, key));
   const valueForKey = (key: string, snapshot = false) => {
     const rows = rowsByKey(key);
     if (snapshot) return snapshotValueForRows(rows, period, visibleMonths);
@@ -11564,7 +11693,7 @@ function snapshotValueForRows(rows: ImportedBankMovementRow[], period: string, v
 function SiteBankCashflowSection({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
   const siteRows = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId && row.siteId !== "konzern");
   const sitesWithRows = sortSitesByContractStart(
-    sites.filter((site) => siteRows.some((row) => row.siteId === site.id && normalizeMetric(row.label) === "cashflow_gesamt_im_monat"))
+    sites.filter((site) => siteRows.some((row) => row.siteId === site.id && matchesBankMovementKey(row.label, "cashflow_gesamt_im_monat")))
   );
 
   if (!siteRows.length) {
@@ -11628,9 +11757,9 @@ function SiteBankCashflowCard({
 
   const selection = selectedBwaPeriod(period);
   const visibleMonths = monthSelectionForPeriod(period);
-  const cashflowRow = rows.find((row) => normalizeMetric(row.label) === "cashflow_gesamt_im_monat");
-  const preIntercompanyRow = rows.find((row) => normalizeMetric(row.label) === "cashflow_vor_intercompany");
-  const kontostandRow = rows.find((row) => normalizeMetric(row.label) === "kontostand_monatsende");
+  const cashflowRow = rows.find((row) => matchesBankMovementKey(row.label, "cashflow_gesamt_im_monat"));
+  const preIntercompanyRow = rows.find((row) => matchesBankMovementKey(row.label, "cashflow_vor_intercompany"));
+  const kontostandRow = rows.find((row) => matchesBankMovementKey(row.label, "kontostand_monatsende"));
   const selectedCashflow = bankMovementValueForPeriod(cashflowRow, period);
   const selectedPreIntercompany = bankMovementValueForPeriod(preIntercompanyRow, period);
   const selectedMonthsFor = (row?: ImportedBankMovementRow) =>
@@ -11644,7 +11773,7 @@ function SiteBankCashflowCard({
         .at(-1) ?? kontostandRow?.contractValue ?? 0
     : kontostandRow?.contractValue ?? 0;
 
-  const rowByKey = (key: string) => rows.find((row) => normalizeMetric(row.label) === key);
+  const rowByKey = (key: string) => rows.find((row) => matchesBankMovementKey(row.label, key));
   const bankDetailRows = [
     { label: "Geldeingang Bank gesamt", key: "geldeingang_bank_gesamt", emphasis: true },
     { label: "davon Praxisumsatz", key: "davon_praxisumsatz", indent: true },
@@ -13137,14 +13266,14 @@ function bankMovementReportRows(importedData?: ImportedDashboardData | null) {
   ];
 
   const valueForDefinition = (definition: (typeof definitions)[number]) => {
-    const matchingRows = rows.filter((row) => normalizeMetric(row.label) === definition.key);
+    const matchingRows = rows.filter((row) => matchesBankMovementKey(row.label, definition.key));
     if (definition.snapshot) return snapshotValueForRows(matchingRows, period, visibleMonths);
     return matchingRows.reduce((sum, row) => sum + bankMovementValueForPeriod(row, period), 0);
   };
 
   const monthlyValueForDefinition = (definition: (typeof definitions)[number], month: number) => {
     if (!selection.year) return "";
-    const matchingRows = rows.filter((row) => normalizeMetric(row.label) === definition.key);
+    const matchingRows = rows.filter((row) => matchesBankMovementKey(row.label, definition.key));
     const key = `${selection.year}-${month}`;
     if (!matchingRows.some((row) => row.hasValueByMonth[key])) return "";
     const value = matchingRows.reduce((sum, row) => sum + (row.valuesByMonth[key] ?? 0), 0);
