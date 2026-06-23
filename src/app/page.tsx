@@ -9033,7 +9033,7 @@ function Analysen({
   const periodOptions = importedData ? bwaPeriodOptionsFor(importedData) : ["YTD 2026", "aktueller Monat", "Geschäftsjahr", "Gesamt seit Praxisstart", "freier Zeitraum"];
 
   return (
-    <section className="analysis-report space-y-5">
+    <section className="analysis-report w-full max-w-full overflow-hidden space-y-5">
       <style jsx global>{`
         @media print {
           @page {
@@ -9193,7 +9193,7 @@ function Analysen({
           }
         }
       `}</style>
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="flex flex-wrap items-end gap-3">
             <h1 className="text-3xl font-extrabold text-white">Benchmarking</h1>
@@ -9209,7 +9209,7 @@ function Analysen({
         </Button>
       </div>
 
-      <div className="analysis-no-print grid gap-3 lg:grid-cols-4">
+      <div className="analysis-no-print grid min-w-0 gap-3 lg:grid-cols-4">
         <FilterShell label="Zeitraum">
           <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
             {periodOptions.map((item) => <option key={item}>{item}</option>)}
@@ -9233,7 +9233,7 @@ function Analysen({
         </FilterShell>
       </div>
 
-      <div className="analysis-print-block rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] lg:grid lg:grid-cols-[1fr_1.4fr] lg:items-center">
+      <div className="analysis-print-block min-w-0 rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] lg:grid lg:grid-cols-[1fr_1.4fr] lg:items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">Standort-Benchmarking</h2>
           <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm text-slate-200">
@@ -9257,7 +9257,7 @@ function Analysen({
         </div>
       </div>
 
-      <div className="analysis-print-block rounded-xl border border-teal-200/20 bg-teal-400/10 p-4 text-sm leading-relaxed text-slate-200">
+      <div className="analysis-print-block min-w-0 rounded-xl border border-teal-200/20 bg-teal-400/10 p-4 text-sm leading-relaxed text-slate-200">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="font-semibold uppercase tracking-[0.18em] text-teal-200">Logik der Vergleichskacheln</p>
@@ -9274,14 +9274,14 @@ function Analysen({
         </div>
       </div>
 
-      <div className="analysis-print-block grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="analysis-print-block grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {benchmarkItems.map((item) => (
           <BenchmarkKpiCard key={item.label} {...item} />
         ))}
       </div>
 
       {viewMode === "Intern" && (
-        <div className="analysis-print-block grid gap-3 rounded-xl border border-white/15 bg-slate-950/45 p-4 md:grid-cols-4">
+        <div className="analysis-print-block grid min-w-0 gap-3 rounded-xl border border-white/15 bg-slate-950/45 p-4 md:grid-cols-4">
           <Mini label={`${selectedSite?.name ?? "Standort"} Gesamtleistung`} value={eur(selectedSite?.gesamtleistung ?? 0)} />
           <Mini label={`${selectedSite?.name ?? "Standort"} PVS-Umsatz`} value={eur(selectedSite?.pvsUmsatz ?? 0)} />
           <Mini label={`${selectedSite?.name ?? "Standort"} EBITDA`} value={eur(selectedSite?.ebitda ?? 0)} />
@@ -9289,9 +9289,9 @@ function Analysen({
         </div>
       )}
 
-      <div className="analysis-print-page grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="analysis-print-page grid min-w-0 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <BenchmarkPanel title="Rankings im Standortvergleich">
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid min-w-0 gap-5 lg:grid-cols-2">
             <BenchmarkRanking
               title="Umsatz je Zahnarzt (Index)"
               rows={siteRows.map((row) => ({
@@ -9319,9 +9319,9 @@ function Analysen({
         </BenchmarkPanel>
       </div>
 
-      <div className="analysis-print-page grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
+      <div className="analysis-print-page grid min-w-0 gap-5 xl:grid-cols-[0.8fr_1.2fr]">
         <BenchmarkPanel title="EBITDA-Margen-Treiber" subtitle={`Warum liegt ${displaySiteName} ${marginGap >= 0 ? "über" : "unter"} dem Gruppenschnitt?`}>
-          <div className="grid gap-4 md:grid-cols-[1fr_0.9fr]">
+          <div className="grid min-w-0 gap-4 md:grid-cols-[1fr_0.9fr]">
             <div className="space-y-2">
               {costDrivers.map((driver) => (
                 <DriverLine key={driver.label} label={driver.label} value={driver.value} />
@@ -9339,7 +9339,7 @@ function Analysen({
           </div>
         </BenchmarkPanel>
         <BenchmarkPanel title="Standortleiter-Insights">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid min-w-0 gap-3 md:grid-cols-3">
             {summaryItems.map((item, index) => (
               <div key={item} className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-slate-100">
                 <div className={cn("mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full border", index === 1 ? "border-amber-300/40 text-amber-300" : "border-emerald-300/40 text-emerald-300")}>
@@ -9363,7 +9363,7 @@ function Analysen({
 
 function FilterShell({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="rounded-lg border border-white/15 bg-slate-950/50 p-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
+    <label className="min-w-0 rounded-lg border border-white/15 bg-slate-950/50 p-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
       <span className="mb-1 block">{label}</span>
       {children}
     </label>
@@ -9393,17 +9393,17 @@ function BenchmarkKpiCard({
     ? "Basis fehlt"
     : `${deviation > 0 ? "+" : ""}${deviation.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %-Pkt.`;
   return (
-    <div className="rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
+    <div className="min-w-0 rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-bold text-white">{label}</h3>
+        <h3 className="min-w-0 text-sm font-bold text-white">{label}</h3>
         <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full border", unavailable ? "border-slate-500/40 text-slate-400" : good ? "border-emerald-300/50 text-emerald-300" : "border-red-300/50 text-red-300")}>
           {unavailable ? <Info className="h-5 w-5" /> : good ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownRight className="h-5 w-5" />}
         </div>
       </div>
       <div className="mt-3 space-y-1 text-sm text-slate-200">
-        <div className="flex justify-between gap-4"><span>Standortwert</span><strong className="text-white">{valueText}</strong></div>
-        <div className="flex justify-between gap-4"><span>Gruppenschnitt</span><strong className="text-white">{groupText}</strong></div>
-        <div className="flex justify-between gap-4"><span>Abweichung</span><strong className={unavailable ? "text-slate-400" : good ? "text-emerald-300" : "text-red-300"}>{deviationText}</strong></div>
+        <div className="flex min-w-0 justify-between gap-3"><span className="min-w-0">Standortwert</span><strong className="shrink-0 text-right text-white">{valueText}</strong></div>
+        <div className="flex min-w-0 justify-between gap-3"><span className="min-w-0">Gruppenschnitt</span><strong className="shrink-0 text-right text-white">{groupText}</strong></div>
+        <div className="flex min-w-0 justify-between gap-3"><span className="min-w-0">Abweichung</span><strong className={cn("shrink-0 text-right", unavailable ? "text-slate-400" : good ? "text-emerald-300" : "text-red-300")}>{deviationText}</strong></div>
       </div>
     </div>
   );
@@ -9411,10 +9411,10 @@ function BenchmarkKpiCard({
 
 function BenchmarkPanel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
+    <div className="min-w-0 overflow-hidden rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
       <h3 className="text-lg font-bold text-white">{title}</h3>
       {subtitle ? <p className="mt-1 text-sm text-slate-300">{subtitle}</p> : null}
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 min-w-0">{children}</div>
     </div>
   );
 }
@@ -9422,13 +9422,13 @@ function BenchmarkPanel({ title, subtitle, children }: { title: string; subtitle
 function BenchmarkRanking({ title, rows, suffix, max }: { title: string; rows: { label: string; value: number; selected: boolean }[]; suffix: string; max: number }) {
   const sortedRows = [...rows].sort((a, b) => b.value - a.value);
   return (
-    <div>
+    <div className="min-w-0">
       <p className="mb-3 text-sm font-semibold text-slate-100">{title}</p>
       <div className="space-y-2">
         {sortedRows.map((row) => (
-          <div key={`${title}-${row.label}`} className="grid grid-cols-[88px_1fr_56px] items-center gap-2 text-xs text-slate-200">
+          <div key={`${title}-${row.label}`} className="grid min-w-0 grid-cols-[minmax(68px,88px)_minmax(0,1fr)_52px] items-center gap-2 text-[11px] text-slate-200 sm:grid-cols-[88px_1fr_56px] sm:text-xs">
             <span className="truncate">{row.label}</span>
-            <div className="h-3 rounded-full bg-white/10">
+            <div className="min-w-0 overflow-hidden rounded-full bg-white/10">
               <div className={cn("h-3 rounded-full", row.selected ? "bg-cyan-400" : "bg-slate-400")} style={{ width: `${Math.max(4, Math.min(100, (row.value / (max || 1)) * 100))}%` }} />
             </div>
             <strong className="text-right text-white">{row.value.toLocaleString("de-DE", { maximumFractionDigits: 1 })}{suffix}</strong>
@@ -9471,8 +9471,8 @@ function BenchmarkHeatmap({
     return "bg-red-500/70 text-white";
   };
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[620px] border-collapse text-xs">
+    <div className="max-w-full overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+      <table className="w-full min-w-[560px] border-collapse text-[11px] sm:min-w-[620px] sm:text-xs">
         <thead>
           <tr>
             <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Standort</th>
