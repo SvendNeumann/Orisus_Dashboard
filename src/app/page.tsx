@@ -6944,7 +6944,12 @@ function periodOptionsFromBankMovements(rows?: ImportedBankMovementRow[]) {
 }
 
 function defaultPeriodFromOptions(options: string[]) {
-  return options.findLast((option) => option.startsWith("YTD ")) ?? options.find((option) => option.startsWith("Geschäftsjahr 2026")) ?? options[0];
+  return (
+    options.find((option) => option.startsWith("YTD 2026")) ??
+    options.find((option) => option.startsWith("Geschäftsjahr 2026")) ??
+    options.findLast((option) => option.startsWith("YTD ")) ??
+    options[0]
+  );
 }
 
 function defaultBwaPeriodFor(importedData?: ImportedDashboardData | null) {
@@ -7907,6 +7912,7 @@ function StandortDetail({
       <SiteMonthlyBwa site={site} importedData={importedData} />
       <SitePvsMonthlyRevenue site={site} importedData={importedData} monthlyData={monthlyData} />
       <SiteBehandlerMonthlyRevenue site={site} importedData={importedData} />
+      <SiteBankMovementDetail site={site} importedData={importedData} />
     </section>
   );
 }
@@ -10524,7 +10530,32 @@ function SiteBankCashflowSection({ sites = standorte, importedData }: { sites?: 
   );
 }
 
-function SiteBankCashflowCard({ site, rows }: { site: DashboardSite; rows: ImportedBankMovementRow[] }) {
+function SiteBankMovementDetail({ site, importedData }: { site: DashboardSite; importedData?: ImportedDashboardData | null }) {
+  const rows = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId === site.id);
+
+  if (!rows.length) {
+    return (
+      <Card className="p-4">
+        <h2 className="font-bold">Bankbewegungen {site.name}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Für diesen Standort wurden im bestätigten Excel-Import noch keine Bank-/Geldbewegungen erkannt.
+        </p>
+      </Card>
+    );
+  }
+
+  return <SiteBankCashflowCard site={site} rows={rows} variant="detail" />;
+}
+
+function SiteBankCashflowCard({
+  site,
+  rows,
+  variant = "summary"
+}: {
+  site: DashboardSite;
+  rows: ImportedBankMovementRow[];
+  variant?: "summary" | "detail";
+}) {
   const availablePeriods = periodOptionsFromBankMovements(rows);
   const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
   useEffect(() => {
@@ -10538,7 +10569,9 @@ function SiteBankCashflowCard({ site, rows }: { site: DashboardSite; rows: Impor
   const kontostandRow = rows.find((row) => normalizeMetric(row.label) === "kontostand_monatsende");
   const selectedCashflow = bankMovementValueForPeriod(cashflowRow, period);
   const selectedPreIntercompany = bankMovementValueForPeriod(preIntercompanyRow, period);
-  const selectedMonths = selection.year ? Array.from(visibleMonths).filter((month) => cashflowRow?.hasValueByMonth[`${selection.year}-${month}`]) : [];
+  const selectedMonthsFor = (row?: ImportedBankMovementRow) =>
+    selection.year ? Array.from(visibleMonths).filter((month) => row?.hasValueByMonth[`${selection.year}-${month}`]) : [];
+  const selectedMonths = selectedMonthsFor(cashflowRow);
   const selectedAverage = selectedMonths.length ? selectedCashflow / selectedMonths.length : cashflowRow?.averageContract ?? 0;
   const latestKontostand = selection.year
     ? Array.from(visibleMonths)
@@ -10547,16 +10580,43 @@ function SiteBankCashflowCard({ site, rows }: { site: DashboardSite; rows: Impor
         .at(-1) ?? kontostandRow?.contractValue ?? 0
     : kontostandRow?.contractValue ?? 0;
 
-  const rowsToDisplay = [
+  const rowByKey = (key: string) => rows.find((row) => normalizeMetric(row.label) === key);
+  const bankDetailRows = [
+    { label: "Geldeingang Bank gesamt", key: "geldeingang_bank_gesamt", emphasis: true },
+    { label: "davon Praxisumsatz", key: "davon_praxisumsatz", indent: true },
+    { label: "davon sonstiges (Erstattungen etc)", key: "davon_sonstiges_erstattungen_etc", indent: true },
+    { label: "Geldausgang Bank inkl. Kredit", key: "geldausgang_bank_inkl_kredit", emphasis: true },
+    { label: "davon Praxisausgaben", key: "davon_praxisausgaben", indent: true },
+    { label: "davon Tilgung + Zins", key: "davon_tilgung_zins", indent: true },
+    { label: "davon Umbuchungen an Orisus ZMVZ", key: "davon_umbuchungen_an_orisus_zmvz", indent: true },
+    { label: "Cashflow vor Intercompany", key: "cashflow_vor_intercompany", emphasis: true },
+    { label: "Cashflow gesamt im Monat", key: "cashflow_gesamt_im_monat", emphasis: true },
+    { label: "Kontostand Monatsende", key: "kontostand_monatsende", emphasis: true, snapshot: true }
+  ].map((definition) => {
+    const row = rowByKey(definition.key);
+    const total = definition.snapshot
+      ? latestKontostand
+      : bankMovementValueForPeriod(row, period);
+    const rowMonths = selectedMonthsFor(row);
+    const average = definition.snapshot
+      ? row?.averageMonth ?? 0
+      : rowMonths.length
+        ? total / rowMonths.length
+        : row?.averageContract ?? 0;
+    return { ...definition, row, total, average };
+  });
+
+  const summaryRowsToDisplay = [
     { label: "Cashflow gesamt im Monat", row: cashflowRow, total: selectedCashflow, average: selectedAverage, emphasis: true },
     { label: "Cashflow vor Intercompany", row: preIntercompanyRow, total: selectedPreIntercompany, average: selectedMonths.length ? selectedPreIntercompany / selectedMonths.length : preIntercompanyRow?.averageContract ?? 0 },
     { label: "Kontostand Monatsende", row: kontostandRow, total: latestKontostand, average: kontostandRow?.averageMonth ?? 0, snapshot: true }
   ];
+  const rowsToDisplay = variant === "detail" ? bankDetailRows : summaryRowsToDisplay;
 
   return (
     <Card className="overflow-hidden">
       <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
-        <span className="font-bold">{site.name} | Bank-Cashflow | {performancePeriodLabel(period)}</span>
+        <span className="font-bold">{site.name} | {variant === "detail" ? "Bankbewegungen" : "Bank-Cashflow"} | {performancePeriodLabel(period)}</span>
         <Select className="w-full sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
           {availablePeriods.map((option) => (
             <option key={option} value={option}>
@@ -10586,7 +10646,9 @@ function SiteBankCashflowCard({ site, rows }: { site: DashboardSite; rows: Impor
           <tbody>
             {rowsToDisplay.map((entry) => (
               <tr key={entry.label} className={cn(entry.emphasis && "summary-row")}>
-                <TableCell strong={entry.emphasis} summary={entry.emphasis}>{entry.label}</TableCell>
+                <TableCell strong={entry.emphasis} summary={entry.emphasis}>
+                  <span className={cn("block text-left", "indent" in entry && entry.indent && "pl-4 font-medium text-muted-foreground")}>{entry.label}</span>
+                </TableCell>
                 {bwaMonths.map((month, index) => {
                   const value = bankMovementMonthlyValue(entry.row, period, index + 1);
                   const visible = !selection.year || visibleMonths.has(index + 1);
