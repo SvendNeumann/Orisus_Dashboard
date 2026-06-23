@@ -5461,7 +5461,7 @@ function Cockpit({
       </div>
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} />
 
-      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Ist EBITDA vs. Ziel-EBITDA Kaufvertrag | seit Vertragsstart" icon={TrendingUp}>
           <EbitdaTargetChart sites={sites} />
         </ChartCard>
@@ -5470,7 +5470,7 @@ function Cockpit({
         </ChartCard>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Standortvergleich Gesamtleistung & EBITDA | seit Vertragsstart" icon={BarChart3}>
           <SitePerformanceChart sites={sites} />
         </ChartCard>
@@ -5483,22 +5483,19 @@ function Cockpit({
         <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
           <CostShareDonut sites={sites} />
         </ChartCard>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <TrafficLights sites={sites} monthlyData={monthlyData} />
-        <Insights setPage={setPage} />
       </div>
 
-      <Card className="p-4">
-        <h2 className="font-bold">Detailauswertungen</h2>
-        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-          Das CFO-Cockpit zeigt bewusst nur die verdichtete Management-Sicht. Die vollständige BWA bleibt im Tab BWA,
-          Standortdetails je Praxis bleiben im Standortbereich, Cashflow-Herleitungen im Cashflow-Tab und Darlehen,
-          Earn-Outs sowie Wachstumszahlungen im Tab Darlehen & Earn-Out. Benchmarking und Performance-Auswertungen
-          liegen in den jeweiligen Fachreitern.
-        </p>
-      </Card>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Insights setPage={setPage} />
+        <Card className="h-full p-4">
+          <h2 className="font-bold">Detailauswertungen</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Das CFO-Cockpit bleibt die verdichtete Management-Sicht. BWA, Standortdetails, Cashflow-Herleitungen,
+            Darlehen, Earn-Outs und Benchmarking liegen in den jeweiligen Fachreitern.
+          </p>
+        </Card>
+      </div>
     </section>
   );
 }
@@ -5903,7 +5900,7 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="p-4">
+    <Card className="h-full p-4">
       <div className="mb-4 flex items-center gap-2">
         <Icon className="h-5 w-5 text-primary" />
         <h2 className="font-bold">{title}</h2>
@@ -6429,7 +6426,7 @@ function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: D
     }
   ] satisfies Array<{ label: string; value: string; status: Status; rule: string }>;
   return (
-    <Card className="p-4">
+    <Card className="h-full p-4">
       <h2 className="font-bold">Ampel-Center | aktueller Stand</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {rows.map((row) => (
@@ -6457,7 +6454,7 @@ function Insights({ setPage }: { setPage: (page: Page) => void }) {
     "Kostenquote Kehl auffällig; Fremdlaborquote prüfen."
   ];
   return (
-    <Card className="p-4">
+    <Card className="h-full p-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-bold">CFO Insights | aktueller Stand</h2>
         <Badge tone="blue">Regelbereit</Badge>
