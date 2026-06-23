@@ -13364,26 +13364,34 @@ function buildReportDocument({
         }
         .section-head h2 { margin: 0; font-size: 14px; }
         .section-head p { margin: 4px 0 0; color: rgba(255,255,255,.75); font-size: 10.5px; }
-        .report-table { width: 100%; border-collapse: collapse; font-size: 10.2px; }
-        .report-table.compact { font-size: 9.3px; }
+        .report-table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+          font-size: ${orientation === "landscape" ? "10.2px" : "8.6px"};
+        }
+        .report-table.compact { font-size: ${orientation === "landscape" ? "9.3px" : "7.6px"}; }
         .report-table th {
-          padding: 7px 7px;
+          padding: ${orientation === "landscape" ? "7px 7px" : "5px 4px"};
           color: white;
           text-align: right;
           background: #0b6372;
           border: 1px solid rgba(255,255,255,.25);
+          overflow-wrap: anywhere;
         }
         .report-table th:first-child, .report-table td:first-child { text-align: left; }
         .report-table td {
-          padding: 6px 7px;
+          padding: ${orientation === "landscape" ? "6px 7px" : "5px 4px"};
           text-align: right;
           border: 1px solid #d8e1e6;
           background: #ffffff;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
         .report-table tr:nth-child(even) td { background: #f4f8f9; }
         .report-table tr:last-child td { background: #e5f2f3; font-weight: 900; }
         .label-cell { font-weight: 750; color: #152234; }
-        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .two-col { display: grid; grid-template-columns: ${orientation === "landscape" ? "1fr 1fr" : "1fr"}; gap: 10px; }
         .bar-list { padding: 11px 13px; display: grid; gap: 9px; }
         .bar-row { display: grid; gap: 5px; }
         .bar-meta { display: flex; justify-content: space-between; gap: 12px; font-size: 10.5px; }
@@ -13521,7 +13529,17 @@ function bankMovementReportRows(importedData?: ImportedDashboardData | null) {
   };
 }
 
-function buildManagementReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null, rules: KpiRules = defaultKpiRules) {
+function reportOrientationLabel(orientation: ReportOrientation) {
+  return orientation === "landscape" ? "A4 Querformat" : "A4 Hochformat";
+}
+
+function buildManagementReport(
+  sites: DashboardSite[],
+  monthlyData: typeof monthly,
+  importedData?: ImportedDashboardData | null,
+  rules: KpiRules = defaultKpiRules,
+  orientation: ReportOrientation = "landscape"
+) {
   const metrics = cfoMetrics(sites, monthlyData, rules);
   const period = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Datenstand";
   const maxEbitda = Math.max(...sites.map((site) => site.ebitda), 1);
@@ -13554,12 +13572,18 @@ function buildManagementReport(sites: DashboardSite[], monthlyData: typeof month
     title: "Management-Report",
     subtitle: `Kompakter Überblick für Geschäftsführung, Board und interne Steuerung. Berichtszeitraum: ${period}.`,
     periodLabel: period,
-    orientation: "landscape",
+    orientation,
     body
   });
 }
 
-function buildBankReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null, rules: KpiRules = defaultKpiRules) {
+function buildBankReport(
+  sites: DashboardSite[],
+  monthlyData: typeof monthly,
+  importedData?: ImportedDashboardData | null,
+  rules: KpiRules = defaultKpiRules,
+  orientation: ReportOrientation = "landscape"
+) {
   const metrics = cfoMetrics(sites, monthlyData, rules);
   const bankRows = bankMovementReportRows(importedData);
   const body = [
@@ -13583,12 +13607,18 @@ function buildBankReport(sites: DashboardSite[], monthlyData: typeof monthly, im
     title: "Bankenreport",
     subtitle: `Finanzierungs-, Kapitaldienst-, Liquiditäts- und Bank-Cashflow-Übersicht auf Basis des bestätigten Imports. Berichtszeitraum: ${performancePeriodLabel(bankRows.period)}.`,
     periodLabel: performancePeriodLabel(bankRows.period),
-    orientation: "landscape",
+    orientation,
     body
   });
 }
 
-function buildMonthlyReport(sites: DashboardSite[], monthlyData: typeof monthly, importedData?: ImportedDashboardData | null, rules: KpiRules = defaultKpiRules) {
+function buildMonthlyReport(
+  sites: DashboardSite[],
+  monthlyData: typeof monthly,
+  importedData?: ImportedDashboardData | null,
+  rules: KpiRules = defaultKpiRules,
+  orientation: ReportOrientation = "portrait"
+) {
   const metrics = cfoMetrics(sites, monthlyData, rules);
   const period = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Datenstand";
   const body = [
@@ -13620,12 +13650,12 @@ function buildMonthlyReport(sites: DashboardSite[], monthlyData: typeof monthly,
     title: "Monatsreport",
     subtitle: `Druckfertige Steuerungsübersicht mit Ergebnisentwicklung, Cashflow gem. BWA und Standortvergleich. Berichtszeitraum: ${period}.`,
     periodLabel: period,
-    orientation: "portrait",
+    orientation,
     body
   });
 }
 
-function buildSiteReport(sites: DashboardSite[], monthlyData: typeof monthly) {
+function buildSiteReport(sites: DashboardSite[], monthlyData: typeof monthly, orientation: ReportOrientation = "landscape") {
   const sortedSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung || site.ebitda);
   const body = sortedSites
     .map((site, index) => {
@@ -13667,7 +13697,7 @@ function buildSiteReport(sites: DashboardSite[], monthlyData: typeof monthly) {
     title: "Standortreport",
     subtitle: "Je Standort eine kompakte druckfertige Seite mit KPI-Deckblatt, Finanzierungsdaten und Forderungsstand. Datenstand: seit Vertragsstart bzw. aktueller Import.",
     periodLabel: "seit Vertragsstart / aktueller Import",
-    orientation: "landscape",
+    orientation,
     body: body || reportSection("Keine Standortdaten", "<p style='padding:12px'>Noch keine Standortdaten verfügbar.</p>")
   });
 }
@@ -13682,30 +13712,42 @@ function Reports({
   importedData?: ImportedDashboardData | null;
 }) {
   const rules = useKpiRules();
+  const [reportOrientations, setReportOrientations] = useState<Record<string, ReportOrientation>>({
+    monthly: "portrait",
+    management: "landscape",
+    bank: "landscape",
+    site: "landscape"
+  });
+  const updateReportOrientation = (id: string, value: string) => {
+    setReportOrientations((current) => ({
+      ...current,
+      [id]: value === "portrait" ? "portrait" : "landscape"
+    }));
+  };
   const reportCards = [
     {
+      id: "monthly",
       title: "Monatsreport",
       description: "Kompakter CFO-Ausdruck mit KPI-Deckblatt, Monatsentwicklung und Standortübersicht.",
-      orientation: "A4 Hochformat",
-      action: () => openPrintableReport("Monatsreport", buildMonthlyReport(sites, monthlyData, importedData, rules))
+      action: (orientation: ReportOrientation) => openPrintableReport("Monatsreport", buildMonthlyReport(sites, monthlyData, importedData, rules, orientation))
     },
     {
+      id: "management",
       title: "YTD- / Management-Report",
       description: "Board-taugliche Querformat-Übersicht mit konsolidierten KPIs und Standortvergleich.",
-      orientation: "A4 Querformat",
-      action: () => openPrintableReport("Management-Report", buildManagementReport(sites, monthlyData, importedData, rules))
+      action: (orientation: ReportOrientation) => openPrintableReport("Management-Report", buildManagementReport(sites, monthlyData, importedData, rules, orientation))
     },
     {
+      id: "bank",
       title: "Bankenreport",
       description: "Finanzierungs-, Kapitaldienst-, Forderungs- und Bank-Cashflow-Report für Bankenpartner.",
-      orientation: "A4 Querformat",
-      action: () => openPrintableReport("Bankenreport", buildBankReport(sites, monthlyData, importedData, rules))
+      action: (orientation: ReportOrientation) => openPrintableReport("Bankenreport", buildBankReport(sites, monthlyData, importedData, rules, orientation))
     },
     {
+      id: "site",
       title: "Standortreport",
       description: "Eine druckfertige Seite je Standort mit Ergebnisqualität, Cashflow gem. BWA und Finanzierung.",
-      orientation: "A4 Querformat",
-      action: () => openPrintableReport("Standortreport", buildSiteReport(sites, monthlyData))
+      action: (orientation: ReportOrientation) => openPrintableReport("Standortreport", buildSiteReport(sites, monthlyData, orientation))
     }
   ];
 
@@ -13719,7 +13761,7 @@ function Reports({
         <div className="grid gap-3 md:grid-cols-4">
           <Mini label="Datenbasis" value={importedData ? "Bestätigter Import" : "Noch offen"} />
           <Mini label="Standorte" value={String(sites.filter((site) => site.gesamtleistung > 0).length)} />
-          <Mini label="Format" value="A4 farbig" />
+          <Mini label="Format" value="A4 Hoch / Quer" />
           <Mini label="Ausgabe" value="PDF / Druck" />
         </div>
       </Card>
@@ -13729,8 +13771,19 @@ function Reports({
             <FileBarChart className="h-8 w-8 text-primary" />
             <h2 className="mt-4 text-xl font-bold">{report.title}</h2>
             <p className="mt-2 flex-1 text-sm text-muted-foreground">{report.description}</p>
-            <Badge className="mt-3 w-fit" tone="green">{report.orientation}</Badge>
-            <Button className="mt-4 w-full" variant="secondary" onClick={report.action}>
+            <div className="mt-4 grid gap-2">
+              <label className="text-xs font-bold uppercase text-muted-foreground">Druckformat</label>
+              <Select
+                className="w-full"
+                value={reportOrientations[report.id]}
+                onChange={(event) => updateReportOrientation(report.id, event.target.value)}
+              >
+                <option value="portrait">A4 Hochformat</option>
+                <option value="landscape">A4 Querformat</option>
+              </Select>
+              <Badge className="w-fit" tone="green">{reportOrientationLabel(reportOrientations[report.id])}</Badge>
+            </div>
+            <Button className="mt-4 w-full" variant="secondary" onClick={() => report.action(reportOrientations[report.id])}>
               PDF / Druck öffnen
             </Button>
           </Card>
