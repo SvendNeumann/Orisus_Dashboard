@@ -9562,8 +9562,12 @@ function Analysen({
   importedData?: ImportedDashboardData | null;
   personalData?: PersonalDashboardData | null;
 }) {
-  const sortedSites = sortSitesByContractStart(sites.filter((site) => site.gesamtleistung || site.ebitda || site.pvsUmsatz));
   const [period, setPeriod] = useState(importedData ? defaultBwaPeriodFor(importedData) : "YTD 2026");
+  const sortedSites = sortSitesByContractStart(
+    sites
+      .map((site) => filteredSiteForPeriod(site, importedData, period))
+      .filter((site) => site.gesamtleistung || site.ebitda || site.pvsUmsatz || site.forderungen),
+  );
   const [selectedSiteId, setSelectedSiteId] = useState(sortedSites[0]?.id ?? sites[0]?.id ?? "kirchberg");
   const [comparison, setComparison] = useState("Gruppendurchschnitt");
   const [viewMode, setViewMode] = useState<"Standortleiter" | "Intern">("Standortleiter");
