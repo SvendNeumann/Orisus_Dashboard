@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import {
   Area,
@@ -5919,18 +5920,28 @@ function KpiCard({
 }
 
 function InfoDialog({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  return (
-    <>
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-start justify-center p-4 pt-6 sm:items-center sm:pt-4">
       <button
         type="button"
         aria-label="Info schließen"
-        className="fixed inset-0 z-[190] cursor-default bg-slate-950/75 backdrop-blur-md"
+        className="absolute inset-0 cursor-default bg-slate-950/75 backdrop-blur-md"
         onClick={onClose}
       />
       <div
         role="dialog"
         aria-modal="true"
-        className="app-info-popover fixed left-1/2 top-4 z-[200] max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 overflow-y-auto overflow-x-hidden rounded-lg border border-slate-200 bg-white p-4 text-left text-sm leading-6 text-slate-900 shadow-2xl sm:top-20 sm:max-h-[calc(100vh-10rem)]"
+        className="app-info-popover relative z-[201] max-h-[calc(100vh-3rem)] w-full max-w-2xl overflow-y-auto overflow-x-hidden rounded-lg border border-slate-200 bg-white p-4 text-left text-sm leading-6 text-slate-900 shadow-2xl sm:max-h-[calc(100vh-8rem)]"
       >
         <div className="sticky top-0 z-10 mb-3 flex items-start justify-between gap-3 border-b border-slate-200 bg-white pb-3">
           <p className="text-base font-bold text-slate-950">{title}</p>
@@ -5944,7 +5955,8 @@ function InfoDialog({ title, children, onClose }: { title: string; children: Rea
         </div>
         <div className="space-y-3">{children}</div>
       </div>
-    </>
+    </div>,
+    document.body
   );
 }
 
