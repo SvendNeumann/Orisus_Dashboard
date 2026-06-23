@@ -1200,14 +1200,14 @@ const bwaMetricDefinitions = [
   { key: "steuern_einkommen_ertrag", label: "Steuern vom Einkommen und Ertrag", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 640, source: ["steuern_vom_einkommen_und_ertrag"] },
   { key: "vorlaeufiges_ergebnis", label: "Vorläufiges Ergebnis", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 650, source: ["vorlaufiges_ergebnis"], emphasis: true },
   { key: "ergebnisquote", label: "Ergebnisquote", section: "5. Unter EBITDA / Vorläufiges Ergebnis", order: 660, source: [], percent: true, derived: "ergebnisquote" },
-  { key: "section_cashflow", label: "6. Cashflow-Adjustments", section: "6. Cashflow-Adjustments", order: 700, source: [], emphasis: true, kind: "cashflow" as const },
-  { key: "cf_abschreibungen", label: "+ Abschreibungen", section: "6. Cashflow-Adjustments", order: 710, source: ["plus_abschreibungen"], kind: "cashflow" as const },
-  { key: "investitionsausgaben", label: "Investitionsausgaben", section: "6. Cashflow-Adjustments", order: 720, source: ["investitionsausgaben"], kind: "cashflow" as const },
-  { key: "tilgung", label: "Tilgung", section: "6. Cashflow-Adjustments", order: 730, source: ["tilgung"], kind: "cashflow" as const },
-  { key: "umbuchung_zmvz", label: "Umbuchung ZMVZ", section: "6. Cashflow-Adjustments", order: 740, source: ["umbuchung_zmvz"], kind: "cashflow" as const },
-  { key: "sonstige_rueckstellungen_bestandsminderungen", label: "Sonstige Rückstellungen / Bestandsminderungen", section: "6. Cashflow-Adjustments", order: 750, source: ["sonstige_ruckstellungen_bestandsminderungen"], kind: "cashflow" as const },
-  { key: "cashflow_gesamt", label: "CashFlow Gesamt", section: "6. Cashflow-Adjustments", order: 760, source: ["cashflow_gesamt"], emphasis: true, kind: "cashflow" as const },
-  { key: "cashflow_quote", label: "CashFlow-Quote", section: "6. Cashflow-Adjustments", order: 770, source: [], percent: true, derived: "cashflow_quote", kind: "cashflow" as const }
+  { key: "section_cashflow", label: "6. Cashflow-Adjustments gem. BWA", section: "6. Cashflow-Adjustments gem. BWA", order: 700, source: [], emphasis: true, kind: "cashflow" as const },
+  { key: "cf_abschreibungen", label: "+ Abschreibungen", section: "6. Cashflow-Adjustments gem. BWA", order: 710, source: ["plus_abschreibungen"], kind: "cashflow" as const },
+  { key: "investitionsausgaben", label: "Investitionsausgaben", section: "6. Cashflow-Adjustments gem. BWA", order: 720, source: ["investitionsausgaben"], kind: "cashflow" as const },
+  { key: "tilgung", label: "Tilgung", section: "6. Cashflow-Adjustments gem. BWA", order: 730, source: ["tilgung"], kind: "cashflow" as const },
+  { key: "umbuchung_zmvz", label: "Umbuchung ZMVZ", section: "6. Cashflow-Adjustments gem. BWA", order: 740, source: ["umbuchung_zmvz"], kind: "cashflow" as const },
+  { key: "sonstige_rueckstellungen_bestandsminderungen", label: "Sonstige Rückstellungen / Bestandsminderungen", section: "6. Cashflow-Adjustments gem. BWA", order: 750, source: ["sonstige_ruckstellungen_bestandsminderungen"], kind: "cashflow" as const },
+  { key: "cashflow_gesamt", label: "CashFlow gem. BWA", section: "6. Cashflow-Adjustments gem. BWA", order: 760, source: ["cashflow_gesamt"], emphasis: true, kind: "cashflow" as const },
+  { key: "cashflow_quote", label: "CashFlow-Quote gem. BWA", section: "6. Cashflow-Adjustments gem. BWA", order: 770, source: [], percent: true, derived: "cashflow_quote", kind: "cashflow" as const }
 ] as const;
 
 const bwaDeductionMetricKeys = new Set([
@@ -5276,7 +5276,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
     const kvAchievement = kvEbitdaAchievement(site);
     const reasons = [
       site.status === "red" ? "Ampel rot" : "",
-      site.cashflow < 0 ? `Cashflow negativ (${eur(site.cashflow)})` : "",
+      site.cashflow < 0 ? `Cashflow gem. BWA negativ (${eur(site.cashflow)})` : "",
       site.ebitdaMarge < 10 ? `EBITDA-Marge unter 10 % (${pct(site.ebitdaMarge)})` : "",
       site.forderungen > site.gesamtleistung * 0.15
         ? `Forderungen über 15 % der Gesamtleistung (${pct((site.forderungen / (site.gesamtleistung || 1)) * 100)})`
@@ -5349,7 +5349,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       )
     },
     {
-      label: "Free Cashflow | seit Vertragsstart",
+      label: "Free Cashflow gem. BWA | seit Vertragsstart",
       value: metrics.cashflow,
       delta: "nach Tilgung, Investitionen, Umbuchungen",
       icon: Wallet,
@@ -5364,7 +5364,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
           <InfoLine label="- Umbuchung ZMVZ" value={-cashflowDetails.umbuchungZmvz} />
           <InfoLine label="- Sonstige Rückstellungen / Bestandsminderungen" value={-cashflowDetails.sonstigeRueckstellungenBestandsminderungen} />
           <div className="mt-2 border-t border-border pt-2">
-            <InfoLine label="= CashFlow Gesamt" value={metrics.cashflow} strong />
+            <InfoLine label="= Free Cashflow gem. BWA" value={metrics.cashflow} strong />
           </div>
         </div>
       )
@@ -5451,7 +5451,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
         <div className="space-y-2">
           <p className="font-bold text-slate-900">Warum ein Standort kritisch ist</p>
           <p>
-            Ein Standort wird hier gezählt, wenn mindestens eine CFO-Regel greift: rote Ampel, Cashflow negativ,
+            Ein Standort wird hier gezählt, wenn mindestens eine CFO-Regel greift: rote Ampel, Cashflow gem. BWA negativ,
             EBITDA-Marge unter 10 %, offene Forderungen über 15 % der Gesamtleistung oder Ziel-EBITDA gemäß
             Kaufvertrag bis zum aktuellen Datenstand unter 85 % erreicht.
           </p>
@@ -5614,7 +5614,7 @@ function StatusDot({ status, label }: { status: Status; label?: string }) {
 }
 
 function siteStatusLabel(site: DashboardSite) {
-  if (site.status === "red" && site.cashflow < 0) return "Handlungsbedarf: Cashflow negativ";
+  if (site.status === "red" && site.cashflow < 0) return "Handlungsbedarf: Cashflow gem. BWA negativ";
   if (site.status === "red" && site.ebitdaMarge < 8) return "Handlungsbedarf: Marge niedrig";
   return statusMap[site.status].label;
 }
@@ -5776,14 +5776,14 @@ function StandortCfoComparison({ sites = standorte }: { sites?: DashboardSite[] 
       <div className="border-b border-border p-4">
         <h2 className="font-bold">Standortvergleich CFO-Kennzahlen | seit Vertragsstart</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Konsolidierte Steuerungssicht je Standort seit Vertragsstart: Ergebnisqualität, Cashflow, Forderungen und Kostenquote.
+          Konsolidierte Steuerungssicht je Standort seit Vertragsstart: Ergebnisqualität, Cashflow gem. BWA, Forderungen und Kostenquote.
         </p>
       </div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              {["Standort", "Gesamtleistung", "EBITDA", "EBITDA-Marge", "Cashflow", "Forderungen", "Kostenquote", "Ampel"].map((head) => (
+              {["Standort", "Gesamtleistung", "EBITDA", "EBITDA-Marge", "Cashflow gem. BWA", "Forderungen", "Kostenquote", "Ampel"].map((head) => (
                 <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                   {head}
                 </th>
@@ -5990,11 +5990,11 @@ function CashflowBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
     ["Tilgung", -tilgung],
     ["Umbuchung ZMVZ", -umbuchen],
     ["Sonstige Rückstellungen / Bestandsminderungen", -sonstigeRueckstellungen],
-    ["Cashflow Gesamt", totalCashflow]
+    ["Cashflow gem. BWA", totalCashflow]
   ];
   return (
     <Card className="p-4">
-      <h2 className="font-bold">Cashflow Gesamt | seit Vertragsstart</h2>
+      <h2 className="font-bold">Cashflow gem. BWA | seit Vertragsstart</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Herleitung: Vorläufiges Ergebnis + Abschreibungen - Investitionen - Tilgung - Umbuchung ZMVZ - sonstige Adjustments.
       </p>
@@ -6115,10 +6115,10 @@ function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: D
       rule: "grün ab 15 %, gelb ab 10 %"
     },
     {
-      label: "Cashflow Konzern",
+      label: "Cashflow gem. BWA",
       value: eur(metrics.cashflow),
       status: metrics.cashflow >= 0 ? "green" : "red",
-      rule: "rot bei negativem Netto-Cashflow"
+      rule: "rot bei negativem Cashflow gem. BWA"
     },
     {
       label: "Offene Forderungen",
@@ -6166,7 +6166,7 @@ function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: D
 
 function Insights({ setPage }: { setPage: (page: Page) => void }) {
   const insights = [
-    "Cashflow Essen negativ: Annuitäten und Forderungsaufbau drücken den Netto-Cashflow.",
+    "Cashflow gem. BWA Essen negativ: Annuitäten und Forderungsaufbau drücken den BWA-Cashflow.",
     "EBITDA-Marge Ulmet liegt über Ziel und stabilisiert die Konzernmarge.",
     "Offene Forderungen sind konzernweit gestiegen; Fokus auf Essen und Kehl.",
     "Earn-Out Kirchberg bei 58 % Fortschritt.",
@@ -6212,7 +6212,7 @@ function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void
               <Mini label="Gesamtleistung seit Start" value={eur(site.gesamtleistung, true)} />
               <Mini label="EBITDA seit Start" value={eur(site.ebitda, true)} />
               <Mini label="Marge" value={pct(site.ebitdaMarge)} />
-              <Mini label="Cashflow seit Start" value={eur(site.cashflow, true)} />
+              <Mini label="Cashflow gem. BWA seit Start" value={eur(site.cashflow, true)} />
               <Mini label="Kontostand aktuell" value={eur(site.kontostand, true)} />
               <Mini label="Forderungen aktuell" value={eur(site.forderungen, true)} />
             </div>
@@ -6706,8 +6706,8 @@ function buildImportedBankMovementRows(
     { label: "davon Praxisausgaben", keys: ["davon_praxisausgaben"] },
     { label: "davon Tilgung + Zins", keys: ["davon_tilgung_zins"] },
     { label: "davon Umbuchungen an Orisus ZMVZ", keys: ["davon_umbuchungen_an_orisus_zmvz"] },
-    { label: "Cashflow gesamt im Monat", keys: ["cashflow_gesamt_im_monat"] },
-    { label: "Cashflow vor Intercompany", keys: ["cashflow_vor_umbuchungen_intercompany"] },
+    { label: "Bank-Cashflow gesamt im Monat", keys: ["cashflow_gesamt_im_monat"] },
+    { label: "Bank-Cashflow vor Intercompany", keys: ["cashflow_vor_umbuchungen_intercompany"] },
     { label: "Kontostand Monatsende", keys: ["kontostand_monatsende"], snapshot: true }
   ];
   const dashboardRows = dashboardBankMovementRows(workbook, latestYear);
@@ -7569,14 +7569,14 @@ function buildBwaRows(period: string, siteId?: string) {
     row("Steuern vom Einkommen und Ertrag", -Math.round(Math.max(0, ebitda) * 0.18), { indent: true }),
     row("Vorläufiges Ergebnis", ebitda - Math.round(gesamtleistung * 0.17) - Math.round(gesamtleistung * 0.015) + Math.round(gesamtleistung * 0.006) - Math.round(Math.max(0, ebitda) * 0.18), { emphasis: true }),
     row("Ergebnisquote", gesamtleistung ? ((ebitda - Math.round(gesamtleistung * 0.17) - Math.round(gesamtleistung * 0.015) + Math.round(gesamtleistung * 0.006) - Math.round(Math.max(0, ebitda) * 0.18)) / gesamtleistung) * 100 : 0, { percent: true }),
-    row("6. Cashflow-Adjustments", 0, { emphasis: true, kind: "cashflow" }),
+    row("6. Cashflow-Adjustments gem. BWA", 0, { emphasis: true, kind: "cashflow" }),
     row("+ Abschreibungen", Math.round(gesamtleistung * 0.17), { kind: "cashflow", indent: true }),
     row("Investitionsausgaben", -Math.round(gesamtleistung * 0.035), { kind: "cashflow", indent: true }),
     row("Tilgung", -Math.round(sites.reduce((sum, site) => sum + site.darlehen.tilgung, 0) * factor), { kind: "cashflow", indent: true }),
     row("Umbuchung ZMVZ", umbuchen, { kind: "cashflow", indent: true }),
     row("Sonstige Rückstellungen / Bestandsminderungen", Math.round(gesamtleistung * 0.008), { kind: "cashflow", indent: true }),
-    row("CashFlow Gesamt", cashflow, { emphasis: true, kind: "cashflow" }),
-    row("CashFlow-Quote", gesamtleistung ? (cashflow / gesamtleistung) * 100 : 0, { percent: true, kind: "cashflow" })
+    row("CashFlow gem. BWA", cashflow, { emphasis: true, kind: "cashflow" }),
+    row("CashFlow-Quote gem. BWA", gesamtleistung ? (cashflow / gesamtleistung) * 100 : 0, { percent: true, kind: "cashflow" })
   ];
 }
 
@@ -7593,7 +7593,7 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
     <Card className="overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-bold">Monatliche BWA bis Cashflow {site.name} | Geschäftsjahr {year}</h2>
+          <h2 className="font-bold">Monatliche BWA bis Cashflow gem. BWA {site.name} | Geschäftsjahr {year}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Jan bis Dez, Gesamt, Vorjahr, Durchschnitt und gesamte Vertragsperiode seit {site.start}.
           </p>
@@ -7754,14 +7754,14 @@ function buildSiteMonthlyBwa(site: (typeof standorte)[number], year: number) {
     row("Steuern vom Einkommen und Ertrag", -Math.max(0, site.ebitda) * 0.18, { indent: true }),
     row("Vorläufiges Ergebnis", site.ebitda - site.gesamtleistung * 0.17 - site.gesamtleistung * 0.015 + site.gesamtleistung * 0.006 - Math.max(0, site.ebitda) * 0.18, { emphasis: true }),
     row("Ergebnisquote", site.gesamtleistung ? ((site.ebitda - site.gesamtleistung * 0.17 - site.gesamtleistung * 0.015 + site.gesamtleistung * 0.006 - Math.max(0, site.ebitda) * 0.18) / site.gesamtleistung) * 100 : 0, { percent: true }),
-    row("6. Cashflow-Adjustments", 0, { section: true, kind: "cashflow" }),
+    row("6. Cashflow-Adjustments gem. BWA", 0, { section: true, kind: "cashflow" }),
     row("+ Abschreibungen", site.gesamtleistung * 0.17, { indent: true, kind: "cashflow" }),
     row("Investitionsausgaben", -site.gesamtleistung * 0.035, { indent: true, kind: "cashflow" }),
     row("Tilgung", -site.darlehen.tilgung, { indent: true, kind: "cashflow" }),
     row("Umbuchung ZMVZ", -site.gesamtleistung * 0.025, { indent: true, kind: "cashflow" }),
     row("Sonstige Rückstellungen / Bestandsminderungen", site.gesamtleistung * 0.008, { indent: true, kind: "cashflow" }),
-    row("CashFlow Gesamt", site.cashflow, { emphasis: true, kind: "cashflow" }),
-    row("CashFlow-Quote", site.gesamtleistung ? (site.cashflow / site.gesamtleistung) * 100 : 0, { percent: true, kind: "cashflow" })
+    row("CashFlow gem. BWA", site.cashflow, { emphasis: true, kind: "cashflow" }),
+    row("CashFlow-Quote gem. BWA", site.gesamtleistung ? (site.cashflow / site.gesamtleistung) * 100 : 0, { percent: true, kind: "cashflow" })
   ];
 }
 
@@ -7925,7 +7925,7 @@ function StandortDetail({
         <KpiCard label="Gesamtleistung" value={filteredSite.gesamtleistung} delta={periodLabel} icon={TrendingUp} status={filteredSite.status} />
         <KpiCard label="PVS-Umsatz" value={filteredSite.pvsUmsatz} delta={periodLabel} icon={BadgeEuro} status={filteredSite.status} />
         <KpiCard label="EBITDA" value={filteredSite.ebitda} delta={`${pct(filteredSite.ebitdaMarge)} Marge`} icon={Banknote} status={filteredSite.status} />
-        <KpiCard label="Cashflow" value={filteredSite.cashflow} delta="nach vorläufigem Ergebnis" icon={Wallet} status={filteredSite.status} />
+        <KpiCard label="Cashflow gem. BWA" value={filteredSite.cashflow} delta="gem. BWA nach vorläufigem Ergebnis" icon={Wallet} status={filteredSite.status} />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <CostRatios site={filteredSite} periodLabel={periodLabel} />
@@ -7940,7 +7940,7 @@ function StandortDetail({
           </ResponsiveContainer>
         </ChartCard>
       </div>
-      <BwaStatement title={`BWA bis Cashflow ${site.name}`} siteId={site.id} importedData={importedData} />
+      <BwaStatement title={`BWA bis Cashflow gem. BWA | ${site.name}`} siteId={site.id} importedData={importedData} />
       <SiteMonthlyBwa site={site} importedData={importedData} />
       <SitePvsMonthlyRevenue site={site} importedData={importedData} monthlyData={monthlyData} />
       <SiteBehandlerMonthlyRevenue site={site} importedData={importedData} />
@@ -7993,7 +7993,7 @@ function KennzahlenEntwicklung({
           <KennzahlTile label="Gesamtleistung | Vertragsperioden" value={eur(totalPerformance, true)} />
           <KennzahlTile label="EBITDA | Vertragsperioden" value={eur(totalEbitda, true)} />
           <KennzahlTile label="EBITDA-Marge | Vertragsperioden" value={pct((totalEbitda / totalPerformance) * 100)} />
-          <KennzahlTile label="Cashflow | Vertragsperioden" value={eur(totalCashflow, true)} />
+          <KennzahlTile label="Cashflow gem. BWA | Vertragsperioden" value={eur(totalCashflow, true)} />
           <KennzahlTile label="Ø Zielerreichung | Übernahme" value={pct(averageTargetAchievement)} />
           <KennzahlTile label="Schwächster Standort" value={weakest ? `${weakest.site.name} (${pct(weakest.achievement)})` : "n/a"} />
         </div>
@@ -8041,7 +8041,7 @@ function KennzahlenStandortTable({ targetBySite, sites = standorte, monthlyData 
                 "Personalkostenquote",
                 "Materialquote",
                 "Fremdlaborquote",
-                "Cashflow",
+                "Cashflow gem. BWA",
                 "Ziel-EBITDA",
                 "EBITDA-Abw.",
                 "Zielerreichung",
@@ -8590,13 +8590,13 @@ function OrisusPerformance({
     <section className="space-y-5">
       <PageTitle
         title="Orisus Performance"
-        text="Operative Performance der Gruppe: Umsatzentwicklung, Standortleistung, PVS, Forderungen und Cashflow."
+        text="Operative Performance der Gruppe: Umsatzentwicklung, Standortleistung, PVS, Forderungen und Cashflow gem. BWA."
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <Mini label="Gesamtleistung" value={eur(metrics.gesamtleistung)} />
         <Mini label="PVS-Umsatz" value={eur(totalForSites(sites, "pvsUmsatz"))} />
         <Mini label="EBITDA-Marge" value={pct(metrics.ebitdaMarge)} />
-        <Mini label="Cashflow" value={eur(metrics.cashflow)} />
+        <Mini label="Cashflow gem. BWA" value={eur(metrics.cashflow)} />
         <Mini label="Offene Forderungen" value={eur(metrics.forderungen)} />
       </div>
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
@@ -8609,7 +8609,7 @@ function OrisusPerformance({
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
               <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
-              <Line dataKey="cashflow" name="Cashflow" stroke="#64748b" strokeWidth={3} />
+              <Line dataKey="cashflow" name="Cashflow gem. BWA" stroke="#64748b" strokeWidth={3} />
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -8704,7 +8704,7 @@ function OperationalPerformanceTable({
         <table className="data-table border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
-              {["Standort", "Gesamtleistung", "PVS", "EBITDA", "Marge", "Cashflow", "Forderungen", "Kostenquote", "Status"].map((head) => (
+              {["Standort", "Gesamtleistung", "PVS", "EBITDA", "Marge", "Cashflow gem. BWA", "Forderungen", "Kostenquote", "Status"].map((head) => (
                 <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                   {head}
                 </th>
@@ -9096,8 +9096,8 @@ function BankMovementsTable({
     },
     { label: "davon Praxisausgaben", values: applyPeriod(praxisCosts), contract: praxisCosts.reduce((sum, value) => sum + value, 0), indent: true },
     { label: "davon Tilgung + Zins", values: applyPeriod(tilgungZins), contract: -totalTilgungZins, indent: true },
-    { label: "davon Cashflow-Adjustments", values: applyPeriod(cashAdjustments), contract: cashAdjustments.reduce((sum, value) => sum + value, 0), indent: true },
-    { label: "Cashflow gesamt im Monat", values: applyPeriod(monthlyCashflow), contract: totalForSites(sites, "cashflow") },
+    { label: "davon Bank-Cashflow-Adjustments", values: applyPeriod(cashAdjustments), contract: cashAdjustments.reduce((sum, value) => sum + value, 0), indent: true },
+    { label: "Bank-Cashflow gesamt im Monat", values: applyPeriod(monthlyCashflow), contract: totalForSites(sites, "cashflow") },
     { label: "Kontostand Monatsende", values: applyPeriod(kontostandMonths), contract: endingKontostand }
   ];
   const displayRows = importedRows.length
@@ -10792,8 +10792,8 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
 
   return (
     <section className="space-y-5">
-      <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow, dynamisch nach Jahren und gesamter Periode auswählbar." />
-      <BwaStatement title="Konsolidierte BWA bis Cashflow" importedData={importedData} />
+      <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow gem. BWA, dynamisch nach Jahren und gesamter Periode auswählbar." />
+      <BwaStatement title="Konsolidierte BWA bis Cashflow gem. BWA" importedData={importedData} />
       <div className="grid gap-5 xl:grid-cols-2">
         <EbitdaBridge sites={sites} />
         <CashflowBridge sites={sites} />
@@ -10870,10 +10870,10 @@ function CashflowBridge({ sites = standorte }: { sites?: DashboardSite[] }) {
     { label: "Tilgung", value: -tilgung },
     { label: "Umbuchung ZMVZ", value: -umbuchen },
     { label: "Sonstige Rückstellungen / Bestandsminderungen", value: -sonstigeRueckstellungen },
-    { label: "CashFlow Gesamt", value: metrics.cashflow, tone: metrics.cashflow >= 0 ? "green" : "red" }
+    { label: "CashFlow gem. BWA", value: metrics.cashflow, tone: metrics.cashflow >= 0 ? "green" : "red" }
   ];
 
-  return <BridgeCard title="Cashflow-Brücke | seit Vertragsstart" rows={rows} />;
+  return <BridgeCard title="Cashflow-Brücke gem. BWA | seit Vertragsstart" rows={rows} />;
 }
 
 type BridgeRow = { label: string; value: number; tone?: "green" | "blue" | "red" };
@@ -10930,7 +10930,7 @@ function Cashflow({
   const cashflowPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
   return (
     <section className="space-y-5">
-      <PageTitle title="Cashflow" text="Praxiseingänge, Kosten, Annuitäten, Umbuchungen MVZ und Netto-Cashflow." />
+      <PageTitle title="Cashflow" text="Cashflow gem. BWA sowie Bank-Cashflow aus Praxiseingängen, Kosten, Annuitäten und Umbuchungen MVZ." />
       <div className="grid gap-5 xl:grid-cols-2">
         <CashflowBlock sites={sites} />
         <ChartCard title={`Monatlicher Verlauf | ${cashflowPeriod}`} icon={Wallet}>
@@ -10944,7 +10944,7 @@ function Cashflow({
           </ResponsiveContainer>
         </ChartCard>
       </div>
-      <Ranking title="Standortvergleich Cashflow | seit Vertragsstart" metric="cashflow" sites={sites} />
+      <Ranking title="Standortvergleich Cashflow gem. BWA | seit Vertragsstart" metric="cashflow" sites={sites} />
       <SiteBankCashflowSection sites={sites} importedData={importedData} />
     </section>
   );
@@ -10990,7 +10990,7 @@ function SiteBankCashflowSection({ sites = standorte, importedData }: { sites?: 
       <div>
         <h2 className="text-xl font-bold">Bankbewegungen je Standort</h2>
         <p className="text-sm text-muted-foreground">
-          Monatliche Geldeingänge, Geldausgänge, Cashflow und Kontostände aus Bank / Geldbewegungen aus Input_Finanzen,
+          Monatliche Geldeingänge, Geldausgänge, Bank-Cashflow und Kontostände aus Bank / Geldbewegungen aus Input_Finanzen,
           je Standort mit eigener Zeitraumfilterung.
         </p>
       </div>
@@ -11060,8 +11060,8 @@ function SiteBankCashflowCard({
     { label: "davon Praxisausgaben", key: "davon_praxisausgaben", indent: true },
     { label: "davon Tilgung + Zins", key: "davon_tilgung_zins", indent: true },
     { label: "davon Umbuchungen an Orisus ZMVZ", key: "davon_umbuchungen_an_orisus_zmvz", indent: true },
-    { label: "Cashflow vor Intercompany", key: "cashflow_vor_intercompany", emphasis: true },
-    { label: "Cashflow gesamt im Monat", key: "cashflow_gesamt_im_monat", emphasis: true },
+    { label: "Bank-Cashflow vor Intercompany", key: "cashflow_vor_intercompany", emphasis: true },
+    { label: "Bank-Cashflow gesamt im Monat", key: "cashflow_gesamt_im_monat", emphasis: true },
     { label: "Kontostand Monatsende", key: "kontostand_monatsende", emphasis: true, snapshot: true }
   ].map((definition) => {
     const row = rowByKey(definition.key);
@@ -11078,8 +11078,8 @@ function SiteBankCashflowCard({
   });
 
   const summaryRowsToDisplay = [
-    { label: "Cashflow gesamt im Monat", row: cashflowRow, total: selectedCashflow, average: selectedAverage, emphasis: true },
-    { label: "Cashflow vor Intercompany", row: preIntercompanyRow, total: selectedPreIntercompany, average: selectedMonths.length ? selectedPreIntercompany / selectedMonths.length : preIntercompanyRow?.averageContract ?? 0 },
+    { label: "Bank-Cashflow gesamt im Monat", row: cashflowRow, total: selectedCashflow, average: selectedAverage, emphasis: true },
+    { label: "Bank-Cashflow vor Intercompany", row: preIntercompanyRow, total: selectedPreIntercompany, average: selectedMonths.length ? selectedPreIntercompany / selectedMonths.length : preIntercompanyRow?.averageContract ?? 0 },
     { label: "Kontostand Monatsende", row: kontostandRow, total: latestKontostand, average: kontostandRow?.averageMonth ?? 0, snapshot: true }
   ];
   const rowsToDisplay = variant === "detail" ? bankDetailRows : summaryRowsToDisplay;
@@ -11097,7 +11097,7 @@ function SiteBankCashflowCard({
         </Select>
       </div>
       <div className="grid gap-3 border-b border-border p-3 sm:grid-cols-3">
-        <Mini label="Cashflow Zeitraum" value={eur(selectedCashflow)} />
+        <Mini label="Bank-Cashflow Zeitraum" value={eur(selectedCashflow)} />
         <Mini label="Ø Monat" value={eur(selectedAverage)} />
         <Mini label="Kontostand Monatsende" value={eur(latestKontostand)} />
       </div>
@@ -11168,7 +11168,7 @@ function Bankenreporting({
     { label: "Gesamtleistung YTD", value: eur(metrics.gesamtleistung), detail: "+4,2 % ggü. Vorjahr" },
     { label: "EBITDA YTD", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} EBITDA-Marge` },
     { label: "Run-Rate EBITDA", value: eur(metrics.runRateEbitda), detail: "auf Basis aktueller Monate" },
-    { label: "Cashflow", value: eur(metrics.cashflow), detail: "nach Tilgung und Adjustments" },
+    { label: "Cashflow gem. BWA", value: eur(metrics.cashflow), detail: "nach Tilgung und Adjustments aus BWA" },
     { label: "Aufgenommenes Fremdkapital", value: eur(metrics.aufgenommen), detail: "konsolidiert über Vertragsperioden" },
     { label: "Restschuld", value: eur(metrics.restschuld), detail: `${eur(metrics.getilgt, true)} bereits getilgt` },
     { label: "Kapitaldienst", value: eur(metrics.kapitaldienst), detail: `${eur(metrics.tilgung, true)} Tilgung / ${eur(metrics.zins, true)} Zins` },
@@ -11183,7 +11183,7 @@ function Bankenreporting({
     <section className="space-y-5">
       <PageTitle
         title="Bankenreporting"
-        text="Kompakte Bankenübersicht mit Ergebnisentwicklung, Cashflow, Fremdkapital und Kapitaldienstfähigkeit."
+        text="Kompakte Bankenübersicht mit Ergebnisentwicklung, Cashflow gem. BWA, Fremdkapital und Kapitaldienstfähigkeit."
       />
       <Card className="grid gap-px overflow-hidden table-grid-bg md:grid-cols-2 xl:grid-cols-4">
         {bankKpis.map((kpi) => (
@@ -11225,7 +11225,7 @@ function Bankenreporting({
           <div className="mt-4 space-y-3">
             {[
               ["EBITDA-Marge", pct(metrics.ebitdaMarge), metrics.ebitdaMarge >= 12 ? "green" : "yellow"],
-              ["Cashflow", eur(metrics.cashflow), metrics.cashflow >= 0 ? "green" : "red"],
+              ["Cashflow gem. BWA", eur(metrics.cashflow), metrics.cashflow >= 0 ? "green" : "red"],
               ["Kapitaldienstfähigkeit", `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, metrics.kapitaldienstfaehigkeit >= 1.5 ? "green" : "yellow"],
               ["Restschuld-Entwicklung", `${pct((metrics.getilgt / (metrics.aufgenommen || 1)) * 100)} getilgt`, "yellow"]
             ].map(([label, value, status]) => (
@@ -11260,7 +11260,7 @@ function Bankenreporting({
           <table className="data-table border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
-                {["Standort", "Gesamtleistung", "EBITDA", "Marge", "Cashflow", "Restschuld", "Tilgung", "Zins"].map((head) => (
+                {["Standort", "Gesamtleistung", "EBITDA", "Marge", "Cashflow gem. BWA", "Restschuld", "Tilgung", "Zins"].map((head) => (
                   <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                     {head}
                   </th>
@@ -11303,7 +11303,7 @@ function BoardPack({
     `Gesamtleistung YTD liegt bei ${eur(metrics.gesamtleistung, true)}; die Gruppe bleibt auf Wachstumskurs.`,
     `EBITDA YTD beträgt ${eur(metrics.ebitda, true)} bei einer Marge von ${pct(metrics.ebitdaMarge)}.`,
     `Run-Rate EBITDA liegt bei ${eur(metrics.runRateEbitda, true)} und ist die wichtigste Exit-nahe Kennzahl.`,
-    `Netto-Cashflow ist mit ${eur(metrics.cashflow, true)} positiv nach Tilgung und Adjustments.`,
+    `Cashflow gem. BWA ist mit ${eur(metrics.cashflow, true)} positiv nach Tilgung und Adjustments.`,
     `${metrics.kritisch.length} Standort(e) benötigen Management-Fokus: ${metrics.kritisch.map((site) => site.name).join(", ") || "keine"}.`,
     `Fremdkapital ist mit ${eur(metrics.restschuld, true)} Restschuld transparent steuerbar; ${eur(metrics.getilgt, true)} wurden bereits getilgt.`
   ];
@@ -11330,7 +11330,7 @@ function BoardPack({
         <Mini label="Gesamtleistung YTD" value={eur(metrics.gesamtleistung)} />
         <Mini label="EBITDA / Marge" value={`${eur(metrics.ebitda, true)} / ${pct(metrics.ebitdaMarge)}`} />
         <Mini label="Run-Rate EBITDA" value={eur(metrics.runRateEbitda)} />
-        <Mini label="Cashflow" value={eur(metrics.cashflow)} />
+        <Mini label="Cashflow gem. BWA" value={eur(metrics.cashflow)} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
@@ -11343,7 +11343,7 @@ function BoardPack({
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
               <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
-              <Line dataKey="cashflow" name="Cashflow" stroke="#64748b" strokeWidth={3} />
+              <Line dataKey="cashflow" name="Cashflow gem. BWA" stroke="#64748b" strokeWidth={3} />
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -12283,7 +12283,7 @@ function Reports() {
 function AdminKpiRules() {
   const rules = [
     { kpi: "EBITDA-Marge", green: ">= 15,0 %", yellow: "10,0 % bis 14,9 %", red: "< 10,0 %", owner: "CFO" },
-    { kpi: "Cashflow Konzern", green: ">= 0 EUR", yellow: "n/a", red: "< 0 EUR", owner: "CFO" },
+    { kpi: "Cashflow gem. BWA", green: ">= 0 EUR", yellow: "n/a", red: "< 0 EUR", owner: "CFO" },
     { kpi: "Offene Forderungen", green: "<= 12 % der Gesamtleistung", yellow: "12 % bis 18 %", red: "> 18 %", owner: "Controlling" },
     { kpi: "Kostenquote", green: "<= 68,0 %", yellow: "68,1 % bis 74,0 %", red: "> 74,0 %", owner: "Controlling" },
     { kpi: "Aktuelle Liquidität", green: ">= 500 TEUR", yellow: "250 TEUR bis 499 TEUR", red: "< 250 TEUR", owner: "CFO" },
