@@ -306,50 +306,55 @@ select {
 }
 
 .app-shell .app-info-popover {
-  background: #f8fdfd !important;
-  border-color: rgba(87, 197, 192, 0.38) !important;
-  color: #102a3a !important;
-  -webkit-text-fill-color: #102a3a !important;
-  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(255, 255, 255, 0.9) inset !important;
+  background:
+    radial-gradient(circle at top left, rgba(48, 213, 200, 0.14), transparent 24rem),
+    linear-gradient(145deg, rgba(9, 28, 42, 0.98), rgba(19, 55, 72, 0.98)) !important;
+  border-color: rgba(148, 211, 215, 0.42) !important;
+  color: #eefbfb !important;
+  -webkit-text-fill-color: #eefbfb !important;
+  box-shadow: 0 32px 110px rgba(0, 0, 0, 0.68), 0 0 0 1px rgba(48, 213, 200, 0.12) inset !important;
 }
 
 .app-shell .app-info-popover p,
 .app-shell .app-info-popover span,
 .app-shell .app-info-popover div {
-  color: #102a3a !important;
-  -webkit-text-fill-color: #102a3a !important;
+  color: #eefbfb !important;
+  -webkit-text-fill-color: #eefbfb !important;
 }
 
 .app-shell .app-info-popover .text-slate-950,
+.app-shell .app-info-popover .text-slate-900,
 .app-shell .app-info-popover .font-semibold,
 .app-shell .app-info-popover .font-bold {
-  color: #071827 !important;
-  -webkit-text-fill-color: #071827 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 .app-shell .app-info-popover .text-slate-600,
 .app-shell .app-info-popover .text-slate-700 {
-  color: #395461 !important;
-  -webkit-text-fill-color: #395461 !important;
+  color: #c8dde2 !important;
+  -webkit-text-fill-color: #c8dde2 !important;
 }
 
 .app-shell .app-info-popover .text-emerald-700 {
-  color: #047857 !important;
-  -webkit-text-fill-color: #047857 !important;
+  color: #79eee7 !important;
+  -webkit-text-fill-color: #79eee7 !important;
 }
 
 .app-shell .app-info-popover .text-red-700 {
-  color: #b91c1c !important;
-  -webkit-text-fill-color: #b91c1c !important;
+  color: #ff8f95 !important;
+  -webkit-text-fill-color: #ff8f95 !important;
 }
 
 .app-shell .app-info-popover .bg-white,
+.app-shell .app-info-popover .bg-white\/70,
 .app-shell .app-info-popover .bg-slate-50 {
-  background-color: #ffffff !important;
+  background-color: rgba(178, 226, 229, 0.1) !important;
 }
 
-.app-shell .app-info-popover .border-border {
-  border-color: rgba(15, 98, 116, 0.18) !important;
+.app-shell .app-info-popover .border-border,
+.app-shell .app-info-popover .border-slate-200 {
+  border-color: rgba(148, 211, 215, 0.22) !important;
 }
 
 .data-table {
