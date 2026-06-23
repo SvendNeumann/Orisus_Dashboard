@@ -313,6 +313,7 @@ select {
   color: #eefbfb !important;
   -webkit-text-fill-color: #eefbfb !important;
   box-shadow: 0 32px 110px rgba(0, 0, 0, 0.68), 0 0 0 1px rgba(48, 213, 200, 0.12) inset !important;
+  overflow-wrap: anywhere;
 }
 
 .app-shell .app-info-popover p,

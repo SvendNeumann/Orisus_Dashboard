@@ -5841,7 +5841,7 @@ function InfoDialog({ title, children, onClose }: { title: string; children: Rea
       <div
         role="dialog"
         aria-modal="true"
-        className="app-info-popover fixed left-4 right-4 top-[max(5rem,env(safe-area-inset-top))] z-[200] max-h-[74vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 text-left text-sm leading-6 text-slate-900 shadow-2xl sm:left-1/2 sm:right-auto sm:top-24 sm:w-[min(38rem,calc(100vw-3rem))] sm:-translate-x-1/2"
+        className="app-info-popover fixed left-1/2 top-4 z-[200] max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 overflow-y-auto overflow-x-hidden rounded-lg border border-slate-200 bg-white p-4 text-left text-sm leading-6 text-slate-900 shadow-2xl sm:top-20 sm:max-h-[calc(100vh-10rem)]"
       >
         <div className="sticky top-0 z-10 mb-3 flex items-start justify-between gap-3 border-b border-slate-200 bg-white pb-3">
           <p className="text-base font-bold text-slate-950">{title}</p>
