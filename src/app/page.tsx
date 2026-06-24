@@ -13099,10 +13099,10 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
             {comparisonRows.map((row) => (
               <tr key={row.site.id}>
                 <TableCell strong>
-                  <span>{row.site.name}</span>
-                  {row.adjustmentNote ? (
-                    <span className="mt-1 block text-xs font-semibold text-amber-700">{row.adjustmentNote}</span>
-                  ) : null}
+                  <span className="inline-flex items-center gap-1">
+                    {row.site.name}
+                    {row.adjustmentNote ? <ReconciliationAdjustmentHint siteName={row.site.name} note={row.adjustmentNote} /> : null}
+                  </span>
                 </TableCell>
                 <TableCell>{eur(row.bankRevenue)}</TableCell>
                 <TableCell>{eur(row.bwaRevenue)}</TableCell>
@@ -13137,6 +13137,27 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
         </table>
       </div>
     </Card>
+  );
+}
+
+function ReconciliationAdjustmentHint({ siteName, note }: { siteName: string; note: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-xs font-extrabold leading-none text-current opacity-70 transition hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary/40"
+        aria-label={`Bereinigung ${siteName} erklären`}
+        onClick={() => setOpen(true)}
+      >
+        !
+      </button>
+      {open ? (
+        <InfoDialog title={`Bereinigung ${siteName}`} onClose={() => setOpen(false)}>
+          <p className="text-slate-700">{note}</p>
+        </InfoDialog>
+      ) : null}
+    </>
   );
 }
 
