@@ -3761,7 +3761,7 @@ export default function HomePage() {
               }}
             />
           )}
-          {page === "reports" && <Reports sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {page === "reports" && <Reports sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} personalData={personalData} />}
           {page === "admin" && isAdmin && <AdminKpiRules />}
         </div>
       </main>
@@ -14221,6 +14221,7 @@ function buildReportDocument({
           overflow: hidden;
           gap: 4px;
         }
+        .pmr-document .pmr-benchmark-page:last-child { page-break-after: auto; }
         .pmr-document .pmr-header {
           grid-template-columns: 150px 1fr 95px;
           gap: 8px;
@@ -14261,11 +14262,110 @@ function buildReportDocument({
         .pmr-document .monthly-section .pmr-table td,
         .pmr-document .monthly-section .pmr-table th { padding-top: 1.45px; padding-bottom: 1.45px; }
         .pmr-document .report-footer { display: none; }
+        .pmr-benchmark-page {
+          display: grid;
+          gap: 6px;
+          height: 200mm;
+          overflow: hidden;
+          page-break-after: always;
+          background: white;
+        }
+        .pmr-benchmark-header {
+          display: grid;
+          grid-template-columns: 150px 1fr 110px;
+          gap: 8px;
+          align-items: center;
+          border-radius: 10px;
+          padding: 7px 10px;
+          color: white;
+          background: linear-gradient(135deg, #05254a 0%, #0b3556 52%, #0f6670 100%);
+          border: 1px solid rgba(255,255,255,.18);
+        }
+        .pmr-benchmark-header img { width: 130px; max-height: 39px; object-fit: contain; filter: brightness(0) invert(1); }
+        .pmr-benchmark-header h1 { margin: 1px 0; font-size: 16px; line-height: 1.05; }
+        .pmr-benchmark-header p { margin: 0; color: rgba(255,255,255,.76); font-size: 7.8px; line-height: 1.2; }
+        .pmr-benchmark-meta { display: grid; gap: 2px; justify-items: end; color: rgba(255,255,255,.82); font-size: 7.2px; }
+        .pmr-benchmark-meta strong { color: white; font-size: 11px; }
+        .pmr-benchmark-page .kpi-grid { grid-template-columns: repeat(6, 1fr); gap: 4px; }
+        .pmr-benchmark-page .kpi-card { min-height: 39px; border-radius: 8px; padding: 5px 7px; box-shadow: none; }
+        .pmr-benchmark-page .kpi-label { font-size: 5.8px; line-height: 1.1; }
+        .pmr-benchmark-page .kpi-value { margin-top: 2px; font-size: 10.6px; }
+        .pmr-benchmark-page .kpi-detail { margin-top: 2px; font-size: 5.9px; line-height: 1.12; }
+        .pmr-benchmark-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 5px;
+          align-items: start;
+        }
+        .pmr-benchmark-grid.three {
+          grid-template-columns: .86fr 1.07fr 1.07fr;
+        }
+        .pmr-benchmark-note {
+          border-radius: 8px;
+          padding: 6px 8px;
+          background: #e9f7f6;
+          border: 1px solid #b9dfdc;
+          color: #12313c;
+          font-size: 7px;
+          line-height: 1.25;
+        }
+        .pmr-benchmark-note strong { color: #0a6f79; }
+        .pmr-benchmark-page .report-section { border-radius: 8px; box-shadow: none; }
+        .pmr-benchmark-page .section-head { padding: 5px 7px; }
+        .pmr-benchmark-page .section-head h2 { font-size: 8.2px; }
+        .pmr-benchmark-page .section-head p { margin-top: 2px; font-size: 6.2px; line-height: 1.18; }
+        .pmr-benchmark-page .report-table,
+        .pmr-benchmark-page .report-table.compact {
+          font-size: 5.95px;
+          line-height: 1.08;
+        }
+        .pmr-benchmark-page .report-table th,
+        .pmr-benchmark-page .report-table td {
+          padding: 2px 2px;
+        }
+        .pmr-benchmark-page .bar-list { padding: 6px 7px; gap: 5px; }
+        .pmr-benchmark-page .bar-row { gap: 3px; }
+        .pmr-benchmark-page .bar-meta { font-size: 6.2px; }
+        .pmr-benchmark-page .bar-track { height: 5px; }
+        .heatmap-table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+          font-size: 6px;
+          line-height: 1.08;
+        }
+        .heatmap-table th {
+          padding: 3px 3px;
+          color: #ffffff;
+          text-align: right;
+          background: #075b69;
+          border: 1px solid rgba(255,255,255,.25);
+          overflow-wrap: anywhere;
+        }
+        .heatmap-table th:first-child,
+        .heatmap-table td:first-child {
+          text-align: left;
+          font-weight: 800;
+        }
+        .heatmap-table td {
+          padding: 3px 3px;
+          text-align: right;
+          border: 1px solid rgba(15, 42, 55, .18);
+          color: #102435;
+          font-weight: 750;
+          overflow-wrap: anywhere;
+        }
+        .heat-green { background: #bfeadf; }
+        .heat-yellow { background: #fff0b8; }
+        .heat-red { background: #f6b2ad; }
+        .heat-neutral { background: #eef4f6; color: #607080; }
         @media print {
           body { background: white; }
           .report-section, .kpi-card, .hero { box-shadow: none; }
-          .pmr-document .pmr-page { break-after: page; }
-          .pmr-document .pmr-page:last-of-type { break-after: auto; }
+          .pmr-document .pmr-page,
+          .pmr-document .pmr-benchmark-page { break-after: page; }
+          .pmr-document .pmr-page:last-child,
+          .pmr-document .pmr-benchmark-page:last-child { break-after: auto; }
         }
       </style>
     </head>
@@ -14727,6 +14827,261 @@ function pmrMonthlyEbitdaTable(importedData: ImportedDashboardData, siteId: stri
   </table>`;
 }
 
+function pmrBenchmarkAverage(values: Array<number | null | undefined>) {
+  const finiteValues = values.filter((value): value is number => value != null && Number.isFinite(value));
+  return finiteValues.length ? finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length : null;
+}
+
+function pmrBenchmarkIndex(value: number | null | undefined, basis: number | null | undefined) {
+  return value != null && basis ? (value / basis) * 100 : null;
+}
+
+function pmrBenchmarkHeatClass(value: number | null | undefined, reference: number | null | undefined, higherIsBetter = false) {
+  if (value == null || reference == null || !Number.isFinite(value) || !Number.isFinite(reference)) return "heat-neutral";
+  const diff = value - reference;
+  if (Math.abs(diff) <= 0.5) return "heat-yellow";
+  const good = higherIsBetter ? diff >= 0 : diff <= 0;
+  return good ? "heat-green" : "heat-red";
+}
+
+function pmrBenchmarkFormat(value: number | null | undefined, type: "currency" | "percent" | "index" | "number") {
+  if (value == null || !Number.isFinite(value)) return "n. v.";
+  if (type === "currency") return eur(value);
+  if (type === "percent") return pct(value);
+  if (type === "index") return `${value.toLocaleString("de-DE", { maximumFractionDigits: 0 })} %`;
+  return value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+}
+
+function pmrBenchmarkRankingRows<T extends { label: string; value: number | null; siteId: string }>(rows: T[], selectedSiteId: string, count = 5) {
+  const sortedRows = rows
+    .filter((row) => row.value != null && Number.isFinite(row.value))
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+  const topRows = sortedRows.slice(0, count);
+  const selectedRow = sortedRows.find((row) => row.siteId === selectedSiteId);
+  if (selectedRow && !topRows.some((row) => row.siteId === selectedSiteId)) return [...topRows.slice(0, Math.max(0, count - 1)), selectedRow];
+  return topRows;
+}
+
+function buildPmrBenchmarkPage(
+  site: DashboardSite,
+  sites: DashboardSite[],
+  importedData: ImportedDashboardData,
+  personalData: PersonalDashboardData | null | undefined,
+  period: string
+) {
+  const periodLabel = performancePeriodLabel(period);
+  const benchmarkSites = sortSitesByContractStart(
+    sites
+      .map((candidate) => filteredSiteForPeriod(candidate, importedData, period))
+      .filter((candidate) => candidate.gesamtleistung || candidate.ebitda || candidate.pvsUmsatz || candidate.forderungen)
+  );
+  const selectedSite = benchmarkSites.find((candidate) => candidate.id === site.id) ?? filteredSiteForPeriod(site, importedData, period);
+  const siteMap = new Map<string, DashboardSite>();
+  [...benchmarkSites, selectedSite].forEach((candidate) => siteMap.set(candidate.id, candidate));
+  const visibleSites = Array.from(siteMap.values());
+  const peerLabelsBySiteId = new Map(
+    visibleSites
+      .filter((candidate) => candidate.id !== selectedSite.id)
+      .map((candidate, index) => [candidate.id, anonymousBenchmarkSiteLabel(index)])
+  );
+  const labelForSite = (candidate: DashboardSite) => candidate.id === selectedSite.id ? candidate.name : peerLabelsBySiteId.get(candidate.id) ?? "Peer";
+  const dentistCapacityBySite = dentistCapacityBySiteForPeriod(personalData?.employees ?? [], period);
+  const patientRows = importedData.patientRows ?? [];
+
+  const rows = visibleSites.map((candidate) => {
+    const dentistCapacity = dentistCapacityBySite.get(candidate.id);
+    const dentistFte = dentistCapacity?.fte ?? 0;
+    const importedRoomCount = asNumber(candidate.treatmentRooms);
+    const rooms = importedRoomCount && importedRoomCount > 0 ? importedRoomCount : staticTreatmentRoomsForSite(candidate.name);
+    const weeklyOpeningHours = practiceOpeningHoursForSite(candidate.id);
+    const openingHoursBasis = openingHoursBasisForPeriod(candidate, period, weeklyOpeningHours);
+    const treatedPatients = patientMetricPeriodOptionalValue(patientRows, candidate.id, "treatedPatients", period);
+    const newPatients = patientMetricPeriodOptionalValue(patientRows, candidate.id, "newPatients", period);
+    const bookedAppointments = patientMetricPeriodOptionalValue(patientRows, candidate.id, "bookedAppointments", period);
+    const attendedAppointments = patientMetricPeriodOptionalValue(patientRows, candidate.id, "attendedAppointments", period);
+    const missedAppointments = patientMetricPeriodOptionalValue(patientRows, candidate.id, "missedAppointments", period);
+    const attendanceRateSource = patientMetricPeriodOptionalValue(patientRows, candidate.id, "attendanceRate", period);
+    const cancellationRateSource = patientMetricPeriodOptionalValue(patientRows, candidate.id, "cancellationRate", period);
+    const importedPatientsPerRoom = patientMetricPeriodOptionalValue(patientRows, candidate.id, "patientsPerRoom", period);
+    const attendanceRate =
+      bookedAppointments != null && bookedAppointments > 0 && attendedAppointments != null
+        ? (attendedAppointments / bookedAppointments) * 100
+        : attendanceRateSource != null
+          ? normalizedPercent(attendanceRateSource)
+          : null;
+    const cancellationRate =
+      bookedAppointments != null && bookedAppointments > 0 && missedAppointments != null
+        ? (missedAppointments / bookedAppointments) * 100
+        : cancellationRateSource != null
+          ? normalizedPercent(cancellationRateSource)
+          : null;
+    const newPatientRate = treatedPatients != null && treatedPatients > 0 && newPatients != null ? (newPatients / treatedPatients) * 100 : null;
+    const patientsPerRoom = treatedPatients != null && rooms ? treatedPatients / rooms : importedPatientsPerRoom;
+
+    return {
+      siteId: candidate.id,
+      label: labelForSite(candidate),
+      pvsPerDentist: dentistFte ? candidate.pvsUmsatz / dentistFte : null,
+      ebitdaMargin: candidate.ebitdaMarge,
+      pvsPerRoom: rooms ? candidate.pvsUmsatz / rooms : null,
+      pvsPerOpeningHour: openingHoursBasis ? candidate.pvsUmsatz / openingHoursBasis : null,
+      patientsPerRoom,
+      attendanceRate,
+      cancellationRate,
+      newPatientRate,
+      materialquote: candidate.materialquote,
+      fremdlaborquote: candidate.fremdlaborquote,
+      personalquote: candidate.personalquote ?? 0,
+      sonstigeKostenquote: candidate.sonstigeKostenquote,
+      gesamtkostenquote: boardCostRatio(candidate)
+    };
+  });
+
+  const selectedRow = rows.find((row) => row.siteId === selectedSite.id) ?? rows[0];
+  const averages = {
+    pvsPerDentist: pmrBenchmarkAverage(rows.map((row) => row.pvsPerDentist)),
+    ebitdaMargin: pmrBenchmarkAverage(rows.map((row) => row.ebitdaMargin)),
+    pvsPerRoom: pmrBenchmarkAverage(rows.map((row) => row.pvsPerRoom)),
+    pvsPerOpeningHour: pmrBenchmarkAverage(rows.map((row) => row.pvsPerOpeningHour)),
+    patientsPerRoom: pmrBenchmarkAverage(rows.map((row) => row.patientsPerRoom)),
+    attendanceRate: pmrBenchmarkAverage(rows.map((row) => row.attendanceRate)),
+    cancellationRate: pmrBenchmarkAverage(rows.map((row) => row.cancellationRate)),
+    newPatientRate: pmrBenchmarkAverage(rows.map((row) => row.newPatientRate)),
+    materialquote: pmrBenchmarkAverage(rows.map((row) => row.materialquote)),
+    fremdlaborquote: pmrBenchmarkAverage(rows.map((row) => row.fremdlaborquote)),
+    personalquote: pmrBenchmarkAverage(rows.map((row) => row.personalquote)),
+    sonstigeKostenquote: pmrBenchmarkAverage(rows.map((row) => row.sonstigeKostenquote)),
+    gesamtkostenquote: pmrBenchmarkAverage(rows.map((row) => row.gesamtkostenquote))
+  };
+  const indexCards = [
+    {
+      label: "Umsatz je Zahnarzt-FTE",
+      value: pmrBenchmarkIndex(selectedRow?.pvsPerDentist, averages.pvsPerDentist),
+      group: 100,
+      higherIsBetter: true,
+      type: "index" as const
+    },
+    {
+      label: "EBITDA-Marge",
+      value: selectedRow?.ebitdaMargin ?? null,
+      group: averages.ebitdaMargin,
+      higherIsBetter: true,
+      type: "percent" as const
+    },
+    {
+      label: "Gesamtkostenquote",
+      value: selectedRow?.gesamtkostenquote ?? null,
+      group: averages.gesamtkostenquote,
+      higherIsBetter: false,
+      type: "percent" as const
+    },
+    {
+      label: "Umsatz je Zimmer",
+      value: pmrBenchmarkIndex(selectedRow?.pvsPerRoom, averages.pvsPerRoom),
+      group: 100,
+      higherIsBetter: true,
+      type: "index" as const
+    },
+    {
+      label: "Patienten je Zimmer",
+      value: pmrBenchmarkIndex(selectedRow?.patientsPerRoom, averages.patientsPerRoom),
+      group: 100,
+      higherIsBetter: true,
+      type: "index" as const
+    },
+    {
+      label: "Terminwahrnehmung",
+      value: selectedRow?.attendanceRate ?? null,
+      group: averages.attendanceRate,
+      higherIsBetter: true,
+      type: "percent" as const
+    }
+  ];
+  const kpiCards = reportKpiGrid(indexCards.map((card) => {
+    const diff = card.value != null && card.group != null ? card.value - card.group : null;
+    const tone = diff == null || !Number.isFinite(diff)
+      ? "blue"
+      : Math.abs(diff) < (card.type === "percent" ? 1 : 3)
+        ? "yellow"
+        : (card.higherIsBetter ? diff >= 0 : diff <= 0)
+          ? "green"
+          : "red";
+    const suffix = card.type === "index" ? "Index" : "Vergleich";
+    return {
+      label: card.label,
+      value: pmrBenchmarkFormat(card.value, card.type),
+      detail: card.group == null ? "Vergleich n. v." : `${suffix}: ${pmrBenchmarkFormat(card.group, card.type)}`,
+      tone
+    };
+  }));
+  const pvsRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.pvsPerDentist })), selectedSite.id);
+  const marginRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.ebitdaMargin })), selectedSite.id);
+  const roomRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.pvsPerRoom })), selectedSite.id);
+  const pvsMax = Math.max(...pvsRanking.map((row) => row.value ?? 0), 1);
+  const marginMax = Math.max(...marginRanking.map((row) => row.value ?? 0), 1);
+  const roomMax = Math.max(...roomRanking.map((row) => row.value ?? 0), 1);
+  const heatRows = rows.map((row) => `<tr>
+    <td>${reportEscape(row.label)}</td>
+    <td class="${pmrBenchmarkHeatClass(row.materialquote, averages.materialquote)}">${reportEscape(pmrBenchmarkFormat(row.materialquote, "percent"))}</td>
+    <td class="${pmrBenchmarkHeatClass(row.fremdlaborquote, averages.fremdlaborquote)}">${reportEscape(pmrBenchmarkFormat(row.fremdlaborquote, "percent"))}</td>
+    <td class="${pmrBenchmarkHeatClass(row.personalquote, averages.personalquote)}">${reportEscape(pmrBenchmarkFormat(row.personalquote, "percent"))}</td>
+    <td class="${pmrBenchmarkHeatClass(row.sonstigeKostenquote, averages.sonstigeKostenquote)}">${reportEscape(pmrBenchmarkFormat(row.sonstigeKostenquote, "percent"))}</td>
+    <td class="${pmrBenchmarkHeatClass(row.gesamtkostenquote, averages.gesamtkostenquote)}">${reportEscape(pmrBenchmarkFormat(row.gesamtkostenquote, "percent"))}</td>
+  </tr>`).join("");
+  const patientRowsHtml = rows.map((row) => `<tr>
+    <td>${reportEscape(row.label)}</td>
+    <td class="${pmrBenchmarkHeatClass(row.patientsPerRoom, averages.patientsPerRoom, true)}">${reportEscape(pmrBenchmarkFormat(row.patientsPerRoom, "number"))}</td>
+    <td class="${pmrBenchmarkHeatClass(row.newPatientRate, averages.newPatientRate, true)}">${reportEscape(pmrBenchmarkFormat(row.newPatientRate, "percent"))}</td>
+    <td class="${pmrBenchmarkHeatClass(row.attendanceRate, averages.attendanceRate, true)}">${reportEscape(pmrBenchmarkFormat(row.attendanceRate, "percent"))}</td>
+    <td class="${pmrBenchmarkHeatClass(row.cancellationRate, averages.cancellationRate, false)}">${reportEscape(pmrBenchmarkFormat(row.cancellationRate, "percent"))}</td>
+  </tr>`).join("");
+
+  return `<div class="pmr-benchmark-page">
+    <header class="pmr-benchmark-header">
+      <div><img src="/orisus-logo.png" alt="Orisus Zahnmedizin" /></div>
+      <div><div class="eyebrow">Benchmarking-Report</div><h1>Benchmark ${reportEscape(selectedSite.name)}</h1><p>${reportEscape(periodLabel)} | anonymisierter Peer-Auszug | Standortleiter-Anlage</p></div>
+      <div class="pmr-benchmark-meta"><strong>Seite 2</strong><span>PMR-Anlage</span><span>Vertraulich</span></div>
+    </header>
+    ${kpiCards}
+    <div class="pmr-benchmark-note">
+      <strong>Leselogik:</strong> Der ausgewählte Standort bleibt im Klartext sichtbar. Alle Vergleichsstandorte werden anonymisiert. Index 100 % entspricht dem Vergleichsniveau im gewählten Zeitraum; bei Kostenquoten ist niedriger besser.
+    </div>
+    <div class="pmr-benchmark-grid three">
+      ${reportSection("Peer-Auszug Umsatz je Zahnarzt-FTE", reportBarList(pvsRanking.map((row) => ({
+        label: row.label,
+        value: row.value ?? 0,
+        max: pvsMax,
+        tone: row.siteId === selectedSite.id ? "green" : "blue",
+        suffix: pmrBenchmarkFormat(row.value, "currency")
+      }))), "Normalisiert nach Zahnarzt-FTE im Zeitraum.")}
+      ${reportSection("Peer-Auszug EBITDA-Marge", reportBarList(marginRanking.map((row) => ({
+        label: row.label,
+        value: row.value ?? 0,
+        max: marginMax,
+        tone: row.siteId === selectedSite.id ? "green" : "blue",
+        suffix: pmrBenchmarkFormat(row.value, "percent")
+      }))), "Ergebnisqualität im Vergleichsauszug.")}
+      ${reportSection("Peer-Auszug Umsatz je Zimmer", reportBarList(roomRanking.map((row) => ({
+        label: row.label,
+        value: row.value ?? 0,
+        max: roomMax,
+        tone: row.siteId === selectedSite.id ? "green" : "blue",
+        suffix: pmrBenchmarkFormat(row.value, "currency")
+      }))), "Normalisiert nach Behandlungszimmern.")}
+    </div>
+    <div class="pmr-benchmark-grid">
+      ${reportSection("Kostenquoten im Benchmark", `<table class="heatmap-table">
+        <thead><tr><th>Peer</th><th>Material</th><th>Fremdlabor</th><th>Personal</th><th>Sonstige</th><th>Gesamt</th></tr></thead>
+        <tbody>${heatRows}<tr><td>Vergleichsniveau</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.materialquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.fremdlaborquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.personalquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.sonstigeKostenquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.gesamtkostenquote, "percent"))}</td></tr></tbody>
+      </table>`, "Ampelfarben gegen Vergleichsniveau; bei Kosten ist niedriger besser.")}
+      ${reportSection("Patienten- und Terminindikatoren", `<table class="heatmap-table">
+        <thead><tr><th>Peer</th><th>Pat./Zimmer</th><th>Neupatienten</th><th>Wahrnehmung</th><th>Ausfall</th></tr></thead>
+        <tbody>${patientRowsHtml}<tr><td>Vergleichsniveau</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.patientsPerRoom, "number"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.newPatientRate, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.attendanceRate, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.cancellationRate, "percent"))}</td></tr></tbody>
+      </table>`, "Patientenbasis aus dem bestätigten Import, soweit je Standort gepflegt.")}
+    </div>
+  </div>`;
+}
+
 function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardData, period: string, comparisonYear: number) {
   const filteredSite = filteredSiteForPeriod(site, importedData, period);
   const projection = projectedEarnOutForSite(site, period);
@@ -14774,10 +15129,11 @@ function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardDa
 
 function buildPmrReport(
   selectedSites: DashboardSite[],
+  allSites: DashboardSite[],
   importedData: ImportedDashboardData | null | undefined,
+  personalData: PersonalDashboardData | null | undefined,
   period: string,
-  comparisonYear: number,
-  orientation: ReportOrientation
+  comparisonYear: number
 ) {
   const printOrientation: ReportOrientation = "landscape";
   if (!importedData?.bwaRows?.length || !selectedSites.length) {
@@ -14790,10 +15146,13 @@ function buildPmrReport(
     });
   }
 
-  const pages = selectedSites.map((site, index) => `${index ? '<div class="page-break"></div>' : ""}${buildPmrSitePage(site, importedData, period, comparisonYear)}`).join("");
+  const pages = selectedSites.map((site) => [
+    buildPmrSitePage(site, importedData, period, comparisonYear),
+    buildPmrBenchmarkPage(site, allSites, importedData, personalData, period)
+  ].join("")).join("");
   return buildReportDocument({
     title: "PMR Standortleiter-Report",
-    subtitle: `Standortbezogener Monatsreport mit BWA bis EBITDA, Quoten, Earn-Out-Hochrechnung, Behandlerumsatz und Personalkosten. Zeitraum: ${performancePeriodLabel(period)}.`,
+    subtitle: `Standortbezogener Monatsreport mit BWA bis EBITDA, Quoten, Earn-Out-Hochrechnung, Behandlerumsatz, Personalkosten und Benchmarking-Anlage. Zeitraum: ${performancePeriodLabel(period)}.`,
     periodLabel: performancePeriodLabel(period),
     orientation: printOrientation,
     hideHero: true,
@@ -14978,11 +15337,13 @@ function buildSiteReport(sites: DashboardSite[], monthlyData: typeof monthly, or
 function Reports({
   sites = standorte,
   monthlyData = monthly,
-  importedData
+  importedData,
+  personalData
 }: {
   sites?: DashboardSite[];
   monthlyData?: typeof monthly;
   importedData?: ImportedDashboardData | null;
+  personalData?: PersonalDashboardData | null;
 }) {
   const rules = useKpiRules();
   const pmrPeriodOptions = useMemo(() => bwaPeriodOptionsFor(importedData), [importedData]);
@@ -15073,7 +15434,7 @@ function Reports({
               disabled={!selectedPmrSites.length}
               onClick={() => openPrintableReport(
                 "PMR Standortleiter-Report",
-                buildPmrReport(selectedPmrSites, importedData, pmrPeriod, Number(pmrComparisonYear), reportOrientations.pmr)
+                buildPmrReport(selectedPmrSites, activeReportSites, importedData, personalData, pmrPeriod, Number(pmrComparisonYear))
               )}
             >
               PMR öffnen
