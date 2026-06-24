@@ -77,6 +77,7 @@ type ImportedPersonnelCostRow = {
   name: string;
   type: string;
   status: string;
+  activePeriod: string;
   year: number;
   personnelCostByMonth: Record<string, number>;
   personnelCost: number;
@@ -7198,6 +7199,7 @@ function buildImportedPersonnelCostRows(workbook: XLSX.WorkBook): ImportedPerson
     const honorarIndex = indexOf("Honorarumsatz");
     const pkQuoteIndex = indexOf("PK-Quote");
     const monthsMaintainedIndex = indexOf("Datenstatus");
+    const activePeriodIndex = indexOf("Aktiv-Zeitraum");
     const monthIndexes = monthHeaders.map((month) => indexOf(month));
     const sheetSiteName = sheetName.replace(/_?Personalkosten_Expor?t?$/i, "");
     const siteId = siteIdForName(sheetSiteName);
@@ -7222,6 +7224,7 @@ function buildImportedPersonnelCostRows(workbook: XLSX.WorkBook): ImportedPerson
         name,
         type: asText(row[typeIndex]),
         status: asText(row[statusIndex]),
+        activePeriod: asText(row[activePeriodIndex]),
         year,
         personnelCostByMonth,
         personnelCost,
@@ -10367,7 +10370,12 @@ function SiteBehandlerPersonnelCosts({
         <tbody>
           {visibleRows.map((row) => (
             <tr key={`${row.employeeId}-${row.name}`}>
-              <TableCell strong>{row.name}</TableCell>
+              <TableCell strong>
+                <span>{row.name}</span>
+                {personnelCostStatusNote(row) ? (
+                  <span className="mt-1 block text-xs font-semibold text-amber-200">{personnelCostStatusNote(row)}</span>
+                ) : null}
+              </TableCell>
               <TableCell>{row.type}</TableCell>
               <TableCell>{eur(row.personnelCost)}</TableCell>
               <TableCell>{eur(row.honorar)}</TableCell>
@@ -15347,6 +15355,7 @@ type PersonnelCostComparisonRow = {
   name: string;
   type: string;
   status: string;
+  activePeriod: string;
   personnelCost: number;
   honorar: number;
   pkQuote: number;
@@ -15368,6 +15377,22 @@ const personnelCostAggregateExclusions = new Set(["mvz", "unbekannt", "unknown"]
 
 function isExcludedFromPersonnelCostAggregation(name: string) {
   return personnelCostAggregateExclusions.has(normalizeMetric(name));
+}
+
+function isInactivePersonnelCostStatus(status: string) {
+  return normalizeMetric(status).includes("inaktiv");
+}
+
+function personnelCostExitDate(activePeriod: string | undefined) {
+  if (!activePeriod) return "";
+  const match = activePeriod.match(/\bbis\s+(\d{1,2}\.\d{1,2}\.\d{4})/i);
+  return match?.[1] ?? "";
+}
+
+function personnelCostStatusNote(row: Pick<PersonnelCostComparisonRow, "status" | "activePeriod">) {
+  if (!isInactivePersonnelCostStatus(row.status)) return "";
+  const exitDate = personnelCostExitDate(row.activePeriod);
+  return exitDate ? `Inaktiv | Austritt ${exitDate}` : "Inaktiv";
 }
 
 function isExcludedFromPmrPersonnelCostReport(siteId: string, row: PersonnelCostComparisonRow) {
@@ -15396,6 +15421,7 @@ function personnelCostComparisonRows(importedData: ImportedDashboardData | null 
         name: canonicalName,
         type: row.type,
         status: row.status,
+        activePeriod: row.activePeriod,
         personnelCost: 0,
         honorar: 0,
         fallbackHonorar: 0,
@@ -15406,7 +15432,8 @@ function personnelCostComparisonRows(importedData: ImportedDashboardData | null 
       existing.employeeId = existing.employeeId || row.employeeId || key;
       existing.name = betterProviderDisplayName(siteId, existing.name, row.name);
       existing.type = existing.type || row.type;
-      existing.status = row.status || existing.status;
+      existing.status = isInactivePersonnelCostStatus(row.status) ? row.status : existing.status || row.status;
+      existing.activePeriod = personnelCostExitDate(row.activePeriod) ? row.activePeriod : existing.activePeriod || row.activePeriod;
       grouped.set(key, existing);
     });
 
@@ -15419,6 +15446,7 @@ function personnelCostComparisonRows(importedData: ImportedDashboardData | null 
         name: row.name,
         type: row.type,
         status: row.status,
+        activePeriod: row.activePeriod,
         personnelCost: row.personnelCost,
         honorar,
         pkQuote: honorar ? row.personnelCost / honorar : 0
@@ -15505,7 +15533,7 @@ function pmrPersonnelCostRows(importedData: ImportedDashboardData, siteId: strin
   return `<table class="pmr-table compact">
     <thead><tr><th>Mitarbeiter</th><th>Typ</th><th>Personalkosten</th><th>Honorarumsatz</th><th>PK-Quote</th></tr></thead>
     <tbody>${rows.map((row) => `<tr>
-      <td>${reportEscape(row.name)}</td>
+      <td>${reportEscape(row.name)}${personnelCostStatusNote(row) ? `<br><span class="muted">${reportEscape(personnelCostStatusNote(row))}</span>` : ""}</td>
       <td>${reportEscape(row.type)}</td>
       <td>${reportEscape(eur(row.personnelCost))}</td>
       <td>${reportEscape(eur(row.honorar))}</td>
