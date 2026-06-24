@@ -7321,8 +7321,10 @@ function buildImportedBankMovementRows(
       const dashboardRow = siteName ? undefined : dashboardRows.get(normalizeMetric(definition.label));
       if (dashboardRow) {
         Object.entries(dashboardRow.valuesByMonth).forEach(([key, value]) => {
-          valuesByMonth[key] = value;
-          hasValueByMonth[key] = true;
+          if (hasValueByMonth[key] || value !== 0) {
+            valuesByMonth[key] = value;
+            hasValueByMonth[key] = true;
+          }
         });
       }
 
