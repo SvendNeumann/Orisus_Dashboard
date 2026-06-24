@@ -13108,6 +13108,92 @@ function BoardPack({
     if (!boardPeriodOptions.includes(boardPeriod)) setBoardPeriod(defaultPeriodFromOptions(boardPeriodOptions));
   }, [boardPeriod, boardPeriodOptions]);
   const boardChartData = bwaChartDataForPeriod(importedData, monthlyData, boardPeriod);
+  const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
+  const criticalSiteNames = metrics.kritisch.map((site) => site.name).join(", ") || "keine";
+  const riskFocusItems: Array<{ label: string; value: string; status: Status; info: React.ReactNode }> = [
+    {
+      label: "Forderungen",
+      value: `${eur(metrics.forderungen, true)} offen`,
+      status: statusByRule(receivablesRatio, rules.offene_forderungen),
+      info: (
+        <div className="space-y-3">
+          <p className="font-semibold text-slate-950">Was ist das?</p>
+          <p className="text-slate-700">
+            Offene Forderungen zeigen, wie viel bereits erbrachte Leistung noch nicht als Zahlung eingegangen ist.
+            Im Board-Pack ist das ein Working-Capital- und Liquiditätsindikator.
+          </p>
+          <div className="space-y-1">
+            <InfoLine label="Offene Forderungen aktuell" value={metrics.forderungen} strong />
+            <InfoLine label="Gesamtleistung seit Vertragsstart" value={metrics.gesamtleistung} />
+            <InfoTextLine label="Forderungsquote" value={pct(receivablesRatio)} strong />
+            <InfoTextLine label="Ampelregel" value={kpiRuleText(rules.offene_forderungen, "green")} />
+          </div>
+        </div>
+      )
+    },
+    {
+      label: "Kostenquote",
+      value: pct(metrics.kostenquote),
+      status: statusByRule(metrics.kostenquote, rules.kostenquote),
+      info: (
+        <div className="space-y-3">
+          <p className="font-semibold text-slate-950">Was ist das?</p>
+          <p className="text-slate-700">
+            Die Kostenquote misst, welcher Anteil der Gesamtleistung durch operative Kosten gebunden ist.
+            Enthalten sind Material, Fremdlabor, Personal und sonstige operative Kosten.
+          </p>
+          <div className="space-y-1">
+            <InfoTextLine label="Berechnung" value="gewichtete Kostenquoten je Standort" />
+            <InfoLine label="Gesamtleistung seit Vertragsstart" value={metrics.gesamtleistung} />
+            <InfoTextLine label="Kostenquote konsolidiert" value={pct(metrics.kostenquote)} strong />
+            <InfoTextLine label="Ampelregel" value={kpiRuleText(rules.kostenquote, "green")} />
+          </div>
+        </div>
+      )
+    },
+    {
+      label: "Kapitaldienstfähigkeit",
+      value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
+      status: statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
+      info: (
+        <div className="space-y-3">
+          <p className="font-semibold text-slate-950">Was ist das?</p>
+          <p className="text-slate-700">
+            Kapitaldienstfähigkeit zeigt, wie oft das EBITDA den Kapitaldienst deckt. Für Board und Banken ist das
+            ein Kernindikator für Rückzahlungsfähigkeit und Finanzierungsspielraum.
+          </p>
+          <div className="space-y-1">
+            <InfoLine label="EBITDA seit Vertragsstart" value={metrics.ebitda} />
+            <InfoLine label="Tilgung" value={metrics.tilgung} />
+            <InfoLine label="+ Zins" value={metrics.zins} />
+            <InfoLine label="= Kapitaldienst" value={metrics.kapitaldienst} strong />
+            <InfoTextLine label="EBITDA / Kapitaldienst" value={`${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`} strong />
+            <InfoTextLine label="Ampelregel" value={kpiRuleText(rules.kapitaldienstfaehigkeit, "green")} />
+          </div>
+        </div>
+      )
+    },
+    {
+      label: "Kritische Standorte",
+      value: `${metrics.kritisch.length} Standort(e)`,
+      status: metrics.kritisch.length ? "yellow" : "green",
+      info: (
+        <div className="space-y-3">
+          <p className="font-semibold text-slate-950">Was ist das?</p>
+          <p className="text-slate-700">
+            Kritische Standorte sind Praxen mit erkennbarem Steuerungsbedarf. Gezählt wird ein Standort, wenn er
+            nach KPI-Regeln rot ist, eine kritische Forderungsquote hat oder beim Ziel-EBITDA gemäß Kaufvertrag
+            deutlich unter Ziel liegt.
+          </p>
+          <div className="space-y-1">
+            <InfoTextLine label="Anzahl kritischer Standorte" value={String(metrics.kritisch.length)} strong />
+            <InfoTextLine label="Standorte" value={criticalSiteNames} />
+            <InfoTextLine label="Prüflogik" value="Status rot, Forderungsquote rot oder Ziel-EBITDA KV rot" />
+          </div>
+        </div>
+      )
+    }
+  ];
 
   return (
     <section className="space-y-5">
@@ -13147,19 +13233,8 @@ function BoardPack({
         <Card className="p-4">
           <h2 className="font-bold">Risiken & Fokus | aktueller Stand</h2>
           <div className="mt-4 space-y-3">
-            {[
-              ["Forderungen", `${eur(metrics.forderungen, true)} offen`, statusByRule(metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0, rules.offene_forderungen)],
-              ["Kostenquote", pct(metrics.kostenquote), statusByRule(metrics.kostenquote, rules.kostenquote)],
-              ["Kapitaldienstfähigkeit", `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)],
-              ["Kritische Standorte", `${metrics.kritisch.length} Standort(e)`, metrics.kritisch.length ? "yellow" : "green"]
-            ].map(([label, value, status]) => (
-              <div key={label} className="flex items-center justify-between rounded-md bg-slate-50 p-3">
-                <div>
-                  <p className="font-semibold">{label}</p>
-                  <p className="text-sm text-muted-foreground">{value}</p>
-                </div>
-                <StatusDot status={status as Status} />
-              </div>
+            {riskFocusItems.map((item) => (
+              <BoardRiskFocusRow key={item.label} {...item} />
             ))}
           </div>
         </Card>
@@ -13167,6 +13242,34 @@ function BoardPack({
 
       <AcquisitionIntegration sites={sites} />
     </section>
+  );
+}
+
+function BoardRiskFocusRow({ label, value, status, info }: { label: string; value: string; status: Status; info: React.ReactNode }) {
+  const [infoOpen, setInfoOpen] = useState(false);
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md bg-slate-50 p-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-semibold">{label}</p>
+          <button
+            type="button"
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border bg-white text-cyan-800 shadow-sm transition hover:bg-cyan-50"
+            aria-label={`${label} erklären`}
+            onClick={() => setInfoOpen((open) => !open)}
+          >
+            <Info className="h-3 w-3" />
+          </button>
+        </div>
+        <p className="text-sm text-muted-foreground">{value}</p>
+      </div>
+      <StatusDot status={status} />
+      {infoOpen ? (
+        <InfoDialog title={`${label} | Herleitung`} onClose={() => setInfoOpen(false)}>
+          {info}
+        </InfoDialog>
+      ) : null}
+    </div>
   );
 }
 
