@@ -110,6 +110,7 @@ type Page =
   | "kennzahlen"
   | "performance"
   | "fruehwarnsystem"
+  | "personal-produktivitaet"
   | "standorte"
   | "standort-detail"
   | "analysen"
@@ -1479,6 +1480,7 @@ const navSections = [
     items: [
       { id: "performance", label: "Orisus Performance", icon: TrendingUp },
       { id: "fruehwarnsystem", label: "Frühwarnsystem", icon: Gauge },
+      { id: "personal-produktivitaet", label: "Personalproduktivität", icon: Users },
       { id: "analysen", label: "Benchmarking", icon: BarChart3 }
     ]
   },
@@ -1530,6 +1532,7 @@ const appPageIds: Page[] = [
   "kennzahlen",
   "performance",
   "fruehwarnsystem",
+  "personal-produktivitaet",
   "standorte",
   "standort-detail",
   "analysen",
@@ -3889,6 +3892,7 @@ export default function HomePage() {
           {importedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "fruehwarnsystem" && <Fruehwarnsystem sites={dashboardSites} importedData={importedData} />}
+          {importedData && page === "personal-produktivitaet" && <PersonalProduktivitaet sites={dashboardSites} importedData={importedData} personalData={personalData} />}
           {importedData && page === "standorte" && (
             <Standorte
               sites={dashboardSites}
@@ -14957,6 +14961,316 @@ function UploadDataQualityCard({
         <div className="p-4 text-sm font-semibold text-muted-foreground">{emptyText}</div>
       )}
     </Card>
+  );
+}
+
+type PersonnelProductivityCapacity = {
+  months: number;
+  activeHeadcount: number;
+  fte: number;
+  dentistHeadcount: number;
+  dentistFte: number;
+};
+
+function monthKeysForSitePeriod(importedData: ImportedDashboardData, siteId: string, period: string) {
+  const selection = selectedBwaPeriod(period);
+  if (selection.year && selection.months?.length) {
+    return selection.months.map((month) => ({ year: selection.year as number, month }));
+  }
+  if (selection.year) {
+    return Array.from({ length: 12 }, (_, index) => index + 1)
+      .filter((month) => importedData.bwaRows.some((row) => row.siteId === siteId && row.hasDataByMonth[`${selection.year}-${month}`]))
+      .map((month) => ({ year: selection.year as number, month }));
+  }
+  const keys = new Set<string>();
+  importedData.bwaRows
+    .filter((row) => row.siteId === siteId)
+    .forEach((row) => {
+      Object.entries(row.hasDataByMonth).forEach(([key, hasData]) => {
+        if (hasData) keys.add(key);
+      });
+    });
+  return Array.from(keys)
+    .map((key) => {
+      const [entryYear, entryMonth] = key.split("-").map(Number);
+      return { year: entryYear, month: entryMonth };
+    })
+    .filter((entry) => entry.year >= 1900 && entry.month >= 1 && entry.month <= 12)
+    .sort((a, b) => a.year - b.year || a.month - b.month);
+}
+
+function personnelCapacityBySiteForPeriod(
+  personalData: PersonalDashboardData | null | undefined,
+  importedData: ImportedDashboardData,
+  siteId: string,
+  period: string
+): PersonnelProductivityCapacity | null {
+  if (!personalData?.employees.length) return null;
+  const months = monthKeysForSitePeriod(importedData, siteId, period);
+  if (!months.length) return null;
+  const siteEmployees = personalData.employees.filter((employee) => siteIdForName(employee.site) === siteId);
+  if (!siteEmployees.length) return null;
+  const totals = months.reduce(
+    (sum, entry) => {
+      const { start, end } = monthDateRange(entry.year, entry.month);
+      const activeEmployees = siteEmployees.filter((employee) => personalEmployeeActiveInDateRange(employee, start, end));
+      const activeDentists = activeEmployees.filter((employee) => employee.isDentist);
+      return {
+        activeHeadcount: sum.activeHeadcount + activeEmployees.length,
+        fte: sum.fte + activeEmployees.reduce((fteSum, employee) => fteSum + (employee.weeklyHours || 0) / 40, 0),
+        dentistHeadcount: sum.dentistHeadcount + activeDentists.length,
+        dentistFte: sum.dentistFte + activeDentists.reduce((fteSum, employee) => fteSum + (employee.weeklyHours || 0) / 40, 0)
+      };
+    },
+    { activeHeadcount: 0, fte: 0, dentistHeadcount: 0, dentistFte: 0 }
+  );
+  const divisor = months.length;
+  return {
+    months: divisor,
+    activeHeadcount: totals.activeHeadcount / divisor,
+    fte: totals.fte / divisor,
+    dentistHeadcount: totals.dentistHeadcount / divisor,
+    dentistFte: totals.dentistFte / divisor
+  };
+}
+
+function formatNullableCurrency(value: number | null | undefined) {
+  return value == null || !Number.isFinite(value) ? "n. v." : eur(value);
+}
+
+function formatNullableNumber(value: number | null | undefined, digits = 1) {
+  return value == null || !Number.isFinite(value) ? "n. v." : value.toLocaleString("de-DE", { maximumFractionDigits: digits });
+}
+
+function formatNullablePercent(value: number | null | undefined) {
+  return value == null || !Number.isFinite(value) ? "n. v." : pct(value);
+}
+
+function PersonalProduktivitaet({
+  sites = standorte,
+  importedData,
+  personalData
+}: {
+  sites?: DashboardSite[];
+  importedData: ImportedDashboardData;
+  personalData?: PersonalDashboardData | null;
+}) {
+  const periodOptions = bwaPeriodOptionsFor(importedData);
+  const [period, setPeriod] = useState(() => periodOptions.includes("Gesamte Periode") ? "Gesamte Periode" : defaultBwaPeriodFor(importedData));
+
+  useEffect(() => {
+    if (!periodOptions.includes(period)) {
+      setPeriod(periodOptions.includes("Gesamte Periode") ? "Gesamte Periode" : defaultBwaPeriodFor(importedData));
+    }
+  }, [importedData, period, periodOptions]);
+
+  const activeSites = sortSitesByContractStart(sites).filter((site) => importedData.bwaRows.some((row) => row.siteId === site.id));
+  const rows = activeSites.map((site) => {
+    const filteredSite = filteredSiteForPeriod(site, importedData, period);
+    const capacity = personnelCapacityBySiteForPeriod(personalData, importedData, site.id, period);
+    const personnelCost = Math.abs(importedBwaMetricValue(importedData.bwaRows, site.id, "personalkosten_gesamt", period));
+    const revenue = filteredSite.gesamtleistung;
+    const pvsRevenue = filteredSite.pvsUmsatz;
+    const ebitda = filteredSite.ebitda;
+    const fte = capacity?.fte ?? null;
+    const dentistFte = capacity?.dentistFte ?? null;
+    const revenuePerFte = fte ? revenue / fte : null;
+    const pvsPerFte = fte ? pvsRevenue / fte : null;
+    const ebitdaPerFte = fte ? ebitda / fte : null;
+    const personnelCostPerFte = fte ? personnelCost / fte : null;
+    const revenuePerDentistFte = dentistFte ? revenue / dentistFte : null;
+    const pvsPerDentistFte = dentistFte ? pvsRevenue / dentistFte : null;
+    const ebitdaPerDentistFte = dentistFte ? ebitda / dentistFte : null;
+    const personnelCostQuote = revenue ? (personnelCost / revenue) * 100 : null;
+    const ebitdaMargin = revenue ? (ebitda / revenue) * 100 : null;
+    return {
+      site,
+      capacity,
+      revenue,
+      pvsRevenue,
+      ebitda,
+      personnelCost,
+      fte,
+      dentistFte,
+      revenuePerFte,
+      pvsPerFte,
+      ebitdaPerFte,
+      personnelCostPerFte,
+      revenuePerDentistFte,
+      pvsPerDentistFte,
+      ebitdaPerDentistFte,
+      personnelCostQuote,
+      ebitdaMargin
+    };
+  });
+
+  const numericAverage = (selector: (row: (typeof rows)[number]) => number | null) => {
+    const values = rows.map(selector).filter((value): value is number => value != null && Number.isFinite(value));
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  };
+  const averageRevenuePerFte = numericAverage((row) => row.revenuePerFte);
+  const averageEbitdaPerFte = numericAverage((row) => row.ebitdaPerFte);
+  const averagePersonnelQuote = numericAverage((row) => row.personnelCostQuote);
+  const strongestRevenue = rows.filter((row) => row.revenuePerFte != null).sort((a, b) => (b.revenuePerFte ?? 0) - (a.revenuePerFte ?? 0))[0];
+  const strongestEbitda = rows.filter((row) => row.ebitdaPerFte != null).sort((a, b) => (b.ebitdaPerFte ?? 0) - (a.ebitdaPerFte ?? 0))[0];
+  const highPersonnelQuote = rows.filter((row) => row.personnelCostQuote != null).sort((a, b) => (b.personnelCostQuote ?? 0) - (a.personnelCostQuote ?? 0))[0];
+  const rowsWithCapacity = rows.filter((row) => row.capacity).length;
+  const comparisonRows = rows.map((row) => ({
+    name: row.site.name,
+    umsatzFte: row.revenuePerFte ?? 0,
+    ebitdaFte: row.ebitdaPerFte ?? 0,
+    pkQuote: row.personnelCostQuote ?? 0
+  }));
+
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Personalproduktivität"
+        text="Standortvergleich von Leistung, PVS-Umsatz, EBITDA und Personalkosten im Verhältnis zur durchschnittlichen Personal- und Zahnarzt-FTE-Kapazität."
+      />
+
+      {!personalData && (
+        <Card className="border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+          Für FTE-Produktivitätswerte wird der bestätigte Personal-Import benötigt. BWA-/PVS-Werte sind vorhanden, Kapazitätskennzahlen erscheinen nach bestätigtem Personal-Upload.
+        </Card>
+      )}
+
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="font-bold">Vergleichslogik | {performancePeriodLabel(period)}</h2>
+            <p className="mt-1 max-w-5xl text-sm leading-6 text-muted-foreground">
+              Finanzwerte kommen aus BWA/PVS. FTE kommt aus dem Personalimport und wird je Zeitraum monatsgenau gemittelt.
+              Inaktive Mitarbeiter werden historisch berücksichtigt, wenn sie im ausgewählten Zeitraum aktiv waren.
+              Personalkosten sind BWA-Personalkosten, keine offengelegten Gehaltsdetails.
+            </p>
+          </div>
+          <Select className="w-full md:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
+            {periodOptions.map((option) => (
+              <option key={option} value={option}>{performancePeriodLabel(option)}</option>
+            ))}
+          </Select>
+        </div>
+      </Card>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Mini label="Ø Gesamtleistung je FTE" value={formatNullableCurrency(averageRevenuePerFte)} />
+        <Mini label="Ø EBITDA je FTE" value={formatNullableCurrency(averageEbitdaPerFte)} />
+        <Mini label="Ø Personalkostenquote" value={formatNullablePercent(averagePersonnelQuote)} />
+        <Mini label="Standorte mit FTE-Basis" value={`${rowsWithCapacity}/${rows.length}`} />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
+        <ChartCard title={`Personalproduktivität je Standort | ${performancePeriodLabel(period)}`} icon={Users}>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={comparisonRows}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
+              <Tooltip formatter={(value, name) => name === "pkQuote" ? pct(Number(value)) : eur(Number(value))} />
+              <Bar dataKey="umsatzFte" name="Gesamtleistung je FTE" fill="#0f766e" radius={[5, 5, 0, 0]} />
+              <Bar dataKey="ebitdaFte" name="EBITDA je FTE" fill="#0369a1" radius={[5, 5, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <Card className="p-4">
+          <h2 className="font-bold">Einordnung</h2>
+          <div className="mt-4 space-y-3 text-sm leading-6 text-muted-foreground">
+            <p>
+              <strong className="text-foreground">Gesamtleistung je FTE</strong> zeigt, wie viel BWA-Leistung je durchschnittlicher Mitarbeiterkapazität entsteht.
+            </p>
+            <p>
+              <strong className="text-foreground">PVS je Zahnarzt-FTE</strong> zeigt die Umsatzleistung der Behandlerkapazität; Grundlage sind Zahnarztstunden aus dem Personalimport.
+            </p>
+            <p>
+              <strong className="text-foreground">Personalkostenquote</strong> nutzt ausschließlich BWA-Personalkosten im Verhältnis zur BWA-Gesamtleistung.
+            </p>
+          </div>
+          <div className="mt-4 grid gap-2">
+            <div className="rounded-md bg-slate-50 p-3">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Stärkste Gesamtleistung je FTE</p>
+              <p className="mt-1 font-bold">{strongestRevenue ? `${strongestRevenue.site.name} | ${formatNullableCurrency(strongestRevenue.revenuePerFte)}` : "n. v."}</p>
+            </div>
+            <div className="rounded-md bg-slate-50 p-3">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Stärkstes EBITDA je FTE</p>
+              <p className="mt-1 font-bold">{strongestEbitda ? `${strongestEbitda.site.name} | ${formatNullableCurrency(strongestEbitda.ebitdaPerFte)}` : "n. v."}</p>
+            </div>
+            <div className="rounded-md bg-slate-50 p-3">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Höchste Personalkostenquote</p>
+              <p className="mt-1 font-bold">{highPersonnelQuote ? `${highPersonnelQuote.site.name} | ${formatNullablePercent(highPersonnelQuote.personnelCostQuote)}` : "n. v."}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="text-xl font-bold">Personalproduktivität je Standort | {performancePeriodLabel(period)}</h2>
+          <p className="mt-1 text-sm text-white/75">
+            FTE = durchschnittliche aktive Wochenstunden / 40 im gewählten Zeitraum. Zahnarzt-FTE zählt nur Mitarbeiter mit Behandlerkennzeichnung.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="data-table border-separate border-spacing-0 text-xs">
+            <thead>
+              <tr>
+                {[
+                  "Standort",
+                  "Monate Basis",
+                  "Ø aktive MA",
+                  "Ø FTE gesamt",
+                  "Ø Zahnarzt-FTE",
+                  "Gesamtleistung",
+                  "PVS-Umsatz",
+                  "EBITDA",
+                  "Personalkosten BWA",
+                  "Gesamtleistung je FTE",
+                  "PVS je FTE",
+                  "EBITDA je FTE",
+                  "Personalkosten je FTE",
+                  "PVS je Zahnarzt-FTE",
+                  "EBITDA je Zahnarzt-FTE",
+                  "Personalkostenquote",
+                  "EBITDA-Marge",
+                  "Einordnung"
+                ].map((head) => (
+                  <th key={head} className="border-b border-r border-border table-head p-2 text-center font-bold text-white">{head}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const revenueIndex = row.revenuePerFte != null && averageRevenuePerFte ? (row.revenuePerFte / averageRevenuePerFte) * 100 : null;
+                const productivityStatus: Status = revenueIndex == null ? "yellow" : revenueIndex >= 105 ? "green" : revenueIndex >= 85 ? "yellow" : "red";
+                const productivityLabel = revenueIndex == null ? "FTE-Basis fehlt" : revenueIndex >= 105 ? "über Vergleich" : revenueIndex >= 85 ? "nahe Vergleich" : "unter Vergleich";
+                return (
+                  <tr key={row.site.id}>
+                    <TableCell strong>{row.site.name}</TableCell>
+                    <TableCell>{row.capacity?.months ?? ""}</TableCell>
+                    <TableCell>{formatNullableNumber(row.capacity?.activeHeadcount)}</TableCell>
+                    <TableCell>{formatNullableNumber(row.fte)}</TableCell>
+                    <TableCell>{formatNullableNumber(row.dentistFte)}</TableCell>
+                    <TableCell>{eur(row.revenue)}</TableCell>
+                    <TableCell>{eur(row.pvsRevenue)}</TableCell>
+                    <TableCell>{eur(row.ebitda)}</TableCell>
+                    <TableCell>{eur(row.personnelCost)}</TableCell>
+                    <TableCell>{formatNullableCurrency(row.revenuePerFte)}</TableCell>
+                    <TableCell>{formatNullableCurrency(row.pvsPerFte)}</TableCell>
+                    <TableCell>{formatNullableCurrency(row.ebitdaPerFte)}</TableCell>
+                    <TableCell>{formatNullableCurrency(row.personnelCostPerFte)}</TableCell>
+                    <TableCell>{formatNullableCurrency(row.pvsPerDentistFte)}</TableCell>
+                    <TableCell>{formatNullableCurrency(row.ebitdaPerDentistFte)}</TableCell>
+                    <TableCell>{formatNullablePercent(row.personnelCostQuote)}</TableCell>
+                    <TableCell>{formatNullablePercent(row.ebitdaMargin)}</TableCell>
+                    <td className="border-b border-r border-border bg-white p-2 text-left"><StatusDot status={productivityStatus} label={productivityLabel} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </section>
   );
 }
 
