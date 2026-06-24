@@ -7962,6 +7962,40 @@ function importedPeriodValue(row: Pick<ImportedBwaRow, "valuesByYear" | "valuesB
   return row.contractValue;
 }
 
+function contractMonthsForPeriod(period: string, start: string) {
+  const selection = selectedBwaPeriod(period);
+  if (!selection.year) return null;
+  const months = selection.months?.length ? selection.months : Array.from({ length: 12 }, (_, index) => index + 1);
+  return {
+    year: selection.year,
+    months: months.filter((month) => isPeriodOnOrAfterStart(selection.year!, month, start))
+  };
+}
+
+function importedPeriodValueWithinContract(
+  row: Pick<ImportedBwaRow, "valuesByMonth" | "contractValue"> | Pick<ImportedPeriodValueRow, "valuesByMonth" | "contractValue"> | undefined,
+  period: string,
+  start: string
+) {
+  if (!row) return null;
+  const selection = selectedBwaPeriod(period);
+  if (!selection.year) return row.contractValue;
+  const contractPeriod = contractMonthsForPeriod(period, start);
+  if (!contractPeriod?.months.length) return null;
+  return contractPeriod.months.reduce((sum, month) => sum + (row.valuesByMonth[`${contractPeriod.year}-${month}`] ?? 0), 0);
+}
+
+function hasImportedMetricPeriodValueWithinContract(importedRows: ImportedBwaRow[], siteId: string, metricKey: string | undefined, period: string, start: string) {
+  if (!metricKey) return false;
+  const row = importedRows.find((candidate) => candidate.siteId === siteId && candidate.metricKey === metricKey);
+  if (!row) return false;
+  const selection = selectedBwaPeriod(period);
+  if (!selection.year) return row.hasDataByYear ? Object.values(row.hasDataByYear).some(Boolean) : Math.abs(row.contractValue) > 0;
+  const contractPeriod = contractMonthsForPeriod(period, start);
+  if (!contractPeriod?.months.length) return false;
+  return contractPeriod.months.some((month) => row.hasValueByMonth[`${contractPeriod.year}-${month}`]);
+}
+
 function importedBwaMetricValue(importedRows: ImportedBwaRow[] | undefined, siteId: string, metricKey: string, period: string) {
   return importedPeriodValue(importedRows?.find((row) => row.siteId === siteId && row.metricKey === metricKey), period);
 }
@@ -8353,7 +8387,7 @@ const bwaMonths = ["Jan", "Feb", "Mrz", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep"
 function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedData?: ImportedDashboardData | null }) {
   const [year, setYear] = useState("2026");
   const rows = importedData?.bwaRows?.length
-    ? buildImportedSiteMonthlyBwa(importedData.bwaRows, site.id, Number(year))
+    ? buildImportedSiteMonthlyBwa(importedData.bwaRows, site.id, Number(year), site.start)
     : buildSiteMonthlyBwa(site, Number(year));
   const activeMonthCount = rows.find((row) => !row.section)?.months.filter((value) => value !== null).length || 1;
 
@@ -8533,7 +8567,7 @@ function buildSiteMonthlyBwa(site: (typeof standorte)[number], year: number) {
   ];
 }
 
-function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: string, year: number) {
+function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: string, year: number, start: string) {
   return bwaMetricDefinitions.map((definition) => {
     const sourceRows = importedRows.filter((row) => row.siteId === siteId && row.metricKey === definition.key);
     const isPercent = definitionFlag(definition, "percent");
@@ -8549,14 +8583,15 @@ function buildImportedSiteMonthlyBwa(importedRows: ImportedBwaRow[], siteId: str
       .map((value, index) => (value === null ? null : index + 1))
       .filter((value): value is number => Boolean(value));
     const previousYear = year - 1;
-    const hasPreviousYearData = activeMonths.some((month) => hasImportedMetricMonthValue(importedRows, siteId, definition.key, previousYear, month));
+    const previousContractMonths = activeMonths.filter((month) => isPeriodOnOrAfterStart(previousYear, month, start));
+    const hasPreviousYearData = previousContractMonths.some((month) => hasImportedMetricMonthValue(importedRows, siteId, definition.key, previousYear, month));
     const previousYearValue = hasPreviousYearData
       ? isPercent
-        ? calculateImportedPeriodQuote(importedRows, [siteId], definition.key, previousYear, activeMonths)
+        ? calculateImportedPeriodQuote(importedRows, [siteId], definition.key, previousYear, previousContractMonths)
         : sourceRows.reduce(
             (sum, row) =>
               sum +
-              activeMonths.reduce((monthSum, month) => monthSum + (row.valuesByMonth[`${previousYear}-${month}`] ?? 0), 0),
+              previousContractMonths.reduce((monthSum, month) => monthSum + (row.valuesByMonth[`${previousYear}-${month}`] ?? 0), 0),
             0
           )
       : null;
@@ -8584,20 +8619,6 @@ function hasImportedSiteMonthData(importedRows: ImportedBwaRow[], siteId: string
 
 function hasImportedMetricMonthValue(importedRows: ImportedBwaRow[], siteId: string, metricKey: string, year: number, month: number) {
   return importedRows.some((row) => row.siteId === siteId && row.metricKey === metricKey && row.hasValueByMonth[`${year}-${month}`]);
-}
-
-function hasImportedMetricPeriodValue(importedRows: ImportedBwaRow[], siteId: string, metricKey: string | undefined, period: string) {
-  if (!metricKey) return false;
-  const row = importedRows.find((candidate) => candidate.siteId === siteId && candidate.metricKey === metricKey);
-  if (!row) return false;
-  const selection = selectedBwaPeriod(period);
-  if (selection.year && selection.months?.length) {
-    return selection.months.some((month) => row.hasValueByMonth[`${selection.year}-${month}`]);
-  }
-  if (selection.year) {
-    return Array.from({ length: 12 }, (_, index) => index + 1).some((month) => row.hasValueByMonth[`${selection.year}-${month}`]);
-  }
-  return row.hasDataByYear ? Object.values(row.hasDataByYear).some(Boolean) : Math.abs(row.contractValue) > 0;
 }
 
 function calculateImportedPeriodQuote(importedRows: ImportedBwaRow[], siteIds: string[], key: string, year: number, months: number[]) {
@@ -10306,40 +10327,50 @@ function performancePeriodLabel(period: string) {
   return period === "Gesamte Periode" ? "Seit Vertragsstart" : period;
 }
 
-function importedPreviousPeriodValue(row: ImportedPeriodValueRow | undefined, period: string) {
-  if (!row) return 0;
+function importedPreviousPeriodValueWithinContract(row: ImportedPeriodValueRow | undefined, period: string, start: string) {
+  if (!row) return null;
   const selection = selectedBwaPeriod(period);
-  if (!selection.year) return 0;
+  if (!selection.year) return null;
   const previousYear = selection.year - 1;
-  if (selection.months?.length) {
-    return selection.months.reduce((sum, month) => sum + (row.valuesByMonth[`${previousYear}-${month}`] ?? 0), 0);
-  }
-  return row.valuesByYear[String(previousYear)] ?? 0;
+  const previousPeriod = selection.months?.length
+    ? selection.months.length === 1
+      ? `${bwaMonths[selection.months[0] - 1]} ${previousYear}`
+      : `YTD ${previousYear} bis ${bwaMonths[selection.months.at(-1)! - 1]}`
+    : `Geschäftsjahr ${previousYear}`;
+  return importedPeriodValueWithinContract(row, previousPeriod, start);
 }
 
-function importedQuarterToDateValue(row: ImportedPeriodValueRow | undefined, period: string, yearOffset = 0) {
-  if (!row) return 0;
+function importedQuarterToDateValueWithinContract(row: ImportedPeriodValueRow | undefined, period: string, start: string, yearOffset = 0) {
+  if (!row) return null;
   const selection = selectedBwaPeriod(period);
-  if (!selection.year) return 0;
+  if (!selection.year) return null;
+  const targetYear = selection.year + yearOffset;
   const latestMonth = selection.months?.at(-1) ?? 12;
   const quarterStart = Math.floor((latestMonth - 1) / 3) * 3 + 1;
-  return Array.from({ length: latestMonth - quarterStart + 1 }, (_, index) => quarterStart + index).reduce(
-    (sum, month) => sum + (row.valuesByMonth[`${selection.year + yearOffset}-${month}`] ?? 0),
-    0
+  const months = Array.from({ length: latestMonth - quarterStart + 1 }, (_, index) => quarterStart + index).filter((month) =>
+    isPeriodOnOrAfterStart(targetYear, month, start)
   );
+  if (!months.length) return null;
+  return months.reduce((sum, month) => sum + (row.valuesByMonth[`${targetYear}-${month}`] ?? 0), 0);
 }
 
-function importedLatestMonthValue(row: ImportedPeriodValueRow | undefined, period: string, yearOffset = 0) {
-  if (!row) return 0;
+function importedLatestMonthValueWithinContract(row: ImportedPeriodValueRow | undefined, period: string, start: string, yearOffset = 0) {
+  if (!row) return null;
   const selection = selectedBwaPeriod(period);
-  if (!selection.year) return 0;
+  if (!selection.year) return null;
+  const targetYear = selection.year + yearOffset;
   const latestMonth = selection.months?.at(-1) ?? 12;
-  return row.valuesByMonth[`${selection.year + yearOffset}-${latestMonth}`] ?? 0;
+  if (!isPeriodOnOrAfterStart(targetYear, latestMonth, start)) return null;
+  return row.valuesByMonth[`${targetYear}-${latestMonth}`] ?? 0;
 }
 
-function pctDelta(current: number, previous: number) {
-  if (!previous) return current ? "100 %" : "0 %";
+function pctDeltaOrBlank(current: number | null, previous: number | null) {
+  if (current == null || previous == null || previous === 0) return "";
   return pct(((current - previous) / Math.abs(previous)) * 100);
+}
+
+function eurOrBlank(value: number | null) {
+  return value == null ? "" : eur(value);
 }
 
 function monthsSinceStartForPeriod(site: DashboardSite, period: string) {
@@ -10379,27 +10410,39 @@ function PerformanceRevenueBlock({
   importedData?: ImportedDashboardData | null;
 }) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
-  const subtitle = `Auswahl: ${performancePeriodLabel(period)} | Vorjahr = gleicher Zeitraum / gleicher Monat / QTD`;
+  const subtitle = `Auswahl: ${performancePeriodLabel(period)} | Vorjahr nur innerhalb der jeweiligen Vertragsperiode / gleicher Monat / QTD`;
   const periodRows = performancePeriodRows(importedData, mode) ?? [];
   const rowBySite = new Map(periodRows.map((row) => [row.siteId, row]));
-  const valueForSite = (site: DashboardSite, reader: (row: ImportedPeriodValueRow | undefined) => number, fallback: number) => {
+  const valueForSite = (site: DashboardSite, reader: (row: ImportedPeriodValueRow | undefined) => number | null, fallback: number | null) => {
     const row = rowBySite.get(site.id);
-    return Math.round(row ? reader(row) : fallback);
+    const value = row ? reader(row) : fallback;
+    return value == null ? null : Math.round(value);
   };
-  const periodValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedPeriodValue(row, period), performanceBase(site, mode));
-  const previousValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedPreviousPeriodValue(row, period), 0);
-  const qtdValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedQuarterToDateValue(row, period), 0);
-  const qtdPreviousValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedQuarterToDateValue(row, period, -1), 0);
-  const monthValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedLatestMonthValue(row, period), 0);
-  const monthPreviousValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedLatestMonthValue(row, period, -1), 0);
+  const periodValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedPeriodValueWithinContract(row, period, site.start), performanceBase(site, mode));
+  const previousValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedPreviousPeriodValueWithinContract(row, period, site.start), null);
+  const qtdValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedQuarterToDateValueWithinContract(row, period, site.start), null);
+  const qtdPreviousValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedQuarterToDateValueWithinContract(row, period, site.start, -1), null);
+  const monthValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedLatestMonthValueWithinContract(row, period, site.start), null);
+  const monthPreviousValueForSite = (site: DashboardSite) => valueForSite(site, (row) => importedLatestMonthValueWithinContract(row, period, site.start, -1), null);
   const takeoverValueForSite = (site: DashboardSite) => valueForSite(site, (row) => row?.contractValue ?? 0, performanceBase(site, mode));
-  const current = activeSites.reduce((sum, site) => sum + periodValueForSite(site), 0);
-  const previous = activeSites.reduce((sum, site) => sum + previousValueForSite(site), 0);
-  const qtd = activeSites.reduce((sum, site) => sum + qtdValueForSite(site), 0);
-  const qtdPrevious = activeSites.reduce((sum, site) => sum + qtdPreviousValueForSite(site), 0);
-  const sinceTakeover = activeSites.reduce((sum, site) => sum + takeoverValueForSite(site), 0);
-  const lastMonth = activeSites.reduce((sum, site) => sum + monthValueForSite(site), 0);
-  const lastMonthPrevious = activeSites.reduce((sum, site) => sum + monthPreviousValueForSite(site), 0);
+  const sumNullable = (reader: (site: DashboardSite) => number | null) => {
+    const values = activeSites.map(reader).filter((value): value is number => value != null);
+    return { value: values.reduce((sum, value) => sum + value, 0), hasValue: values.length > 0 };
+  };
+  const currentSum = sumNullable(periodValueForSite);
+  const previousSum = sumNullable(previousValueForSite);
+  const qtdSum = sumNullable(qtdValueForSite);
+  const qtdPreviousSum = sumNullable(qtdPreviousValueForSite);
+  const sinceTakeoverSum = sumNullable(takeoverValueForSite);
+  const lastMonthSum = sumNullable(monthValueForSite);
+  const lastMonthPreviousSum = sumNullable(monthPreviousValueForSite);
+  const current = currentSum.value;
+  const previous = previousSum.hasValue ? previousSum.value : null;
+  const qtd = qtdSum.value;
+  const qtdPrevious = qtdPreviousSum.hasValue ? qtdPreviousSum.value : null;
+  const sinceTakeover = sinceTakeoverSum.value;
+  const lastMonth = lastMonthSum.value;
+  const lastMonthPrevious = lastMonthPreviousSum.hasValue ? lastMonthPreviousSum.value : null;
 
   return (
     <Card className="overflow-hidden">
@@ -10420,8 +10463,8 @@ function PerformanceRevenueBlock({
       <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">{subtitle}</div>
       <div className="grid gap-px table-grid-bg md:grid-cols-5">
         <KennzahlTile label={`${mode === "honorar" ? "Behandlerumsatz inkl. Eigenlabor" : "PVS Umsatz"} Zeitraum`} value={eur(current)} />
-        <KennzahlTile label="YoY Zeitraum" value={pctDelta(current, previous)} />
-        <KennzahlTile label="QTD YoY" value={pctDelta(qtd, qtdPrevious)} />
+        <KennzahlTile label="YoY Zeitraum" value={pctDeltaOrBlank(current, previous) || "n. v."} />
+        <KennzahlTile label="QTD YoY" value={pctDeltaOrBlank(qtd, qtdPrevious) || "n. v."} />
         <KennzahlTile label="Umsatz seit Übernahme" value={eur(sinceTakeover)} />
         <KennzahlTile label="Aktueller Gesamtkontostand" value={eur(totalForSites(activeSites, "kontostand"))} />
       </div>
@@ -10455,7 +10498,7 @@ function PerformanceRevenueBlock({
             {activeSites.map((site, index) => {
               const currentSite = periodValueForSite(site);
               const prevSite = previousValueForSite(site);
-              const delta = currentSite - prevSite;
+              const delta = currentSite != null && prevSite != null ? currentSite - prevSite : null;
               const qtdSite = qtdValueForSite(site);
               const qtdPrev = qtdPreviousValueForSite(site);
               const month = monthValueForSite(site);
@@ -10466,18 +10509,18 @@ function PerformanceRevenueBlock({
                 <tr key={site.id}>
                   <TableCell strong>{site.name}</TableCell>
                   <TableCell>{site.start}</TableCell>
-                  <TableCell>{eur(currentSite)}</TableCell>
-                  <TableCell>{eur(prevSite)}</TableCell>
-                  <TableCell tone={delta < 0 ? "red" : "green"}>{eur(delta)}</TableCell>
-                  <TableCell tone={delta < 0 ? "red" : "green"}>{pctDelta(currentSite, prevSite)}</TableCell>
-                  <TableCell>{eur(qtdSite)}</TableCell>
-                  <TableCell>{eur(qtdPrev)}</TableCell>
-                  <TableCell tone={qtdSite - qtdPrev < 0 ? "red" : "green"}>{pctDelta(qtdSite, qtdPrev)}</TableCell>
-                  <TableCell>{eur(month)}</TableCell>
-                  <TableCell>{eur(monthPrev)}</TableCell>
-                  <TableCell tone={month - monthPrev < 0 ? "red" : "green"}>{pctDelta(month, monthPrev)}</TableCell>
-                  <TableCell>{eur(takeover)}</TableCell>
-                  <TableCell>{eur(takeover / monthsSince)}</TableCell>
+                  <TableCell>{eurOrBlank(currentSite)}</TableCell>
+                  <TableCell>{eurOrBlank(prevSite)}</TableCell>
+                  <TableCell tone={delta == null ? undefined : delta < 0 ? "red" : "green"}>{eurOrBlank(delta)}</TableCell>
+                  <TableCell tone={delta == null ? undefined : delta < 0 ? "red" : "green"}>{pctDeltaOrBlank(currentSite, prevSite)}</TableCell>
+                  <TableCell>{eurOrBlank(qtdSite)}</TableCell>
+                  <TableCell>{eurOrBlank(qtdPrev)}</TableCell>
+                  <TableCell tone={qtdSite == null || qtdPrev == null ? undefined : qtdSite - qtdPrev < 0 ? "red" : "green"}>{pctDeltaOrBlank(qtdSite, qtdPrev)}</TableCell>
+                  <TableCell>{eurOrBlank(month)}</TableCell>
+                  <TableCell>{eurOrBlank(monthPrev)}</TableCell>
+                  <TableCell tone={month == null || monthPrev == null ? undefined : month - monthPrev < 0 ? "red" : "green"}>{pctDeltaOrBlank(month, monthPrev)}</TableCell>
+                  <TableCell>{eurOrBlank(takeover)}</TableCell>
+                  <TableCell>{takeover == null ? "" : eur(takeover / monthsSince)}</TableCell>
                 </tr>
               );
             })}
@@ -10485,15 +10528,15 @@ function PerformanceRevenueBlock({
               <TableCell strong summary>Gesamt</TableCell>
               <TableCell summary>{""}</TableCell>
               <TableCell strong summary>{eur(current)}</TableCell>
-              <TableCell strong summary>{eur(previous)}</TableCell>
-              <TableCell strong summary tone={current - previous < 0 ? "red" : "green"}>{eur(current - previous)}</TableCell>
-              <TableCell strong summary tone={current - previous < 0 ? "red" : "green"}>{pctDelta(current, previous)}</TableCell>
+              <TableCell strong summary>{eurOrBlank(previous)}</TableCell>
+              <TableCell strong summary tone={previous == null ? undefined : current - previous < 0 ? "red" : "green"}>{previous == null ? "" : eur(current - previous)}</TableCell>
+              <TableCell strong summary tone={previous == null ? undefined : current - previous < 0 ? "red" : "green"}>{pctDeltaOrBlank(current, previous)}</TableCell>
               <TableCell strong summary>{eur(qtd)}</TableCell>
-              <TableCell strong summary>{eur(qtdPrevious)}</TableCell>
-              <TableCell strong summary tone={qtd - qtdPrevious < 0 ? "red" : "green"}>{pctDelta(qtd, qtdPrevious)}</TableCell>
+              <TableCell strong summary>{eurOrBlank(qtdPrevious)}</TableCell>
+              <TableCell strong summary tone={qtdPrevious == null ? undefined : qtd - qtdPrevious < 0 ? "red" : "green"}>{pctDeltaOrBlank(qtd, qtdPrevious)}</TableCell>
               <TableCell strong summary>{eur(lastMonth)}</TableCell>
-              <TableCell strong summary>{eur(lastMonthPrevious)}</TableCell>
-              <TableCell strong summary tone={lastMonth - lastMonthPrevious < 0 ? "red" : "green"}>{pctDelta(lastMonth, lastMonthPrevious)}</TableCell>
+              <TableCell strong summary>{eurOrBlank(lastMonthPrevious)}</TableCell>
+              <TableCell strong summary tone={lastMonthPrevious == null ? undefined : lastMonth - lastMonthPrevious < 0 ? "red" : "green"}>{pctDeltaOrBlank(lastMonth, lastMonthPrevious)}</TableCell>
               <TableCell strong summary>{eur(sinceTakeover)}</TableCell>
               <TableCell strong summary>{eur(sinceTakeover / Math.max(activeSites.reduce((sum, site) => sum + monthsSinceStartForPeriod(site, period), 0), 1))}</TableCell>
             </tr>
@@ -16911,7 +16954,12 @@ function pmrBwaLines(importedData: ImportedDashboardData, siteId: string, period
   return buildImportedBwaLines(importedData.bwaRows, period, siteId).filter((row) => row.metricKey && allowedKeys.has(row.metricKey as (typeof bwaMetricDefinitions)[number]["key"]));
 }
 
+function contractStartForSiteId(importedData: ImportedDashboardData, siteId: string) {
+  return importedData.sites.find((site) => site.id === siteId)?.start ?? standorte.find((site) => site.id === siteId)?.start ?? "01.01.1900";
+}
+
 function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
+  const contractStart = contractStartForSiteId(importedData, siteId);
   const currentYear = currentYearFromPeriod(period);
   const currentMonthPeriod = pmrMonthPeriodFor(period, currentYear);
   const previousMonthPeriod = pmrMonthPeriodFor(period, comparisonYear);
@@ -16947,16 +16995,17 @@ function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, 
     "abweichung_ziel_ebitda_uebernahme_pct"
   ]);
   const htmlRows = currentRows.map((row) => {
-    const currentMonth = currentMonthRows.get(row.metricKey)?.actual ?? 0;
-    const previousMonth = previousMonthRows.get(row.metricKey)?.actual ?? 0;
+    const metricRow = importedData.bwaRows.find((candidate) => candidate.siteId === siteId && candidate.metricKey === row.metricKey);
+    const currentMonth = importedPeriodValueWithinContract(metricRow, currentMonthPeriod, contractStart) ?? currentMonthRows.get(row.metricKey)?.actual ?? 0;
+    const previousMonth = importedPeriodValueWithinContract(metricRow, previousMonthPeriod, contractStart) ?? previousMonthRows.get(row.metricKey)?.actual ?? 0;
     const previousYtd = previousYtdRows.get(row.metricKey);
     const isSectionRow = row.emphasis && row.actual === 0 && !row.percent;
-    const currentYtd = row.actual;
-    const previousYtdValue = previousYtd?.actual ?? 0;
-    const hasCurrentMonth = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, currentMonthPeriod);
-    const hasPreviousMonth = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, previousMonthPeriod);
-    const hasCurrentYtd = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, currentYtdPeriod);
-    const hasPreviousYtd = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, previousYtdPeriod);
+    const currentYtd = importedPeriodValueWithinContract(metricRow, currentYtdPeriod, contractStart) ?? row.actual;
+    const previousYtdValue = importedPeriodValueWithinContract(metricRow, previousYtdPeriod, contractStart) ?? previousYtd?.actual ?? 0;
+    const hasCurrentMonth = hasImportedMetricPeriodValueWithinContract(importedData.bwaRows, siteId, row.metricKey, currentMonthPeriod, contractStart);
+    const hasPreviousMonth = hasImportedMetricPeriodValueWithinContract(importedData.bwaRows, siteId, row.metricKey, previousMonthPeriod, contractStart);
+    const hasCurrentYtd = hasImportedMetricPeriodValueWithinContract(importedData.bwaRows, siteId, row.metricKey, currentYtdPeriod, contractStart);
+    const hasPreviousYtd = hasImportedMetricPeriodValueWithinContract(importedData.bwaRows, siteId, row.metricKey, previousYtdPeriod, contractStart);
     const higherIsBetter = !costKeys.has(String(row.metricKey));
     const isEbitdaRow = row.metricKey === "ebitda";
     const status =
@@ -16997,9 +17046,11 @@ function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, 
 }
 
 function pmrQuoteRows(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
+  const contractStart = contractStartForSiteId(importedData, siteId);
   const previousPeriod = comparisonPeriodFor(period, comparisonYear);
-  const value = (metricKey: string, targetPeriod = period) => importedBwaMetricValue(importedData.bwaRows, siteId, metricKey, targetPeriod);
-  const hasValue = (metricKey: string, targetPeriod = period) => hasImportedMetricPeriodValue(importedData.bwaRows, siteId, metricKey, targetPeriod);
+  const metricRow = (metricKey: string) => importedData.bwaRows.find((row) => row.siteId === siteId && row.metricKey === metricKey);
+  const value = (metricKey: string, targetPeriod = period) => importedPeriodValueWithinContract(metricRow(metricKey), targetPeriod, contractStart) ?? 0;
+  const hasValue = (metricKey: string, targetPeriod = period) => hasImportedMetricPeriodValueWithinContract(importedData.bwaRows, siteId, metricKey, targetPeriod, contractStart);
   const quote = (numerator: string, denominator = "summe_umsatz", targetPeriod = period) => ratio(value(numerator, targetPeriod), value(denominator, targetPeriod));
   const definitions = [
     { label: "EBITDA-Marge", current: quote("ebitda"), previous: quote("ebitda", "summe_umsatz", previousPeriod), hasPrevious: hasValue("ebitda", previousPeriod) && hasValue("summe_umsatz", previousPeriod), higher: true },
@@ -17030,6 +17081,14 @@ function periodValueFromMonths(valuesByMonth: Record<string, number>, period: st
   if (selection.year && selection.months?.length) return selection.months.reduce((sum, month) => sum + (valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
   if (selection.year) return Array.from({ length: 12 }, (_, index) => valuesByMonth[`${selection.year}-${index + 1}`] ?? 0).reduce((sum, value) => sum + value, 0);
   return Object.values(valuesByMonth).reduce((sum, value) => sum + value, 0);
+}
+
+function periodValueFromMonthsWithinContract(valuesByMonth: Record<string, number>, period: string, start: string) {
+  const selection = selectedBwaPeriod(period);
+  if (!selection.year) return Object.values(valuesByMonth).reduce((sum, value) => sum + value, 0);
+  const contractPeriod = contractMonthsForPeriod(period, start);
+  if (!contractPeriod?.months.length) return null;
+  return contractPeriod.months.reduce((sum, month) => sum + (valuesByMonth[`${contractPeriod.year}-${month}`] ?? 0), 0);
 }
 
 type PersonnelCostComparisonRow = {
@@ -17216,20 +17275,25 @@ function pmrTopSicknessTable(personalData: PersonalDashboardData | null | undefi
 }
 
 function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
+  const contractStart = contractStartForSiteId(importedData, siteId);
   const comparisonPeriod = comparisonPeriodFor(period, comparisonYear);
-  const grouped = new Map<string, { name: string; honorar: number; eigenlabor: number; total: number; previousTotal: number }>();
+  const grouped = new Map<string, { name: string; honorar: number; eigenlabor: number; total: number; previousTotal: number; hasPrevious: boolean }>();
   groupedProviderDetailRows((importedData.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId), siteId)
     .filter((row) => !isExcludedFromPersonnelCostAggregation(row.name))
     .forEach((row) => {
       const name = row.name;
       const key = canonicalProviderKey(siteId, row.name);
-      const existing = grouped.get(key) ?? { name, honorar: 0, eigenlabor: 0, total: 0, previousTotal: 0 };
-      const honorar = periodValueFromMonths(row.honorarByMonth, period);
-      const eigenlabor = periodValueFromMonths(row.eigenlaborByMonth, period);
+      const existing = grouped.get(key) ?? { name, honorar: 0, eigenlabor: 0, total: 0, previousTotal: 0, hasPrevious: false };
+      const honorar = periodValueFromMonthsWithinContract(row.honorarByMonth, period, contractStart) ?? 0;
+      const eigenlabor = periodValueFromMonthsWithinContract(row.eigenlaborByMonth, period, contractStart) ?? 0;
+      const previousTotal = periodValueFromMonthsWithinContract(row.totalByMonth, comparisonPeriod, contractStart);
       existing.honorar += honorar;
       existing.eigenlabor += eigenlabor;
       existing.total += honorar + eigenlabor;
-      existing.previousTotal += periodValueFromMonths(row.totalByMonth, comparisonPeriod);
+      if (previousTotal != null) {
+        existing.previousTotal += previousTotal;
+        existing.hasPrevious = true;
+      }
       grouped.set(key, existing);
     });
   const rows = Array.from(grouped.values())
@@ -17244,10 +17308,10 @@ function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, pe
       <td>${reportEscape(eur(row.eigenlabor))}</td>
       <td>${reportEscape(eur(row.total))}</td>
       <td>${reportEscape(pct(ratio(row.total, totalRevenue)))}</td>
-      <td>${reportEscape(eur(row.previousTotal))}</td>
-      <td>${reportEscape(eur(row.total - row.previousTotal))}</td>
+      <td>${row.hasPrevious ? reportEscape(eur(row.previousTotal)) : ""}</td>
+      <td>${row.hasPrevious ? reportEscape(eur(row.total - row.previousTotal)) : ""}</td>
     </tr>`).join("")}
-    <tr class="total"><td>Gesamt</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.honorar, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.eigenlabor, 0)))}</td><td>${reportEscape(eur(totalRevenue))}</td><td>100 %</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.previousTotal, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.total - row.previousTotal, 0)))}</td></tr>
+    <tr class="total"><td>Gesamt</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.honorar, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.eigenlabor, 0)))}</td><td>${reportEscape(eur(totalRevenue))}</td><td>100 %</td><td>${rows.some((row) => row.hasPrevious) ? reportEscape(eur(rows.reduce((sum, row) => sum + (row.hasPrevious ? row.previousTotal : 0), 0))) : ""}</td><td>${rows.some((row) => row.hasPrevious) ? reportEscape(eur(rows.reduce((sum, row) => sum + (row.hasPrevious ? row.total - row.previousTotal : 0), 0))) : ""}</td></tr>
     </tbody>
   </table>`;
 }

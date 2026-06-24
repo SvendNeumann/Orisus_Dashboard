@@ -1194,9 +1194,11 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Bankbewegungen unten reagieren auf Zeitraumwahl.
 - Kennzahlen / Entwicklung:
   - Mittlere Standort-Performance-Tabelle hat Zeitraumwahl.
+  - VJ-/QTD-/Monat-VJ-Vergleiche werden je Standort nur aus Monaten innerhalb der Vertragsperiode gebildet; Vergleichswerte vor Vertragsstart bleiben leer.
 - Standortdetails:
   - KPI-Kacheln sollen Info-Buttons mit Herleitung und Datenquelle haben.
   - Diagramm `Entwicklung ueber Zeit` hat Zeitraumfilter und erklaert BWA-Gesamtleistung, BWA-EBITDA und Cashflow gem. BWA.
+  - BWA-Vorjahresspalten beruecksichtigen den Vertragsstart; Monate vor Vertragsstart werden nicht als Vorjahr/0 gewertet.
   - Personalkostentabelle blendet `MVZ` und `Unbekannt` aus.
   - Inaktive Mitarbeiter sollen mit Hinweis/Austrittsdatum sichtbar sein.
 - Performance & Benchmarking:
@@ -1227,6 +1229,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Personalkosten je Behandler im PMR immer seit Vertragsbeginn / gesamte Vertragsperiode.
   - `MVZ` und `Unbekannt` im PMR nicht anzeigen und nicht mitzaehlen.
   - Monatliche Entwicklung: noch nicht vorliegende Monate leer lassen, nicht 0.
+  - Vorjahres-/Delta-Spalten in PMR-BWA, Quoten und Behandler-Umsatzboard nur fuellen, wenn der Vergleichszeitraum innerhalb der Vertragsperiode liegt.
   - Speichername automatisch nach Muster `PMR Report <Standort> <Zeitraum>`.
 - Benchmarking im PMR:
   - Ausgewaehlter Standort darf im Klartext stehen.
