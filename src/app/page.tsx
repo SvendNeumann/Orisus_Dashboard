@@ -12945,6 +12945,46 @@ function bankMovementMonthlyValue(row: ImportedBankMovementRow | undefined, peri
   return row.hasValueByMonth[key] ? row.valuesByMonth[key] ?? 0 : null;
 }
 
+function monthKeySortValue(key: string) {
+  const [year, month] = key.split("-").map(Number);
+  return (Number.isFinite(year) ? year : 0) * 100 + (Number.isFinite(month) ? month : 0);
+}
+
+function bwaComparisonMonthKeys(importedRows: ImportedBwaRow[], siteId: string) {
+  const collectKeys = (rows: ImportedBwaRow[]) => {
+    const keys = new Set<string>();
+    rows.forEach((row) => {
+      Object.entries(row.hasDataByMonth).forEach(([key, hasData]) => {
+        if (hasData && /^\d{4}-\d{1,2}$/.test(key)) keys.add(key);
+      });
+    });
+    return Array.from(keys).sort((a, b) => monthKeySortValue(a) - monthKeySortValue(b));
+  };
+  const primaryRows = importedRows.filter((row) => row.siteId === siteId && ["summe_umsatz", "ebitda"].includes(row.metricKey));
+  const primaryKeys = collectKeys(primaryRows);
+  if (primaryKeys.length) return primaryKeys;
+  return collectKeys(importedRows.filter((row) => row.siteId === siteId));
+}
+
+function bankMovementValueForMonthKeys(row: ImportedBankMovementRow | undefined, monthKeys: string[]) {
+  if (!row) return 0;
+  return monthKeys.reduce((sum, key) => sum + (row.hasValueByMonth[key] ? row.valuesByMonth[key] ?? 0 : 0), 0);
+}
+
+function bwaMetricValueForMonthKeys(importedRows: ImportedBwaRow[], siteId: string, metricKey: string, monthKeys: string[]) {
+  return importedRows
+    .filter((row) => row.siteId === siteId && row.metricKey === metricKey)
+    .reduce((sum, row) => sum + monthKeys.reduce((monthSum, key) => monthSum + (row.valuesByMonth[key] ?? 0), 0), 0);
+}
+
+function comparisonMonthLabel(monthKeys: string[]) {
+  if (!monthKeys.length) return "keine BWA-Monate";
+  const latestKey = monthKeys.at(-1) ?? "";
+  const [year, month] = latestKey.split("-").map(Number);
+  const latestLabel = year && month ? `${bwaMonths[month - 1] ?? month} ${year}` : latestKey;
+  return `${monthKeys.length} BWA-Monat(e), bis ${latestLabel}`;
+}
+
 const bankBwaReconciliationManualAdjustments: Record<string, { revenue: number; practiceCosts: number; note: string }> = {
   ulmet: {
     revenue: -100000,
@@ -12960,7 +13000,6 @@ const bankBwaReconciliationManualAdjustments: Record<string, { revenue: number; 
 
 function CashflowCostReconciliation({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
   const bankRows = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId && row.siteId !== "konzern");
-  const period = "Gesamte Periode";
 
   if (!importedData?.bwaRows?.length || !bankRows.length) {
     return (
@@ -12974,7 +13013,6 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
   }
 
   const rowFor = (siteId: string, key: string) => bankRows.find((row) => row.siteId === siteId && matchesBankMovementKey(row.label, key));
-  const bwaValue = (siteId: string, metricKey: string) => importedBwaMetricValue(importedData.bwaRows, siteId, metricKey, period);
   const activeSites = sortSitesByContractStart(
     sites.filter((site) => bankRows.some((row) => row.siteId === site.id) || importedData.bwaRows.some((row) => row.siteId === site.id))
   );
@@ -12988,15 +13026,16 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
   };
   const comparisonRows = activeSites.map((site) => {
     const manualAdjustment = bankBwaReconciliationManualAdjustments[site.id];
-    const rawBankRevenue = Math.abs(bankMovementValueForPeriod(rowFor(site.id, "geldeingang_bank_gesamt"), period));
+    const monthKeys = bwaComparisonMonthKeys(importedData.bwaRows, site.id);
+    const rawBankRevenue = Math.abs(bankMovementValueForMonthKeys(rowFor(site.id, "geldeingang_bank_gesamt"), monthKeys));
     const bankRevenue = Math.max(0, rawBankRevenue + (manualAdjustment?.revenue ?? 0));
-    const bwaRevenue = Math.abs(bwaValue(site.id, "summe_umsatz"));
-    const rawBankPracticeCosts = Math.abs(bankMovementValueForPeriod(rowFor(site.id, "davon_praxisausgaben"), period));
+    const bwaRevenue = Math.abs(bwaMetricValueForMonthKeys(importedData.bwaRows, site.id, "summe_umsatz", monthKeys));
+    const rawBankPracticeCosts = Math.abs(bankMovementValueForMonthKeys(rowFor(site.id, "davon_praxisausgaben"), monthKeys));
     const bankPracticeCosts = Math.max(0, rawBankPracticeCosts + (manualAdjustment?.practiceCosts ?? 0));
-    const importedOperatingCosts = Math.abs(bwaValue(site.id, "operative_prozesskosten_bis_ebitda"));
-    const fallbackOperatingCosts = Math.max(0, bwaRevenue - bwaValue(site.id, "ebitda"));
+    const importedOperatingCosts = Math.abs(bwaMetricValueForMonthKeys(importedData.bwaRows, site.id, "operative_prozesskosten_bis_ebitda", monthKeys));
+    const fallbackOperatingCosts = Math.max(0, bwaRevenue - bwaMetricValueForMonthKeys(importedData.bwaRows, site.id, "ebitda", monthKeys));
     const operatingCosts = importedOperatingCosts || fallbackOperatingCosts;
-    const investments = Math.abs(bwaValue(site.id, "investitionsausgaben"));
+    const investments = Math.abs(bwaMetricValueForMonthKeys(importedData.bwaRows, site.id, "investitionsausgaben", monthKeys));
     const bwaCostBase = operatingCosts + investments;
     const revenueDeviation = bankRevenue - bwaRevenue;
     const revenueDeviationPct = bwaRevenue ? (revenueDeviation / bwaRevenue) * 100 : 0;
@@ -13020,6 +13059,7 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
       costDeviationPct,
       signal,
       signalLabel,
+      monthLabel: comparisonMonthLabel(monthKeys),
       adjustmentNote: manualAdjustment?.note ?? ""
     };
   });
@@ -13051,9 +13091,9 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
     <Card className="overflow-hidden">
       <div className="table-head flex flex-col gap-3 p-4 text-white sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold">Abweichungsmonitor Bank vs. BWA | gesamte Vertragsperiode</h2>
+          <h2 className="text-xl font-bold">Abweichungsmonitor Bank vs. BWA | BWA-geführter Zeitraum</h2>
           <p className="mt-1 text-sm text-white/75">
-            Je Standort seit Vertragsstart: Bankeinnahmen gegen BWA-Umsatz; Bank-Praxisausgaben gegen operative BWA-Kosten plus Investitionen.
+            BWA gibt den Zeitraum vor: Bankeinnahmen und Bank-Praxisausgaben werden nur gegen dieselben BWA-Monate gerechnet.
           </p>
         </div>
         <Badge tone={redRows.length ? "red" : yellowRows.length ? "yellow" : "green"}>
@@ -13061,7 +13101,7 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
         </Badge>
       </div>
       <div className="border-b border-border bg-slate-50 p-3 text-sm text-muted-foreground">
-        Abgleichslogik über die gesamte Vertragsperiode je Standort, weil KZV-Zahlungen zeitversetzt auf der Bank ankommen können. Einnahmenseite = Bankeinnahmen vs. BWA-Umsatz. Kostenseite = Praxisausgaben gem. Bankbewegung vs. operative BWA-Kosten bis EBITDA plus Investitionen. Tilgung, Zins und Intercompany sind hier bewusst nicht enthalten.
+        Abgleichslogik je Standort auf Basis der vorhandenen BWA-Monate. Wenn Bankdaten bereits weiter reichen als die BWA, werden die spaeteren Bankmonate hier nicht einbezogen. Einnahmenseite = Bankeinnahmen vs. BWA-Umsatz. Kostenseite = Praxisausgaben gem. Bankbewegung vs. operative BWA-Kosten bis EBITDA plus Investitionen. Tilgung, Zins und Intercompany sind hier bewusst nicht enthalten.
         Fix hinterlegte Bereinigung: Ulmet -100.000 EUR Bankeinnahmen und Kirchberg -100.000 EUR Praxisausgaben wegen internem operativem Kredit Kirchberg an Ulmet.
       </div>
       <div className="grid gap-3 border-b border-border p-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -13079,6 +13119,7 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
             <tr>
               {[
                 "Standort",
+                "BWA-Zeitraum",
                 "Bankeinnahmen",
                 "BWA-Umsatz",
                 "Abw. Einnahmen",
@@ -13104,6 +13145,7 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
                     {row.adjustmentNote ? <ReconciliationAdjustmentHint siteName={row.site.name} note={row.adjustmentNote} /> : null}
                   </span>
                 </TableCell>
+                <TableCell>{row.monthLabel}</TableCell>
                 <TableCell>{eur(row.bankRevenue)}</TableCell>
                 <TableCell>{eur(row.bwaRevenue)}</TableCell>
                 <TableCell tone={row.revenueDeviation < 0 ? "red" : row.revenueDeviation > 0 ? "green" : undefined}>{eur(row.revenueDeviation)}</TableCell>
@@ -13121,6 +13163,7 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
             ))}
             <tr className="summary-row">
               <TableCell strong summary>Gesamt</TableCell>
+              <TableCell summary>BWA-Monate je Standort</TableCell>
               <TableCell strong summary>{eur(totals.bankRevenue)}</TableCell>
               <TableCell strong summary>{eur(totals.bwaRevenue)}</TableCell>
               <TableCell strong summary tone={totals.revenueDeviation < 0 ? "red" : totals.revenueDeviation > 0 ? "green" : undefined}>{eur(totals.revenueDeviation)}</TableCell>
