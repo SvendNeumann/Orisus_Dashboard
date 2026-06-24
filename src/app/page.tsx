@@ -10026,8 +10026,8 @@ function allocateByMonthlyStructure(totalValue: number, monthlyData: typeof mont
 
 function anonymousBenchmarkSiteLabel(index: number) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  if (index < alphabet.length) return `Standort ${alphabet[index]}`;
-  return `Standort ${index + 1}`;
+  if (index < alphabet.length) return `Peer ${alphabet[index]}`;
+  return `Peer ${index + 1}`;
 }
 
 function Analysen({
@@ -10049,7 +10049,7 @@ function Analysen({
       .filter((site) => site.gesamtleistung || site.ebitda || site.pvsUmsatz || site.forderungen),
   );
   const [selectedSiteId, setSelectedSiteId] = useState(sortedSites[0]?.id ?? sites[0]?.id ?? "kirchberg");
-  const [comparison, setComparison] = useState("Gruppendurchschnitt");
+  const [comparison, setComparison] = useState("Vergleichsniveau");
   const [viewMode, setViewMode] = useState<"Standortleiter" | "Intern">("Standortleiter");
   const { openingHoursBySiteId } = usePracticeOpeningHours();
 
@@ -10326,14 +10326,14 @@ function Analysen({
     const relation = higherIsBetter
       ? gap >= 0 ? "über" : "unter"
       : gap <= 0 ? "unter" : "über";
-    return `${displaySiteName}: ${label} liegt ${formatter(selected)} ${relation} dem Gruppenschnitt (${formatter(group)}), Abweichung ${gap >= 0 ? "+" : ""}${pct(gap)}-Pkt. und damit ${direction}.`;
+    return `${displaySiteName}: ${label} liegt ${formatter(selected)} ${relation} dem Vergleichsniveau (${formatter(group)}), Abweichung ${gap >= 0 ? "+" : ""}${pct(gap)}-Pkt. und damit ${direction}.`;
   };
   const selectedPvsPerDentistIndex = benchmarkItems[0].selected;
   const summaryItems = [
     describeBenchmarkGap("EBITDA-Marge", selectedRow?.ebitdaMargin, marginGroup, true),
     describeBenchmarkGap("Gesamtkostenquote", selectedRow?.gesamtkostenquote, costGroup.gesamtkostenquote, false),
     selectedPvsPerDentistIndex != null
-      ? `${displaySiteName}: Gesamtumsatz je Zahnarzt-FTE liegt bei ${pct(selectedPvsPerDentistIndex)} des Gruppenschnitts und damit ${selectedPvsPerDentistIndex >= 100 ? "über" : "unter"} Vergleich.`
+      ? `${displaySiteName}: Gesamtumsatz je Zahnarzt-FTE liegt bei ${pct(selectedPvsPerDentistIndex)} des Vergleichsniveaus und damit ${selectedPvsPerDentistIndex >= 100 ? "über" : "unter"} Vergleich.`
       : `${displaySiteName}: Gesamtumsatz je Zahnarzt-FTE kann mangels Zahnarztstunden- oder Umsatzbasis noch nicht bewertet werden.`,
     selectedPatientRow?.attendanceRate != null && attendanceRateGroup != null
       ? describeBenchmarkGap("Terminwahrnehmungsquote", selectedPatientRow.attendanceRate, attendanceRateGroup, true)
@@ -10691,7 +10691,7 @@ function Analysen({
         value: benchmarkReportValue(item.selected, suffix, unavailable),
         detail: unavailable
           ? "Berechnungsbasis fehlt"
-          : `Gruppe: ${benchmarkReportValue(item.group, suffix)} | Abw.: ${diff == null ? "n. v." : `${diff >= 0 ? "+" : ""}${diff.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`}`,
+          : `Vergleich: ${benchmarkReportValue(item.group, suffix)} | Abw.: ${diff == null ? "n. v." : `${diff >= 0 ? "+" : ""}${diff.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`}`,
         tone: benchmarkReportTone(item.selected, item.group, item.higherIsBetter, unavailable)
       };
     });
@@ -10703,13 +10703,13 @@ function Analysen({
         value: benchmarkReportValue(item.selected, item.suffix ?? "%", item.unavailable),
         detail: item.unavailable
           ? "Patientendaten fehlen"
-          : `Gruppe: ${benchmarkReportValue(item.group, item.suffix ?? "%")} | Abw.: ${diff == null ? "n. v." : `${diff >= 0 ? "+" : ""}${diff.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${item.suffix ?? "%"}`}`,
+          : `Vergleich: ${benchmarkReportValue(item.group, item.suffix ?? "%")} | Abw.: ${diff == null ? "n. v." : `${diff >= 0 ? "+" : ""}${diff.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${item.suffix ?? "%"}`}`,
         tone: benchmarkReportTone(item.selected, item.group, item.higherIsBetter, item.unavailable)
       };
     });
 
     const basisTable = reportTable(
-      ["Kennzahl", "Berechnungsbasis", "Eigener Wert", "Gruppendurchschnitt"],
+      ["Kennzahl", "Berechnungsbasis", "Eigener Wert", "Vergleichsniveau"],
       basisRows.map((row) => [
         row.label,
         row.basis,
@@ -10720,7 +10720,7 @@ function Analysen({
     );
 
     const patientBasisTable = reportTable(
-      ["Kennzahl", "Berechnungsbasis", "Eigener Wert", "Gruppendurchschnitt"],
+      ["Kennzahl", "Berechnungsbasis", "Eigener Wert", "Vergleichsniveau"],
       patientBasisRows.map((row) => [
         row.label,
         row.basis,
@@ -10744,7 +10744,7 @@ function Analysen({
     const costHeatmap = `<table class="heatmap-table">
       <thead>
         <tr>
-          <th>Standort</th>
+          <th>Benchmark-Peer</th>
           <th>Materialquote</th>
           <th>Fremdlaborquote</th>
           <th>Personalkostenquote</th>
@@ -10762,7 +10762,7 @@ function Analysen({
           <td class="${heatClassFor(row.gesamtkostenquote, costGroup.gesamtkostenquote)}">${reportEscape(pct(row.gesamtkostenquote))}</td>
         </tr>`).join("")}
         <tr>
-          <td>Gruppendurchschnitt</td>
+          <td>Vergleichsniveau</td>
           <td class="heat-neutral">${reportEscape(pct(costGroup.materialquote))}</td>
           <td class="heat-neutral">${reportEscape(pct(costGroup.fremdlaborquote))}</td>
           <td class="heat-neutral">${reportEscape(pct(costGroup.personalquote))}</td>
@@ -10775,7 +10775,7 @@ function Analysen({
     const patientHeatmap = `<table class="heatmap-table">
       <thead>
         <tr>
-          <th>Standort</th>
+          <th>Benchmark-Peer</th>
           <th>Behandelte Patienten</th>
           <th>Neupatientenquote</th>
           <th>Terminwahrnehmung</th>
@@ -10798,49 +10798,49 @@ function Analysen({
     const driverRows = costDrivers.map((driver) => [
       driver.label,
       `${driver.value >= 0 ? "+" : ""}${driver.value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %-Pkt.`,
-      driver.value > 0 ? "über Gruppenschnitt" : "unter Gruppenschnitt"
+      driver.value > 0 ? "über Vergleichsniveau" : "unter Vergleichsniveau"
     ]);
 
     const rankingSections = `<div class="benchmark-two">
-      ${reportSection("Ranking Gesamtumsatz je Zahnarzt-FTE", reportBarList(pvsRankingRows.map((row) => ({
+      ${reportSection("Peer-Auszug Gesamtumsatz je Zahnarzt-FTE", reportBarList(pvsRankingRows.map((row) => ({
         label: row.label,
         value: row.pvsPerDentist ?? 0,
         max: pvsRankingMax,
         tone: row.site.id === selectedSite?.id ? "green" : "blue",
         suffix: eur(row.pvsPerDentist ?? 0)
-      }))), `Top-Standorte nach normalisiertem PVS-Gesamtumsatz.`)}
-      ${reportSection("Ranking EBITDA-Marge", reportBarList(marginRankingRows.map((row) => ({
+      }))), `Anonymisierter Auszug nach normalisiertem PVS-Gesamtumsatz.`)}
+      ${reportSection("Peer-Auszug EBITDA-Marge", reportBarList(marginRankingRows.map((row) => ({
         label: row.label,
         value: row.ebitdaMargin ?? 0,
         max: marginRankingMax,
         tone: row.site.id === selectedSite?.id ? "green" : "blue",
         suffix: pct(row.ebitdaMargin ?? 0)
-      }))), `EBITDA-Marge im Standortvergleich.`)}
+      }))), `EBITDA-Marge im anonymisierten Vergleichsauszug.`)}
     </div>`;
 
     const body = `${benchmarkingReportStyles}
       <div class="benchmark-report-page">
         ${reportKpiGrid([...financialCards, ...patientCards])}
         <div class="benchmark-note">
-          <strong>Leselogik:</strong> 100 % entspricht dem Gruppendurchschnitt im gewählten Zeitraum. Werte über 100 % liegen über dem Vergleich, Werte unter 100 % darunter. Bei Kostenquoten ist niedriger besser, bei Leistungs-, EBITDA- und Patientenkennzahlen höher besser.
+          <strong>Leselogik:</strong> 100 % entspricht dem Vergleichsniveau im gewählten Zeitraum. Werte über 100 % liegen über dem Vergleich, Werte unter 100 % darunter. Bei Kostenquoten ist niedriger besser, bei Leistungs-, EBITDA- und Patientenkennzahlen höher besser.
         </div>
         <div class="benchmark-report-wide">
           ${rankingSections}
           ${reportSection("Standortleiter-Insights", `<div class="benchmark-insights">${summaryItems.map((item) => `<div class="benchmark-insight"><strong>Insight</strong>${reportEscape(item)}</div>`).join("")}</div>`, "Automatisch aus Benchmarking-Abweichungen und Patienten-/Termindaten abgeleitet.")}
         </div>
-        ${reportSection("Kostenquoten im Standortvergleich", costHeatmap, `Ampelfarben gegen Gruppendurchschnitt in ${period}; bei Kostenquoten ist niedriger besser.`)}
+        ${reportSection("Kostenquoten im Peer-Auszug", costHeatmap, `Ampelfarben gegen Vergleichsniveau in ${period}; bei Kostenquoten ist niedriger besser.`)}
       </div>
       <div class="benchmark-report-page">
         <div class="benchmark-report-triple">
           ${reportSection("Patienten- und Terminindikatoren", patientHeatmap, `Patientenbasis, Neupatienten und Terminqualität für ${period}.`)}
-          ${reportSection("EBITDA-Margen-Treiber", reportTable(["Treiber", "Abweichung", "Einordnung"], driverRows, { compact: true }), marginGap >= 0 ? "Die Marge liegt über dem Gruppendurchschnitt." : "Die Marge liegt unter dem Gruppendurchschnitt.")}
-          ${reportSection("Rechenbasis kompakt", reportTable(["Kennzahl", "Eigener Wert", "Gruppenschnitt"], [
+          ${reportSection("EBITDA-Margen-Treiber", reportTable(["Treiber", "Abweichung", "Einordnung"], driverRows, { compact: true }), marginGap >= 0 ? "Die Marge liegt über dem Vergleichsniveau." : "Die Marge liegt unter dem Vergleichsniveau.")}
+          ${reportSection("Rechenbasis kompakt", reportTable(["Kennzahl", "Eigener Wert", "Vergleichsniveau"], [
             ...basisRows.slice(0, 6).map((row) => [row.label, formatBenchmarkBasisValue(row.own, row.type), formatBenchmarkBasisValue(row.comparison, row.type)]),
             ...patientBasisRows.slice(0, 4).map((row) => [row.label, formatPatientBasisValue(row.value, row.type), formatPatientBasisValue(row.comparison, row.type)])
           ], { compact: true }), "Die vollständige Herleitung bleibt in der App über die Info-Buttons verfügbar.")}
         </div>
         <div class="benchmark-note">
-          <strong>Ausgabe:</strong> Der Report ist auf maximal zwei A4-Querformat-Seiten verdichtet. Vergleichsstandorte sind anonymisiert, der ausgewählte Standort bleibt markiert und im Klartext sichtbar.
+          <strong>Ausgabe:</strong> Der Report zeigt einen anonymisierten Peer-Auszug. Der ausgewählte Standort bleibt markiert und im Klartext sichtbar.
         </div>
       </div>
     `;
@@ -11048,7 +11048,7 @@ function Analysen({
         </FilterShell>
         <FilterShell label="Vergleich">
           <Select value={comparison} onChange={(event) => setComparison(event.target.value)}>
-            {["Gruppendurchschnitt", "bester Standort", "Plan", "Vorjahr"].map((item) => <option key={item}>{item}</option>)}
+            {["Vergleichsniveau", "Top-Peer", "Plan", "Vorjahr"].map((item) => <option key={item}>{item}</option>)}
           </Select>
         </FilterShell>
         <FilterShell label="Ansicht">
@@ -11077,7 +11077,7 @@ function Analysen({
           ))}
           {hasMissingBasis && (
             <p className="rounded-lg border border-amber-300/20 bg-amber-300/10 p-2 text-xs text-amber-100">
-              Hinweis: Für diesen Standort ist noch keine Behandlungszimmer-Basis hinterlegt. Für Kirchberg, Essen, Kehl, Ulmet und Hüttenberg nutzt das Benchmarking feste Standort-Stammdaten.
+              Hinweis: Für diesen Standort ist noch keine Behandlungszimmer-Basis hinterlegt. Das Benchmarking nutzt in diesem Fall hinterlegte Stammdaten für die Vergleichslogik.
             </p>
           )}
         </div>
@@ -11089,7 +11089,7 @@ function Analysen({
             <p className="font-semibold uppercase tracking-[0.18em] text-teal-200">Logik der Vergleichskacheln</p>
             <p className="mt-2">
               Die Werte werden als Index gegen den gewählten Vergleich berechnet. <strong>100 %</strong> entspricht dem Vergleichsniveau
-              (z. B. Gruppendurchschnitt). Werte über 100 % bedeuten bei Umsatz-, Leistungs- und EBITDA-Kennzahlen eine bessere
+              (z. B. Vergleichsniveau). Werte über 100 % bedeuten bei Umsatz-, Leistungs- und EBITDA-Kennzahlen eine bessere
               relative Performance; bei Forderungs- und Kostenquoten ist ein niedrigerer Wert besser, weil weniger Kapitalbindung
               bzw. geringere Kostenbelastung vorliegt.
             </p>
@@ -11136,7 +11136,7 @@ function Analysen({
       )}
 
       <div className="analysis-print-page grid min-w-0 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <BenchmarkPanel title="Rankings im Standortvergleich">
+        <BenchmarkPanel title="Peer-Auszug im Benchmarking">
           <div className="grid min-w-0 gap-5 lg:grid-cols-2">
             <BenchmarkRanking
               title="Umsatz je Zahnarzt-FTE (Index)"
@@ -11160,13 +11160,13 @@ function Analysen({
             />
           </div>
         </BenchmarkPanel>
-        <BenchmarkPanel title="Kostenquoten im Standortvergleich (%)">
+        <BenchmarkPanel title="Kostenquoten im Peer-Auszug (%)">
           <BenchmarkHeatmap rows={siteRows} group={costGroup} viewMode={viewMode} selectedSiteId={selectedSite?.id} />
         </BenchmarkPanel>
       </div>
 
       <div className="analysis-print-page grid min-w-0 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <BenchmarkPanel title={`Patienten- und Termin-Benchmarking | ${period}`} subtitle="Vergleich von Patientenvolumen, Termintreue und Kapazitätsnutzung je Standort.">
+        <BenchmarkPanel title={`Patienten- und Termin-Benchmarking | ${period}`} subtitle="Vergleich von Patientenvolumen, Termintreue und Kapazitätsnutzung im anonymisierten Peer-Auszug.">
           <div className="grid min-w-0 gap-5 lg:grid-cols-2">
             <BenchmarkRanking
               title="Patienten je Behandlungszimmer (Index)"
@@ -11199,13 +11199,13 @@ function Analysen({
             />
           </div>
         </BenchmarkPanel>
-        <BenchmarkPanel title="Patientenquoten im Standortvergleich">
+        <BenchmarkPanel title="Patientenquoten im Peer-Auszug">
           <BenchmarkPatientHeatmap rows={patientSiteRows} viewMode={viewMode} selectedSiteId={selectedSite?.id} />
         </BenchmarkPanel>
       </div>
 
       <div className="analysis-print-page grid min-w-0 gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-        <BenchmarkPanel title="EBITDA-Margen-Treiber" subtitle={`Warum liegt ${displaySiteName} ${marginGap >= 0 ? "über" : "unter"} dem Gruppenschnitt?`}>
+        <BenchmarkPanel title="EBITDA-Margen-Treiber" subtitle={`Warum liegt ${displaySiteName} ${marginGap >= 0 ? "über" : "unter"} dem Vergleichsniveau?`}>
           <div className="grid min-w-0 gap-4 md:grid-cols-[1fr_0.9fr]">
             <div className="space-y-2">
               {costDrivers.map((driver) => (
@@ -11217,7 +11217,7 @@ function Analysen({
                 <Info className="h-5 w-5" />
               </div>
               <p>
-                Die EBITDA-Marge liegt {marginGap >= 0 ? "über" : "unter"} dem Gruppenschnitt.
+                Die EBITDA-Marge liegt {marginGap >= 0 ? "über" : "unter"} dem Vergleichsniveau.
                 Die wichtigsten Treiber sind {costDrivers.slice(0, 2).map((item) => item.label).join(" und ")}.
               </p>
             </div>
@@ -11508,7 +11508,7 @@ function BenchmarkKpiCard({
       </div>
       <div className="mt-3 space-y-1 text-sm text-slate-200">
         <div className="flex min-w-0 justify-between gap-3"><span className="min-w-0">Standortwert</span><strong className="shrink-0 text-right text-white">{valueText}</strong></div>
-        <div className="flex min-w-0 justify-between gap-3"><span className="min-w-0">Gruppenschnitt</span><strong className="shrink-0 text-right text-white">{groupText}</strong></div>
+        <div className="flex min-w-0 justify-between gap-3"><span className="min-w-0">Vergleichsniveau</span><strong className="shrink-0 text-right text-white">{groupText}</strong></div>
         <div className="flex min-w-0 justify-between gap-3"><span className="min-w-0">Abweichung</span><strong className={cn("shrink-0 text-right", unavailable ? "text-slate-400" : good ? "text-emerald-300" : "text-red-300")}>{deviationText}</strong></div>
       </div>
     </div>
@@ -11581,7 +11581,7 @@ function BenchmarkHeatmap({
       <table className="w-full min-w-[560px] border-collapse text-[11px] sm:min-w-[620px] sm:text-xs">
         <thead>
           <tr>
-            <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Standort</th>
+            <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Benchmark-Peer</th>
             {columns.map(([, label]) => <th key={label} className="border border-white/10 bg-white/5 p-2 text-right text-slate-200">{label}</th>)}
           </tr>
         </thead>
@@ -11597,7 +11597,7 @@ function BenchmarkHeatmap({
             </tr>
           ))}
           <tr>
-            <td className="border border-white/10 bg-slate-900 p-2 font-bold text-white">Gruppenschnitt</td>
+            <td className="border border-white/10 bg-slate-900 p-2 font-bold text-white">Vergleichsniveau</td>
             {columns.map(([key]) => (
               <td key={key} className="border border-white/10 bg-slate-900 p-2 text-right font-bold text-white">{pct(group[key])}</td>
             ))}
@@ -11666,7 +11666,7 @@ function BenchmarkPatientHeatmap({
       <table className="w-full min-w-[620px] border-collapse text-[11px] sm:text-xs">
         <thead>
           <tr>
-            <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Standort</th>
+            <th className="border border-white/10 bg-white/5 p-2 text-left text-slate-200">Benchmark-Peer</th>
             {columns.map(([, label]) => (
               <th key={label} className="border border-white/10 bg-white/5 p-2 text-right text-slate-200">{label}</th>
             ))}
@@ -11684,7 +11684,7 @@ function BenchmarkPatientHeatmap({
             </tr>
           ))}
           <tr>
-            <td className="border border-white/10 bg-slate-900 p-2 font-bold text-white">Gruppenschnitt</td>
+            <td className="border border-white/10 bg-slate-900 p-2 font-bold text-white">Vergleichsniveau</td>
             {columns.map(([key, , type]) => (
               <td key={key} className="border border-white/10 bg-slate-900 p-2 text-right font-bold text-white">
                 {formatHeatValue(group[key], type)}
