@@ -13599,6 +13599,8 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
   const runRateGrowthProvision = earnOutBreakdown.reduce((sum, row) => sum + row.projection.projectedGrowthPayment, 0);
   const runRateObligation = runRateProvision + runRateGrowthProvision;
   const runRateAchievement = totalPotential ? (runRateProvision / totalPotential) * 100 : 0;
+  const expectedEarnOutInfo = <ExpectedEarnOutInfo rows={earnOutBreakdown} period={period} />;
+  const expectedGrowthPaymentInfo = <ExpectedGrowthPaymentInfo rows={earnOutBreakdown} period={period} />;
   const expectedObligationInfo = <ExpectedObligationInfo rows={earnOutBreakdown} period={period} />;
 
   return (
@@ -13616,8 +13618,8 @@ function EarnOutSummary({ sites = standorte, period }: { sites?: DashboardSite[]
         <Mini label="Earn-Out Potenzial" value={eur(totalPotential)} />
         <Mini label="Aktuell fällig" value={eur(dueNow)} />
         <Mini label="Noch nicht fällig" value={eur(notYetDue)} />
-        <Mini label="Erwarteter Earn-Out" value={eur(runRateProvision)} />
-        <Mini label="Erwartete Wachstumszahlung" value={eur(runRateGrowthProvision)} />
+        <Mini label="Erwarteter Earn-Out" value={eur(runRateProvision)} info={expectedEarnOutInfo} />
+        <Mini label="Erwartete Wachstumszahlung" value={eur(runRateGrowthProvision)} info={expectedGrowthPaymentInfo} />
         <Mini label="Erwartete Verpflichtung gesamt" value={eur(runRateObligation)} info={expectedObligationInfo} />
         <Mini label="Vorsorgequote" value={pct(runRateAchievement)} />
       </div>
