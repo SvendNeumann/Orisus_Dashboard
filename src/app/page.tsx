@@ -6680,9 +6680,14 @@ function buildImportedPvsRevenueRows(workbook: XLSX.WorkBook, rows: Record<strin
 
 function exportRowsFromWorkbook(workbook: XLSX.WorkBook) {
   const exportSheetNames = workbook.SheetNames.filter((sheetName) => /^export_/i.test(sheetName) || /_export$/i.test(sheetName));
-  const relevantHeaders = new Set([
+  const orderedExportHeaders = [
     "Standort_ID",
     "Standortname",
+    "Gesellschaft",
+    "Datenquelle",
+    "Quellblatt",
+    "Quellzeile",
+    "Quellspalte",
     "Datenbereich",
     "Kategorie",
     "Unterkategorie",
@@ -6697,6 +6702,13 @@ function exportRowsFromWorkbook(workbook: XLSX.WorkBook) {
     "Einheit",
     "Werttyp",
     "Aktivstatus_Monat",
+    "Quelle_Zelle",
+    "Kommentar",
+    "Konsolidierungsregel",
+    "Datenebene"
+  ];
+  const relevantHeaders = new Set([
+    ...orderedExportHeaders,
     "Standard_Datenbereich",
     "Standard_Kategorie",
     "Standard_Kennzahl",
@@ -6705,6 +6717,25 @@ function exportRowsFromWorkbook(workbook: XLSX.WorkBook) {
     "Standard_Werttyp"
   ]);
   const records: Record<string, unknown>[] = [];
+  const seenRecords = new Set<string>();
+  const pushRecord = (record: Record<string, unknown>) => {
+    const signature = orderedExportHeaders.map((header) => asText(record[header])).join("||");
+    if (seenRecords.has(signature)) return;
+    seenRecords.add(signature);
+    records.push(record);
+  };
+  const supplementalRecordFromRow = (row: unknown[], startColumn: number) => {
+    const siteName = asText(row[startColumn + 1]);
+    const dataArea = asText(row[startColumn + 7]);
+    const metric = asText(row[startColumn + 10]);
+    const rawValue = row[startColumn + 17];
+    if (!siteName || !dataArea || !metric || rawValue == null) return null;
+    const siteId = siteIdForName(siteName);
+    if (!siteId) return null;
+    const firstCell = normalizeMetric(row[startColumn]);
+    if (firstCell && firstCell !== normalizeMetric(siteId) && firstCell !== normalizeMetric(siteName)) return null;
+    return Object.fromEntries(orderedExportHeaders.map((header, index) => [header, row[startColumn + index] ?? null]));
+  };
 
   exportSheetNames.forEach((sheetName) => {
     const sheet = workbook.Sheets[sheetName];
@@ -6742,10 +6773,18 @@ function exportRowsFromWorkbook(workbook: XLSX.WorkBook) {
           });
 
           if (!asText(record.Standortname) || !asText(record.Datenbereich) || !asText(record.Kennzahl)) continue;
-          records.push(record);
+          pushRecord(record);
         }
       });
     });
+
+    const maxColumnCount = sheetRows.reduce((max, row) => Math.max(max, row.length), 0);
+    for (let startColumn = 0; startColumn <= maxColumnCount - orderedExportHeaders.length; startColumn += 1) {
+      sheetRows.forEach((row) => {
+        const supplementalRecord = supplementalRecordFromRow(row ?? [], startColumn);
+        if (supplementalRecord) pushRecord(supplementalRecord);
+      });
+    }
   });
 
   return records;
