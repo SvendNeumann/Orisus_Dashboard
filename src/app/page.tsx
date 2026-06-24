@@ -15364,8 +15364,15 @@ const pmrPersonnelCostExclusionsBySite: Record<string, Set<string>> = {
   ])
 };
 
+const personnelCostAggregateExclusions = new Set(["mvz", "unbekannt", "unknown"]);
+
+function isExcludedFromPersonnelCostAggregation(name: string) {
+  return personnelCostAggregateExclusions.has(normalizeMetric(name));
+}
+
 function isExcludedFromPmrPersonnelCostReport(siteId: string, row: PersonnelCostComparisonRow) {
   const excludedNames = pmrPersonnelCostExclusionsBySite[siteId];
+  if (isExcludedFromPersonnelCostAggregation(row.name)) return true;
   if (!excludedNames) return false;
   return excludedNames.has(normalizeMetric(row.name));
 }
@@ -15379,6 +15386,7 @@ function personnelCostComparisonRows(importedData: ImportedDashboardData | null 
 
   (importedData?.personnelCostRows ?? [])
     .filter((row) => row.siteId === siteId)
+    .filter((row) => !isExcludedFromPersonnelCostAggregation(row.name))
     .forEach((row) => {
       const canonicalName = canonicalProviderName(siteId, row.name);
       promoteProviderSingleSurnameKey(grouped, siteId, row.name);
