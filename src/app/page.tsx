@@ -1992,6 +1992,75 @@ function canonicalProviderName(siteId: string, name: string) {
   return providerNameAliasesBySite[siteId]?.[normalizeMetric(name)] ?? name;
 }
 
+const providerRolePrefixKeys = new Set([
+  "dr",
+  "za",
+  "zahnarzt",
+  "zahnaerztin",
+  "zahnarztin",
+  "pzr",
+  "assi",
+  "assistent",
+  "assistentin",
+  "assistenzzahnarzt",
+  "assistenzzahnaerztin",
+  "prophylaxe"
+]);
+
+function canonicalProviderKey(siteId: string, name: string) {
+  const explicitAlias = providerNameAliasesBySite[siteId]?.[normalizeMetric(name)];
+  if (explicitAlias) return normalizeMetric(explicitAlias);
+  const tokens = normalizeMetric(name).split("_").filter(Boolean);
+  while (tokens.length > 1 && providerRolePrefixKeys.has(tokens[0])) tokens.shift();
+  if (tokens.length >= 2) return `${tokens[0][0]}_${tokens[tokens.length - 1]}`;
+  return tokens.join("_") || normalizeMetric(name);
+}
+
+function providerDisplayRank(siteId: string, name: string) {
+  const normalizedName = normalizeMetric(name);
+  if (providerNameAliasesBySite[siteId]?.[normalizedName]) return 0;
+  const firstToken = normalizedName.split("_").filter(Boolean)[0] ?? "";
+  return (providerRolePrefixKeys.has(firstToken) ? 2000 : 1000) + normalizedName.length;
+}
+
+function betterProviderDisplayName(siteId: string, currentName: string, nextName: string) {
+  const currentCanonical = canonicalProviderName(siteId, currentName);
+  const nextCanonical = canonicalProviderName(siteId, nextName);
+  return providerDisplayRank(siteId, nextCanonical) < providerDisplayRank(siteId, currentCanonical)
+    ? nextCanonical
+    : currentCanonical;
+}
+
+function groupedProviderDetailRows(rows: ImportedBehandlerDetailRow[], siteId: string) {
+  const grouped = new Map<string, ImportedBehandlerDetailRow>();
+  const mergeValues = (target: Record<string, number>, source: Record<string, number>) => {
+    Object.entries(source).forEach(([period, value]) => {
+      target[period] = (target[period] ?? 0) + value;
+    });
+  };
+
+  rows.forEach((row) => {
+    const key = canonicalProviderKey(siteId, row.name);
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        ...row,
+        name: canonicalProviderName(siteId, row.name),
+        honorarByMonth: { ...row.honorarByMonth },
+        eigenlaborByMonth: { ...row.eigenlaborByMonth },
+        totalByMonth: { ...row.totalByMonth }
+      });
+      return;
+    }
+    existing.name = betterProviderDisplayName(siteId, existing.name, row.name);
+    mergeValues(existing.honorarByMonth, row.honorarByMonth);
+    mergeValues(existing.eigenlaborByMonth, row.eigenlaborByMonth);
+    mergeValues(existing.totalByMonth, row.totalByMonth);
+  });
+
+  return Array.from(grouped.values());
+}
+
 const bankMovementKeyAliases: Record<string, string[]> = {
   cashflow_gesamt_im_monat: ["bank_cashflow_gesamt_im_monat"],
   cashflow_vor_intercompany: [
@@ -6917,7 +6986,7 @@ function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], expor
   const ensureEntry = (siteName: string, name: string) => {
     const site = siteByName.get(siteName.toLowerCase()) ?? standorte[0];
     const canonicalName = canonicalProviderName(site.id, name);
-    const key = `${site.id}::${normalizeMetric(canonicalName)}`;
+    const key = `${site.id}::${canonicalProviderKey(site.id, name)}`;
     const existing = grouped.get(key);
     if (existing) return existing;
     const next: ImportedBehandlerDetailRow = {
@@ -9853,7 +9922,7 @@ function SiteBehandlerMonthlyRevenue({
   site: DashboardSite;
   importedData?: ImportedDashboardData | null;
 }) {
-  const siteRows = (importedData?.behandlerDetailRows ?? []).filter((row) => row.siteId === site.id);
+  const siteRows = groupedProviderDetailRows((importedData?.behandlerDetailRows ?? []).filter((row) => row.siteId === site.id), site.id);
   const availablePeriods = periodOptionsFromBehandlerDetailRows(siteRows);
   const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
   useEffect(() => {
@@ -14829,14 +14898,17 @@ function isExcludedFromPmrPersonnelCostReport(siteId: string, row: PersonnelCost
 }
 
 function personnelCostComparisonRows(importedData: ImportedDashboardData | null | undefined, siteId: string): PersonnelCostComparisonRow[] {
-  const providerRows = new Map((importedData?.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId).map((row) => [normalizeMetric(row.name), row]));
+  const providerRows = new Map(
+    groupedProviderDetailRows((importedData?.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId), siteId)
+      .map((row) => [canonicalProviderKey(siteId, row.name), row])
+  );
   const grouped = new Map<string, PersonnelCostComparisonRow & { fallbackHonorar: number }>();
 
   (importedData?.personnelCostRows ?? [])
     .filter((row) => row.siteId === siteId)
     .forEach((row) => {
       const canonicalName = canonicalProviderName(siteId, row.name);
-      const key = normalizeMetric(canonicalName);
+      const key = canonicalProviderKey(siteId, row.name);
       const existing = grouped.get(key) ?? {
         employeeId: row.employeeId || key,
         name: canonicalName,
@@ -14850,6 +14922,7 @@ function personnelCostComparisonRows(importedData: ImportedDashboardData | null 
       existing.personnelCost += periodValueFromMonths(row.personnelCostByMonth, "Gesamte Periode") || row.personnelCost;
       existing.fallbackHonorar += row.honorar;
       existing.employeeId = existing.employeeId || row.employeeId || key;
+      existing.name = betterProviderDisplayName(siteId, existing.name, row.name);
       existing.type = existing.type || row.type;
       existing.status = row.status || existing.status;
       grouped.set(key, existing);
@@ -14857,7 +14930,7 @@ function personnelCostComparisonRows(importedData: ImportedDashboardData | null 
 
   return Array.from(grouped.values())
     .map((row) => {
-      const matchedProvider = providerRows.get(normalizeMetric(row.name));
+      const matchedProvider = providerRows.get(canonicalProviderKey(siteId, row.name));
       const honorar = matchedProvider ? periodValueFromMonths(matchedProvider.honorarByMonth, "Gesamte Periode") : row.fallbackHonorar;
       return {
         employeeId: row.employeeId,
@@ -14912,11 +14985,10 @@ function pmrTopSicknessTable(personalData: PersonalDashboardData | null | undefi
 function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
   const comparisonPeriod = comparisonPeriodFor(period, comparisonYear);
   const grouped = new Map<string, { name: string; honorar: number; eigenlabor: number; total: number; previousTotal: number }>();
-  (importedData.behandlerDetailRows ?? [])
-    .filter((row) => row.siteId === siteId)
+  groupedProviderDetailRows((importedData.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId), siteId)
     .forEach((row) => {
-      const name = canonicalProviderName(siteId, row.name);
-      const key = normalizeMetric(name);
+      const name = row.name;
+      const key = canonicalProviderKey(siteId, row.name);
       const existing = grouped.get(key) ?? { name, honorar: 0, eigenlabor: 0, total: 0, previousTotal: 0 };
       const honorar = periodValueFromMonths(row.honorarByMonth, period);
       const eigenlabor = periodValueFromMonths(row.eigenlaborByMonth, period);
