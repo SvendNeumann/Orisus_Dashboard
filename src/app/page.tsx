@@ -15271,6 +15271,54 @@ function buildReportDocument({
           font-size: 5.5px;
           line-height: 1.1;
         }
+        .pmr-benchmark-focus {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 4px;
+          padding: 5px;
+          border-radius: 8px;
+          background: #f3f8fa;
+          border: 1px solid #c5d9e0;
+        }
+        .pmr-benchmark-focus-title {
+          grid-column: 1 / -1;
+          color: #08364b;
+          font-size: 7px;
+          font-weight: 900;
+          letter-spacing: .03em;
+          line-height: 1;
+          text-transform: uppercase;
+        }
+        .pmr-benchmark-focus-card {
+          min-height: 31px;
+          padding: 4px 5px;
+          border-radius: 7px;
+          background: #ffffff;
+          border: 1px solid #d4e4e9;
+          color: #12293a;
+        }
+        .pmr-benchmark-focus-card span {
+          display: block;
+          color: #0a6f79;
+          font-size: 5.2px;
+          font-weight: 900;
+          line-height: 1.05;
+          text-transform: uppercase;
+        }
+        .pmr-benchmark-focus-card strong {
+          display: block;
+          margin-top: 2px;
+          color: #0f1b2b;
+          font-size: 8.2px;
+          line-height: 1.05;
+        }
+        .pmr-benchmark-focus-card small {
+          display: block;
+          margin-top: 2px;
+          color: #516b7b;
+          font-size: 5px;
+          line-height: 1.08;
+        }
         .pmr-benchmark-page .report-section { border-radius: 8px; box-shadow: none; }
         .pmr-benchmark-page .section-head { padding: 4px 6px; }
         .pmr-benchmark-page .section-head h2 { font-size: 7.6px; }
@@ -15879,13 +15927,25 @@ function pmrPersonnelCostRows(importedData: ImportedDashboardData, siteId: strin
 function pmrMonthlyEbitdaTable(importedData: ImportedDashboardData, siteId: string, year: number) {
   const ebitdaRow = importedData.bwaRows.find((row) => row.siteId === siteId && row.metricKey === "ebitda");
   const performanceRow = importedData.bwaRows.find((row) => row.siteId === siteId && row.metricKey === "summe_umsatz");
-  const margin = (month: number) => ratio(ebitdaRow?.valuesByMonth[`${year}-${month}`] ?? 0, performanceRow?.valuesByMonth[`${year}-${month}`] ?? 0);
+  const monthValue = (row: ImportedBwaRow | undefined, month: number) => {
+    const key = `${year}-${month}`;
+    return row?.hasValueByMonth[key] ? row.valuesByMonth[key] ?? 0 : null;
+  };
+  const monthCurrency = (row: ImportedBwaRow | undefined, month: number) => {
+    const value = monthValue(row, month);
+    return value == null ? "" : reportEscape(eur(value));
+  };
+  const monthMargin = (month: number) => {
+    const performance = monthValue(performanceRow, month);
+    const ebitda = monthValue(ebitdaRow, month);
+    return performance == null || ebitda == null ? "" : reportEscape(pct(ratio(ebitda, performance)));
+  };
   return `<table class="pmr-table compact monthly">
     <thead><tr><th>Monat</th>${bwaMonths.map((month) => `<th>${month}</th>`).join("")}<th>Gesamt</th></tr></thead>
     <tbody>
-      <tr><td>Gesamtleistung</td>${bwaMonths.map((_, index) => `<td>${reportEscape(eur(performanceRow?.valuesByMonth[`${year}-${index + 1}`] ?? 0))}</td>`).join("")}<td>${reportEscape(eur(performanceRow?.valuesByYear[String(year)] ?? 0))}</td></tr>
-      <tr><td>EBITDA</td>${bwaMonths.map((_, index) => `<td>${reportEscape(eur(ebitdaRow?.valuesByMonth[`${year}-${index + 1}`] ?? 0))}</td>`).join("")}<td>${reportEscape(eur(ebitdaRow?.valuesByYear[String(year)] ?? 0))}</td></tr>
-      <tr><td>EBITDA-Marge</td>${bwaMonths.map((_, index) => `<td>${reportEscape(pct(margin(index + 1)))}</td>`).join("")}<td>${reportEscape(pct(ratio(ebitdaRow?.valuesByYear[String(year)] ?? 0, performanceRow?.valuesByYear[String(year)] ?? 0)))}</td></tr>
+      <tr><td>Gesamtleistung</td>${bwaMonths.map((_, index) => `<td>${monthCurrency(performanceRow, index + 1)}</td>`).join("")}<td>${reportEscape(eur(performanceRow?.valuesByYear[String(year)] ?? 0))}</td></tr>
+      <tr><td>EBITDA</td>${bwaMonths.map((_, index) => `<td>${monthCurrency(ebitdaRow, index + 1)}</td>`).join("")}<td>${reportEscape(eur(ebitdaRow?.valuesByYear[String(year)] ?? 0))}</td></tr>
+      <tr><td>EBITDA-Marge</td>${bwaMonths.map((_, index) => `<td>${monthMargin(index + 1)}</td>`).join("")}<td>${reportEscape(pct(ratio(ebitdaRow?.valuesByYear[String(year)] ?? 0, performanceRow?.valuesByYear[String(year)] ?? 0)))}</td></tr>
     </tbody>
   </table>`;
 }
@@ -16142,6 +16202,36 @@ function buildPmrBenchmarkPage(
       <small>${reportEscape(card.detail)}</small>
     </div>
   `).join("")}</div>`;
+  const focusCards = [
+    {
+      label: "Umsatz je Zimmer",
+      value: pmrBenchmarkFormat(selectedRow?.pvsPerRoom, "currency"),
+      detail: `${pmrBenchmarkComparisonText(selectedRow?.pvsPerRoom, averages.pvsPerRoom, true, "currency")} | Vergleich ${pmrBenchmarkFormat(averages.pvsPerRoom, "currency")}`
+    },
+    {
+      label: "Patienten je Zimmer",
+      value: pmrBenchmarkFormat(selectedRow?.patientsPerRoom, "number"),
+      detail: `${pmrBenchmarkComparisonText(selectedRow?.patientsPerRoom, averages.patientsPerRoom, true, "number")} | Vergleich ${pmrBenchmarkFormat(averages.patientsPerRoom, "number")}`
+    },
+    {
+      label: "Neupatientenquote",
+      value: pmrBenchmarkFormat(selectedRow?.newPatientRate, "percent"),
+      detail: `${pmrBenchmarkComparisonText(selectedRow?.newPatientRate, averages.newPatientRate, true, "percent")} | Vergleich ${pmrBenchmarkFormat(averages.newPatientRate, "percent")}`
+    },
+    {
+      label: "Terminwahrnehmung",
+      value: pmrBenchmarkFormat(selectedRow?.attendanceRate, "percent"),
+      detail: `${pmrBenchmarkComparisonText(selectedRow?.attendanceRate, averages.attendanceRate, true, "percent")} | Vergleich ${pmrBenchmarkFormat(averages.attendanceRate, "percent")}`
+    }
+  ];
+  const focusPanel = `<div class="pmr-benchmark-focus">
+    <div class="pmr-benchmark-focus-title">Weitere Benchmark-Fokusfelder</div>
+    ${focusCards.map((card) => `<div class="pmr-benchmark-focus-card">
+      <span>${reportEscape(card.label)}</span>
+      <strong>${reportEscape(card.value)}</strong>
+      <small>${reportEscape(card.detail)}</small>
+    </div>`).join("")}
+  </div>`;
   const heatRows = rows.map((row) => `<tr>
     <td>${reportEscape(row.label)}</td>
     <td class="${pmrBenchmarkHeatClass(row.materialquote, averages.materialquote)}">${reportEscape(pmrBenchmarkFormat(row.materialquote, "percent"))}</td>
@@ -16199,6 +16289,7 @@ function buildPmrBenchmarkPage(
         <tbody>${patientRowsHtml}<tr><td>Vergleichsniveau</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.patientsPerRoom, "number"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.newPatientRate, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.attendanceRate, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.cancellationRate, "percent"))}</td></tr></tbody>
       </table>`, "Patientenbasis aus dem bestätigten Import, soweit je Standort gepflegt.")}
     </div>
+    ${focusPanel}
   </div>`;
 }
 
