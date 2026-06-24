@@ -13120,11 +13120,12 @@ function BoardPack({
           <p className="font-semibold text-slate-950">Was ist das?</p>
           <p className="text-slate-700">
             Offene Forderungen zeigen, wie viel bereits erbrachte Leistung noch nicht als Zahlung eingegangen ist.
-            Im Board-Pack ist das ein Working-Capital- und Liquiditätsindikator.
+            Im Board-Pack ist das ein Working-Capital- und Liquiditätsindikator. Der Forderungsbestand ist ein aktueller
+            Stichtagswert; die Einordnung erfolgt gegen die Gesamtleistung der gesamten Vertragsperiode seit Standortstart.
           </p>
           <div className="space-y-1">
             <InfoLine label="Offene Forderungen aktuell" value={metrics.forderungen} strong />
-            <InfoLine label="Gesamtleistung seit Vertragsstart" value={metrics.gesamtleistung} />
+            <InfoLine label="Gesamtleistung gesamte Vertragsperiode" value={metrics.gesamtleistung} />
             <InfoTextLine label="Forderungsquote" value={pct(receivablesRatio)} strong />
             <InfoTextLine label="Ampelregel" value={kpiRuleText(rules.offene_forderungen, "green")} />
           </div>
@@ -13140,11 +13141,12 @@ function BoardPack({
           <p className="font-semibold text-slate-950">Was ist das?</p>
           <p className="text-slate-700">
             Die Kostenquote misst, welcher Anteil der Gesamtleistung durch operative Kosten gebunden ist.
-            Enthalten sind Material, Fremdlabor, Personal und sonstige operative Kosten.
+            Enthalten sind Material, Fremdlabor, Personal und sonstige operative Kosten über die gesamte Vertragsperiode
+            seit jeweiligem Standortstart.
           </p>
           <div className="space-y-1">
-            <InfoTextLine label="Berechnung" value="gewichtete Kostenquoten je Standort" />
-            <InfoLine label="Gesamtleistung seit Vertragsstart" value={metrics.gesamtleistung} />
+            <InfoTextLine label="Berechnung" value="gewichtete Kostenquoten je Standort seit Start" />
+            <InfoLine label="Gesamtleistung gesamte Vertragsperiode" value={metrics.gesamtleistung} />
             <InfoTextLine label="Kostenquote konsolidiert" value={pct(metrics.kostenquote)} strong />
             <InfoTextLine label="Ampelregel" value={kpiRuleText(rules.kostenquote, "green")} />
           </div>
@@ -13160,13 +13162,14 @@ function BoardPack({
           <p className="font-semibold text-slate-950">Was ist das?</p>
           <p className="text-slate-700">
             Kapitaldienstfähigkeit zeigt, wie oft das EBITDA den Kapitaldienst deckt. Für Board und Banken ist das
-            ein Kernindikator für Rückzahlungsfähigkeit und Finanzierungsspielraum.
+            ein Kernindikator für Rückzahlungsfähigkeit und Finanzierungsspielraum. Basis sind EBITDA, Tilgung und Zins
+            der gesamten Vertragsperiode seit Standortstart.
           </p>
           <div className="space-y-1">
-            <InfoLine label="EBITDA seit Vertragsstart" value={metrics.ebitda} />
-            <InfoLine label="Tilgung" value={metrics.tilgung} />
-            <InfoLine label="+ Zins" value={metrics.zins} />
-            <InfoLine label="= Kapitaldienst" value={metrics.kapitaldienst} strong />
+            <InfoLine label="EBITDA gesamte Vertragsperiode" value={metrics.ebitda} />
+            <InfoLine label="Tilgung gesamte Vertragsperiode" value={metrics.tilgung} />
+            <InfoLine label="+ Zins gesamte Vertragsperiode" value={metrics.zins} />
+            <InfoLine label="= Kapitaldienst gesamte Vertragsperiode" value={metrics.kapitaldienst} strong />
             <InfoTextLine label="EBITDA / Kapitaldienst" value={`${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`} strong />
             <InfoTextLine label="Ampelregel" value={kpiRuleText(rules.kapitaldienstfaehigkeit, "green")} />
           </div>
@@ -13183,7 +13186,8 @@ function BoardPack({
           <p className="text-slate-700">
             Kritische Standorte sind Praxen mit erkennbarem Steuerungsbedarf. Gezählt wird ein Standort, wenn er
             nach KPI-Regeln rot ist, eine kritische Forderungsquote hat oder beim Ziel-EBITDA gemäß Kaufvertrag
-            deutlich unter Ziel liegt.
+            deutlich unter Ziel liegt. Die Prüfung nutzt die kumulierten Standortwerte der gesamten Vertragsperiode;
+            Forderungen bleiben dabei als aktueller Stichtagswert enthalten.
           </p>
           <div className="space-y-1">
             <InfoTextLine label="Anzahl kritischer Standorte" value={String(metrics.kritisch.length)} strong />
@@ -13231,7 +13235,10 @@ function BoardPack({
           </ResponsiveContainer>
         </ChartCard>
         <Card className="p-4">
-          <h2 className="font-bold">Risiken & Fokus | aktueller Stand</h2>
+          <h2 className="font-bold">Risiken & Fokus | gesamte Vertragsperiode</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Basis seit jeweiligem Standortstart; Forderungen als aktueller Stichtagswert gegen die Vertragsperiodenleistung.
+          </p>
           <div className="mt-4 space-y-3">
             {riskFocusItems.map((item) => (
               <BoardRiskFocusRow key={item.label} {...item} />
