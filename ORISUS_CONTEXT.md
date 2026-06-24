@@ -1,6 +1,6 @@
 # Orisus CFO Dashboard - Projektuebergabe
 
-Stand: 24.06.2026, nach Commit `dcb510ff`
+Stand: 24.06.2026, nach App-Commit `38528f50`
 
 Dieses Dokument fasst den Projektstand, fachliche Entscheidungen, Datenlogiken, Architektur und offene Punkte aus dem bisherigen Chat zusammen. Es dient als Startpunkt fuer neue Codex-/Entwicklungs-Chats.
 
@@ -14,7 +14,8 @@ Dieses Dokument fasst den Projektstand, fachliche Entscheidungen, Datenlogiken, 
 - Branch: `main`
 - Deployment laeuft ueber GitHub -> Vercel.
 - Der letzte gepruefte Stand war buildfaehig mit `pnpm exec next build`.
-- Letzter gepushter Stand in diesem Chat: `dcb510ff Fix Ulmet PVS monthly import fallback`.
+- Letzter gepushter App-Implementierungsstand in diesem Chat: `38528f50 Refine status signal wording`.
+- Danach soll diese Kontextdatei als verbindliche Projektuebergabe aktuell gehalten und ebenfalls gepusht werden.
 
 Wichtige Regel: Veraenderungen sollen immer committed und gepusht werden, wenn sie live gehen sollen. Vercel deployed dann automatisch.
 Der Nutzer erwartet, dass umgesetzte Aenderungen nicht nur lokal bleiben, sondern nach erfolgreichem Check auf `main` gepusht werden.
@@ -135,6 +136,8 @@ Navigation wurde gruppiert:
   - Cashflow
 - Performance & Benchmarking
   - Orisus Performance
+  - Fruehwarnsystem
+  - Personalproduktivitaet
   - Benchmarking
 - Finanzierung & Reporting
   - Darlehen & Earn-Out
@@ -167,6 +170,22 @@ Aktuelle wichtige Live-Ergaenzungen:
   - erwartete Gesamtzahlung nach Vertragsende
 - PMR-Export enthaelt Seite 1 Standortleiter-PMR und Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort.
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
+- Orisus Performance hat oben KPI-Kacheln im einheitlichen App-Kachelstil mit Info-Buttons/Herleitungen.
+- Orisus Performance: Diagramm `Operative Entwicklung` hat Zeitraumfilter und Soll-EBITDA-Linie gemaess Uebernahme.
+- Orisus Performance: Bankbewegungen unten reagieren auf die Zeitraumwahl.
+- Cashflow-Tab enthaelt zusaetzlich einen Abweichungsmonitor Bank vs. BWA ueber die gesamte Vertragsperiode je Standort.
+- Performance & Benchmarking enthaelt ein Fruehwarnsystem als eigenes Tab.
+- Performance & Benchmarking enthaelt eine Standort-Scorecard als Benchmarking-Block.
+- Performance & Benchmarking enthaelt ein eigenes Tab `Personalproduktivitaet`.
+- Administration:
+  - CFO-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
+  - Personal-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
+- Statussprache wurde vereinheitlicht:
+  - Sichtbare Labels: `Stabil`, `Beobachten`, `Auffaellig`.
+  - `Handlungsbedarf` soll nicht mehr verwendet werden.
+  - `Kritische Standorte` heissen sichtbar `Fokus-Standorte`.
+  - Fruehere farbliche Steuerungslogik heisst sichtbar `Status-Center`.
+  - In Reports wird von `Status` bzw. `Statusfarben` gesprochen.
 
 Mobile Bottom-Navigation, gewuenschte Reihenfolge:
 
@@ -217,6 +236,13 @@ App nach Login:
 - Desktop-Layouts muessen rahmen- und kachelbuendig sein. Diagrammkarten sollen in der Breite konsistent wirken.
 - Mobile Layouts muessen mit App-Abstaenden arbeiten; keine nahtlosen Uebergaenge zwischen Kachel- und Tabellenbereichen.
 - Status-Badges in KPI-Kacheln duerfen nicht ins Logo/Icon oder in den Kachelrand laufen.
+- Statussprache:
+  - Gruen = `Stabil`
+  - Gelb = `Beobachten`
+  - Rot = `Auffaellig`
+  - Keine sichtbare Bezeichnung `Handlungsbedarf` verwenden.
+  - Bei Quoten-/Vorjahresvergleichen lieber konkret formulieren, z. B. `erhoeht ggü. Vorjahr`, `unter Vergleich`, `unter Soll`, statt pauschal streng zu wirken.
+  - Interne technische Typen duerfen weiter `green/yellow/red` heissen, sichtbare Texte muessen aber fachlich weich bleiben.
 - Top-Behandler-Saeulendiagramm im CFO Cockpit:
   - X-Achsenbeschriftung unten ausblenden.
   - Werte dezent innerhalb der Balken anzeigen.
@@ -369,6 +395,19 @@ Wichtig:
   - Filter Zeitraum
   - Tabelle zeigt gesamte Bankbewegung, nicht nur die letzten Summenzeilen
 - Standortdetails sollen am Ende auch Bankbewegungen fuer den jeweiligen Standort mit Zeitraumfilter enthalten.
+- Abweichungsmonitor im Tab Cashflow:
+  - Immer ueber die gesamte Vertragsperiode je Standort darstellen.
+  - Grund: KZV-/PVS-Zahlungen koennen zeitversetzt eingehen; Monats-/YTD-Vergleiche koennen verzerren.
+  - Einnahmenseite:
+    - Bankeinnahmen aus Bankbewegungen gegen BWA-Umsatz.
+    - Keine Tilgung, Zinsen oder Intercompany einbeziehen.
+  - Kostenseite:
+    - Praxisausgaben gemaess Bankbewegung gegen operative BWA-Kosten plus Investitionen.
+    - Keine Tilgung, Zinsen oder Intercompany einbeziehen.
+  - Fix hinterlegte interne Bereinigung:
+    - Ulmet: 100.000 EUR von Bankeingaengen abziehen, weil operativer Kredit von Kirchberg.
+    - Kirchberg: 100.000 EUR aus Praxisausgaben herausrechnen, weil interner Kredit an Ulmet und keine operativen Kosten.
+  - Diese Bereinigung muss sichtbar kommentiert bleiben.
 
 ## 11. Offene Forderungen
 
@@ -476,13 +515,13 @@ Erste Reihe:
 
 1. Aktuelle Liquiditaet
 2. Offene Forderungen
-3. Free Cashflow seit Vertragsstart
+3. Cashflow gem. BWA seit Vertragsstart
 
 Zweite Reihe:
 
 1. EBITDA seit Vertragsstart
 2. Fremdkapital seit Vertragsstart
-3. Kritische Standorte
+3. Fokus-Standorte
 
 Zusaetzlich gewuenscht:
 
@@ -492,12 +531,12 @@ Zusaetzlich gewuenscht:
 - Aktuelle Liquiditaet: Info zeigt Kontostaende je Standort.
 - Offene Forderungen: Info zeigt Zusammensetzung je Standort.
 - Fremdkapital: Info zeigt aufgenommenes Fremdkapital, Tilgung, Restschuld je Standort.
-- Kritische Standorte: Info erklaert, warum kritisch.
+- Fokus-Standorte: Info erklaert, warum ein Standort im Fokus ist.
 
-Kritische Standorte Logik:
+Fokus-Standorte Logik:
 
-- Handlungsbedarf, wenn Bank-/BWA-Cashflow negativ, je nach Kachelkontext klar beschriften.
-- Zusaetzlich kritisch, wenn Standort in durchschnittlicher Vertragslaufzeit beim Ziel-EBITDA gemaess Kaufvertrag mehr als 15 % unter Ziel liegt.
+- Standort im Fokus, wenn Bank-/BWA-Cashflow negativ oder eine relevante CFO-Regel auffaellig ist, je nach Kachelkontext klar beschriften.
+- Zusaetzlich im Fokus, wenn Standort in durchschnittlicher Vertragslaufzeit beim Ziel-EBITDA gemaess Kaufvertrag mehr als 15 % unter Ziel liegt.
 - Unterjaehrige Vertragsstarts muessen anteilig beruecksichtigt werden.
 
 Entfernte/zu entfernende Doppelungen im CFO Cockpit:
@@ -524,6 +563,8 @@ Standortdetails sollen die zentrale Detailseite je Praxis bleiben und sind fachl
 Inhalte:
 
 - KPI-Kacheln seit Vertragsstart
+  - Kacheln sollen Info-Button `i` mit Herleitung und Datenquelle haben.
+  - Info muss klar nennen, ob BWA-, Bank-, PVS-/Performance- oder Personaldaten verwendet werden.
 - BWA Standort
 - monatliche BWA
 - PVS-Gesamtumsatz monatlich
@@ -533,6 +574,11 @@ Inhalte:
   - Gesamt = Honorar + Eigenlabor
   - monatlich mit Zeitraumfilter
 - Bankbewegungen je Standort mit Zeitraumfilter
+- Diagramm `Entwicklung ueber Zeit`:
+  - mit Zeitraumfilter.
+  - Klar beschreiben, was gemessen wird.
+  - Gemessen werden BWA-Gesamtleistung, BWA-EBITDA und Cashflow gem. BWA fuer den Standort.
+  - Bank-Cashflow und Kontostand separat im Bankbewegungsbereich ausweisen.
 - Personalkosten je Behandler / Mitarbeiter:
   - unten in den Standortdetails je Standort eingebunden
   - Daten aus den Personalkosten-Exporttabs
@@ -542,6 +588,8 @@ Inhalte:
   - keine technischen Hinweise wie Datenstatus oder `Honorarumsatz automatisch` anzeigen
   - Standardzeitraum: gesamte Vertragsperiode / seit Vertragsbeginn
   - PK-Quote immer mit einer Nachkommastelle darstellen
+  - `MVZ` und `Unbekannt` nie anzeigen, nie mitzählen und nicht erwaehnen, obwohl sie importiert werden.
+  - Inaktive Mitarbeiter sollen mit Hinweis auf Inaktivitaet und Austrittsdatum erkennbar sein, wenn vorhanden.
 
 Wichtig:
 
@@ -568,6 +616,12 @@ Ziel:
 - Monatsuebersichten
 - Bank-/Geldbewegungen aus Input_Finanzen
 - eigene Zeitraumfilter je Tabellenblock
+- KPI-Kacheln oben im einheitlichen App-Kachelstil mit Rand und Info-Button.
+- Info-Buttons muessen Herleitung und Datenquelle der Werte erklaeren.
+- Diagramm `Operative Entwicklung`:
+  - Zeitraumfilter vorhanden.
+  - Zusaetzliche Linie `Soll-EBITDA gem. Uebernahme`, damit sichtbar ist, ob Ist-EBITDA darueber oder darunter liegt.
+- Bankbewegungen unten muessen auf die Zeitraumwahl reagieren.
 
 Wichtige Entscheidung:
 
@@ -704,8 +758,66 @@ Ziel:
   - Terminausfallquote
   - Patientenzahl je Standort
   - Patienten-/Terminquoten pro Behandlungszimmer
-  - Patienten-/Terminquoten pro Zahnarzt-FTE
-  - Umsatz je Patient / je Termin, wenn Datenbasis sinnvoll
+- Patienten-/Terminquoten pro Zahnarzt-FTE
+- Umsatz je Patient / je Termin, wenn Datenbasis sinnvoll
+
+Standort-Scorecard:
+
+- Unter Performance & Benchmarking integriert.
+- Ziel: Management-Radar je Standort.
+- Scorebereiche:
+  - Finanzen
+  - Cashflow
+  - Bank/PVS
+  - Produktivitaet
+  - Personal
+  - Patienten
+  - Datenbasis
+- Bank/PVS-Abgleich in der Scorecard immer auf gesamter Vertragsperiode, nicht nur aktuellem Filter.
+- Score-Status:
+  - ab 75: Stabil
+  - ab 55: Beobachten
+  - darunter: unter Zielniveau / auffaellig
+- Fokus-Spalte nennt die schwachen Dimensionen, nicht pauschal `Handlungsbedarf`.
+
+Personalproduktivitaet:
+
+- Eigenes Tab unter Performance & Benchmarking.
+- Standortvergleich mit Zeitraumfilter.
+- Finanzwerte:
+  - Gesamtleistung aus BWA
+  - PVS-Umsatz aus Performance-/PVS-Import
+  - EBITDA aus BWA
+  - Personalkosten aus BWA, keine offengelegten Gehaltsdetails
+- Kapazitaet:
+  - Personalimport
+  - durchschnittlich aktive Mitarbeiter im Zeitraum
+  - FTE = Wochenstunden / 40, monatsgenau gemittelt
+  - Zahnarzt-FTE nur fuer Mitarbeiter mit Behandler-/Zahnarztkennzeichnung
+  - Inaktive Mitarbeiter historisch beruecksichtigen, wenn sie im ausgewerteten Zeitraum aktiv waren
+- Auswertungen:
+  - Gesamtleistung je FTE
+  - PVS je FTE
+  - EBITDA je FTE
+  - Personalkosten je FTE
+  - PVS je Zahnarzt-FTE
+  - EBITDA je Zahnarzt-FTE
+  - Personalkostenquote
+  - EBITDA-Marge
+- Tab muss erklaeren, welche Datenquelle verwendet wird und dass keine Gehaltsdetails offengelegt werden.
+
+Fruehwarnsystem:
+
+- Eigenes Tab unter Performance & Benchmarking.
+- Ziel: fruehe Abweichungen nach Jahr/Zeitraum erkennen.
+- Signale werden als `Stabil`, `Beobachten`, `Auffaellig` gefuehrt.
+- Beispiele:
+  - Kostenquote erhoeht ggü. Vorjahr
+  - Personalkostenquote erhoeht ggü. Vorjahr
+  - PVS-/Umsatzrueckgang
+  - Terminausfallquote erhoeht ggü. Vorjahr
+  - Ziel-EBITDA-Abweichung
+- Fehlende Datenbasis nicht als 0 werten.
 
 ## 19. Personal-Import
 
@@ -772,7 +884,7 @@ Tabellen:
 - Kostenuebersicht je Standort
 - AG-Kosten je Standort als Chart/Donut, kleiner, nicht ueber volle Breite
 - Neben/unter dem AG-Kosten-Donut soll eine Top-10-Aufstellung der Mitarbeiter mit den meisten Krankheitstagen im laufenden Jahr erscheinen.
-- Fluktuation-KPI / Handlungsbedarf-Badge muss im Raster buendig bleiben und darf nicht ins Icon/Logo laufen.
+- Fluktuation-/Status-Badges muessen im Raster buendig bleiben, duerfen nicht ins Icon/Logo laufen und muessen die neue Statussprache nutzen, also nicht `Handlungsbedarf`.
 
 ## 21. Krankheit / Fehlzeiten
 
@@ -854,6 +966,7 @@ Standortleiter-PMR:
   - Filter sauber gruppiert: Zeitraum, Vergleichsjahr, Druckformat, `PMR oeffnen`
   - Standortauswahl direkt in der PMR-Karte sichtbar
   - Buttons `Alle` und `Keine`
+  - Standard-Speichername soll automatisch sinnvoll erzeugt werden: `PMR Report <Standort> <Zeitraum>`
   - Standorte bleiben auswaehlbar, auch wenn gerade kein bestaetigter Import aktiv ist; Werte brauchen aber natuerlich einen bestaetigten Import
 - Inhalt:
   - Orisus-Logo passend im Report
@@ -864,10 +977,12 @@ Standortleiter-PMR:
     - YTD aktuelles Jahr bis aktueller Monat
     - YTD Vorjahr bis gleicher Monat
     - Abweichung
-    - Ampel
+    - Status
   - Quoten & Kennzahlen
   - Earn-Out-/Wachstumszahlungslogik als indikative Hochrechnung
+    - Sonderfall Ulmet: Earn-Out-/Wachstumszahlung nur zeigen, wenn tatsaechlich etwas verdient ist; wenn 0, den Block im Ulmet-PMR weglassen.
   - Monatsentwicklung EBITDA/Gesamtleistung/Marge/Abweichungen
+    - Noch nicht vorliegende Monate leer lassen, nicht als 0 werten.
   - Behandler-Umsatzboard mit Vorjahresvergleich
   - Personalkosten je Behandler/Mitarbeiter mit Honorarumsatz und PK-Quote
 - BWA im PMR:
@@ -878,14 +993,17 @@ Standortleiter-PMR:
   - alle Mitarbeiter aus den Personalkosten-Exporttabs aufnehmen
   - Honorarumsatz hinzumatchen, wenn vorhanden
   - Mitarbeiter ohne Honorarumsatz trotzdem zeigen
+  - `MVZ` und `Unbekannt` nicht anzeigen und nicht mitzaehlen.
+  - Inaktive Mitarbeiter mit Statushinweis/Austrittsdatum ausweisen, wenn vorhanden.
   - PK-Quote nur berechnen, wenn Honorarumsatz sinnvoll vorhanden ist
   - immer seit Vertragsbeginn / gesamte Vertragsperiode ausweisen, nicht nach PMR-Zeitraum oder Standortdetail-Filter
   - Grund: Umsatzbeteiligungen koennen monatsverschoben oder gesammelt ausgezahlt werden; Monats-/YTD-Sichten wuerden die PK-Quote verzerren
-- Ampellogik:
+- Statuslogik:
   - fuer BWA/Quoten & Kennzahlen an Entwicklung/Vorjahresvergleich orientieren
-  - im PMR-BWA-Ueberblick Ampel nur auf Steuerungs-/Gesamtzeilen, nicht auf jeder Detailkontozeile
-  - relevante PMR-Ampelzeilen: Summe Umsatz, Gesamtleistung abzueglich Fremdlabor/Material, Praxisleistung abzueglich operative Kosten, Operative Praxiskosten bis EBITDA, EBITDA
-  - bei Personalkosten-Gegenueberstellung keine uebernommene BWA-Ampellogik erzwingen, sondern neutral/kennzahlenorientiert ausweisen
+  - im PMR-BWA-Ueberblick Status nur auf Steuerungs-/Gesamtzeilen, nicht auf jeder Detailkontozeile
+  - relevante PMR-Statuszeilen: Summe Umsatz, Gesamtleistung abzueglich Fremdlabor/Material, Praxisleistung abzueglich operative Kosten, Operative Praxiskosten bis EBITDA, EBITDA
+  - bei Personalkosten-Gegenueberstellung keine uebernommene BWA-Statuslogik erzwingen, sondern neutral/kennzahlenorientiert ausweisen
+  - Statt `Handlungsbedarf` konkrete Abweichung nennen, z. B. `erhoeht ggü. Vorjahr`, `unter VJ`, `unter Ziel`.
 - PMR-Personalkostentabelle ist fuer Standortleiter gedacht: keine technischen Spalten wie Datenstatus anzeigen.
 - Fehlende Vorjahreswerte in PMR-BWA oder Quoten/Kennzahlen leer lassen, nicht als 0 anzeigen.
 
@@ -898,7 +1016,7 @@ Admin-Bereich:
 - Letzter Login je Nutzer anzeigen.
 - Fester Admin nicht loeschbar.
 - Nutzer koennen komplett geloescht werden, nicht nur deaktiviert.
-- KPI-Regeln / Ampellogik administrierbar.
+- KPI-Regeln / Statuslogik administrierbar.
 - Praxisoeffnungszeiten je Standort editierbar.
 - Behandlungszimmer optional editierbar, auch wenn aktuell statisch hinterlegt.
 - KPI-Regel-Eingabefelder muessen hohen Kontrast haben; Schrift in editierbaren Kacheln darf nicht im dunklen Hintergrund untergehen.
@@ -935,50 +1053,47 @@ Sicherheitsanforderungen:
 - Keine sensiblen Daten in Console Logs.
 - Dateien/Uploads nur autorisiert.
 
-## 26. Bekannte offene oder zuletzt gemeldete Punkte
+## 26. Bekannte offene oder sensible Pruefpunkte
 
-Diese Punkte waren zuletzt noch offen bzw. sollten geprueft werden:
+Diese Punkte sind nicht zwingend offen, aber bei zukuenftigen Aenderungen besonders zu beachten:
 
-1. `Unsupported content type`
-   - Trat als Hinweis bei manchen Aktionen auf.
-   - Lokaler Build war sauber.
-   - Text wurde nicht direkt im Code gefunden.
-   - Wahrscheinlich API-/Request-/Upload-Response-Thema.
+1. CFO-/Personal-Import nach Parser-Aenderungen
+   - Importlogik-Aenderungen werden erst sichtbar, wenn der CFO- bzw. Personal-Upload neu bestaetigt wurde.
+   - Nach Importlogik-Aenderungen immer neuen Import oder Hinweis an Nutzer einplanen.
 
-2. Bankbewegungstabelle nach neuem Essen-Patienten-Import
-   - Nach letztem Import zeigte Cashflow/Bankbewegungen keine Werte.
-   - Filter waren vorhanden, Tabelle leer.
-   - Muss geprueft werden, ob neuer Importparser durch neuen Tab `Essen_Patienten_Export` Bankbewegungen nicht mehr findet.
+2. Ulmet PVS
+   - Ulmet darf in PVS-/Performance-Ansichten nicht leer bleiben, wenn Werte im Export vorhanden sind.
+   - Fallback fuer fehlende direkte PVS-Gesamtzeile: `IST Cash geflossen PVS + Noch nicht geflossen` bzw. `Noch ausstehend vs. Bank`.
 
-3. Benchmarking Top-Kachel
-   - Erledigt: Zusammenfassung zeigt den jeweiligen Standort dynamisch.
-   - Weiterhin bei neuen Aenderungen pruefen, dass keine statischen Labels zurueckkommen.
+3. Kirchberg Behandler-Deduplizierung
+   - Doppelte Behandlerbezeichnungen duerfen nicht blind addiert werden.
+   - Alias derselben Person vs. echte Zusatzumsatzzeile fachlich unterscheiden.
 
-4. Info-Popovers
-   - Manche Popovers sind auf Mobile/Desktop verdeckt oder schlecht lesbar.
-   - Brauchen robustes Modal/Overlay mit hohem z-index und gutem Kontrast.
+4. PMR-PDF
+   - Immer mit echter Druck-/PDF-Vorschau pruefen.
+   - Seite 1 PMR und Seite 2 Benchmarking muessen je sauber auf eine Seite passen.
+   - Keine grossen Leerflaechen, keine horizontal verschobenen Inhalte.
 
 5. Zeitraumfilter
-   - Alle Zeitraumfilter sollen standardmaessig auf `YTD 2026` bzw. neuesten sinnvollen YTD-Zeitraum stehen.
-   - Nicht automatisch auf 2033 springen.
+   - Zeitraumfilter sollen auf neuesten sinnvollen Zeitraum/YTD zeigen.
+   - Keine Future-Leerjahre wie 2033 als Default.
+   - Fehlende Monate leer lassen, nicht als 0 werten.
 
-6. Benchmarking Behandlungszimmer
-   - Erledigt/vorbereitet: statische Behandlungszimmer werden in Benchmarking-Kennzahlen verwendet, falls kein Importwert vorhanden ist.
+6. Statussprache
+   - Keine Rueckkehr zu `Handlungsbedarf`.
+   - Sichtbar `Stabil`, `Beobachten`, `Auffaellig`, oder konkrete Trend-/Abweichungsformulierung.
 
-7. Benchmarking Patientendaten
-   - Patientendaten sind im Benchmarking eingebunden, soweit Importdaten vorhanden sind.
-   - Wenn Live-Werte fehlen: neuen CFO-Import bestaetigen und Parser-/Sheet-Mapping pruefen.
+7. Personal-/Behandlerkosten
+   - `MVZ` und `Unbekannt` in Personalkosten-/Behandlerkostenansichten nicht anzeigen und nicht mitzaehlen.
+   - Inaktive Mitarbeiter mit Austrittsdatum/Hinweis ausweisen, wenn sie historisch relevant sind.
 
-8. Cashflow-Tab
-   - Soll kompakter werden: eine Tabelle mit Standort- und Zeitraumfilter, statt viele Standortbloecke.
+8. Datenschutz
+   - Praxismanagement-Rolle darf keine Gehalts-/AG-Kosten sehen.
+   - Personalproduktivitaet nutzt aggregierte BWA-Personalkosten und FTE, keine offengelegten Gehaltsdetails.
 
-9. Reports
-   - PMR-Report ist dynamisch angelegt und UI bereinigt.
-   - Noch fachlich/visuell anhand echter Ausdrucke testen.
-   - Bankenreport und Standortreport sind in der Report-Uebersicht vorerst ausgeblendet.
-
-10. Nutzeranlage
-   - Ziel ist Login-Name + Erstpasswort, nicht E-Mail-Einladungslink.
+9. Nutzeranlage
+   - Ziel bleibt Login-Name + Erstpasswort, nicht E-Mail-Einladungslink.
+   - Supabase Service Role muss in Vercel gesetzt sein.
 
 ## 27. Fachliche Grundsaetze fuer zukuenftige Arbeit
 
@@ -999,6 +1114,10 @@ Diese Punkte waren zuletzt noch offen bzw. sollten geprueft werden:
 - EBITDA ist Kennzahl, keine Kostenposition.
 - Honorarumsatz gehoert nicht in BWA.
 - BWA, PVS, Behandlerumsatz, Bank-Cashflow und Personal sind fachlich unterschiedliche Datenwelten und muessen klar beschriftet bleiben.
+- Statussignale sind Steuerungsindikatoren, keine Werturteile:
+  - Sichtbar weich und konkret formulieren.
+  - `Handlungsbedarf` vermeiden.
+  - Wenn moeglich Abweichungsrichtung nennen: `erhoeht ggü. Vorjahr`, `unter Soll`, `ueber Vergleich`, `unter Vergleich`.
 
 ## 28. Aktueller Arbeitsstand 24.06.2026
 
@@ -1013,6 +1132,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Es gibt bekannte bestehende Warnungen zu ungenutzten Variablen und `<img>`, aber keine Build-Fehler.
   - Der alte Next-Lint-Befehl ist nicht mehr zeitgemaess; perspektivisch ESLint-CLI modernisieren.
 - CFO-Upload:
+  - CFO-Upload enthaelt eigenen Datenqualitaets-/Plausibilitaetsbereich.
+  - Personal-Upload enthaelt eigenen Datenqualitaets-/Plausibilitaetsbereich.
   - Nach Bestaetigung eines CFO- oder Personalimports soll ein klares Popup/Feedback erscheinen, damit sichtbar ist, dass der Importbericht eingelesen/bestaetigt wurde.
   - Importlogik-Aenderungen wirken erst nach erneutem Import auf persistierte Importdaten.
 - PVS / Ulmet:
@@ -1031,6 +1152,22 @@ Zuletzt umgesetzte / festgelegte Punkte:
 - Admin / KPI-Regeln:
   - Eingabefelder in dunklen Tabellen/Kacheln muessen helle, gut lesbare Schrift haben.
   - Das betrifft besonders Oeffnungszeiten/KPI-Regelwerte auf Mobile mit Tastatur.
+  - Status-Schwellenwerte steuern Cockpit, Standortdetails, Bankenreporting und Board-Pack.
+- Statusueberarbeitung:
+  - Sichtbare Statuslabels: `Stabil`, `Beobachten`, `Auffaellig`.
+  - `Handlungsbedarf` wurde aus sichtbaren App-/Reporttexten entfernt.
+  - Frueheres farbliches Center wurde zu `Status-Center`.
+  - `Kritische Standorte` wurde sichtbar zu `Fokus-Standorte`.
+  - PMR-/Benchmarking-Reports sprechen von `Status` bzw. `Statusfarben`.
+- Cashflow:
+  - Tab Cashflow enthaelt einen Abweichungsmonitor Bank vs. BWA.
+  - Vergleich immer je Standort ueber gesamte Vertragsperiode.
+  - Einnahmenseite: Bankeinnahmen gegen BWA-Umsatz.
+  - Kostenseite: Praxisausgaben Bank gegen operative BWA-Kosten plus Investitionen.
+  - Tilgung, Zins und Intercompany werden bewusst nicht einbezogen.
+  - Fixe interne Bereinigung:
+    - Ulmet: 100.000 EUR von Bankeingaengen abziehen.
+    - Kirchberg: 100.000 EUR aus Praxisausgaben herausrechnen.
 - Bankenreporting:
   - Tab soll aus Bank-/Kreditgeberperspektive aufgebaut sein, analytischer als reine Datenablage.
   - KPI-Kacheln muessen im normalen App-Kachelstil bleiben, nicht als grosse flache Tabellenzellen.
@@ -1038,6 +1175,24 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Jede KPI-Kachel muss den betrachteten Zeitraum klar sichtbar ausweisen.
   - In Diagrammen `Gesamtleistung und EBITDA-Entwicklung` soll zusaetzlich `Soll-EBITDA gemaess Kaufvertrag` visualisiert werden.
   - Bankgeldbewegungen: Monate ohne Werte leer lassen, nicht mit 0 fuellen.
+- Orisus Performance:
+  - KPI-Kacheln oben im einheitlichen Kachelstil mit Info-Buttons/Herleitungen.
+  - Diagramm `Operative Entwicklung` hat Zeitraumfilter.
+  - Zusaetzliche Soll-EBITDA-Linie gemaess Uebernahme.
+  - Bankbewegungen unten reagieren auf Zeitraumwahl.
+- Kennzahlen / Entwicklung:
+  - Mittlere Standort-Performance-Tabelle hat Zeitraumwahl.
+- Standortdetails:
+  - KPI-Kacheln sollen Info-Buttons mit Herleitung und Datenquelle haben.
+  - Diagramm `Entwicklung ueber Zeit` hat Zeitraumfilter und erklaert BWA-Gesamtleistung, BWA-EBITDA und Cashflow gem. BWA.
+  - Personalkostentabelle blendet `MVZ` und `Unbekannt` aus.
+  - Inaktive Mitarbeiter sollen mit Hinweis/Austrittsdatum sichtbar sein.
+- Performance & Benchmarking:
+  - Fruehwarnsystem als eigenes Tab.
+  - Standort-Scorecard im Benchmarking-Bereich.
+  - Personalproduktivitaet als eigenes Tab.
+  - Personalproduktivitaet vergleicht je Standort Gesamtleistung, PVS, EBITDA und BWA-Personalkosten je FTE/Zahnarzt-FTE.
+  - Keine Gehaltsdetails in Personalproduktivitaet; nur aggregierte BWA-Personalkosten und FTE.
 - Investor Boardpack:
   - `Akquisition und Integration seit Vertragsstart` bleibt.
   - Board-KPI-Entwicklung/Spike-Diagramm bleibt und braucht Zeitraumfilter.
@@ -1055,8 +1210,12 @@ Zuletzt umgesetzte / festgelegte Punkte:
     - `indikativ Earn-Out aktuell`
     - `indikativ Wachstumszahlung`
     - `indikativ gesamt erwartet`
+  - Sonderfall Ulmet: Earn-Out-/Wachstumszahlung nur zeigen, wenn tatsaechlich etwas verdient ist.
   - Top-10-Krankheitstage sollen im PMR zur Nutzung freier Flaechen aufgenommen werden.
   - Personalkosten je Behandler im PMR immer seit Vertragsbeginn / gesamte Vertragsperiode.
+  - `MVZ` und `Unbekannt` im PMR nicht anzeigen und nicht mitzaehlen.
+  - Monatliche Entwicklung: noch nicht vorliegende Monate leer lassen, nicht 0.
+  - Speichername automatisch nach Muster `PMR Report <Standort> <Zeitraum>`.
 - Benchmarking im PMR:
   - Ausgewaehlter Standort darf im Klartext stehen.
   - Vergleichsstandorte anonymisieren als Peer-Auszug.
