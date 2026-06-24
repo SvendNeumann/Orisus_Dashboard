@@ -14272,6 +14272,201 @@ function UploadSuccessDialog({
   );
 }
 
+type UploadQualityTone = "green" | "yellow" | "red" | "neutral";
+
+type UploadQualityCheck = {
+  label: string;
+  ok: boolean;
+  detail: string;
+};
+
+type UploadQualitySiteRow = {
+  siteName: string;
+  tone: UploadQualityTone;
+  label: string;
+  checks: UploadQualityCheck[];
+};
+
+function hasAnyImportedValue(values?: Record<string, number>) {
+  return Boolean(values && Object.values(values).some((value) => Number.isFinite(value) && Math.abs(value) > 0));
+}
+
+function hasAnyImportedFlag(flags?: Record<string, boolean>) {
+  return Boolean(flags && Object.values(flags).some(Boolean));
+}
+
+function uploadQualityToneLabel(tone: UploadQualityTone) {
+  if (tone === "green") return "Belastbar";
+  if (tone === "yellow") return "Teilweise";
+  if (tone === "red") return "Prüfen";
+  return "Offen";
+}
+
+function uploadQualityToneClass(tone: UploadQualityTone) {
+  if (tone === "green") return "bg-emerald-50 text-emerald-800";
+  if (tone === "yellow") return "bg-amber-50 text-amber-800";
+  if (tone === "red") return "bg-red-50 text-red-800";
+  return "bg-slate-100 text-slate-700";
+}
+
+function buildCfoUploadQualityRows(importedData?: ImportedDashboardData | null): UploadQualitySiteRow[] {
+  if (!importedData) return [];
+  const siteNames = sortSitesByContractStart(
+    importedData.report.standorte
+      .map((siteName) => standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? { ...standorte[0], id: siteIdForName(siteName), name: siteName })
+  ).map((site) => site.name);
+
+  return siteNames.map((siteName) => {
+    const siteId = siteIdForName(siteName);
+    const bwaSiteRows = importedData.bwaRows.filter((row) => row.siteId === siteId);
+    const pvsSiteRows = importedData.pvsRevenueRows?.filter((row) => row.siteId === siteId) ?? [];
+    const bankSiteRows = importedData.bankMovementRows?.filter((row) => row.siteId === siteId) ?? [];
+    const behandlerRows = importedData.behandlerDetailRows?.filter((row) => row.siteId === siteId) ?? [];
+    const personnelRows = importedData.personnelCostRows?.filter((row) => row.siteId === siteId) ?? [];
+    const patientRows = importedData.patientRows?.filter((row) => row.siteId === siteId) ?? [];
+    const hasBwa = bwaSiteRows.some((row) =>
+      ["summe_umsatz", "gesamtleistung", "ebitda"].includes(row.metricKey) &&
+      (hasAnyImportedFlag(row.hasValueByMonth) || Math.abs(row.contractValue) > 0)
+    );
+    const hasPvs = pvsSiteRows.some((row) => hasAnyImportedValue(row.valuesByMonth) || Math.abs(row.contractValue) > 0);
+    const hasBank = bankSiteRows.some((row) => hasAnyImportedFlag(row.hasValueByMonth) || Math.abs(row.contractValue || row.total) > 0);
+    const hasBehandler = behandlerRows.some((row) => hasAnyImportedValue(row.honorarByMonth) || hasAnyImportedValue(row.eigenlaborByMonth) || hasAnyImportedValue(row.totalByMonth));
+    const hasPersonnelCosts = personnelRows.some((row) => row.personnelCost > 0 || row.honorar > 0 || hasAnyImportedValue(row.personnelCostByMonth));
+    const hasPatients = patientRows.some((row) => hasAnyImportedValue(row.valuesByMonth) || Math.abs(row.contractValue) > 0);
+    const checks: UploadQualityCheck[] = [
+      { label: "BWA", ok: hasBwa, detail: hasBwa ? "BWA-Monats-/Vertragswerte vorhanden" : "Keine BWA-Basiswerte erkannt" },
+      { label: "PVS", ok: hasPvs, detail: hasPvs ? "PVS-Umsatzwerte vorhanden" : "Keine PVS-Umsatzwerte erkannt" },
+      { label: "Bank", ok: hasBank, detail: hasBank ? "Bankbewegungen vorhanden" : "Keine Bankbewegungen erkannt" },
+      { label: "Behandler", ok: hasBehandler, detail: hasBehandler ? "Behandlerumsätze vorhanden" : "Keine Behandlerumsätze erkannt" },
+      { label: "Personal-Kosten", ok: hasPersonnelCosts, detail: hasPersonnelCosts ? "Personalkosten-/Honorarzeilen vorhanden" : "Keine Personalkosten je Behandler erkannt" },
+      { label: "Patienten", ok: hasPatients, detail: hasPatients ? "Patienten-/Terminwerte vorhanden" : "Keine Patienten-/Terminwerte erkannt" }
+    ];
+    const okCount = checks.filter((check) => check.ok).length;
+    const tone: UploadQualityTone = !hasBwa ? "red" : okCount >= 5 ? "green" : okCount >= 3 ? "yellow" : "red";
+    return {
+      siteName,
+      tone,
+      label: uploadQualityToneLabel(tone),
+      checks
+    };
+  });
+}
+
+function buildPersonalUploadQualityRows(personalData?: PersonalDashboardData | null): UploadQualitySiteRow[] {
+  if (!personalData) return [];
+  const siteNames = uniqueSortedText([
+    ...personalData.settings.sites,
+    ...personalData.employees.map((employee) => employee.site),
+    ...personalData.sicknessEntries.map((entry) => entry.site),
+    ...personalData.salaryEntries.map((entry) => entry.site),
+    ...personalData.actionEntries.map((entry) => entry.site)
+  ]);
+
+  return siteNames.map((siteName) => {
+    const employees = personalData.employees.filter((employee) => employee.site === siteName);
+    const activeEmployees = employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
+    const sicknessRows = personalData.sicknessEntries.filter((entry) => entry.site === siteName);
+    const salaryRows = personalData.salaryEntries.filter((entry) => entry.site === siteName);
+    const actionRows = personalData.actionEntries.filter((entry) => entry.site === siteName);
+    const hasEmployees = employees.length > 0;
+    const hasActiveEmployees = activeEmployees.length > 0;
+    const checks: UploadQualityCheck[] = [
+      { label: "Stamm", ok: hasEmployees, detail: hasEmployees ? `${employees.length} Mitarbeiter im Stamm` : "Kein Mitarbeiterstamm erkannt" },
+      { label: "Aktive", ok: hasActiveEmployees, detail: hasActiveEmployees ? `${activeEmployees.length} aktive Mitarbeiter` : "Keine aktiven Mitarbeiter erkannt" },
+      { label: "Krankheit", ok: sicknessRows.length > 0, detail: sicknessRows.length ? `${sicknessRows.length} Krankheitseinträge` : "Keine Krankheitseinträge erkannt" },
+      { label: "Gehalt", ok: salaryRows.length > 0, detail: salaryRows.length ? `${salaryRows.length} Gehalts-/Kostenänderungen` : "Keine Gehaltsänderungen erkannt" },
+      { label: "Maßnahmen", ok: actionRows.length > 0, detail: actionRows.length ? `${actionRows.length} Personalmaßnahmen` : "Keine Personalmaßnahmen erkannt" }
+    ];
+    const okCount = checks.filter((check) => check.ok).length;
+    const tone: UploadQualityTone = !hasEmployees || !hasActiveEmployees ? "red" : okCount >= 4 ? "green" : okCount >= 2 ? "yellow" : "red";
+    return {
+      siteName,
+      tone,
+      label: uploadQualityToneLabel(tone),
+      checks
+    };
+  });
+}
+
+function UploadDataQualityCard({
+  title,
+  text,
+  rows,
+  emptyText
+}: {
+  title: string;
+  text: string;
+  rows: UploadQualitySiteRow[];
+  emptyText: string;
+}) {
+  const totals = rows.reduce(
+    (sum, row) => ({
+      green: sum.green + (row.tone === "green" ? 1 : 0),
+      yellow: sum.yellow + (row.tone === "yellow" ? 1 : 0),
+      red: sum.red + (row.tone === "red" ? 1 : 0)
+    }),
+    { green: 0, yellow: 0, red: 0 }
+  );
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="table-head flex flex-col gap-3 p-4 text-white lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-xl font-bold">{title}</h2>
+          <p className="mt-1 text-sm text-white/75">{text}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs font-bold">
+          <span className="rounded-full bg-white/15 px-3 py-1">{totals.green} belastbar</span>
+          <span className="rounded-full bg-white/15 px-3 py-1">{totals.yellow} teilweise</span>
+          <span className="rounded-full bg-white/15 px-3 py-1">{totals.red} prüfen</span>
+        </div>
+      </div>
+      {rows.length ? (
+        <div className="overflow-x-auto">
+          <table className="data-table border-separate border-spacing-0 text-xs">
+            <thead>
+              <tr>
+                <th className="border-b border-r border-border table-head p-2 text-left font-bold text-white">Standort</th>
+                <th className="border-b border-r border-border table-head p-2 text-center font-bold text-white">Status</th>
+                {rows[0].checks.map((check) => (
+                  <th key={check.label} className="border-b border-r border-border table-head p-2 text-center font-bold text-white">
+                    {check.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.siteName}>
+                  <td className="border-b border-r border-border bg-white p-3 font-bold">{row.siteName}</td>
+                  <td className="border-b border-r border-border bg-white p-3 text-center">
+                    <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-extrabold", uploadQualityToneClass(row.tone))}>
+                      {row.label}
+                    </span>
+                  </td>
+                  {row.checks.map((check) => (
+                    <td key={check.label} className="border-b border-r border-border bg-white p-2 align-top">
+                      <div className={cn("rounded-md p-2 font-semibold", check.ok ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600")}>
+                        <div className="flex items-center justify-center gap-1">
+                          {check.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                          <span>{check.ok ? "vorhanden" : "offen"}</span>
+                        </div>
+                        <p className="mt-1 text-center text-[11px] leading-4 opacity-80">{check.detail}</p>
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="p-4 text-sm font-semibold text-muted-foreground">{emptyText}</div>
+      )}
+    </Card>
+  );
+}
+
 function PersonalUpload({
   userRole,
   onImportConfirmed,
@@ -14388,6 +14583,7 @@ function PersonalUpload({
     { label: "Änderungen erkennen", done: Boolean(activeReport && activeReport.status !== "error") },
     { label: "Personal-Import freigeben", done: Boolean(confirmedReport) }
   ];
+  const qualityRows = buildPersonalUploadQualityRows(pendingDashboardData ?? previousData);
 
   return (
     <section className="space-y-5">
@@ -14404,6 +14600,12 @@ function PersonalUpload({
         <Mini label="Letzte bestätigte Datei" value={confirmedReport?.fileName ?? "Noch keine Datei bestätigt"} />
         <Mini label="Datenstand" value={confirmedReport?.importedAt ? new Date(confirmedReport.importedAt).toLocaleString("de-DE") : "Noch offen"} />
       </Card>
+      <UploadDataQualityCard
+        title="Datenqualität Personal-Import"
+        text="Sichtprüfung je Standort: Mitarbeiterstamm, aktive Mitarbeiter, Krankheit, Gehaltsänderungen und Personalmaßnahmen."
+        rows={qualityRows}
+        emptyText="Noch keine Personal-Datenbasis geladen. Nach Upload oder bestätigtem Personal-Import erscheint hier die Standortprüfung."
+      />
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="p-4">
           <h2 className="font-bold">Uploadablauf</h2>
@@ -14501,6 +14703,7 @@ function Uploads({
   const [report, setReport] = useState<ImportReport>(emptyImportReport);
   const [confirmedReport, setConfirmedReport] = useState<ImportReport | null>(null);
   const [pendingDashboardData, setPendingDashboardData] = useState<ImportedDashboardData | null>(null);
+  const [confirmedDashboardData, setConfirmedDashboardData] = useState<ImportedDashboardData | null>(null);
   const [importHistory, setImportHistory] = useState<ImportHistoryEntry[]>([]);
   const [isConfirming, setIsConfirming] = useState(false);
   const [successNotice, setSuccessNotice] = useState<{ title: string; text: string } | null>(null);
@@ -14514,10 +14717,16 @@ function Uploads({
     let isMounted = true;
     loadConfirmedImportData()
       .then((savedImport) => {
-        if (isMounted && savedImport) setConfirmedReport(savedImport.report);
+        if (isMounted && savedImport) {
+          setConfirmedReport(savedImport.report);
+          setConfirmedDashboardData(savedImport);
+        }
       })
       .catch(() => {
-        if (isMounted) setConfirmedReport(null);
+        if (isMounted) {
+          setConfirmedReport(null);
+          setConfirmedDashboardData(null);
+        }
       });
     return () => {
       isMounted = false;
@@ -14571,6 +14780,7 @@ function Uploads({
     try {
       await saveConfirmedImport(report, repairedDashboardData);
       setConfirmedReport(report);
+      setConfirmedDashboardData(repairedDashboardData);
       refreshImportHistory();
       onImportConfirmed?.(repairedDashboardData);
       setSuccessNotice({
@@ -14588,6 +14798,7 @@ function Uploads({
     setReport(emptyImportReport);
     setConfirmedReport(null);
     setPendingDashboardData(null);
+    setConfirmedDashboardData(null);
     refreshImportHistory();
     onImportReset?.();
   }
@@ -14613,6 +14824,8 @@ function Uploads({
     { label: "Standorte, Jahre und Monate prüfen", done: Boolean(activeReport?.standorte.length && activeReport?.jahre.length) },
     { label: "Importbericht freigeben", done: Boolean(confirmedReport) }
   ];
+  const activeDashboardData = pendingDashboardData ?? confirmedDashboardData;
+  const qualityRows = buildCfoUploadQualityRows(activeDashboardData);
 
   return (
     <section className="space-y-5">
@@ -14629,7 +14842,7 @@ function Uploads({
           Info-Rolle: Du kannst Importstatus und Historie lesen, aber keine Dateien hochladen, bestätigen oder zurücksetzen.
         </Card>
       )}
-      <DataStatusStrip />
+      <DataStatusStrip importedData={activeDashboardData} />
       <Card className="grid gap-3 p-4 md:grid-cols-3">
         <Mini label="Aktueller Importstatus" value={statusLabel} />
         <Mini label="Letzte bestätigte Datei" value={confirmedReport?.fileName ?? "Noch keine Datei bestätigt"} />
@@ -14643,6 +14856,12 @@ function Uploads({
         <Mini label="Supabase-Sitzung" value={currentSupabaseAccessToken() ? "Angemeldet" : "Nicht aktiv"} />
         <Mini label="Import-Historie" value={importHistory.length ? `${importHistory.length} Einträge erkannt` : "Noch keine Historie"} />
       </Card>
+      <UploadDataQualityCard
+        title="Datenqualität CFO-Import"
+        text="Sichtprüfung je Standort: BWA, PVS-Umsatz, Bankbewegungen, Behandlerumsätze, Personalkosten und Patienten-/Termindaten."
+        rows={qualityRows}
+        emptyText="Noch keine CFO-Datenbasis geladen. Nach Upload oder bestätigtem Import erscheint hier die Standortprüfung."
+      />
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="p-4">
           <h2 className="font-bold">Uploadablauf</h2>
