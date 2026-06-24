@@ -175,6 +175,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Cashflow-Tab enthaelt zusaetzlich einen Abweichungsmonitor Bank vs. BWA ueber die gesamte Vertragsperiode je Standort.
 - Performance & Benchmarking enthaelt ein Fruehwarnsystem als eigenes Tab:
   - Oben kompakter Warnradar mit Jahresfilter, Gesamtstatus, Anzahl Auffaellig/Beobachten und Fokus-Standorten.
+  - Standardjahr fuer den Jahresfilter ist 2026, wenn 2026 im bestaetigten Import vorhanden ist.
   - Darunter Fokus nach Standort, Leselogik je Datenwelt und priorisierte Befunde.
   - Detailtabelle bleibt erhalten und nennt Signal, Standort, Zeitraum, Datenwelt, Befund, Quelle und naechsten Schritt.
 - Performance & Benchmarking enthaelt eine Standort-Scorecard als Benchmarking-Block.

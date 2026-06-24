@@ -9342,11 +9342,12 @@ function Fruehwarnsystem({
   importedData: ImportedDashboardData;
 }) {
   const years = importedData.report.jahre.filter((year) => year >= 1900).sort((a, b) => b - a);
-  const [year, setYear] = useState(years[0] ?? new Date().getFullYear());
+  const defaultEarlyWarningYear = years.includes(2026) ? 2026 : years[0] ?? new Date().getFullYear();
+  const [year, setYear] = useState(defaultEarlyWarningYear);
 
   useEffect(() => {
-    if (years.length && !years.includes(year)) setYear(years[0]);
-  }, [year, years]);
+    if (years.length && !years.includes(year)) setYear(defaultEarlyWarningYear);
+  }, [defaultEarlyWarningYear, year, years]);
 
   const activeSites = sortSitesByContractStart(sites).filter((site) => importedData.bwaRows.some((row) => row.siteId === site.id));
   const bwaRow = (siteId: string, metricKey: string) => importedData.bwaRows.find((row) => row.siteId === siteId && row.metricKey === metricKey);
