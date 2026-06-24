@@ -15973,7 +15973,7 @@ function PracticeOpeningHoursSettings() {
                   <td className="border-b border-r border-border bg-white p-3">{site.start}</td>
                   <td className="border-b border-r border-border bg-white p-3 text-right">
                     <Input
-                      className="ml-auto w-32 text-right"
+                      className="kpi-rule-input ml-auto w-32 text-right"
                       type="number"
                       min={0}
                       step={0.5}

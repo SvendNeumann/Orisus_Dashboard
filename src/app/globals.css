@@ -149,18 +149,35 @@ select {
 .app-shell .kpi-rule-input {
   color: #061421 !important;
   -webkit-text-fill-color: #061421 !important;
-  background: #f8feff !important;
+  background-color: #f8feff !important;
+  background-image: none !important;
   border: 1px solid rgba(121, 238, 231, 0.78) !important;
   font-weight: 900;
   letter-spacing: 0;
   box-shadow: 0 0 0 1px rgba(48, 213, 200, 0.14) inset, 0 10px 22px rgba(4, 21, 33, 0.2) !important;
+  opacity: 1 !important;
+  color-scheme: light;
 }
 
 .app-shell .kpi-rule-input:focus {
   color: #061421 !important;
   -webkit-text-fill-color: #061421 !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
   border-color: #30d5c8 !important;
   box-shadow: 0 0 0 4px rgba(48, 213, 200, 0.22), 0 10px 22px rgba(4, 21, 33, 0.2) !important;
+}
+
+.app-shell .kpi-rule-input[type="number"],
+.app-shell .kpi-rule-input[type="text"],
+.app-shell .kpi-rule-input:not([type]) {
+  color: #061421 !important;
+  -webkit-text-fill-color: #061421 !important;
+}
+
+.app-shell .kpi-rule-input::placeholder {
+  color: rgba(6, 20, 33, 0.48) !important;
+  -webkit-text-fill-color: rgba(6, 20, 33, 0.48) !important;
 }
 
 .safe-bottom {
