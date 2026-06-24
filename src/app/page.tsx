@@ -9501,7 +9501,7 @@ function OrisusPerformance({
   const honorarPeriods = periodOptionsFromImportedRows(importedData?.behandlerTotalRows);
   const pvsPeriods = periodOptionsFromImportedRows(importedData?.pvsRevenueRows);
   const bankPeriods = periodOptionsFromBankMovements(importedData?.bankMovementRows);
-  const performancePeriod = defaultPeriodFromOptions(bwaPeriods);
+  const [chartPeriod, setChartPeriod] = useState(() => defaultPeriodFromOptions(bwaPeriods));
   const [operationalPeriod, setOperationalPeriod] = useState(() => defaultPeriodFromOptions(bwaPeriods));
   const [honorarPeriod, setHonorarPeriod] = useState(() => defaultPeriodFromOptions(honorarPeriods));
   const [honorarMonthlyPeriod, setHonorarMonthlyPeriod] = useState(() => defaultPeriodFromOptions(honorarPeriods));
@@ -9509,6 +9509,9 @@ function OrisusPerformance({
   const [pvsMonthlyPeriod, setPvsMonthlyPeriod] = useState(() => defaultPeriodFromOptions(pvsPeriods));
   const [bankPeriod, setBankPeriod] = useState(() => defaultPeriodFromOptions(bankPeriods));
   useEffect(() => {
+    if (!bwaPeriods.includes(chartPeriod)) {
+      setChartPeriod(defaultPeriodFromOptions(bwaPeriods));
+    }
     if (!bwaPeriods.includes(operationalPeriod)) {
       setOperationalPeriod(defaultPeriodFromOptions(bwaPeriods));
     }
@@ -9527,7 +9530,8 @@ function OrisusPerformance({
     if (!bankPeriods.includes(bankPeriod)) {
       setBankPeriod(defaultPeriodFromOptions(bankPeriods));
     }
-  }, [bankPeriod, bankPeriods, bwaPeriods, honorarMonthlyPeriod, honorarPeriod, honorarPeriods, operationalPeriod, pvsMonthlyPeriod, pvsPeriod, pvsPeriods]);
+  }, [bankPeriod, bankPeriods, bwaPeriods, chartPeriod, honorarMonthlyPeriod, honorarPeriod, honorarPeriods, operationalPeriod, pvsMonthlyPeriod, pvsPeriod, pvsPeriods]);
+  const chartData = bwaChartDataForPeriod(importedData, monthlyData, chartPeriod);
   const operationalSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, operationalPeriod)) : sites;
   return (
     <section className="space-y-5">
@@ -9543,18 +9547,40 @@ function OrisusPerformance({
         <Mini label="Offene Forderungen" value={eur(metrics.forderungen)} />
       </div>
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <ChartCard title={`Operative Entwicklung | ${performancePeriod}`} icon={TrendingUp}>
+        <ChartCard
+          title={`Operative Entwicklung | ${performancePeriodLabel(chartPeriod)}`}
+          icon={TrendingUp}
+          action={
+            <Select
+              className="w-full min-w-52 sm:w-auto"
+              value={chartPeriod}
+              onChange={(event) => setChartPeriod(event.target.value)}
+            >
+              {bwaPeriods.map((option) => (
+                <option key={option} value={option}>
+                  {performancePeriodLabel(option)}
+                </option>
+              ))}
+            </Select>
+          }
+        >
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={monthlyData}>
+            <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
               <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
+              <Line dataKey="zielEbitdaUebernahme" name="Soll-EBITDA gem. Übernahme" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={3} dot={false} />
               <Line dataKey="cashflow" name="Cashflow gem. BWA" stroke="#64748b" strokeWidth={3} />
             </ComposedChart>
           </ResponsiveContainer>
+          <div className="mt-3 flex flex-wrap gap-4 text-xs font-semibold text-muted-foreground">
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#0369a1]" /> EBITDA Ist</span>
+            <span className="inline-flex items-center gap-1"><span className="h-0.5 w-5 border-t-2 border-dashed border-[#f59e0b]" /> Soll-EBITDA gem. Übernahme</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#64748b]" /> Cashflow gem. BWA</span>
+          </div>
         </ChartCard>
         <ChartCard title="Forderungen nach Standort | aktueller Stand" icon={FileBarChart}>
           <ReceivablesChart sites={sites} />
