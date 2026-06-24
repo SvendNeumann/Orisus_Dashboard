@@ -184,6 +184,8 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Administration:
   - CFO-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
   - Personal-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
+  - Admin / KPI-Regeln enthaelt ein dezentes zentrales Vergleichsregelwerk `Wer darf verglichen werden?`.
+  - Dieses Regelwerk ist technisch zentral im App-Code hinterlegt und soll fuer Benchmarking, Fruehwarnsystem, PMR, Kennzahlen und Standortvergleiche genutzt werden.
 - Statussprache wurde vereinheitlicht:
   - Sichtbare Labels: `Stabil`, `Beobachten`, `Auffaellig`.
   - `Handlungsbedarf` soll nicht mehr verwendet werden.
@@ -1167,6 +1169,13 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Eingabefelder in dunklen Tabellen/Kacheln muessen helle, gut lesbare Schrift haben.
   - Das betrifft besonders Oeffnungszeiten/KPI-Regelwerte auf Mobile mit Tastatur.
   - Status-Schwellenwerte steuern Cockpit, Standortdetails, Bankenreporting und Board-Pack.
+  - Zentrales Vergleichsregelwerk sichtbar halten:
+    - Vertragsstart beachten.
+    - gleiche Datenwelt vergleichen.
+    - Peer-Vergleich als `Ø Orisus ohne Standort`.
+    - `Gesamte Periode` je Standort seit Vertragsstart.
+    - Vorjahre nur innerhalb der Vertragsperiode.
+    - fehlende Werte nicht als 0 behandeln.
 - Rollen-/Sicherheitspruefung:
   - Admin-Bereich enthaelt einen kompakten Rollen- und Sicherheitscheck.
   - Admin-API prueft aktive Admin-Rolle serverseitig, nutzt Service Role nur serverseitig und hat Same-Origin-/Rate-Limit-Schutz.
@@ -1206,6 +1215,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Unter der monatlichen EBITDA-Uebersicht gibt es eine kompakte `EBITDA-Abweichungsanalyse nach Ursache`.
   - Diese Analyse ueberlagert keine Charts, sondern zeigt je Standort in einer Tabelle die EBITDA-Abweichung zum Ziel-EBITDA und den wichtigsten Treiber.
   - Ursachenlogik: Kostenquote des Standorts minus `Ø Orisus ohne Standort` mal Gesamtleistung des Standorts. Datenbasis sind BWA-Umsatz, EBITDA, Ziel-EBITDA, Material, Fremdlabor, Personal und Sachkosten.
+  - Die `!`-Erklaerung nutzt das zentrale Vergleichsregelwerk.
 - Standortdetails:
   - KPI-Kacheln sollen Info-Buttons mit Herleitung und Datenquelle haben.
   - Diagramm `Entwicklung ueber Zeit` hat Zeitraumfilter und erklaert BWA-Gesamtleistung, BWA-EBITDA und Cashflow gem. BWA.
@@ -1248,6 +1258,10 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Ø-Orisus-/Vergleichswerte im PMR-Benchmarking muessen den ausgewaehlten Standort ausschliessen.
   - Nicht offenlegen, wie viele Standorte die Gruppe insgesamt hat.
   - Seite 2 muss komprimiert und druckfaehig sein.
+- Vergleichsregelwerk:
+  - Die App fuehrt eine zentrale Regeldefinition fuer `Wer darf verglichen werden?`.
+  - Sichtbar dezent im Admin-Bereich und erklaerbar per `!` in Auswertungen.
+  - Fachliche Regeln: Vertragsstart, Datenwelt, Peer ohne Zielstandort, gesamte Vertragsperiode je Standort, Vorjahr nur innerhalb Vertragsperiode, fehlende Werte nicht als 0.
 
 Aktuell besonders sensible Pruefpunkte:
 

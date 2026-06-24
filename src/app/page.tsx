@@ -6133,6 +6133,27 @@ function InfoDialog({ title, children, onClose }: { title: string; children: Rea
   );
 }
 
+function InlineInfoButton({ title, children, label = "Regel erklären" }: { title: string; children: React.ReactNode; label?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={label}
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-xs font-extrabold text-muted-foreground transition hover:border-primary hover:text-primary"
+        onClick={() => setOpen(true)}
+      >
+        !
+      </button>
+      {open ? (
+        <InfoDialog title={title} onClose={() => setOpen(false)}>
+          {children}
+        </InfoDialog>
+      ) : null}
+    </>
+  );
+}
+
 function InfoLine({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
   return (
     <div className={cn("flex items-start justify-between gap-3", strong && "font-bold text-slate-950")}>
@@ -6164,6 +6185,72 @@ function siteStatusLabel(site: DashboardSite) {
   if (site.status === "red" && site.cashflow < 0) return "Auffällig: Cashflow gem. BWA negativ";
   if (site.status === "red" && site.ebitdaMarge < 8) return "Auffällig: Marge niedrig";
   return statusMap[site.status].label;
+}
+
+const benchmarkComparisonLabel = "Ø Orisus ohne Standort";
+
+const comparisonRulebook = [
+  {
+    label: "Vertragsstart",
+    text: "Ein Standort wird erst ab seinem Vertragsstart verglichen. Monate davor bleiben leer und werden nie als 0 oder Vorjahr gewertet."
+  },
+  {
+    label: "Gleiche Datenwelt",
+    text: "BWA wird mit BWA verglichen, PVS mit PVS, Bank mit Bank/BWA-Abgleich und Personal nur mit Personal/FTE-Basis."
+  },
+  {
+    label: "Peer-Vergleich",
+    text: "Bei Standort-Benchmarks ist die Vergleichsbasis immer der Durchschnitt der anderen Orisus-Standorte ohne den ausgewerteten Standort."
+  },
+  {
+    label: "Gesamte Periode",
+    text: "Gesamte Periode bedeutet je Standort seit jeweiligem Vertragsstart. Das ist besonders bei KZV-/PVS-Zahlungsversatz wichtig."
+  },
+  {
+    label: "Vorjahr",
+    text: "Vorjahreswerte werden nur gezeigt, wenn der Vergleichsmonat innerhalb der Vertragsperiode des Standorts liegt."
+  },
+  {
+    label: "Fehlende Werte",
+    text: "Fehlende Importdaten bleiben leer oder n. v.; sie werden nicht künstlich mit 0 in Status- oder Vergleichslogiken gedrückt."
+  }
+];
+
+function peerRowsWithoutSelected<T extends { site: { id: string } }>(rows: T[], selectedSiteId: string | undefined) {
+  const peers = selectedSiteId ? rows.filter((row) => row.site.id !== selectedSiteId) : rows;
+  return peers.length ? peers : rows;
+}
+
+function averageComparableValues<T>(rows: T[], selector: (row: T) => number | null | undefined) {
+  const values = rows
+    .map(selector)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+function ComparisonRuleInfoContent({ context = "Auswertung" }: { context?: string }) {
+  return (
+    <div className="space-y-3">
+      <p className="font-bold text-slate-900">Zentrales Regelwerk: Wer darf verglichen werden?</p>
+      <p>
+        Diese Regeln gelten zentral für {context}. Ziel ist, dass Vergleiche nicht verzerren, wenn Standorte unterjährig starten,
+        Datenwelten zeitlich unterschiedlich vorliegen oder ein Standort Teil seines eigenen Durchschnitts wäre.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {comparisonRulebook.map((rule) => (
+          <div key={rule.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="font-semibold text-slate-950">{rule.label}</p>
+            <p className="mt-1 text-sm leading-5 text-slate-700">{rule.text}</p>
+          </div>
+        ))}
+      </div>
+      <InfoTextLine label="Benchmark-Standard" value={benchmarkComparisonLabel} strong />
+      <p className="text-slate-600">
+        Spezialfälle wie Cashflow-Bereinigungen oder PMR-Ausnahmen bleiben fachlich separat dokumentiert, müssen aber ebenfalls diese
+        Vergleichsregeln respektieren.
+      </p>
+    </div>
+  );
 }
 
 function ChartCard({
@@ -9317,7 +9404,6 @@ function EbitdaCauseAnalysis({
   importedData?: ImportedDashboardData | null;
   period: string;
 }) {
-  const [infoOpen, setInfoOpen] = useState(false);
   const metricValue = (siteId: string, metricKey: string) =>
     importedData?.bwaRows?.length
       ? importedBwaMetricValue(importedData.bwaRows, siteId, metricKey, period)
@@ -9360,11 +9446,7 @@ function EbitdaCauseAnalysis({
     .filter((row) => row.revenue || row.ebitda || row.target);
 
   const peerAverage = (siteId: string, selector: (row: (typeof rowsBase)[number]) => number) => {
-    const peers = rowsBase.filter((row) => row.site.id !== siteId);
-    const values = (peers.length ? peers : rowsBase)
-      .map(selector)
-      .filter((value) => Number.isFinite(value));
-    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+    return averageComparableValues(peerRowsWithoutSelected(rowsBase, siteId), selector) ?? 0;
   };
 
   const rows = rowsBase.map((row) => {
@@ -9395,14 +9477,20 @@ function EbitdaCauseAnalysis({
         <div>
           <div className="flex items-center gap-2">
             <h2 className="font-bold">EBITDA-Abweichungsanalyse nach Ursache | {performancePeriodLabel(period)}</h2>
-            <button
-              type="button"
-              aria-label="EBITDA-Abweichungsanalyse erklären"
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-xs font-extrabold text-muted-foreground transition hover:border-primary hover:text-primary"
-              onClick={() => setInfoOpen(true)}
-            >
-              !
-            </button>
+            <InlineInfoButton title="EBITDA-Abweichungsanalyse nach Ursache" label="EBITDA-Abweichungsanalyse erklären">
+              <p>
+                Die Analyse überlagert keine Charts. Sie nimmt die vorhandenen BWA-Werte des gewählten Zeitraums und vergleicht je Standort die
+                Kostenquoten mit dem Ø Orisus der anderen Standorte.
+              </p>
+              <InfoTextLine label="Zielvergleich" value="Ist-EBITDA minus Ziel-EBITDA gem. Übernahme, falls vorhanden; sonst Kaufvertrag/Zielwert." />
+              <InfoTextLine label="Ursachenlogik" value="Kostenquote Standort minus Ø Orisus ohne Standort × Gesamtleistung des Standorts." />
+              <InfoTextLine label="Datenwelt" value="BWA: Umsatz, EBITDA, Material, Fremdlabor, Personal, Sachkosten und Ziel-EBITDA." />
+              <ComparisonRuleInfoContent context="EBITDA-Abweichungsanalyse" />
+              <p className="text-slate-600">
+                Die Karte ist eine Steuerungsindikation: Sie ersetzt keine Kontenprüfung, zeigt aber schnell, ob die EBITDA-Abweichung eher aus Personal,
+                Material/Fremdlabor, Sachkosten oder einer allgemeinen Margenlücke kommt.
+              </p>
+            </InlineInfoButton>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             Kompakte Einordnung, welcher Kostenblock die EBITDA-Abweichung zum Ziel-EBITDA bzw. zum Ø Orisus am stärksten erklärt.
@@ -9410,21 +9498,6 @@ function EbitdaCauseAnalysis({
         </div>
         <Badge tone="blue">BWA-basiert</Badge>
       </div>
-      {infoOpen ? (
-        <InfoDialog title="EBITDA-Abweichungsanalyse nach Ursache" onClose={() => setInfoOpen(false)}>
-          <p>
-            Die Analyse überlagert keine Charts. Sie nimmt die vorhandenen BWA-Werte des gewählten Zeitraums und vergleicht je Standort die
-            Kostenquoten mit dem Ø Orisus der anderen Standorte.
-          </p>
-          <InfoTextLine label="Zielvergleich" value="Ist-EBITDA minus Ziel-EBITDA gem. Übernahme, falls vorhanden; sonst Kaufvertrag/Zielwert." />
-          <InfoTextLine label="Ursachenlogik" value="Kostenquote Standort minus Ø Orisus ohne Standort × Gesamtleistung des Standorts." />
-          <InfoTextLine label="Datenwelt" value="BWA: Umsatz, EBITDA, Material, Fremdlabor, Personal, Sachkosten und Ziel-EBITDA." />
-          <p className="text-slate-600">
-            Die Karte ist eine Steuerungsindikation: Sie ersetzt keine Kontenprüfung, zeigt aber schnell, ob die EBITDA-Abweichung eher aus Personal,
-            Material/Fremdlabor, Sachkosten oder einer allgemeinen Margenlücke kommt.
-          </p>
-        </InfoDialog>
-      ) : null}
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
@@ -11423,7 +11496,7 @@ function Analysen({
       .filter((site) => site.gesamtleistung || site.ebitda || site.pvsUmsatz || site.forderungen),
   );
   const [selectedSiteId, setSelectedSiteId] = useState(sortedSites[0]?.id ?? sites[0]?.id ?? "kirchberg");
-  const [comparison, setComparison] = useState("Ø Orisus ohne Standort");
+  const [comparison, setComparison] = useState(benchmarkComparisonLabel);
   const [viewMode, setViewMode] = useState<"Standortleiter" | "Intern">("Standortleiter");
   const { openingHoursBySiteId } = usePracticeOpeningHours();
 
@@ -11553,17 +11626,15 @@ function Analysen({
   const peerSiteRows = siteRows.filter((row) => row.site.id !== selectedSite?.id);
   const peerPatientRows = patientSiteRows.filter((row) => row.site.id !== selectedSite?.id);
   const numericAverage = (selector: (row: (typeof siteRows)[number]) => number | null) => {
-    const comparisonRows = peerSiteRows.length ? peerSiteRows : siteRows;
-    const values = comparisonRows.map(selector).filter((value): value is number => value != null && Number.isFinite(value));
-    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+    return averageComparableValues(peerSiteRows.length ? peerSiteRows : peerRowsWithoutSelected(siteRows, selectedSite?.id), selector);
   };
   const patientAverage = (selector: (row: (typeof patientSiteRows)[number]) => number | null) => {
-    const comparisonRows = peerPatientRows.length ? peerPatientRows : patientSiteRows;
-    const values = comparisonRows
+    const comparisonRows = peerPatientRows.length ? peerPatientRows : peerRowsWithoutSelected(patientSiteRows, selectedSite?.id);
+    return averageComparableValues(
+      comparisonRows
       .filter((row) => row.hasPatientData)
-      .map(selector)
-      .filter((value): value is number => value != null && Number.isFinite(value));
-    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+      , selector
+    );
   };
   const indexFor = (value: number | null, average: number | null) => (value != null && average ? (value / average) * 100 : null);
   const benchmarkItems = [
@@ -12507,7 +12578,7 @@ function Analysen({
         </FilterShell>
         <FilterShell label="Vergleich">
           <Select value={comparison} onChange={(event) => setComparison(event.target.value)}>
-            {["Ø Orisus ohne Standort"].map((item) => <option key={item}>{item}</option>)}
+            {[benchmarkComparisonLabel].map((item) => <option key={item}>{item}</option>)}
           </Select>
         </FilterShell>
         <FilterShell label="Ansicht">
@@ -12611,7 +12682,12 @@ function Analysen({
       <div className="analysis-print-block min-w-0 rounded-xl border border-teal-200/20 bg-teal-400/10 p-4 text-sm leading-relaxed text-slate-200">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
-            <p className="font-semibold uppercase tracking-[0.18em] text-teal-200">Logik der Vergleichskacheln</p>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold uppercase tracking-[0.18em] text-teal-200">Logik der Vergleichskacheln</p>
+              <InlineInfoButton title="Was darf verglichen werden?" label="Vergleichslogik erklären">
+                <ComparisonRuleInfoContent context="Benchmarking und Scorecard" />
+              </InlineInfoButton>
+            </div>
             <p className="mt-2">
           Die Werte werden als Index gegen den gewählten Vergleich berechnet. <strong>100 %</strong> entspricht dem Ø Orisus der
               anderen Standorte ohne den ausgewerteten Standort. Werte über 100 % bedeuten bei Umsatz-, Leistungs- und EBITDA-Kennzahlen eine bessere
@@ -18432,6 +18508,7 @@ function AdminKpiRules() {
       />
       <AccessUserManagement />
       <RoleSecurityCheck />
+      <ComparisonRulebookAdmin />
       <PracticeOpeningHoursSettings />
       <Card className="p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -18516,6 +18593,35 @@ function AdminKpiRules() {
         </Card>
       </div>
     </section>
+  );
+}
+
+function ComparisonRulebookAdmin() {
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-col gap-2 border-b border-border p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold">Vergleichsregelwerk</h2>
+            <InlineInfoButton title="Vergleichsregelwerk" label="Vergleichsregelwerk erklären">
+              <ComparisonRuleInfoContent context="Benchmarking, Frühwarnsystem, PMR, Kennzahlen und Standortvergleiche" />
+            </InlineInfoButton>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Zentrale Leselogik dafür, welche Standorte, Zeiträume und Datenwelten miteinander vergleichbar sind.
+          </p>
+        </div>
+        <Badge tone="blue">Zentral gepflegt</Badge>
+      </div>
+      <div className="grid gap-px table-grid-bg md:grid-cols-2 xl:grid-cols-3">
+        {comparisonRulebook.map((rule) => (
+          <div key={rule.label} className="bg-white p-4">
+            <p className="font-bold text-slate-900">{rule.label}</p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{rule.text}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
