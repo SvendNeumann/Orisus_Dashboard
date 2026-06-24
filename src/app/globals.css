@@ -20,14 +20,18 @@
 }
 
 html {
+  min-height: 100%;
   scroll-behavior: smooth;
   overflow-x: hidden;
+  background: #143344;
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   overflow-x: hidden;
+  overscroll-behavior-x: none;
+  background-color: #143344;
   color: hsl(var(--foreground));
   background:
     radial-gradient(circle at top left, rgba(48, 213, 200, 0.12), transparent 34rem),
@@ -36,9 +40,10 @@ body {
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
-  overflow-x: clip;
+  overflow-x: hidden;
+  background-color: #143344;
   color: #eefbfb;
   background:
     radial-gradient(circle at 14% 7%, rgba(48, 213, 200, 0.17), transparent 34rem),
