@@ -1150,12 +1150,21 @@ async function accessUsersApi<T>(method = "GET", body?: unknown, retriedAfterRef
 }
 
 async function loadConfirmedImportData() {
-  const supabaseDashboard = await loadSupabaseConfirmedImport().catch(() => null);
-  if (supabaseDashboard) {
-    const repairedImport = repairImportedCashflowData(supabaseDashboard);
-    await saveLocalConfirmedImport(repairedImport.report, repairedImport);
-    return repairedImport;
+  if (isSupabaseConfigured() && currentSupabaseAccessToken()) {
+    try {
+      const supabaseDashboard = await loadSupabaseConfirmedImport();
+      if (!supabaseDashboard) {
+        await clearLocalConfirmedImport();
+        return null;
+      }
+      const repairedImport = repairImportedCashflowData(supabaseDashboard);
+      await saveLocalConfirmedImport(repairedImport.report, repairedImport);
+      return repairedImport;
+    } catch {
+      // If Supabase is temporarily unavailable, keep the local fallback for offline/unstable mobile sessions.
+    }
   }
+
   const persistentDashboard = await readPersistentValue<ImportedDashboardData>(importPersistenceDashboardKey);
   const localDashboard = !persistentDashboard ? window.localStorage.getItem(importDashboardStorageKey) : null;
   const parsedDashboard = persistentDashboard ?? (localDashboard ? (JSON.parse(localDashboard) as ImportedDashboardData) : null);
@@ -1201,11 +1210,20 @@ async function clearConfirmedImport() {
 }
 
 async function loadConfirmedPersonalImportData() {
-  const supabaseDashboard = await loadSupabaseConfirmedPersonalImport().catch(() => null);
-  if (supabaseDashboard) {
-    await saveLocalConfirmedPersonalImport(supabaseDashboard.report, supabaseDashboard);
-    return supabaseDashboard;
+  if (isSupabaseConfigured() && currentSupabaseAccessToken()) {
+    try {
+      const supabaseDashboard = await loadSupabaseConfirmedPersonalImport();
+      if (!supabaseDashboard) {
+        await clearLocalConfirmedPersonalImport();
+        return null;
+      }
+      await saveLocalConfirmedPersonalImport(supabaseDashboard.report, supabaseDashboard);
+      return supabaseDashboard;
+    } catch {
+      // If Supabase is temporarily unavailable, keep the local fallback for offline/unstable mobile sessions.
+    }
   }
+
   const persistentDashboard = await readPersistentValue<PersonalDashboardData>(personalImportPersistenceDashboardKey);
   const localDashboard = !persistentDashboard ? window.localStorage.getItem(personalImportDashboardStorageKey) : null;
   const parsedDashboard = persistentDashboard ?? (localDashboard ? (JSON.parse(localDashboard) as PersonalDashboardData) : null);
@@ -3677,7 +3695,7 @@ export default function HomePage() {
     setImportDataLoading(true);
     loadConfirmedImportData()
       .then((savedImport) => {
-        if (isMounted && savedImport) setImportedData(savedImport);
+        if (isMounted) setImportedData(savedImport);
       })
       .catch(() => undefined)
       .finally(() => {
@@ -3694,7 +3712,7 @@ export default function HomePage() {
     setPersonalDataLoading(true);
     loadConfirmedPersonalImportData()
       .then((savedImport) => {
-        if (isMounted && savedImport) setPersonalData(savedImport);
+        if (isMounted) setPersonalData(savedImport);
       })
       .catch(() => undefined)
       .finally(() => {
