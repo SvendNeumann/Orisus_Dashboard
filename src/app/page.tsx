@@ -1452,7 +1452,7 @@ const bwaDeductionLabelKeys = new Set([
 const statusMap: Record<Status, { label: string; dot: string; tone: "green" | "yellow" | "red" }> = {
   green: { label: "Stabil", dot: "bg-emerald-500", tone: "green" },
   yellow: { label: "Beobachten", dot: "bg-amber-500", tone: "yellow" },
-  red: { label: "Handlungsbedarf", dot: "bg-red-500", tone: "red" }
+  red: { label: "Auffällig", dot: "bg-red-500", tone: "red" }
 };
 
 const navSections = [
@@ -5663,7 +5663,7 @@ function Cockpit({
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Handlungsbedarf." />
+        <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Fokusbereiche." />
         <CompactDataStatus importedData={importedData} />
       </div>
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} />
@@ -5748,19 +5748,19 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
   const rules = useKpiRules();
   const metrics = cfoMetrics(sites, monthlyData, rules);
   const criticalSites = metrics.kritisch;
-  const riskLabel = criticalSites.length ? criticalSites.map((site) => site.name).join(", ") : "Keine roten Standorte";
+  const riskLabel = criticalSites.length ? criticalSites.map((site) => site.name).join(", ") : "Keine auffälligen Standorte";
   const criticalReasons = criticalSites.map((site) => {
     const kvAchievement = kvEbitdaAchievement(site);
     const receivablesRatio = site.gesamtleistung ? (site.forderungen / site.gesamtleistung) * 100 : 0;
     const reasons = [
-      statusForSiteByRules(site, rules) === "red" ? "Standortampel rot" : "",
-      statusByRule(site.cashflow, rules.cashflow_bwa) === "red" ? `Cashflow gem. BWA kritisch (${eur(site.cashflow)})` : "",
-      statusByRule(site.ebitdaMarge, rules.ebitda_marge) === "red" ? `EBITDA-Marge kritisch (${pct(site.ebitdaMarge)})` : "",
+      statusForSiteByRules(site, rules) === "red" ? "Standortstatus auffällig" : "",
+      statusByRule(site.cashflow, rules.cashflow_bwa) === "red" ? `Cashflow gem. BWA auffällig (${eur(site.cashflow)})` : "",
+      statusByRule(site.ebitdaMarge, rules.ebitda_marge) === "red" ? `EBITDA-Marge auffällig (${pct(site.ebitdaMarge)})` : "",
       statusByRule(receivablesRatio, rules.offene_forderungen) === "red"
-        ? `Forderungen kritisch (${pct(receivablesRatio)} der Gesamtleistung)`
+        ? `Forderungen erhöht (${pct(receivablesRatio)} der Gesamtleistung)`
         : "",
       kvAchievement !== null && statusByRule(kvAchievement, rules.ziel_ebitda_kaufvertrag) === "red"
-        ? `Ziel-EBITDA KV kritisch (${pct(kvAchievement)} Zielerreichung)`
+        ? `Ziel-EBITDA KV unter Soll (${pct(kvAchievement)} Zielerreichung)`
         : ""
     ].filter(Boolean);
     return { site: site.name, reasons };
@@ -5830,7 +5830,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       )
     },
     {
-      label: "Free Cashflow gem. BWA | seit Vertragsstart",
+      label: "Cashflow gem. BWA | seit Vertragsstart",
       value: metrics.cashflow,
       delta: "nach Tilgung, Investitionen, Umbuchungen",
       icon: Wallet,
@@ -5845,7 +5845,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
           <InfoLine label="- Umbuchung ZMVZ" value={-cashflowDetails.umbuchungZmvz} />
           <InfoLine label="- Sonstige Rückstellungen / Bestandsminderungen" value={-cashflowDetails.sonstigeRueckstellungenBestandsminderungen} />
           <div className="mt-2 border-t border-border pt-2">
-            <InfoLine label="= Free Cashflow gem. BWA" value={metrics.cashflow} strong />
+            <InfoLine label="= Cashflow gem. BWA" value={metrics.cashflow} strong />
           </div>
         </div>
       )
@@ -5930,7 +5930,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       info: expectedObligationInfo
     },
     {
-      label: "Kritische Standorte | aktueller Stand",
+      label: "Fokus-Standorte | aktueller Stand",
       value: criticalSites.length,
       delta: riskLabel,
       icon: Building2,
@@ -5938,9 +5938,9 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       status: criticalSites.length ? "yellow" : "green",
       info: (
         <div className="space-y-2">
-          <p className="font-bold text-slate-900">Warum ein Standort kritisch ist</p>
+          <p className="font-bold text-slate-900">Warum ein Standort im Fokus ist</p>
           <p>
-            Ein Standort wird hier gezählt, wenn mindestens eine CFO-Regel greift: rote Ampel, Cashflow gem. BWA negativ,
+            Ein Standort wird hier gezählt, wenn mindestens eine CFO-Regel auffällig ist: Cashflow gem. BWA negativ,
             EBITDA-Marge unter 10 %, offene Forderungen über 15 % der Gesamtleistung oder Ziel-EBITDA gemäß
             Kaufvertrag bis zum aktuellen Datenstand unter 85 % erreicht.
           </p>
@@ -6043,7 +6043,7 @@ function KpiCard({
             {info}
           </InfoDialog>
         ) : null}
-        <p className="mt-2 text-xs text-muted-foreground">Ampelstatus nach vorläufiger CFO-Logik.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Status nach CFO-Regeln.</p>
       </div>
     </Card>
   );
@@ -6118,8 +6118,8 @@ function StatusDot({ status, label }: { status: Status; label?: string }) {
 }
 
 function siteStatusLabel(site: DashboardSite) {
-  if (site.status === "red" && site.cashflow < 0) return "Handlungsbedarf: Cashflow gem. BWA negativ";
-  if (site.status === "red" && site.ebitdaMarge < 8) return "Handlungsbedarf: Marge niedrig";
+  if (site.status === "red" && site.cashflow < 0) return "Auffällig: Cashflow gem. BWA negativ";
+  if (site.status === "red" && site.ebitdaMarge < 8) return "Auffällig: Marge niedrig";
   return statusMap[site.status].label;
 }
 
@@ -6548,7 +6548,7 @@ function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: D
   ] satisfies Array<{ label: string; value: string; status: Status; rule: string }>;
   return (
     <Card className="h-full p-4">
-      <h2 className="font-bold">Ampel-Center | aktueller Stand</h2>
+      <h2 className="font-bold">Status-Center | aktueller Stand</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {rows.map((row) => (
           <div key={row.label} className="rounded-md border border-border p-3">
@@ -8970,7 +8970,7 @@ function KennzahlenStandortTable({
                 "Ziel-EBITDA",
                 "EBITDA-Abw.",
                 "Zielerreichung",
-                "Status / Ampel",
+                "Status",
                 "EBITDA Zeitraum",
                 "EBITDA Filterzeitraum",
                 "Run-Rate EBITDA p.a.",
@@ -9908,7 +9908,7 @@ function OrisusPerformance({
     cashflow: (
       <>
         <p className="font-semibold text-slate-950">Was ist das?</p>
-        <p>Cashflow gem. BWA ist der aus der BWA-Brücke abgeleitete Free Cashflow, nicht der Bank-Cashflow aus den Bankbewegungen.</p>
+        <p>Cashflow gem. BWA ist der aus der BWA-Brücke abgeleitete betriebswirtschaftliche Cashflow, nicht der Bank-Cashflow aus den Bankbewegungen.</p>
         <InfoLine label="Cashflow gem. BWA" value={metrics.cashflow} strong />
         <InfoTextLine label="Berechnung" value="Vorläufiges Ergebnis + Abschreibungen - Investitionen - Tilgung - Umbuchungen - weitere BWA-Adjustments" />
         <InfoTextLine label="Quelle" value="BWA-Cashflow-Adjustments / bestätigter CFO-Import" />
@@ -11789,7 +11789,7 @@ function Analysen({
           ${rankingSections}
           ${reportSection("Standortleiter-Insights", `<div class="benchmark-insights">${summaryItems.map((item) => `<div class="benchmark-insight"><strong>Insight</strong>${reportEscape(item)}</div>`).join("")}</div>`, "Automatisch aus Benchmarking-Abweichungen und Patienten-/Termindaten abgeleitet.")}
         </div>
-        ${reportSection("Kostenquoten im Peer-Auszug", costHeatmap, `Ampelfarben gegen Vergleichsniveau in ${period}; bei Kostenquoten ist niedriger besser.`)}
+        ${reportSection("Kostenquoten im Peer-Auszug", costHeatmap, `Statusfarben gegen Vergleichsniveau in ${period}; bei Kostenquoten ist niedriger besser.`)}
       </div>
       <div class="benchmark-report-page">
         <div class="benchmark-report-triple">
@@ -13479,7 +13479,7 @@ function BankKpiTile({
           <DetailIcon className="h-4 w-4 shrink-0" />
           <span className="min-w-0 break-words">{detail}</span>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Ampelstatus nach vorläufiger CFO-Logik.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Status nach CFO-Regeln.</p>
       </div>
       {infoOpen ? (
         <InfoDialog title={label} onClose={() => setInfoOpen(false)}>
@@ -13744,7 +13744,7 @@ function Bankenreporting({
         <div className="mt-4 grid gap-3 xl:grid-cols-2">
           <BankAnalysisCard title="Rückzahlungsfähigkeit | gesamte Vertragsperiode" status={statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)}>
             Die Kapitaldienstfähigkeit liegt seit Vertragsstart bei <strong>{bankKpiMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x</strong>.
-            Kritisch aus Bankensicht wäre ein Absinken unter den Covenant-Puffer, weil dann Tilgung und Zins nicht mehr komfortabel aus EBITDA gedeckt sind.
+            Auffällig aus Bankensicht wäre ein Absinken unter den Covenant-Puffer, weil dann Tilgung und Zins nicht mehr komfortabel aus EBITDA gedeckt sind.
           </BankAnalysisCard>
           <BankAnalysisCard title="Cashflow-Qualität | gesamte Vertragsperiode" status={statusForHigher(bankKpiCashflowConversion, 50, 25)}>
             Die Cashflow-Konversion beträgt seit Vertragsstart <strong>{pct(bankKpiCashflowConversion)}</strong>. Je stärker EBITDA in Bank-Cashflow und Kontostand übersetzt wird,
@@ -13757,7 +13757,7 @@ function Bankenreporting({
           <BankAnalysisCard title="Standortstreuung & Integrationsrisiko | gesamte Vertragsperiode" status={bankKpiCriticalSites.length ? "yellow" : "green"}>
             {bankKpiCriticalSites.length
               ? `Fokus auf ${bankKpiCriticalSites.map((site) => site.name).join(", ")}: dort treffen Margen-, Kosten-, Cashflow- oder Forderungsthemen seit Vertragsstart zusammen.`
-              : "Keine rote Standortkonzentration in der Gesamtvertragsperiode. Die Gruppe wirkt diversifiziert und steuerbar."}
+              : "Keine auffällige Standortkonzentration in der Gesamtvertragsperiode. Die Gruppe wirkt diversifiziert und steuerbar."}
           </BankAnalysisCard>
         </div>
       </Card>
@@ -14119,7 +14119,7 @@ function BoardPack({
             <InfoLine label="Offene Forderungen aktuell" value={metrics.forderungen} strong />
             <InfoLine label="Gesamtleistung gesamte Vertragsperiode" value={metrics.gesamtleistung} />
             <InfoTextLine label="Forderungsquote" value={pct(receivablesRatio)} strong />
-            <InfoTextLine label="Ampelregel" value={kpiRuleText(rules.offene_forderungen, "green")} />
+            <InfoTextLine label="Statusregel" value={kpiRuleText(rules.offene_forderungen, "green")} />
           </div>
         </div>
       )
@@ -14140,7 +14140,7 @@ function BoardPack({
             <InfoTextLine label="Berechnung" value="gewichtete Kostenquoten je Standort seit Start" />
             <InfoLine label="Gesamtleistung gesamte Vertragsperiode" value={metrics.gesamtleistung} />
             <InfoTextLine label="Kostenquote konsolidiert" value={pct(metrics.kostenquote)} strong />
-            <InfoTextLine label="Ampelregel" value={kpiRuleText(rules.kostenquote, "green")} />
+            <InfoTextLine label="Statusregel" value={kpiRuleText(rules.kostenquote, "green")} />
           </div>
         </div>
       )
@@ -14163,28 +14163,28 @@ function BoardPack({
             <InfoLine label="+ Zins gesamte Vertragsperiode" value={metrics.zins} />
             <InfoLine label="= Kapitaldienst gesamte Vertragsperiode" value={metrics.kapitaldienst} strong />
             <InfoTextLine label="EBITDA / Kapitaldienst" value={`${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`} strong />
-            <InfoTextLine label="Ampelregel" value={kpiRuleText(rules.kapitaldienstfaehigkeit, "green")} />
+            <InfoTextLine label="Statusregel" value={kpiRuleText(rules.kapitaldienstfaehigkeit, "green")} />
           </div>
         </div>
       )
     },
     {
-      label: "Kritische Standorte",
+      label: "Fokus-Standorte",
       value: `${metrics.kritisch.length} Standort(e)`,
       status: metrics.kritisch.length ? "yellow" : "green",
       info: (
         <div className="space-y-3">
           <p className="font-semibold text-slate-950">Was ist das?</p>
           <p className="text-slate-700">
-            Kritische Standorte sind Praxen mit erkennbarem Steuerungsbedarf. Gezählt wird ein Standort, wenn er
-            nach KPI-Regeln rot ist, eine kritische Forderungsquote hat oder beim Ziel-EBITDA gemäß Kaufvertrag
+            Fokus-Standorte sind Praxen mit erkennbarer Abweichung vom Zielkorridor. Gezählt wird ein Standort, wenn er
+            nach KPI-Regeln auffällig ist, eine erhöhte Forderungsquote hat oder beim Ziel-EBITDA gemäß Kaufvertrag
             deutlich unter Ziel liegt. Die Prüfung nutzt die kumulierten Standortwerte der gesamten Vertragsperiode;
             Forderungen bleiben dabei als aktueller Stichtagswert enthalten.
           </p>
           <div className="space-y-1">
-            <InfoTextLine label="Anzahl kritischer Standorte" value={String(metrics.kritisch.length)} strong />
+            <InfoTextLine label="Anzahl Fokus-Standorte" value={String(metrics.kritisch.length)} strong />
             <InfoTextLine label="Standorte" value={criticalSiteNames} />
-            <InfoTextLine label="Prüflogik" value="Status rot, Forderungsquote rot oder Ziel-EBITDA KV rot" />
+            <InfoTextLine label="Prüflogik" value="Status auffällig, Forderungsquote erhöht oder Ziel-EBITDA KV unter Soll" />
           </div>
         </div>
       )
@@ -16714,7 +16714,7 @@ function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, 
     </tr>`;
   }).join("");
   return `<table class="pmr-table bwa-overview">
-    <thead><tr><th>Position</th><th>${reportEscape(pmrMonthHeader(period, currentYear))}</th><th>${reportEscape(pmrMonthHeader(period, comparisonYear))}</th><th>${reportEscape(pmrYtdHeader(period, currentYear))}</th><th>${reportEscape(pmrYtdHeader(period, comparisonYear))}</th><th>Abw.</th><th>Ampel</th></tr></thead>
+    <thead><tr><th>Position</th><th>${reportEscape(pmrMonthHeader(period, currentYear))}</th><th>${reportEscape(pmrMonthHeader(period, comparisonYear))}</th><th>${reportEscape(pmrYtdHeader(period, currentYear))}</th><th>${reportEscape(pmrYtdHeader(period, comparisonYear))}</th><th>Abw.</th><th>Status</th></tr></thead>
     <tbody>${htmlRows}</tbody>
   </table>`;
 }
@@ -17309,7 +17309,7 @@ function buildPmrBenchmarkPage(
       ${reportSection("Kostenquoten im Benchmark", `<table class="heatmap-table">
         <thead><tr><th>Peer</th><th>Material</th><th>Fremdlabor</th><th>Personal</th><th>Sonstige</th><th>Gesamt</th></tr></thead>
         <tbody>${heatRows}<tr><td>Vergleichsniveau</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.materialquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.fremdlaborquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.personalquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.sonstigeKostenquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.gesamtkostenquote, "percent"))}</td></tr></tbody>
-      </table>`, "Ampelfarben gegen Vergleichsniveau; bei Kosten ist niedriger besser.")}
+      </table>`, "Statusfarben gegen Vergleichsniveau; bei Kosten ist niedriger besser.")}
       ${reportSection("Patienten- und Terminindikatoren", `<table class="heatmap-table">
         <thead><tr><th>Peer</th><th>Pat./Zimmer</th><th>Neupatienten</th><th>Wahrnehmung</th><th>Ausfall</th></tr></thead>
         <tbody>${patientRowsHtml}<tr><td>Vergleichsniveau</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.patientsPerRoom, "number"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.newPatientRate, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.attendanceRate, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.cancellationRate, "percent"))}</td></tr></tbody>
@@ -17506,7 +17506,7 @@ function buildMonthlyReport(
       { label: "Cashflow gem. BWA", value: eur(metrics.cashflow), detail: period, tone: statusMap[statusByRule(metrics.cashflow, rules.cashflow_bwa)].tone },
       { label: "Kontostand", value: eur(metrics.kontostand), detail: "aktueller Stand", tone: "green" },
       { label: "Forderungen", value: eur(metrics.forderungen), detail: "aktueller Stand", tone: "yellow" },
-      { label: "Kritische Standorte", value: String(metrics.kritisch.length), detail: metrics.kritisch.map((site) => site.name).join(", ") || "keine", tone: metrics.kritisch.length ? "yellow" : "green" }
+      { label: "Fokus-Standorte", value: String(metrics.kritisch.length), detail: metrics.kritisch.map((site) => site.name).join(", ") || "keine", tone: metrics.kritisch.length ? "yellow" : "green" }
     ]),
     reportSection(
       "Monatliche Ergebnisentwicklung",
@@ -17793,7 +17793,7 @@ function AdminKpiRules() {
     <section className="space-y-5">
       <PageTitle
         title="Admin / KPI-Regeln"
-        text="Interner Einstellungsbereich für App-Zugänge, Rollen, Ampel-Schwellenwerte und Zielerreichungslogik."
+        text="Interner Einstellungsbereich für App-Zugänge, Rollen, Status-Schwellenwerte und Zielerreichungslogik."
       />
       <AccessUserManagement />
       <PracticeOpeningHoursSettings />
@@ -17802,7 +17802,7 @@ function AdminKpiRules() {
           <div>
             <h2 className="font-bold">Regelstatus</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Diese Schwellenwerte steuern die Ampeln für Cockpit, Bankenreporting, Standortdetails und Board-Pack.
+              Diese Schwellenwerte steuern die Statussignale für Cockpit, Bankenreporting, Standortdetails und Board-Pack.
             </p>
           </div>
           <Badge tone="green">Admin-pflegbar</Badge>
