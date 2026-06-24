@@ -7805,10 +7805,11 @@ function bwaChartDataForPeriod(importedData: ImportedDashboardData | null | unde
         month: String(year),
         leistung: valueFor("summe_umsatz", String(year), true),
         ebitda: valueFor("ebitda", String(year), true),
+        zielEbitdaKaufvertrag: valueFor("ziel_ebitda_kaufvertrag", String(year), true),
         marge: 0,
         cashflow: valueFor("cashflow_gesamt", String(year), true)
       }))
-      .filter((entry) => entry.leistung || entry.ebitda || entry.cashflow);
+      .filter((entry) => entry.leistung || entry.ebitda || entry.zielEbitdaKaufvertrag || entry.cashflow);
   }
 
   const months =
@@ -7826,6 +7827,7 @@ function bwaChartDataForPeriod(importedData: ImportedDashboardData | null | unde
       month: bwaMonths[month - 1] ?? String(month),
       leistung,
       ebitda,
+      zielEbitdaKaufvertrag: valueFor("ziel_ebitda_kaufvertrag", periodKey),
       marge: leistung ? (ebitda / leistung) * 100 : 0,
       cashflow: valueFor("cashflow_gesamt", periodKey)
     };
@@ -12411,7 +12413,7 @@ function Bankenreporting({
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard
-          title={`Gesamtleistung, EBITDA & Cashflow | ${performancePeriodLabel(bankChartPeriod)}`}
+          title={`Gesamtleistung, EBITDA, Soll-EBITDA & Cashflow | ${performancePeriodLabel(bankChartPeriod)}`}
           icon={TrendingUp}
           action={
             <Select
@@ -12435,6 +12437,7 @@ function Bankenreporting({
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
               <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
+              <Line dataKey="zielEbitdaKaufvertrag" name="Soll-EBITDA gem. Kaufvertrag" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={3} dot={false} />
               <Line dataKey="cashflow" name="Cashflow gem. BWA" stroke="#64748b" strokeWidth={3} />
             </ComposedChart>
           </ResponsiveContainer>
