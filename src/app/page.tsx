@@ -8989,6 +8989,11 @@ function KennzahlenEntwicklung({
         period={monthlyPeriod}
         setPeriod={setMonthlyPeriod}
       />
+      <EbitdaCauseAnalysis
+        sites={activeSites}
+        importedData={importedData}
+        period={monthlyPeriod}
+      />
     </section>
   );
 }
@@ -9296,6 +9301,163 @@ function MonthlyEbitdaTable({
               <TableCell strong summary>{pct((ytdTotal / ytdTarget) * 100)}</TableCell>
               <TableCell strong summary>{pct((ytdTotal / ytdBankTarget) * 100)}</TableCell>
             </tr>
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function EbitdaCauseAnalysis({
+  sites = standorte,
+  importedData,
+  period
+}: {
+  sites?: DashboardSite[];
+  importedData?: ImportedDashboardData | null;
+  period: string;
+}) {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const metricValue = (siteId: string, metricKey: string) =>
+    importedData?.bwaRows?.length
+      ? importedBwaMetricValue(importedData.bwaRows, siteId, metricKey, period)
+      : 0;
+  const rowsBase = sortSitesByContractStart(sites)
+    .map((site) => {
+      const periodSite = filteredSiteForPeriod(site, importedData, period);
+      const revenue = periodSite.gesamtleistung || metricValue(site.id, "summe_umsatz");
+      const ebitda = periodSite.ebitda || metricValue(site.id, "ebitda");
+      const target =
+        periodSite.darlehen.zielEbitdaUebernahme ||
+        metricValue(site.id, "ziel_ebitda_uebernahme") ||
+        periodSite.darlehen.zielEbitdaKaufvertrag ||
+        metricValue(site.id, "ziel_ebitda_kaufvertrag") ||
+        periodSite.darlehen.zielEbitda;
+      const material = Math.abs(metricValue(site.id, "materialkosten_gesamt"));
+      const fremdlabor = Math.abs(metricValue(site.id, "fremdlabor_gesamt"));
+      const personal = Math.abs(metricValue(site.id, "personalkosten_gesamt"));
+      const sonstige = Math.abs(metricValue(site.id, "summe_sonstige_kosten"));
+      const operativeKosten = Math.max(0, revenue - ebitda);
+      const bekannteKosten = material + fremdlabor + personal + sonstige;
+      const sonstigerBlock = Math.max(0, operativeKosten - bekannteKosten);
+      const quote = (value: number) => revenue ? (value / revenue) * 100 : 0;
+      return {
+        site,
+        revenue,
+        ebitda,
+        target,
+        deviation: ebitda - target,
+        ebitdaMargin: revenue ? (ebitda / revenue) * 100 : 0,
+        costQuotes: {
+          Material: quote(material),
+          Fremdlabor: quote(fremdlabor),
+          Personal: quote(personal),
+          Sachkosten: quote(sonstige),
+          Restkosten: quote(sonstigerBlock)
+        }
+      };
+    })
+    .filter((row) => row.revenue || row.ebitda || row.target);
+
+  const peerAverage = (siteId: string, selector: (row: (typeof rowsBase)[number]) => number) => {
+    const peers = rowsBase.filter((row) => row.site.id !== siteId);
+    const values = (peers.length ? peers : rowsBase)
+      .map(selector)
+      .filter((value) => Number.isFinite(value));
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  };
+
+  const rows = rowsBase.map((row) => {
+    const peerMargin = peerAverage(row.site.id, (item) => item.ebitdaMargin);
+    const costDrivers = Object.entries(row.costQuotes)
+      .map(([label, value]) => {
+        const peerQuote = peerAverage(row.site.id, (item) => item.costQuotes[label as keyof typeof item.costQuotes]);
+        const impact = ((value - peerQuote) / 100) * row.revenue;
+        return { label, quote: value, peerQuote, impact };
+      })
+      .filter((driver) => Number.isFinite(driver.impact))
+      .sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact));
+    const negativeCostDrivers = costDrivers.filter((driver) => driver.impact > 0);
+    const primaryDriver = row.deviation >= 0
+      ? { label: "Ziel erreicht", impact: row.deviation }
+      : negativeCostDrivers[0] ?? { label: "Marge unter Ø Orisus", impact: ((peerMargin - row.ebitdaMargin) / 100) * row.revenue };
+    const nextDrivers = costDrivers
+      .filter((driver) => driver.label !== primaryDriver.label)
+      .slice(0, 2)
+      .map((driver) => `${driver.label} ${driver.impact > 0 ? "+" : ""}${eur(driver.impact, true)}`);
+    const status: Status = row.deviation >= 0 ? "green" : row.deviation >= -Math.abs(row.target) * 0.15 ? "yellow" : "red";
+    return { ...row, peerMargin, primaryDriver, nextDrivers, status };
+  });
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold">EBITDA-Abweichungsanalyse nach Ursache | {performancePeriodLabel(period)}</h2>
+            <button
+              type="button"
+              aria-label="EBITDA-Abweichungsanalyse erklären"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-xs font-extrabold text-muted-foreground transition hover:border-primary hover:text-primary"
+              onClick={() => setInfoOpen(true)}
+            >
+              !
+            </button>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Kompakte Einordnung, welcher Kostenblock die EBITDA-Abweichung zum Ziel-EBITDA bzw. zum Ø Orisus am stärksten erklärt.
+          </p>
+        </div>
+        <Badge tone="blue">BWA-basiert</Badge>
+      </div>
+      {infoOpen ? (
+        <InfoDialog title="EBITDA-Abweichungsanalyse nach Ursache" onClose={() => setInfoOpen(false)}>
+          <p>
+            Die Analyse überlagert keine Charts. Sie nimmt die vorhandenen BWA-Werte des gewählten Zeitraums und vergleicht je Standort die
+            Kostenquoten mit dem Ø Orisus der anderen Standorte.
+          </p>
+          <InfoTextLine label="Zielvergleich" value="Ist-EBITDA minus Ziel-EBITDA gem. Übernahme, falls vorhanden; sonst Kaufvertrag/Zielwert." />
+          <InfoTextLine label="Ursachenlogik" value="Kostenquote Standort minus Ø Orisus ohne Standort × Gesamtleistung des Standorts." />
+          <InfoTextLine label="Datenwelt" value="BWA: Umsatz, EBITDA, Material, Fremdlabor, Personal, Sachkosten und Ziel-EBITDA." />
+          <p className="text-slate-600">
+            Die Karte ist eine Steuerungsindikation: Sie ersetzt keine Kontenprüfung, zeigt aber schnell, ob die EBITDA-Abweichung eher aus Personal,
+            Material/Fremdlabor, Sachkosten oder einer allgemeinen Margenlücke kommt.
+          </p>
+        </InfoDialog>
+      ) : null}
+      <div className="overflow-x-auto">
+        <table className="data-table border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              {["Standort", "EBITDA", "Ziel ÜN", "Abw.", "Marge", "Ø Orisus Marge", "Hauptursache", "Effekt", "Weitere Treiber", "Status"].map((head) => (
+                <th key={head} className="border-b border-r border-border table-head p-2 text-left font-bold uppercase text-white">
+                  {head}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.site.id}>
+                <td className="border-b border-r border-border bg-white p-2 font-bold">{row.site.name}</td>
+                <td className="border-b border-r border-border bg-white p-2 text-right font-semibold tabular-nums">{eur(row.ebitda)}</td>
+                <td className="border-b border-r border-border bg-white p-2 text-right tabular-nums">{eur(row.target)}</td>
+                <td className={cn("border-b border-r border-border bg-white p-2 text-right font-bold tabular-nums", row.deviation < 0 ? "text-red-700" : "text-emerald-700")}>{eur(row.deviation)}</td>
+                <td className="border-b border-r border-border bg-white p-2 text-right tabular-nums">{pct(row.ebitdaMargin)}</td>
+                <td className="border-b border-r border-border bg-white p-2 text-right tabular-nums">{pct(row.peerMargin)}</td>
+                <td className="border-b border-r border-border bg-white p-2 font-semibold">{row.primaryDriver.label}</td>
+                <td className={cn("border-b border-r border-border bg-white p-2 text-right font-bold tabular-nums", row.primaryDriver.impact > 0 && row.deviation < 0 ? "text-red-700" : "text-emerald-700")}>{eur(row.primaryDriver.impact)}</td>
+                <td className="border-b border-r border-border bg-white p-2 text-muted-foreground">{row.nextDrivers.join(" · ") || "keine weitere Auffälligkeit"}</td>
+                <td className="border-b border-r border-border bg-white p-2"><StatusDot status={row.status} /></td>
+              </tr>
+            ))}
+            {!rows.length ? (
+              <tr>
+                <td colSpan={10} className="bg-white p-4 text-center text-sm font-semibold text-muted-foreground">
+                  Keine EBITDA-Daten für den gewählten Zeitraum vorhanden.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

@@ -1203,6 +1203,9 @@ Zuletzt umgesetzte / festgelegte Punkte:
 - Kennzahlen / Entwicklung:
   - Mittlere Standort-Performance-Tabelle hat Zeitraumwahl.
   - VJ-/QTD-/Monat-VJ-Vergleiche werden je Standort nur aus Monaten innerhalb der Vertragsperiode gebildet; Vergleichswerte vor Vertragsstart bleiben leer.
+  - Unter der monatlichen EBITDA-Uebersicht gibt es eine kompakte `EBITDA-Abweichungsanalyse nach Ursache`.
+  - Diese Analyse ueberlagert keine Charts, sondern zeigt je Standort in einer Tabelle die EBITDA-Abweichung zum Ziel-EBITDA und den wichtigsten Treiber.
+  - Ursachenlogik: Kostenquote des Standorts minus `Ø Orisus ohne Standort` mal Gesamtleistung des Standorts. Datenbasis sind BWA-Umsatz, EBITDA, Ziel-EBITDA, Material, Fremdlabor, Personal und Sachkosten.
 - Standortdetails:
   - KPI-Kacheln sollen Info-Buttons mit Herleitung und Datenquelle haben.
   - Diagramm `Entwicklung ueber Zeit` hat Zeitraumfilter und erklaert BWA-Gesamtleistung, BWA-EBITDA und Cashflow gem. BWA.
