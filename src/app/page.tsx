@@ -14481,6 +14481,24 @@ type PersonnelCostComparisonRow = {
   pkQuote: number;
 };
 
+const pmrPersonnelCostExclusionsBySite: Record<string, Set<string>> = {
+  kirchberg: new Set([
+    "samira_pomsel",
+    "s_pomsel",
+    "prophylaxe_unregelmassige_behandler",
+    "prophylaxe_unregelmaessige_behandler",
+    "prophylaxe_unregelm_behandler",
+    "pzr_dietrich",
+    "s_dietrich"
+  ])
+};
+
+function isExcludedFromPmrPersonnelCostReport(siteId: string, row: PersonnelCostComparisonRow) {
+  const excludedNames = pmrPersonnelCostExclusionsBySite[siteId];
+  if (!excludedNames) return false;
+  return excludedNames.has(normalizeMetric(row.name));
+}
+
 function personnelCostComparisonRows(importedData: ImportedDashboardData | null | undefined, siteId: string): PersonnelCostComparisonRow[] {
   const providerRows = new Map((importedData?.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId).map((row) => [normalizeMetric(row.name), row]));
   const grouped = new Map<string, PersonnelCostComparisonRow & { fallbackHonorar: number }>();
@@ -14555,7 +14573,7 @@ function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, pe
 }
 
 function pmrPersonnelCostRows(importedData: ImportedDashboardData, siteId: string) {
-  const rows = personnelCostComparisonRows(importedData, siteId);
+  const rows = personnelCostComparisonRows(importedData, siteId).filter((row) => !isExcludedFromPmrPersonnelCostReport(siteId, row));
   return `<table class="pmr-table compact">
     <thead><tr><th>Mitarbeiter</th><th>Typ</th><th>Personalkosten</th><th>Honorarumsatz</th><th>PK-Quote</th></tr></thead>
     <tbody>${rows.map((row) => `<tr>
