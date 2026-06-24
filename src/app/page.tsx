@@ -42,6 +42,7 @@ import {
   PieChart as PieIcon,
   Fingerprint,
   RefreshCw,
+  ReceiptText,
   ShieldCheck,
   Stethoscope,
   TrendingUp,
@@ -5673,6 +5674,9 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
   const earnOutRows = projectedEarnOutRows(sites, period);
   const expectedEarnOut = earnOutRows.reduce((sum, row) => sum + row.projection.projectedEarnOut, 0);
   const expectedGrowthPayment = earnOutRows.reduce((sum, row) => sum + row.projection.projectedGrowthPayment, 0);
+  const expectedTotalPayment = expectedEarnOut + expectedGrowthPayment;
+  const expectedEarnOutInfo = <ExpectedEarnOutInfo rows={earnOutRows} period={period} />;
+  const expectedGrowthPaymentInfo = <ExpectedGrowthPaymentInfo rows={earnOutRows} period={period} />;
   const expectedObligationInfo = <ExpectedObligationInfo rows={earnOutRows} period={period} />;
 
   const kpis = [
@@ -5794,14 +5798,22 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       delta: "Fälligkeit nach Vertragsperiode",
       icon: BadgeEuro,
       status: expectedEarnOut > 0 ? "yellow" : "green",
-      info: expectedObligationInfo
+      info: expectedEarnOutInfo
     },
     {
       label: "Erwartete Wachstumszahlung | Run-Rate",
       value: expectedGrowthPayment,
-      delta: "zusätzlich zur Earn-Out-Verpflichtung",
+      delta: "nur Mehr-EBITDA-Vertragslogik",
       icon: TrendingUp,
       status: expectedGrowthPayment > 0 ? "yellow" : "green",
+      info: expectedGrowthPaymentInfo
+    },
+    {
+      label: "Erwartete Gesamtzahlung | nach Vertragsende",
+      value: expectedTotalPayment,
+      delta: "Earn-Out plus Wachstumszahlung",
+      icon: ReceiptText,
+      status: expectedTotalPayment > 0 ? "yellow" : "green",
       info: expectedObligationInfo
     },
     {
@@ -12917,6 +12929,80 @@ function projectedEarnOutRows(sites: DashboardSite[], period: string): EarnOutPr
     dueStatus: earnOutDueStatus(site),
     projection: projectedEarnOutForSite(site, period)
   }));
+}
+
+function ExpectedEarnOutInfo({ rows, period }: { rows: EarnOutProjectionRow[]; period: string }) {
+  const expectedEarnOut = rows.reduce((sum, row) => sum + row.projection.projectedEarnOut, 0);
+
+  return (
+    <div className="space-y-3">
+      <p className="font-semibold text-slate-950">Herleitung erwarteter Earn-Out</p>
+      <p className="text-slate-700">
+        Zeitraum: {period}. Je Standort wird das bisherige EBITDA seit Praxisstart auf eine p.a.-Run-Rate hochgerechnet
+        und ausschließlich gegen Ziel-EBITDA p.a., Untergrenze, maximalen Earn-Out und Reduktionsfaktor gespiegelt.
+        Wachstumszahlungen sind hier nicht enthalten.
+      </p>
+      <div className="space-y-2">
+        {rows.map(({ site, dueStatus, projection }) => (
+          <div key={site.id} className="rounded-lg border border-border bg-white p-3">
+            <div className="flex items-start justify-between gap-3 font-semibold text-slate-950">
+              <span>{site.name}</span>
+              <span>{eur(projection.projectedEarnOut)}</span>
+            </div>
+            <div className="mt-2 grid gap-1 text-[11px] text-slate-600 sm:grid-cols-2">
+              <span>EBITDA seit Start: {eur(site.ebitda)}</span>
+              <span>Monate seit Start: {projection.elapsedMonths.toLocaleString("de-DE")}</span>
+              <span>Ø EBITDA je Monat: {eur(projection.averageMonthlyEbitda)}</span>
+              <span>Run-Rate EBITDA p.a.: {eur(projection.projectedEbitda)}</span>
+              <span>Ziel-EBITDA p.a.: {eur(projection.target)}</span>
+              <span>Untergrenze Earn-Out: {projection.untergrenze ? eur(projection.untergrenze) : "nicht hinterlegt"}</span>
+              <span>Fälligkeit: {site.darlehen.earnOutFaelligAm || "offen"}</span>
+              <span>Status: {dueStatus.label}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-border pt-2 font-semibold text-slate-950">
+        <InfoLine label="= Erwarteter Earn-Out gesamt" value={expectedEarnOut} strong />
+      </div>
+    </div>
+  );
+}
+
+function ExpectedGrowthPaymentInfo({ rows, period }: { rows: EarnOutProjectionRow[]; period: string }) {
+  const expectedGrowthPayment = rows.reduce((sum, row) => sum + row.projection.projectedGrowthPayment, 0);
+
+  return (
+    <div className="space-y-3">
+      <p className="font-semibold text-slate-950">Herleitung erwartete Wachstumszahlung</p>
+      <p className="text-slate-700">
+        Zeitraum: {period}. Je Standort wird das bisherige EBITDA seit Praxisstart auf die jeweilige Vertragslaufzeit
+        hochgerechnet. Nur das Mehr-EBITDA gegenüber dem Ziel-EBITDA der Vertragslaufzeit fließt in diese Kachel ein.
+        Earn-Out-Beträge sind hier nicht enthalten.
+      </p>
+      <div className="space-y-2">
+        {rows.map(({ site, projection }) => (
+          <div key={site.id} className="rounded-lg border border-border bg-white p-3">
+            <div className="flex items-start justify-between gap-3 font-semibold text-slate-950">
+              <span>{site.name}</span>
+              <span>{eur(projection.projectedGrowthPayment)}</span>
+            </div>
+            <div className="mt-2 grid gap-1 text-[11px] text-slate-600 sm:grid-cols-2">
+              <span>Ø EBITDA je Monat: {eur(projection.averageMonthlyEbitda)}</span>
+              <span>Vertragslaufzeit: {projection.contractMonths.toLocaleString("de-DE")} Monate</span>
+              <span>Hochgerechnetes EBITDA Vertragslaufzeit: {eur(projection.projectedContractEbitda)}</span>
+              <span>Ziel-EBITDA Vertragslaufzeit: {eur(projection.contractTargetEbitda)}</span>
+              <span>Mehr-EBITDA Vertragslaufzeit: {eur(projection.contractExcessEbitda)}</span>
+              <span>Wachstumslogik: {growthFactorLabel(projection.growthFactor)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-border pt-2 font-semibold text-slate-950">
+        <InfoLine label="= Erwartete Wachstumszahlung gesamt" value={expectedGrowthPayment} strong />
+      </div>
+    </div>
+  );
 }
 
 function ExpectedObligationInfo({ rows, period }: { rows: EarnOutProjectionRow[]; period: string }) {
