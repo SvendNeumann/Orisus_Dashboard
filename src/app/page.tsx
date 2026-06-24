@@ -6697,6 +6697,54 @@ const patientExportMonthColumns = [
   { index: 16, month: 12 }
 ];
 
+function cfoWorkbookSheetsForImport(sheetNames: string[]) {
+  const fixedSheets = new Set([
+    ...requiredImportSheets,
+    "Dashboard_Management",
+    "Dashboard_Performance",
+    essenPatientExportSheetName
+  ]);
+  return sheetNames.filter((sheetName) => {
+    if (fixedSheets.has(sheetName)) return true;
+    if (/^export_/i.test(sheetName) || /_export$/i.test(sheetName)) return true;
+    if (/^Input_Kontostand/i.test(sheetName)) return true;
+    if (/personalkosten/i.test(sheetName)) return true;
+    return false;
+  });
+}
+
+async function readCfoWorkbookFromFile(file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "csv") {
+    return XLSX.read(await file.text(), {
+      type: "string",
+      cellDates: true,
+      dense: true,
+      cellFormula: false,
+      cellHTML: false,
+      cellNF: false,
+      cellStyles: false
+    });
+  }
+
+  const buffer = await file.arrayBuffer();
+  const catalog = XLSX.read(buffer, { type: "array", bookSheets: true });
+  const importSheets = cfoWorkbookSheetsForImport(catalog.SheetNames);
+  const workbook = XLSX.read(buffer, {
+    type: "array",
+    cellDates: true,
+    dense: true,
+    cellFormula: false,
+    cellHTML: false,
+    cellNF: false,
+    cellStyles: false,
+    sheetStubs: false,
+    sheets: importSheets
+  });
+  workbook.SheetNames = catalog.SheetNames;
+  return workbook;
+}
+
 function normalizePatientExportValue(value: unknown, unit: string, metric: string) {
   const numericValue = asNumber(value);
   if (numericValue == null) return null;
@@ -13656,12 +13704,8 @@ function Uploads({
     setReport({ ...emptyImportReport, status: "reading", fileName: file.name });
 
     try {
-      const extension = file.name.split(".").pop()?.toLowerCase();
       await waitForBrowserPaint();
-      const workbook =
-        extension === "csv"
-          ? XLSX.read(await file.text(), { type: "string", cellDates: true })
-          : XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      const workbook = await readCfoWorkbookFromFile(file);
       const nextReport = buildImportReport(workbook, file.name);
       setReport(nextReport);
       if (nextReport.status === "ready" || nextReport.status === "warning") {
@@ -13677,10 +13721,13 @@ function Uploads({
         importedAt: new Date().toISOString(),
         errors: [
           error instanceof Error
-            ? `Die Datei konnte nicht gelesen werden: ${error.message}`
-            : "Die Datei konnte nicht gelesen werden."
+            ? `Die Datei konnte nicht gelesen werden: ${error.message}. Falls das auf iPhone/iPad passiert, bitte die Excel-Datei einmal vollständig speichern und erneut hochladen.`
+            : "Die Datei konnte nicht gelesen werden. Falls das auf iPhone/iPad passiert, bitte die Excel-Datei einmal vollständig speichern und erneut hochladen."
         ]
       });
+      setPendingDashboardData(null);
+    } finally {
+      event.target.value = "";
     }
   }
 
