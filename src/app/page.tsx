@@ -15393,6 +15393,7 @@ function openPrintableReport(title: string, html: string) {
   popup.document.open();
   popup.document.write(html);
   popup.document.close();
+  popup.document.title = title;
   popup.focus();
   window.setTimeout(() => popup.print(), 400);
 }
@@ -16462,6 +16463,17 @@ function buildSiteReport(sites: DashboardSite[], monthlyData: typeof monthly, or
   });
 }
 
+function pmrReportFileTitle(selectedSites: DashboardSite[], allSites: DashboardSite[], period: string) {
+  const siteLabel =
+    selectedSites.length === 1
+      ? selectedSites[0].name
+      : selectedSites.length === allSites.length
+        ? "Alle Standorte"
+        : `${selectedSites.length} Standorte`;
+  const periodLabel = performancePeriodLabel(period).replace(/[\\/]+/g, " ").replace(/\s+/g, " ").trim();
+  return `PMR Report ${siteLabel} ${periodLabel}`.replace(/\s+/g, " ").trim();
+}
+
 function Reports({
   sites = standorte,
   monthlyData = monthly,
@@ -16561,7 +16573,7 @@ function Reports({
               variant="secondary"
               disabled={!selectedPmrSites.length}
               onClick={() => openPrintableReport(
-                "PMR Standortleiter-Report",
+                pmrReportFileTitle(selectedPmrSites, activeReportSites, pmrPeriod),
                 buildPmrReport(selectedPmrSites, activeReportSites, importedData, personalData, pmrPeriod, Number(pmrComparisonYear))
               )}
             >
