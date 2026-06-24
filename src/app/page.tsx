@@ -109,6 +109,7 @@ type Page =
   | "cockpit"
   | "kennzahlen"
   | "performance"
+  | "fruehwarnsystem"
   | "standorte"
   | "standort-detail"
   | "analysen"
@@ -1477,6 +1478,7 @@ const navSections = [
     label: "Performance & Benchmarking",
     items: [
       { id: "performance", label: "Orisus Performance", icon: TrendingUp },
+      { id: "fruehwarnsystem", label: "Frühwarnsystem", icon: Gauge },
       { id: "analysen", label: "Benchmarking", icon: BarChart3 }
     ]
   },
@@ -1527,6 +1529,7 @@ const appPageIds: Page[] = [
   "cockpit",
   "kennzahlen",
   "performance",
+  "fruehwarnsystem",
   "standorte",
   "standort-detail",
   "analysen",
@@ -3885,6 +3888,7 @@ export default function HomePage() {
           {importedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {importedData && page === "fruehwarnsystem" && <Fruehwarnsystem sites={dashboardSites} importedData={importedData} />}
           {importedData && page === "standorte" && (
             <Standorte
               sites={dashboardSites}
@@ -9287,6 +9291,339 @@ function PatientKpiCard({
         <span>{subline}</span>
       </div>
     </Card>
+  );
+}
+
+type EarlyWarningRow = {
+  id: string;
+  siteName: string;
+  monthLabel: string;
+  category: "Ergebnis" | "Kosten" | "Cash/Bank" | "Personal" | "Patienten" | "Datenbasis";
+  signal: Status;
+  title: string;
+  finding: string;
+  source: string;
+  action: string;
+};
+
+function Fruehwarnsystem({
+  sites = standorte,
+  importedData
+}: {
+  sites?: DashboardSite[];
+  importedData: ImportedDashboardData;
+}) {
+  const years = importedData.report.jahre.filter((year) => year >= 1900).sort((a, b) => b - a);
+  const [year, setYear] = useState(years[0] ?? new Date().getFullYear());
+
+  useEffect(() => {
+    if (years.length && !years.includes(year)) setYear(years[0]);
+  }, [year, years]);
+
+  const activeSites = sortSitesByContractStart(sites).filter((site) => importedData.bwaRows.some((row) => row.siteId === site.id));
+  const bwaRow = (siteId: string, metricKey: string) => importedData.bwaRows.find((row) => row.siteId === siteId && row.metricKey === metricKey);
+  const monthValue = (siteId: string, metricKey: string, month: number) => {
+    const row = bwaRow(siteId, metricKey);
+    const key = `${year}-${month}`;
+    return row?.hasValueByMonth[key] || row?.hasDataByMonth[key] ? row.valuesByMonth[key] ?? 0 : null;
+  };
+  const previousMonthValue = (siteId: string, metricKey: string, month: number) => {
+    const row = bwaRow(siteId, metricKey);
+    const key = `${year - 1}-${month}`;
+    return row?.hasValueByMonth[key] || row?.hasDataByMonth[key] ? row.valuesByMonth[key] ?? 0 : null;
+  };
+  const ratioOrNull = (value: number | null, basis: number | null) =>
+    value != null && basis != null && Math.abs(basis) > 0 ? (value / basis) * 100 : null;
+  const costQuote = (siteId: string, month: number, previous = false) => {
+    const value = (metricKey: string) => previous ? previousMonthValue(siteId, metricKey, month) : monthValue(siteId, metricKey, month);
+    const revenue = value("summe_umsatz");
+    const ebitda = value("ebitda");
+    if (revenue == null || ebitda == null || Math.abs(revenue) <= 0) return null;
+    return Math.max(0, ((revenue - ebitda) / revenue) * 100);
+  };
+  const personalQuote = (siteId: string, month: number, previous = false) => {
+    const value = (metricKey: string) => previous ? previousMonthValue(siteId, metricKey, month) : monthValue(siteId, metricKey, month);
+    return ratioOrNull(Math.abs(value("personalkosten_gesamt") ?? 0), value("summe_umsatz"));
+  };
+  const patientMonthValue = (siteId: string, metricKey: PatientMetricKey, month: number, targetYear = year) => {
+    const row = patientMetricRow(importedData.patientRows, siteId, metricKey);
+    const key = `${targetYear}-${month}`;
+    if (!row || !Object.prototype.hasOwnProperty.call(row.valuesByMonth, key)) return null;
+    const value = row.valuesByMonth[key];
+    return Number.isFinite(value) ? value : null;
+  };
+  const availableMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+    activeSites.some((site) => bwaRow(site.id, "summe_umsatz")?.hasDataByMonth[`${year}-${month}`] || bwaRow(site.id, "ebitda")?.hasDataByMonth[`${year}-${month}`])
+  );
+  const latestMonth = availableMonths.at(-1);
+
+  const warnings: EarlyWarningRow[] = [];
+
+  activeSites.forEach((site) => {
+    const underTargetMonths = availableMonths.filter((month) => {
+      const ebitda = monthValue(site.id, "ebitda", month);
+      const target = monthValue(site.id, "ziel_ebitda_uebernahme", month) ?? monthValue(site.id, "ziel_ebitda_kaufvertrag", month);
+      return ebitda != null && target != null && target > 0 && ebitda < target;
+    });
+    const lastUnderTarget = underTargetMonths.at(-1);
+    const hasTwoConsecutiveTargetMisses =
+      lastUnderTarget != null && underTargetMonths.includes(lastUnderTarget - 1);
+    if (hasTwoConsecutiveTargetMisses) {
+      const ebitda = monthValue(site.id, "ebitda", lastUnderTarget) ?? 0;
+      const target = monthValue(site.id, "ziel_ebitda_uebernahme", lastUnderTarget) ?? monthValue(site.id, "ziel_ebitda_kaufvertrag", lastUnderTarget) ?? 0;
+      warnings.push({
+        id: `${site.id}-ebitda-target`,
+        siteName: site.name,
+        monthLabel: `${bwaMonths[lastUnderTarget - 1]} ${year}`,
+        category: "Ergebnis",
+        signal: "red",
+        title: "EBITDA zwei Monate unter Soll",
+        finding: `EBITDA ${eur(ebitda)} liegt erneut unter Soll-EBITDA ${eur(target)}.`,
+        source: "BWA: EBITDA und Soll-EBITDA gem. Übernahme/Kaufvertrag",
+        action: "Standort in Ergebnisreview nehmen: Umsatzmix, Kostenblock und Behandlerauslastung prüfen."
+      });
+    }
+
+    availableMonths.forEach((month) => {
+      const monthLabel = `${bwaMonths[month - 1]} ${year}`;
+      const revenue = monthValue(site.id, "summe_umsatz", month);
+      const previousRevenue = previousMonthValue(site.id, "summe_umsatz", month);
+      const currentCostQuote = costQuote(site.id, month);
+      const previousCostQuote = costQuote(site.id, month, true);
+      const currentPersonalQuote = personalQuote(site.id, month);
+      const previousPersonalQuote = personalQuote(site.id, month, true);
+      const revenueDeclinePct = revenue != null && previousRevenue ? ((revenue - previousRevenue) / Math.abs(previousRevenue)) * 100 : null;
+
+      if (currentCostQuote != null && previousCostQuote != null && currentCostQuote - previousCostQuote >= 5) {
+        warnings.push({
+          id: `${site.id}-${month}-costquote`,
+          siteName: site.name,
+          monthLabel,
+          category: "Kosten",
+          signal: currentCostQuote - previousCostQuote >= 10 ? "red" : "yellow",
+          title: "Kostenquote erhöht ggü. Vorjahr",
+          finding: `Kostenquote ${pct(currentCostQuote)} liegt ${pct(currentCostQuote - previousCostQuote)}-Pkt. über Vorjahresmonat.`,
+          source: "BWA: Gesamtleistung minus EBITDA im Verhältnis zur Gesamtleistung",
+          action: "Kostenentwicklung nach Material, Fremdlabor, Personal und sonstigen Kosten aufbrechen."
+        });
+      }
+
+      if (
+        revenueDeclinePct != null &&
+        revenueDeclinePct <= -5 &&
+        currentPersonalQuote != null &&
+        previousPersonalQuote != null &&
+        currentPersonalQuote - previousPersonalQuote >= 3
+      ) {
+        warnings.push({
+          id: `${site.id}-${month}-personalquote`,
+          siteName: site.name,
+          monthLabel,
+          category: "Personal",
+          signal: currentPersonalQuote - previousPersonalQuote >= 7 ? "red" : "yellow",
+          title: "Personalkostenquote steigt bei sinkendem Umsatz",
+          finding: `Umsatz ${pct(revenueDeclinePct)} ggü. Vorjahresmonat, Personalkostenquote +${pct(currentPersonalQuote - previousPersonalQuote)}-Pkt.`,
+          source: "BWA: Summe Umsatz und Personalkosten gesamt",
+          action: "Dienstplanung, Behandlerkapazität und Umsatz je FTE prüfen."
+        });
+      }
+
+      const treated = patientMonthValue(site.id, "treatedPatients", month);
+      const previousTreated = patientMonthValue(site.id, "treatedPatients", month, year - 1);
+      const rooms = staticTreatmentRoomsForSite(site.id);
+      if (rooms && treated != null && previousTreated != null && previousTreated > 0) {
+        const currentPatientsPerRoom = treated / rooms;
+        const previousPatientsPerRoom = previousTreated / rooms;
+        const decline = ((currentPatientsPerRoom - previousPatientsPerRoom) / previousPatientsPerRoom) * 100;
+        if (decline <= -10) {
+          warnings.push({
+            id: `${site.id}-${month}-patients-room`,
+            siteName: site.name,
+            monthLabel,
+            category: "Patienten",
+            signal: decline <= -20 ? "red" : "yellow",
+            title: "Patienten je Zimmer sinken",
+            finding: `Patienten je Zimmer ${pct(decline)} ggü. Vorjahresmonat.`,
+            source: "Patientenimport: behandelte Patienten / hinterlegte Behandlungszimmer",
+            action: "Auslastung, Recall, Neupatientenzufuhr und Terminbuchung im Standort prüfen."
+          });
+        }
+      }
+
+      const missed = patientMonthValue(site.id, "missedAppointments", month);
+      const booked = patientMonthValue(site.id, "bookedAppointments", month);
+      const previousMissed = patientMonthValue(site.id, "missedAppointments", month, year - 1);
+      const previousBooked = patientMonthValue(site.id, "bookedAppointments", month, year - 1);
+      if (missed != null && booked && previousMissed != null && previousBooked) {
+        const currentCancellationRate = (missed / booked) * 100;
+        const previousCancellationRate = (previousMissed / previousBooked) * 100;
+        const increase = currentCancellationRate - previousCancellationRate;
+        if (increase >= 3) {
+          warnings.push({
+            id: `${site.id}-${month}-cancellation`,
+            siteName: site.name,
+            monthLabel,
+            category: "Patienten",
+            signal: increase >= 7 ? "red" : "yellow",
+            title: "Terminausfallquote erhöht ggü. Vorjahr",
+            finding: `Ausfallquote ${pct(currentCancellationRate)} liegt ${pct(increase)}-Pkt. über Vorjahresmonat.`,
+            source: "Patientenimport: ausgefallene Termine / gebuchte Termine",
+            action: "No-Show-Prozess, Recall-Kommunikation und Terminbestätigung prüfen."
+          });
+        }
+      }
+    });
+
+    if (latestMonth) {
+      const hasLatestBwa = Boolean(
+        bwaRow(site.id, "summe_umsatz")?.hasDataByMonth[`${year}-${latestMonth}`] ||
+        bwaRow(site.id, "ebitda")?.hasDataByMonth[`${year}-${latestMonth}`]
+      );
+      const hasLatestPatients = (importedData.patientRows ?? []).some((row) =>
+        row.siteId === site.id && Object.prototype.hasOwnProperty.call(row.valuesByMonth, `${year}-${latestMonth}`)
+      );
+      if (!hasLatestBwa || !hasLatestPatients) {
+        warnings.push({
+          id: `${site.id}-data-${latestMonth}`,
+          siteName: site.name,
+          monthLabel: `${bwaMonths[latestMonth - 1]} ${year}`,
+          category: "Datenbasis",
+          signal: "yellow",
+          title: "Datenbasis prüfen",
+          finding: `${!hasLatestBwa ? "BWA-Monat fehlt. " : ""}${!hasLatestPatients ? "Patienten-/Termindaten fehlen." : ""}`.trim(),
+          source: "Importprüfung: BWA- und Patientenmonatswerte",
+          action: "Wenn Daten in Excel vorliegen, CFO-Import neu bestätigen; sonst als offene Datenbasis markieren."
+        });
+      }
+    }
+
+    const bankRows = (importedData.bankMovementRows ?? []).filter((row) => row.siteId === site.id);
+    const bankRevenueRow = bankRows.find((row) => matchesBankMovementKey(row.label, "geldeingang_bank_gesamt"));
+    const bankRevenue = Math.abs(bankMovementValueForPeriod(bankRevenueRow, "Gesamte Periode"));
+    const bwaRevenue = Math.abs(importedBwaMetricValue(importedData.bwaRows, site.id, "summe_umsatz", "Gesamte Periode"));
+    if (bankRevenue && bwaRevenue) {
+      const deviation = ((bankRevenue - bwaRevenue) / bwaRevenue) * 100;
+      if (Math.abs(deviation) >= 20) {
+        warnings.push({
+          id: `${site.id}-bank-bwa-contract`,
+          siteName: site.name,
+          monthLabel: "Vertragsperiode",
+          category: "Cash/Bank",
+          signal: Math.abs(deviation) >= 35 ? "red" : "yellow",
+          title: "Bankeingänge weichen von BWA-Umsatz ab",
+          finding: `Bankeingänge liegen ${pct(deviation)} ggü. BWA-Umsatz über die Vertragsperiode.`,
+          source: "Bankbewegungen vs. BWA-Umsatz, gesamte Vertragsperiode wegen KZV-Zeitversatz",
+          action: "PVS/KZV-Zahlungsläufe, offene Forderungen und interne Sonderbuchungen abstimmen."
+        });
+      }
+    }
+  });
+
+  const sortedWarnings = warnings.sort((a, b) => {
+    const severity = { red: 0, yellow: 1, green: 2 };
+    return severity[a.signal] - severity[b.signal] || a.siteName.localeCompare(b.siteName, "de") || a.category.localeCompare(b.category, "de");
+  });
+  const redCount = sortedWarnings.filter((warning) => warning.signal === "red").length;
+  const yellowCount = sortedWarnings.filter((warning) => warning.signal === "yellow").length;
+  const categories: EarlyWarningRow["category"][] = ["Ergebnis", "Kosten", "Cash/Bank", "Personal", "Patienten", "Datenbasis"];
+
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Frühwarnsystem"
+        text="Monatliche Warnsignale aus BWA, Bankbewegungen, BWA-Personalkosten und Patientendaten. Jede Warnung bleibt ihrer Datenwelt zugeordnet."
+      />
+
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="font-bold">Warnradar | {year}</h2>
+            <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
+              Geprüft werden nur Monate mit vorhandener Datenbasis. Bank/PVS wird bewusst über die gesamte Vertragsperiode bewertet,
+              weil KZV-Zahlungen zeitversetzt eingehen können.
+            </p>
+          </div>
+          <Select className="w-full md:w-52" value={year} onChange={(event) => setYear(Number(event.target.value))}>
+            {years.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </Select>
+        </div>
+      </Card>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Mini label="Warnungen gesamt" value={sortedWarnings.length.toLocaleString("de-DE")} />
+        <Mini label="Auffällig" value={redCount.toLocaleString("de-DE")} />
+        <Mini label="Beobachten" value={yellowCount.toLocaleString("de-DE")} />
+        <Mini label="Neuester geprüfter Monat" value={latestMonth ? `${bwaMonths[latestMonth - 1]} ${year}` : "n. v."} />
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="text-xl font-bold">Warnungen nach Datenwelt</h2>
+          <p className="mt-1 text-sm text-white/75">Die Kacheln zeigen, wo die meisten Signale entstehen. Details stehen darunter je Standort und Monat.</p>
+        </div>
+        <div className="grid gap-px table-grid-bg md:grid-cols-3 xl:grid-cols-6">
+          {categories.map((category) => {
+            const categoryWarnings = sortedWarnings.filter((warning) => warning.category === category);
+            const categoryRed = categoryWarnings.some((warning) => warning.signal === "red");
+            return (
+              <div key={category} className="bg-white p-4">
+                <p className="text-xs font-bold uppercase text-muted-foreground">{category}</p>
+                <p className="mt-2 text-2xl font-extrabold text-primary">{categoryWarnings.length}</p>
+                <div className="mt-2">
+                  <StatusDot status={categoryRed ? "red" : categoryWarnings.length ? "yellow" : "green"} label={categoryWarnings.length ? "Signale vorhanden" : "keine Signale"} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="border-b border-border p-4">
+          <h2 className="font-bold">Detailwarnungen</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Jede Zeile nennt Auslöser, Quelle und nächsten Prüfschritt. Fehlende Daten werden nicht als Null interpretiert.
+          </p>
+        </div>
+        {sortedWarnings.length ? (
+          <div className="overflow-x-auto">
+            <table className="data-table border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr>
+                  {["Signal", "Standort", "Zeitraum", "Datenwelt", "Warnung", "Befund", "Quelle", "Nächster Schritt"].map((head) => (
+                    <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
+                      {head}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedWarnings.map((warning) => (
+                  <tr key={warning.id}>
+                    <td className="border-b border-r border-border p-3">
+                      <StatusDot status={warning.signal} label={warning.signal === "red" ? "Auffällig" : "Beobachten"} />
+                    </td>
+                    <td className="border-b border-r border-border p-3 font-bold">{warning.siteName}</td>
+                    <td className="border-b border-r border-border p-3">{warning.monthLabel}</td>
+                    <td className="border-b border-r border-border p-3">{warning.category}</td>
+                    <td className="border-b border-r border-border p-3 font-bold">{warning.title}</td>
+                    <td className="border-b border-r border-border p-3">{warning.finding}</td>
+                    <td className="border-b border-r border-border p-3 text-sm text-muted-foreground">{warning.source}</td>
+                    <td className="border-b border-r border-border p-3">{warning.action}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-4 text-sm font-semibold text-muted-foreground">
+            Für {year} wurden auf Basis der aktuellen Regeln keine Frühwarnsignale erkannt.
+          </div>
+        )}
+      </Card>
+    </section>
   );
 }
 
