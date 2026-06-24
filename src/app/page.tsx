@@ -14306,12 +14306,27 @@ function buildReportDocument({
         .pmr-document .mini-grid span { font-size: 5.55px; }
         .pmr-document .mini-grid strong { margin-top: 2px; font-size: 9.4px; }
         .pmr-document .payout p { padding: 0 6px 5px; font-size: 5.55px; line-height: 1.18; }
+        .pmr-document .top-side-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 4px;
+        }
+        .pmr-document .top-side-grid .pmr-section h2 { font-size: 7.8px; }
+        .pmr-document .top-side-grid .mini-grid {
+          grid-template-columns: 1fr;
+          gap: 3px;
+          padding: 4px;
+        }
+        .pmr-document .top-side-grid .mini-grid div { padding: 3px 4px; }
+        .pmr-document .top-side-grid .mini-grid span { font-size: 5px; }
+        .pmr-document .top-side-grid .mini-grid strong { font-size: 8px; }
+        .pmr-document .top-side-grid .payout p { padding: 0 5px 4px; font-size: 5px; line-height: 1.12; }
         .pmr-document .monthly-section .pmr-table td,
         .pmr-document .monthly-section .pmr-table th { padding-top: 1.45px; padding-bottom: 1.45px; }
         .pmr-document .report-footer { display: none; }
         .pmr-benchmark-page {
           display: grid;
-          gap: 6px;
+          gap: 4px;
           height: 200mm;
           overflow: hidden;
           page-break-after: always;
@@ -14333,15 +14348,21 @@ function buildReportDocument({
         .pmr-benchmark-header p { margin: 0; color: rgba(255,255,255,.76); font-size: 7.8px; line-height: 1.2; }
         .pmr-benchmark-meta { display: grid; gap: 2px; justify-items: end; color: rgba(255,255,255,.82); font-size: 7.2px; }
         .pmr-benchmark-meta strong { color: white; font-size: 11px; }
-        .pmr-benchmark-page .kpi-grid { grid-template-columns: repeat(6, 1fr); gap: 4px; }
-        .pmr-benchmark-page .kpi-card { min-height: 39px; border-radius: 8px; padding: 5px 7px; box-shadow: none; }
-        .pmr-benchmark-page .kpi-label { font-size: 5.8px; line-height: 1.1; }
-        .pmr-benchmark-page .kpi-value { margin-top: 2px; font-size: 10.6px; }
-        .pmr-benchmark-page .kpi-detail { margin-top: 2px; font-size: 5.9px; line-height: 1.12; }
+        .pmr-benchmark-page .kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; align-items: stretch; }
+        .pmr-benchmark-page .kpi-card {
+          min-height: 27px;
+          border-radius: 7px;
+          padding: 3px 5px;
+          box-shadow: none;
+          border-left-width: 3px;
+        }
+        .pmr-benchmark-page .kpi-label { font-size: 4.9px; line-height: 1.05; letter-spacing: .05em; }
+        .pmr-benchmark-page .kpi-value { margin-top: 1px; font-size: 8.7px; line-height: 1; }
+        .pmr-benchmark-page .kpi-detail { margin-top: 1px; font-size: 4.9px; line-height: 1.05; }
         .pmr-benchmark-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 5px;
+          gap: 4px;
           align-items: start;
         }
         .pmr-benchmark-grid.three {
@@ -14349,31 +14370,31 @@ function buildReportDocument({
         }
         .pmr-benchmark-note {
           border-radius: 8px;
-          padding: 6px 8px;
+          padding: 4px 6px;
           background: #e9f7f6;
           border: 1px solid #b9dfdc;
           color: #12313c;
-          font-size: 7px;
-          line-height: 1.25;
+          font-size: 5.8px;
+          line-height: 1.16;
         }
         .pmr-benchmark-note strong { color: #0a6f79; }
         .pmr-benchmark-page .report-section { border-radius: 8px; box-shadow: none; }
-        .pmr-benchmark-page .section-head { padding: 5px 7px; }
-        .pmr-benchmark-page .section-head h2 { font-size: 8.2px; }
-        .pmr-benchmark-page .section-head p { margin-top: 2px; font-size: 6.2px; line-height: 1.18; }
+        .pmr-benchmark-page .section-head { padding: 4px 6px; }
+        .pmr-benchmark-page .section-head h2 { font-size: 7.6px; }
+        .pmr-benchmark-page .section-head p { margin-top: 1px; font-size: 5.7px; line-height: 1.12; }
         .pmr-benchmark-page .report-table,
         .pmr-benchmark-page .report-table.compact {
-          font-size: 5.95px;
-          line-height: 1.08;
+          font-size: 5.55px;
+          line-height: 1.04;
         }
         .pmr-benchmark-page .report-table th,
         .pmr-benchmark-page .report-table td {
-          padding: 2px 2px;
+          padding: 1.6px 1.8px;
         }
-        .pmr-benchmark-page .bar-list { padding: 6px 7px; gap: 5px; }
-        .pmr-benchmark-page .bar-row { gap: 3px; }
-        .pmr-benchmark-page .bar-meta { font-size: 6.2px; }
-        .pmr-benchmark-page .bar-track { height: 5px; }
+        .pmr-benchmark-page .bar-list { padding: 5px 6px; gap: 4px; }
+        .pmr-benchmark-page .bar-row { gap: 2px; }
+        .pmr-benchmark-page .bar-meta { font-size: 5.8px; }
+        .pmr-benchmark-page .bar-track { height: 4px; }
         .heatmap-table {
           width: 100%;
           border-collapse: collapse;
@@ -14778,10 +14799,11 @@ function personnelCostComparisonRows(importedData: ImportedDashboardData | null 
   (importedData?.personnelCostRows ?? [])
     .filter((row) => row.siteId === siteId)
     .forEach((row) => {
-      const key = row.employeeId || normalizeMetric(row.name);
+      const canonicalName = canonicalProviderName(siteId, row.name);
+      const key = normalizeMetric(canonicalName);
       const existing = grouped.get(key) ?? {
-        employeeId: row.employeeId,
-        name: row.name,
+        employeeId: row.employeeId || key,
+        name: canonicalName,
         type: row.type,
         status: row.status,
         personnelCost: 0,
@@ -14791,6 +14813,7 @@ function personnelCostComparisonRows(importedData: ImportedDashboardData | null 
       };
       existing.personnelCost += periodValueFromMonths(row.personnelCostByMonth, "Gesamte Periode") || row.personnelCost;
       existing.fallbackHonorar += row.honorar;
+      existing.employeeId = existing.employeeId || row.employeeId || key;
       existing.type = existing.type || row.type;
       existing.status = row.status || existing.status;
       grouped.set(key, existing);
@@ -14812,6 +14835,42 @@ function personnelCostComparisonRows(importedData: ImportedDashboardData | null 
     })
     .filter((row) => row.personnelCost || row.honorar || row.pkQuote)
     .sort((a, b) => b.personnelCost - a.personnelCost || a.name.localeCompare(b.name, "de"));
+}
+
+function pmrTopSicknessRows(personalData: PersonalDashboardData | null | undefined, site: DashboardSite, period: string) {
+  const selection = selectedBwaPeriod(period);
+  const selectedMonths = selection.months?.length ? new Set(selection.months) : null;
+  const selectedYear = selection.year;
+  const grouped = new Map<string, { name: string; days: number }>();
+
+  (personalData?.sicknessEntries ?? [])
+    .filter((entry) => siteIdForName(entry.site) === site.id)
+    .filter((entry) => !selectedYear || entry.year === selectedYear)
+    .filter((entry) => !selectedMonths || selectedMonths.has(entry.month))
+    .forEach((entry) => {
+      const name = normalizePersonalText(entry.employeeName) || entry.employeeId || "Nicht benannt";
+      const key = entry.employeeId || normalizeMetric(name);
+      const existing = grouped.get(key) ?? { name, days: 0 };
+      existing.days += entry.days;
+      grouped.set(key, existing);
+    });
+
+  return [...grouped.values()]
+    .filter((row) => row.days > 0)
+    .sort((a, b) => b.days - a.days || a.name.localeCompare(b.name, "de"))
+    .slice(0, 10);
+}
+
+function pmrTopSicknessTable(personalData: PersonalDashboardData | null | undefined, site: DashboardSite, period: string) {
+  const rows = pmrTopSicknessRows(personalData, site, period);
+  return `<table class="pmr-table compact">
+    <thead><tr><th>Mitarbeiter</th><th>Krankheitstage</th></tr></thead>
+    <tbody>${rows.length ? rows.map((row) => `<tr>
+      <td>${reportEscape(row.name)}</td>
+      <td>${reportEscape(row.days.toLocaleString("de-DE", { maximumFractionDigits: 1 }))}</td>
+    </tr>`).join("") : `<tr><td>Keine Krankheitstage im Zeitraum</td><td></td></tr>`}
+    </tbody>
+  </table>`;
 }
 
 function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
@@ -15129,14 +15188,19 @@ function buildPmrBenchmarkPage(
   </div>`;
 }
 
-function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardData, period: string, comparisonYear: number) {
+function buildPmrSitePage(
+  site: DashboardSite,
+  importedData: ImportedDashboardData,
+  personalData: PersonalDashboardData | null | undefined,
+  period: string,
+  comparisonYear: number
+) {
   const filteredSite = filteredSiteForPeriod(site, importedData, period);
   const projection = projectedEarnOutForSite(site, period);
   const year = currentYearFromPeriod(period);
   const periodLabel = performancePeriodLabel(period);
   const comparisonPeriod = comparisonPeriodFor(period, comparisonYear);
   const expectedPayout = projection.projectedEarnOut + projection.projectedGrowthPayment;
-  const earnOutPotential = site.darlehen.earnOutGesamt ?? 0;
   const targetAchievement = ratio(filteredSite.ebitda, filteredSite.darlehen.zielEbitdaKaufvertrag || filteredSite.darlehen.zielEbitda);
   const targetAchievementTone: ReportTone = targetAchievement >= 100 ? "green" : targetAchievement >= 80 ? "yellow" : "red";
   return `<div class="pmr-page">
@@ -15149,14 +15213,17 @@ function buildPmrSitePage(site: DashboardSite, importedData: ImportedDashboardDa
       <section class="pmr-section wide"><h2>BWA-Überblick bis EBITDA</h2>${pmrBwaReportTable(importedData, site.id, period, comparisonYear)}</section>
       <div class="pmr-stack">
         <section class="pmr-section"><h2>Quoten & Kennzahlen</h2>${pmrQuoteRows(importedData, site.id, period, comparisonYear)}</section>
-        <section class="pmr-section payout"><h2>Auszahlungslogik Käufer - indikative Hochrechnung</h2>
-          <div class="mini-grid">
-            <div><span>Indikativ Earn-Out aktuell</span><strong>${reportEscape(eur(projection.projectedEarnOut, true))}</strong></div>
-            <div><span>Indikative Wachstumszahlung</span><strong>${reportEscape(eur(projection.projectedGrowthPayment, true))}</strong></div>
-            <div><span>Indikativ gesamt erwartet</span><strong>${reportEscape(eur(expectedPayout, true))}</strong></div>
-          </div>
-          <p>Earn-Out Potenzial: ${reportEscape(eur(earnOutPotential, true))} | Run-Rate EBITDA p.a.: ${reportEscape(eur(projection.projectedEbitda))} | SOLL EBITDA Vertragslaufzeit: ${reportEscape(eur(projection.contractTargetEbitda))} | EBITDA hochgerechnet: ${reportEscape(eur(projection.projectedContractEbitda))} | Wachstumslogik: ${reportEscape(growthFactorLabel(projection.growthFactor))}</p>
-        </section>
+        <div class="top-side-grid">
+          <section class="pmr-section payout"><h2>Auszahlungslogik Käufer</h2>
+            <div class="mini-grid">
+              <div><span>Earn-Out</span><strong>${reportEscape(eur(projection.projectedEarnOut, true))}</strong></div>
+              <div><span>Wachstum</span><strong>${reportEscape(eur(projection.projectedGrowthPayment, true))}</strong></div>
+              <div><span>Gesamt erwartet</span><strong>${reportEscape(eur(expectedPayout, true))}</strong></div>
+            </div>
+            <p>Run-Rate EBITDA p.a.: ${reportEscape(eur(projection.projectedEbitda))} | Ziel Vertragslaufzeit: ${reportEscape(eur(projection.contractTargetEbitda))} | Wachstumslogik: ${reportEscape(growthFactorLabel(projection.growthFactor))}</p>
+          </section>
+          <section class="pmr-section"><h2>Top 10 Krankheitstage | ${reportEscape(periodLabel)}</h2>${pmrTopSicknessTable(personalData, site, period)}</section>
+        </div>
       </div>
     </div>
     ${reportKpiGrid([
@@ -15194,7 +15261,7 @@ function buildPmrReport(
   }
 
   const pages = selectedSites.map((site) => [
-    buildPmrSitePage(site, importedData, period, comparisonYear),
+    buildPmrSitePage(site, importedData, personalData, period, comparisonYear),
     buildPmrBenchmarkPage(site, allSites, importedData, personalData, period)
   ].join("")).join("");
   return buildReportDocument({
