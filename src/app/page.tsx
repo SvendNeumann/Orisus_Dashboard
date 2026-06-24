@@ -15826,6 +15826,7 @@ function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, pe
   const comparisonPeriod = comparisonPeriodFor(period, comparisonYear);
   const grouped = new Map<string, { name: string; honorar: number; eigenlabor: number; total: number; previousTotal: number }>();
   groupedProviderDetailRows((importedData.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId), siteId)
+    .filter((row) => !isExcludedFromPersonnelCostAggregation(row.name))
     .forEach((row) => {
       const name = row.name;
       const key = canonicalProviderKey(siteId, row.name);
@@ -16213,6 +16214,7 @@ function buildPmrSitePage(
   const periodLabel = performancePeriodLabel(period);
   const comparisonPeriod = comparisonPeriodFor(period, comparisonYear);
   const expectedPayout = projection.projectedEarnOut + projection.projectedGrowthPayment;
+  const showPayoutSection = site.id !== "ulmet" || expectedPayout > 0;
   const targetAchievement = ratio(filteredSite.ebitda, filteredSite.darlehen.zielEbitdaKaufvertrag || filteredSite.darlehen.zielEbitda);
   const targetAchievementTone: ReportTone = targetAchievement >= 100 ? "green" : targetAchievement >= 80 ? "yellow" : "red";
   return `<div class="pmr-page">
@@ -16226,14 +16228,14 @@ function buildPmrSitePage(
       <div class="pmr-stack">
         <section class="pmr-section"><h2>Quoten & Kennzahlen</h2>${pmrQuoteRows(importedData, site.id, period, comparisonYear)}</section>
         <div class="top-side-grid">
-          <section class="pmr-section payout"><h2>Auszahlungslogik Käufer</h2>
+          ${showPayoutSection ? `<section class="pmr-section payout"><h2>Auszahlungslogik Käufer</h2>
             <div class="mini-grid">
               <div><span>Earn-Out</span><strong>${reportEscape(eur(projection.projectedEarnOut, true))}</strong></div>
               <div><span>Wachstum</span><strong>${reportEscape(eur(projection.projectedGrowthPayment, true))}</strong></div>
               <div><span>Gesamt erwartet</span><strong>${reportEscape(eur(expectedPayout, true))}</strong></div>
             </div>
             <p>Run-Rate EBITDA p.a.: ${reportEscape(eur(projection.projectedEbitda))} | Ziel Vertragslaufzeit: ${reportEscape(eur(projection.contractTargetEbitda))} | Wachstumslogik: ${reportEscape(growthFactorLabel(projection.growthFactor))}</p>
-          </section>
+          </section>` : ""}
           <section class="pmr-section"><h2>Top 10 Krankheitstage | ${reportEscape(periodLabel)}</h2>${pmrTopSicknessTable(personalData, site, period)}</section>
         </div>
       </div>
