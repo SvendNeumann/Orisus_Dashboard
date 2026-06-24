@@ -8035,10 +8035,11 @@ function bwaChartDataForPeriod(importedData: ImportedDashboardData | null | unde
         leistung: valueFor("summe_umsatz", String(year), true),
         ebitda: valueFor("ebitda", String(year), true),
         zielEbitdaKaufvertrag: valueFor("ziel_ebitda_kaufvertrag", String(year), true),
+        zielEbitdaUebernahme: valueFor("ziel_ebitda_uebernahme", String(year), true),
         marge: 0,
         cashflow: valueFor("cashflow_gesamt", String(year), true)
       }))
-      .filter((entry) => entry.leistung || entry.ebitda || entry.zielEbitdaKaufvertrag || entry.cashflow);
+      .filter((entry) => entry.leistung || entry.ebitda || entry.zielEbitdaKaufvertrag || entry.zielEbitdaUebernahme || entry.cashflow);
   }
 
   const months =
@@ -8057,6 +8058,7 @@ function bwaChartDataForPeriod(importedData: ImportedDashboardData | null | unde
       leistung,
       ebitda,
       zielEbitdaKaufvertrag: valueFor("ziel_ebitda_kaufvertrag", periodKey),
+      zielEbitdaUebernahme: valueFor("ziel_ebitda_uebernahme", periodKey),
       marge: leistung ? (ebitda / leistung) * 100 : 0,
       cashflow: valueFor("cashflow_gesamt", periodKey)
     };
@@ -11970,8 +11972,16 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
               <XAxis dataKey="month" />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
-              <Bar dataKey="leistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
-              <Line dataKey="ebitda" stroke="#0369a1" strokeWidth={3} />
+              <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
+              <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
+              <Line
+                dataKey="zielEbitdaUebernahme"
+                name="Soll-EBITDA gem. Übernahme"
+                stroke="#f59e0b"
+                strokeDasharray="7 5"
+                strokeWidth={3}
+                dot={false}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
