@@ -9549,65 +9549,210 @@ function Fruehwarnsystem({
     }
   });
 
-  const sortedWarnings = warnings.sort((a, b) => {
+  const sortedWarnings = [...warnings].sort((a, b) => {
     const severity = { red: 0, yellow: 1, green: 2 };
     return severity[a.signal] - severity[b.signal] || a.siteName.localeCompare(b.siteName, "de") || a.category.localeCompare(b.category, "de");
   });
   const redCount = sortedWarnings.filter((warning) => warning.signal === "red").length;
   const yellowCount = sortedWarnings.filter((warning) => warning.signal === "yellow").length;
   const categories: EarlyWarningRow["category"][] = ["Ergebnis", "Kosten", "Cash/Bank", "Personal", "Patienten", "Datenbasis"];
+  const categoryCopy: Record<EarlyWarningRow["category"], { label: string; text: string }> = {
+    Ergebnis: {
+      label: "Ergebnis",
+      text: "EBITDA gegen Soll-EBITDA aus Übernahme/Kaufvertrag."
+    },
+    Kosten: {
+      label: "Kosten",
+      text: "Kostenquote gegenüber dem Vorjahresmonat."
+    },
+    "Cash/Bank": {
+      label: "Bank/PVS",
+      text: "Bank-Praxisumsatz gegen BWA-Umsatz über Vertragsperiode."
+    },
+    Personal: {
+      label: "Personal",
+      text: "Personalkostenquote bei sinkendem Umsatz."
+    },
+    Patienten: {
+      label: "Patienten",
+      text: "Auslastung und Terminausfälle aus Patientendaten."
+    },
+    Datenbasis: {
+      label: "Datenbasis",
+      text: "Fehlende BWA-, Patienten- oder Monatswerte."
+    }
+  };
+  const siteSummaries = activeSites
+    .map((site) => {
+      const siteWarnings = sortedWarnings.filter((warning) => warning.siteName === site.name);
+      const red = siteWarnings.filter((warning) => warning.signal === "red").length;
+      const yellow = siteWarnings.filter((warning) => warning.signal === "yellow").length;
+      const topCategory = categories
+        .map((category) => ({
+          category,
+          count: siteWarnings.filter((warning) => warning.category === category).length
+        }))
+        .sort((a, b) => b.count - a.count)[0];
+      const latestWarning = siteWarnings[0];
+      return {
+        site,
+        count: siteWarnings.length,
+        red,
+        yellow,
+        tone: red ? "red" as Status : siteWarnings.length ? "yellow" as Status : "green" as Status,
+        category: topCategory?.count ? topCategory.category : null,
+        latestWarning
+      };
+    })
+    .filter((summary) => summary.count > 0)
+    .sort((a, b) => b.red - a.red || b.count - a.count || a.site.name.localeCompare(b.site.name, "de"));
+  const leadingFindings = sortedWarnings.slice(0, 5);
+  const statusLabel = redCount ? "Auffällig" : yellowCount ? "Beobachten" : "Stabil";
+  const statusTone: Status = redCount ? "red" : yellowCount ? "yellow" : "green";
+  const dataScopeText = latestMonth
+    ? `Monatliche Prüfungen bis ${bwaMonths[latestMonth - 1]} ${year}; Bank/PVS über Vertragsperiode.`
+    : "Noch kein prüfbarer BWA-Monat im gewählten Jahr.";
 
   return (
     <section className="space-y-5">
       <PageTitle
         title="Frühwarnsystem"
-        text="Monatliche Warnsignale aus BWA, Bankbewegungen, BWA-Personalkosten und Patientendaten. Jede Warnung bleibt ihrer Datenwelt zugeordnet."
+        text="Kompakte Sicht auf Ergebnis-, Kosten-, Bank/PVS-, Personal-, Patienten- und Datenbasis-Signale. Jede Warnung bleibt ihrer Datenquelle zugeordnet."
       />
 
-      <Card className="p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <Card className="overflow-hidden">
+        <div className="table-head flex flex-col gap-3 p-4 text-white lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="font-bold">Warnradar | {year}</h2>
-            <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
-              Geprüft werden nur Monate mit vorhandener Datenbasis. Bank/PVS wird bewusst über die gesamte Vertragsperiode bewertet,
-              weil KZV-Zahlungen zeitversetzt eingehen können.
-            </p>
+            <p className="text-xs font-bold uppercase text-white/70">Steuerung</p>
+            <h2 className="mt-1 text-2xl font-extrabold">Warnradar {year}</h2>
+            <p className="mt-1 max-w-4xl text-sm leading-6 text-white/75">{dataScopeText}</p>
           </div>
-          <Select className="w-full md:w-52" value={year} onChange={(event) => setYear(Number(event.target.value))}>
-            {years.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </Select>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <StatusDot status={statusTone} label={statusLabel} />
+            <Select className="w-full bg-white text-slate-900 sm:w-52" value={year} onChange={(event) => setYear(Number(event.target.value))}>
+              {years.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        <div className="grid gap-px table-grid-bg md:grid-cols-2 xl:grid-cols-4">
+          <div className="bg-white p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Gesamt</p>
+            <p className="mt-2 text-3xl font-extrabold text-primary">{sortedWarnings.length.toLocaleString("de-DE")}</p>
+            <p className="mt-1 text-sm text-muted-foreground">aktive Warnsignale</p>
+          </div>
+          <div className="bg-white p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Auffällig</p>
+            <p className="mt-2 text-3xl font-extrabold text-red-600">{redCount.toLocaleString("de-DE")}</p>
+            <p className="mt-1 text-sm text-muted-foreground">mit hoher Priorität</p>
+          </div>
+          <div className="bg-white p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Beobachten</p>
+            <p className="mt-2 text-3xl font-extrabold text-amber-600">{yellowCount.toLocaleString("de-DE")}</p>
+            <p className="mt-1 text-sm text-muted-foreground">mit mittlerer Priorität</p>
+          </div>
+          <div className="bg-white p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Fokus-Standorte</p>
+            <p className="mt-2 text-3xl font-extrabold text-primary">{siteSummaries.length.toLocaleString("de-DE")}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{siteSummaries.slice(0, 3).map((summary) => summary.site.name).join(", ") || "keine"}</p>
+          </div>
         </div>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Mini label="Warnungen gesamt" value={sortedWarnings.length.toLocaleString("de-DE")} />
-        <Mini label="Auffällig" value={redCount.toLocaleString("de-DE")} />
-        <Mini label="Beobachten" value={yellowCount.toLocaleString("de-DE")} />
-        <Mini label="Neuester geprüfter Monat" value={latestMonth ? `${bwaMonths[latestMonth - 1]} ${year}` : "n. v."} />
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <Card className="overflow-hidden">
+          <div className="border-b border-border p-4">
+            <h2 className="text-lg font-bold">Fokus nach Standort</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Standorte mit den meisten oder stärksten Signalen stehen oben.</p>
+          </div>
+          {siteSummaries.length ? (
+            <div className="divide-y divide-border">
+              {siteSummaries.map((summary) => (
+                <div key={summary.site.id} className="grid gap-3 p-4 md:grid-cols-[1fr_auto] md:items-center">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-lg font-extrabold text-primary">{summary.site.name}</p>
+                      <StatusDot status={summary.tone} label={summary.red ? "Auffällig" : "Beobachten"} />
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {summary.count} Signal(e), davon {summary.red} auffällig. Schwerpunkt: {summary.category ? categoryCopy[summary.category].label : "n. v."}.
+                    </p>
+                    {summary.latestWarning ? (
+                      <p className="mt-2 text-sm font-semibold text-slate-800">{summary.latestWarning.title}: {summary.latestWarning.finding}</p>
+                    ) : null}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-3">
+                    <div className="rounded-md bg-slate-50 p-3">
+                      <p className="text-xs font-semibold text-muted-foreground">Signale</p>
+                      <p className="mt-1 font-extrabold">{summary.count}</p>
+                    </div>
+                    <div className="rounded-md bg-red-50 p-3">
+                      <p className="text-xs font-semibold text-red-700">Auffällig</p>
+                      <p className="mt-1 font-extrabold text-red-700">{summary.red}</p>
+                    </div>
+                    <div className="rounded-md bg-amber-50 p-3">
+                      <p className="text-xs font-semibold text-amber-700">Beobachten</p>
+                      <p className="mt-1 font-extrabold text-amber-700">{summary.yellow}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-4 text-sm font-semibold text-muted-foreground">Keine Fokus-Standorte im gewählten Jahr.</div>
+          )}
+        </Card>
+
+        <Card className="overflow-hidden">
+          <div className="border-b border-border p-4">
+            <h2 className="text-lg font-bold">Was wird geprüft?</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Kurzfassung der Leselogik, damit die Signale einzuordnen sind.</p>
+          </div>
+          <div className="divide-y divide-border">
+            {categories.map((category) => {
+              const count = sortedWarnings.filter((warning) => warning.category === category).length;
+              const hasRed = sortedWarnings.some((warning) => warning.category === category && warning.signal === "red");
+              const tone: Status = hasRed ? "red" : count ? "yellow" : "green";
+              return (
+                <div key={category} className="flex items-start justify-between gap-3 p-3">
+                  <div>
+                    <p className="font-bold text-slate-900">{categoryCopy[category].label}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{categoryCopy[category].text}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-extrabold text-primary">{count}</p>
+                    <StatusDot status={tone} label={count ? (hasRed ? "Auffällig" : "Beobachten") : "Stabil"} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       </div>
 
       <Card className="overflow-hidden">
         <div className="table-head p-4 text-white">
-          <h2 className="text-xl font-bold">Warnungen nach Datenwelt</h2>
-          <p className="mt-1 text-sm text-white/75">Die Kacheln zeigen, wo die meisten Signale entstehen. Details stehen darunter je Standort und Monat.</p>
+          <h2 className="text-xl font-bold">Priorisierte Befunde</h2>
+          <p className="mt-1 text-sm text-white/75">Die wichtigsten Signale zuerst. Das ist die schnelle Arbeitsliste für Review oder Standortgespräch.</p>
         </div>
-        <div className="grid gap-px table-grid-bg md:grid-cols-3 xl:grid-cols-6">
-          {categories.map((category) => {
-            const categoryWarnings = sortedWarnings.filter((warning) => warning.category === category);
-            const categoryRed = categoryWarnings.some((warning) => warning.signal === "red");
-            return (
-              <div key={category} className="bg-white p-4">
-                <p className="text-xs font-bold uppercase text-muted-foreground">{category}</p>
-                <p className="mt-2 text-2xl font-extrabold text-primary">{categoryWarnings.length}</p>
-                <div className="mt-2">
-                  <StatusDot status={categoryRed ? "red" : categoryWarnings.length ? "yellow" : "green"} label={categoryWarnings.length ? "Signale vorhanden" : "keine Signale"} />
+        {leadingFindings.length ? (
+          <div className="grid gap-px table-grid-bg lg:grid-cols-5">
+            {leadingFindings.map((warning) => (
+              <div key={warning.id} className="bg-white p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <StatusDot status={warning.signal} label={warning.signal === "red" ? "Auffällig" : "Beobachten"} />
+                  <span className="text-xs font-semibold text-muted-foreground">{warning.monthLabel}</span>
                 </div>
+                <p className="mt-3 text-lg font-extrabold text-primary">{warning.siteName}</p>
+                <p className="mt-1 text-sm font-bold text-slate-900">{warning.title}</p>
+                <p className="mt-2 text-sm leading-5 text-muted-foreground">{warning.finding}</p>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 text-sm font-semibold text-muted-foreground">Keine priorisierten Befunde im gewählten Jahr.</div>
+        )}
       </Card>
 
       <Card className="overflow-hidden">

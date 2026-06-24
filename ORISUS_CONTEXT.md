@@ -1,6 +1,6 @@
 # Orisus CFO Dashboard - Projektuebergabe
 
-Stand: 24.06.2026, nach App-Commit `38528f50`
+Stand: 24.06.2026, fortlaufend aktualisiert im aktuellen `main`-Stand
 
 Dieses Dokument fasst den Projektstand, fachliche Entscheidungen, Datenlogiken, Architektur und offene Punkte aus dem bisherigen Chat zusammen. Es dient als Startpunkt fuer neue Codex-/Entwicklungs-Chats.
 
@@ -14,8 +14,7 @@ Dieses Dokument fasst den Projektstand, fachliche Entscheidungen, Datenlogiken, 
 - Branch: `main`
 - Deployment laeuft ueber GitHub -> Vercel.
 - Der letzte gepruefte Stand war buildfaehig mit `pnpm exec next build`.
-- Letzter gepushter App-Implementierungsstand in diesem Chat: `38528f50 Refine status signal wording`.
-- Danach soll diese Kontextdatei als verbindliche Projektuebergabe aktuell gehalten und ebenfalls gepusht werden.
+- Diese Kontextdatei soll als verbindliche Projektuebergabe aktuell gehalten und mit relevanten App-Aenderungen ebenfalls gepusht werden.
 
 Wichtige Regel: Veraenderungen sollen immer committed und gepusht werden, wenn sie live gehen sollen. Vercel deployed dann automatisch.
 Der Nutzer erwartet, dass umgesetzte Aenderungen nicht nur lokal bleiben, sondern nach erfolgreichem Check auf `main` gepusht werden.
@@ -174,7 +173,10 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Orisus Performance: Diagramm `Operative Entwicklung` hat Zeitraumfilter und Soll-EBITDA-Linie gemaess Uebernahme.
 - Orisus Performance: Bankbewegungen unten reagieren auf die Zeitraumwahl.
 - Cashflow-Tab enthaelt zusaetzlich einen Abweichungsmonitor Bank vs. BWA ueber die gesamte Vertragsperiode je Standort.
-- Performance & Benchmarking enthaelt ein Fruehwarnsystem als eigenes Tab.
+- Performance & Benchmarking enthaelt ein Fruehwarnsystem als eigenes Tab:
+  - Oben kompakter Warnradar mit Jahresfilter, Gesamtstatus, Anzahl Auffaellig/Beobachten und Fokus-Standorten.
+  - Darunter Fokus nach Standort, Leselogik je Datenwelt und priorisierte Befunde.
+  - Detailtabelle bleibt erhalten und nennt Signal, Standort, Zeitraum, Datenwelt, Befund, Quelle und naechsten Schritt.
 - Performance & Benchmarking enthaelt eine Standort-Scorecard als Benchmarking-Block.
 - Performance & Benchmarking enthaelt ein eigenes Tab `Personalproduktivitaet`.
 - Administration:
