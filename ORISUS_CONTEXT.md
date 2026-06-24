@@ -399,13 +399,14 @@ Wichtig:
   - Immer ueber die gesamte Vertragsperiode je Standort darstellen.
   - Grund: KZV-/PVS-Zahlungen koennen zeitversetzt eingehen; Monats-/YTD-Vergleiche koennen verzerren.
   - Einnahmenseite:
-    - Bankeinnahmen aus Bankbewegungen gegen BWA-Umsatz.
-    - Keine Tilgung, Zinsen oder Intercompany einbeziehen.
+    - Bank-Praxisumsatz aus Bankbewegungen gegen BWA-Umsatz.
+    - Primaere Importbasis ist `davon Praxisumsatz` bzw. `IST Geldeingang Bank`; `Geldeingang Bank gesamt` ist nur Fallback fuer Altimporte.
+    - Keine Tilgung, Zinsen, Intercompany oder sonstigen Bankeingaenge einbeziehen.
   - Kostenseite:
     - Praxisausgaben gemaess Bankbewegung gegen operative BWA-Kosten plus Investitionen.
     - Keine Tilgung, Zinsen oder Intercompany einbeziehen.
   - Fix hinterlegte interne Bereinigung:
-    - Ulmet: 100.000 EUR von Bankeingaengen abziehen, weil operativer Kredit von Kirchberg.
+    - Ulmet: 100.000 EUR von Bank-Praxisumsatz/Bankeingaengen abziehen, weil operativer Kredit von Kirchberg.
     - Kirchberg: 100.000 EUR aus Praxisausgaben herausrechnen, weil interner Kredit an Ulmet und keine operativen Kosten.
   - Diese Bereinigung muss sichtbar kommentiert bleiben.
 
@@ -1162,11 +1163,12 @@ Zuletzt umgesetzte / festgelegte Punkte:
 - Cashflow:
   - Tab Cashflow enthaelt einen Abweichungsmonitor Bank vs. BWA.
   - Vergleich immer je Standort ueber gesamte Vertragsperiode.
-  - Einnahmenseite: Bankeinnahmen gegen BWA-Umsatz.
+  - Einnahmenseite: Bank-Praxisumsatz gegen BWA-Umsatz.
+  - Primaere Bank-Umsatzbasis: `davon Praxisumsatz` bzw. `IST Geldeingang Bank`; `Geldeingang Bank gesamt` nur als Fallback fuer Altimporte.
   - Kostenseite: Praxisausgaben Bank gegen operative BWA-Kosten plus Investitionen.
   - Tilgung, Zins und Intercompany werden bewusst nicht einbezogen.
   - Fixe interne Bereinigung:
-    - Ulmet: 100.000 EUR von Bankeingaengen abziehen.
+    - Ulmet: 100.000 EUR von Bank-Praxisumsatz/Bankeingaengen abziehen.
     - Kirchberg: 100.000 EUR aus Praxisausgaben herausrechnen.
 - Bankenreporting:
   - Tab soll aus Bank-/Kreditgeberperspektive aufgebaut sein, analytischer als reine Datenablage.
