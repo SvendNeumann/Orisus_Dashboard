@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import {
   Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -8065,6 +8064,46 @@ function bwaChartDataForPeriod(importedData: ImportedDashboardData | null | unde
   });
 }
 
+function siteDevelopmentChartDataForPeriod(
+  importedData: ImportedDashboardData | null | undefined,
+  fallbackMonthlyData: typeof monthly,
+  siteId: string,
+  period: string
+) {
+  if (!importedData?.bwaRows?.length) return fallbackMonthlyData;
+  const rowsForMetric = (metricKey: string) => importedData.bwaRows.filter((row) => row.metricKey === metricKey && row.siteId === siteId);
+  const valueFor = (metricKey: string, periodKey: string, yearOnly = false) => {
+    return rowsForMetric(metricKey).reduce((sum, row) => sum + (yearOnly ? row.valuesByYear[periodKey] ?? 0 : row.valuesByMonth[periodKey] ?? 0), 0);
+  };
+  const selection = selectedBwaPeriod(period);
+
+  if (!selection.year) {
+    return importedData.report.jahre
+      .filter((year) => year >= 1900)
+      .map((year) => ({
+        month: String(year),
+        leistung: valueFor("summe_umsatz", String(year), true),
+        ebitda: valueFor("ebitda", String(year), true),
+        cashflow: valueFor("cashflow_gesamt", String(year), true)
+      }))
+      .filter((entry) => entry.leistung || entry.ebitda || entry.cashflow);
+  }
+
+  const months =
+    selection.months?.length
+      ? selection.months
+      : Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+          importedData.bwaRows.some((row) => row.siteId === siteId && row.hasDataByMonth[`${selection.year}-${month}`])
+        );
+
+  return months.map((month) => ({
+    month: bwaMonths[month - 1] ?? String(month),
+    leistung: valueFor("summe_umsatz", `${selection.year}-${month}`),
+    ebitda: valueFor("ebitda", `${selection.year}-${month}`),
+    cashflow: valueFor("cashflow_gesamt", `${selection.year}-${month}`)
+  }));
+}
+
 function filteredSiteForPeriod(site: DashboardSite, importedData: ImportedDashboardData | null | undefined, period: string): DashboardSite {
   if (!importedData?.bwaRows?.length) return site;
   const siteId = site.id;
@@ -8603,6 +8642,7 @@ function StandortDetail({
   const filteredSite = filteredSiteForPeriod(site, importedData, period);
   const filteredSiteStatus = statusForSiteByRules(filteredSite, rules);
   const periodLabel = period === "Gesamte Periode" ? `seit Vertragsstart ${site.start}` : period;
+  const siteDevelopmentData = siteDevelopmentChartDataForPeriod(importedData, monthlyData, site.id, period);
   const cashflowDetails = filteredSite.cashflowDetails;
   const grossPerformanceInfo = (
     <div className="space-y-3">
@@ -8702,15 +8742,37 @@ function StandortDetail({
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <CostRatios site={filteredSite} periodLabel={periodLabel} />
-        <ChartCard title={`Entwicklung über Zeit | ${periodLabel}`} icon={TrendingUp}>
+        <ChartCard
+          title={`Entwicklung über Zeit | ${site.name}`}
+          icon={TrendingUp}
+          action={
+            <Select value={period} onChange={(event) => setPeriod(event.target.value)} className="w-full min-w-52 sm:w-auto">
+              {availablePeriods.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </Select>
+          }
+        >
+          <p className="mb-3 text-sm leading-6 text-muted-foreground">
+            Gemessen werden BWA-Gesamtleistung, BWA-EBITDA und Cashflow gem. BWA für {site.name} im ausgewählten Zeitraum.
+            Bank-Cashflow und Kontostand sind separat im Bankbewegungsbereich ausgewiesen.
+          </p>
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={monthlyData}>
+            <ComposedChart data={siteDevelopmentData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" tickLine={false} axisLine={false} />
-              <Tooltip formatter={(v) => eur(Number(v))} />
-              <Area dataKey="leistung" stroke="#0f766e" fill="#ccfbf1" strokeWidth={3} />
-            </AreaChart>
+              <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
+              <Tooltip formatter={(v, name) => [eur(Number(v)), String(name)]} />
+              <Area dataKey="leistung" name="Gesamtleistung BWA" stroke="#0f766e" fill="#ccfbf1" strokeWidth={3} />
+              <Line dataKey="ebitda" name="EBITDA BWA" stroke="#0369a1" strokeWidth={3} dot={false} />
+              <Line dataKey="cashflow" name="Cashflow gem. BWA" stroke="#64748b" strokeWidth={3} dot={false} />
+            </ComposedChart>
           </ResponsiveContainer>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-muted-foreground">
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#0f766e]" /> Gesamtleistung BWA</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#0369a1]" /> EBITDA BWA</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#64748b]" /> Cashflow gem. BWA</span>
+          </div>
         </ChartCard>
       </div>
       <BwaStatement title={`BWA bis Cashflow gem. BWA | ${site.name}`} siteId={site.id} importedData={importedData} />
