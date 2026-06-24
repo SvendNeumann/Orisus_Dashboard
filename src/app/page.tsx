@@ -14076,6 +14076,12 @@ function reportStatusDot(status: Status | "neutral") {
   return `<span class="status-dot" style="background:${color}"></span><span class="status-label">${reportEscape(label)}</span>`;
 }
 
+function reportStatusDotWithLabel(status: Status | "neutral", label: string) {
+  if (status === "neutral") return "";
+  const color = status === "green" ? "#16a34a" : status === "yellow" ? "#f59e0b" : "#dc2626";
+  return `<span class="status-dot" style="background:${color}"></span><span class="status-label">${reportEscape(label)}</span>`;
+}
+
 function trendStatus(current: number, previous: number, higherIsBetter = true, tolerancePct = 2): Status | "neutral" {
   if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) return "neutral";
   const change = ((current - previous) / Math.abs(previous)) * 100;
@@ -14090,6 +14096,20 @@ function quoteTrendStatus(current: number, previous: number, higherIsBetter = tr
   if (Math.abs(diff) <= tolerancePp) return "yellow";
   const improved = higherIsBetter ? diff > 0 : diff < 0;
   return improved ? "green" : "red";
+}
+
+function pmrTrendStatusLabel(status: Status | "neutral", higherIsBetter: boolean) {
+  if (status === "neutral") return "";
+  if (status === "yellow") return "nahe VJ";
+  if (higherIsBetter) return status === "green" ? "über VJ" : "unter VJ";
+  return status === "green" ? "unter VJ" : "erhöht ggü. VJ";
+}
+
+function pmrEbitdaTargetStatusLabel(status: Status | "neutral") {
+  if (status === "green") return "Ziel erreicht";
+  if (status === "yellow") return "Ziel beobachten";
+  if (status === "red") return "unter Ziel";
+  return "";
 }
 
 function comparisonPeriodFor(period: string, comparisonYear: number) {
@@ -14191,8 +14211,9 @@ function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, 
     const hasCurrentYtd = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, currentYtdPeriod);
     const hasPreviousYtd = hasImportedMetricPeriodValue(importedData.bwaRows, siteId, row.metricKey, previousYtdPeriod);
     const higherIsBetter = !costKeys.has(String(row.metricKey));
+    const isEbitdaRow = row.metricKey === "ebitda";
     const status =
-      row.metricKey === "ebitda"
+      isEbitdaRow
         ? (() => {
             const takeoverTarget = importedBwaMetricValue(importedData.bwaRows, siteId, "ziel_ebitda_uebernahme", currentYtdPeriod);
             return takeoverTarget ? statusByRule(ratio(currentYtd, takeoverTarget), defaultKpiRules.ziel_ebitda_uebernahme) : "neutral";
@@ -14202,6 +14223,7 @@ function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, 
             ? quoteTrendStatus(currentYtd, previousYtdValue, higherIsBetter)
             : trendStatus(Math.abs(currentYtd), Math.abs(previousYtdValue), higherIsBetter)
           : "neutral";
+    const statusLabel = isEbitdaRow ? pmrEbitdaTargetStatusLabel(status) : pmrTrendStatusLabel(status, higherIsBetter);
     const deviation = currentYtd - previousYtdValue;
     const deviationClass = !isSectionRow && hasPreviousYtd && deviation ? (deviation > 0 ? "positive" : "negative") : "";
     const valueClass = isVarianceRow(row.label) && currentYtd ? (currentYtd > 0 ? "positive" : "negative") : "";
@@ -14218,7 +14240,7 @@ function pmrBwaReportTable(importedData: ImportedDashboardData, siteId: string, 
       <td class="${valueClass}">${isSectionRow || !hasCurrentYtd ? "" : reportEscape(formatted(currentYtd))}</td>
       <td>${isSectionRow || !hasPreviousYtd ? "" : reportEscape(formatted(previousYtdValue))}</td>
       <td class="${deviationClass}">${isSectionRow || !hasPreviousYtd ? "" : reportEscape(row.percent ? pct(deviation) : eur(deviation))}</td>
-      <td>${status === "neutral" ? "" : reportStatusDot(status)}</td>
+      <td>${status === "neutral" ? "" : reportStatusDotWithLabel(status, statusLabel)}</td>
     </tr>`;
   }).join("");
   return `<table class="pmr-table bwa-overview">
