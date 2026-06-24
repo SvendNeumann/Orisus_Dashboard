@@ -8603,6 +8603,86 @@ function StandortDetail({
   const filteredSite = filteredSiteForPeriod(site, importedData, period);
   const filteredSiteStatus = statusForSiteByRules(filteredSite, rules);
   const periodLabel = period === "Gesamte Periode" ? `seit Vertragsstart ${site.start}` : period;
+  const cashflowDetails = filteredSite.cashflowDetails;
+  const grossPerformanceInfo = (
+    <div className="space-y-3">
+      <p className="font-semibold text-slate-950">Herleitung Gesamtleistung</p>
+      <p className="text-slate-700">
+        Datenwelt: BWA. Die Kachel zeigt die Gesamtleistung bzw. Summe Umsatz des Standorts im ausgewählten Zeitraum.
+        Diese Zahl stammt aus dem bestätigten CFO-/BWA-Import und ist nicht mit dem PVS-Umsatz gleichzusetzen.
+      </p>
+      <div className="space-y-1">
+        <InfoTextLine label="Standort" value={filteredSite.name} />
+        <InfoTextLine label="Zeitraum" value={periodLabel} />
+        <InfoTextLine label="Quelle" value="BWA-Import / BWA-Zeile Summe Umsatz bzw. Gesamtleistung" />
+        <InfoLine label="= Gesamtleistung" value={filteredSite.gesamtleistung} strong />
+      </div>
+    </div>
+  );
+  const pvsRevenueInfo = (
+    <div className="space-y-3">
+      <p className="font-semibold text-slate-950">Herleitung PVS-Umsatz</p>
+      <p className="text-slate-700">
+        Datenwelt: PVS / Orisus Performance. Die Kachel zeigt den aus den PVS-/Performance-Exportdaten ermittelten Umsatz.
+        Das ist fachlich getrennt von der BWA-Gesamtleistung.
+      </p>
+      <div className="space-y-1">
+        <InfoTextLine label="Standort" value={filteredSite.name} />
+        <InfoTextLine label="Zeitraum" value={periodLabel} />
+        <InfoTextLine label="Quelle" value="PVS-/Performance-Export, z. B. Gesamtumsatz inkl. FL + MAT / SOLL Forderung PVS" />
+        <InfoLine label="= PVS-Umsatz" value={filteredSite.pvsUmsatz} strong />
+      </div>
+      <p className="text-slate-600">
+        Falls sich Importlogik oder PVS-Quellen ändern, wird diese Kachel erst nach einem erneut bestätigten CFO-Import aktualisiert.
+      </p>
+    </div>
+  );
+  const ebitdaInfo = (
+    <div className="space-y-3">
+      <p className="font-semibold text-slate-950">Herleitung EBITDA</p>
+      <p className="text-slate-700">
+        Datenwelt: BWA. EBITDA ist eine Ergebniskennzahl aus der BWA bis zum EBITDA-Block, keine Kostenposition.
+        Die Marge berechnet sich aus EBITDA geteilt durch Gesamtleistung.
+      </p>
+      <div className="space-y-1">
+        <InfoTextLine label="Standort" value={filteredSite.name} />
+        <InfoTextLine label="Zeitraum" value={periodLabel} />
+        <InfoTextLine label="Quelle" value="BWA-Import / BWA-Zeile EBITDA" />
+        <InfoLine label="EBITDA" value={filteredSite.ebitda} />
+        <InfoLine label="Gesamtleistung" value={filteredSite.gesamtleistung} />
+        <InfoTextLine label="= EBITDA-Marge" value={pct(filteredSite.ebitdaMarge)} strong />
+      </div>
+    </div>
+  );
+  const cashflowInfo = (
+    <div className="space-y-3">
+      <p className="font-semibold text-slate-950">Herleitung Cashflow gem. BWA</p>
+      <p className="text-slate-700">
+        Datenwelt: BWA-Cashflow. Diese Kachel zeigt nicht den echten Bank-Cashflow aus Bankbewegungen, sondern den
+        Cashflow gemäß BWA-Logik.
+      </p>
+      <div className="space-y-1">
+        <InfoTextLine label="Standort" value={filteredSite.name} />
+        <InfoTextLine label="Zeitraum" value={periodLabel} />
+        {cashflowDetails ? (
+          <>
+            <InfoLine label="Vorläufiges Ergebnis" value={cashflowDetails.vorlaeufigesErgebnis} />
+            <InfoLine label="+ Abschreibungen" value={cashflowDetails.abschreibungen} />
+            <InfoLine label="- Investitionsausgaben" value={-cashflowDetails.investitionsausgaben} />
+            <InfoLine label="- Tilgung" value={-cashflowDetails.tilgung} />
+            <InfoLine label="- Umbuchung ZMVZ" value={-cashflowDetails.umbuchungZmvz} />
+            <InfoLine label="- Sonstige Rückstellungen / Bestandsminderungen" value={-cashflowDetails.sonstigeRueckstellungenBestandsminderungen} />
+          </>
+        ) : (
+          <InfoTextLine label="Berechnung" value="Vorläufiges Ergebnis + Abschreibungen - Investitionen - Tilgung - Umbuchungen - weitere BWA-Adjustments" />
+        )}
+        <InfoLine label="= Cashflow gem. BWA" value={filteredSite.cashflow} strong />
+      </div>
+      <p className="text-slate-600">
+        Bank-Cashflow und Kontostand stehen separat im Bankbewegungsbereich der Standortdetails.
+      </p>
+    </div>
+  );
 
   return (
     <section className="space-y-5">
@@ -8615,10 +8695,10 @@ function StandortDetail({
         </Select>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Gesamtleistung" value={filteredSite.gesamtleistung} delta={periodLabel} icon={TrendingUp} status={filteredSiteStatus} />
-        <KpiCard label="PVS-Umsatz" value={filteredSite.pvsUmsatz} delta={periodLabel} icon={BadgeEuro} status={filteredSiteStatus} />
-        <KpiCard label="EBITDA" value={filteredSite.ebitda} delta={`${pct(filteredSite.ebitdaMarge)} Marge`} icon={Banknote} status={statusByRule(filteredSite.ebitdaMarge, rules.ebitda_marge)} />
-        <KpiCard label="Cashflow gem. BWA" value={filteredSite.cashflow} delta="gem. BWA nach vorläufigem Ergebnis" icon={Wallet} status={statusByRule(filteredSite.cashflow, rules.cashflow_bwa)} />
+        <KpiCard label="Gesamtleistung" value={filteredSite.gesamtleistung} delta={periodLabel} icon={TrendingUp} status={filteredSiteStatus} info={grossPerformanceInfo} />
+        <KpiCard label="PVS-Umsatz" value={filteredSite.pvsUmsatz} delta={periodLabel} icon={BadgeEuro} status={filteredSiteStatus} info={pvsRevenueInfo} />
+        <KpiCard label="EBITDA" value={filteredSite.ebitda} delta={`${pct(filteredSite.ebitdaMarge)} Marge`} icon={Banknote} status={statusByRule(filteredSite.ebitdaMarge, rules.ebitda_marge)} info={ebitdaInfo} />
+        <KpiCard label="Cashflow gem. BWA" value={filteredSite.cashflow} delta="gem. BWA nach vorläufigem Ergebnis" icon={Wallet} status={statusByRule(filteredSite.cashflow, rules.cashflow_bwa)} info={cashflowInfo} />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <CostRatios site={filteredSite} periodLabel={periodLabel} />
