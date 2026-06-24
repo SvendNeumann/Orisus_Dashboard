@@ -75,6 +75,10 @@ body {
   backdrop-filter: blur(18px);
 }
 
+.app-mobile-header {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
 .app-main {
   position: relative;
   z-index: 1;

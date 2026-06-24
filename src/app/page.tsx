@@ -3647,7 +3647,7 @@ export default function HomePage() {
         </div>
       </aside>
 
-      <header className="app-mobile-header sticky top-0 z-20 border-b border-border px-4 py-3 xl:hidden">
+      <header className="app-mobile-header fixed left-0 right-0 top-0 z-50 border-b border-border px-4 py-3 xl:hidden">
         <div className="flex items-center justify-between">
           <Brand compact onClick={() => go(defaultPageForRole(userRole))} />
           <button
@@ -3661,7 +3661,7 @@ export default function HomePage() {
       </header>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-sm xl:hidden">
+        <div className="fixed inset-0 z-[60] bg-slate-950/55 backdrop-blur-sm xl:hidden">
           <div className="app-mobile-menu ml-auto flex h-dvh max-h-dvh w-80 max-w-[86vw] flex-col overflow-hidden p-5 shadow-soft">
             <div className="shrink-0 flex items-center justify-between">
               <Brand compact onClick={() => go(defaultPageForRole(userRole))} />
@@ -3702,7 +3702,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <main className="app-main min-w-0 w-full overflow-x-hidden px-4 pb-28 pt-5 sm:px-6 xl:ml-72 xl:w-[calc(100%-18rem)] xl:px-8 xl:pb-10">
+      <main className="app-main min-w-0 w-full overflow-x-hidden px-4 pb-28 pt-24 sm:px-6 xl:ml-72 xl:w-[calc(100%-18rem)] xl:px-8 xl:pb-10 xl:pt-5">
         <div className="mx-auto min-w-0 max-w-7xl">
           <NavigationControls
             page={page}
