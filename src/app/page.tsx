@@ -12376,6 +12376,19 @@ function bankMovementMonthlyValue(row: ImportedBankMovementRow | undefined, peri
   return row.hasValueByMonth[key] ? row.valuesByMonth[key] ?? 0 : null;
 }
 
+const bankBwaReconciliationManualAdjustments: Record<string, { revenue: number; practiceCosts: number; note: string }> = {
+  ulmet: {
+    revenue: -100000,
+    practiceCosts: 0,
+    note: "-100.000 EUR Bankeinnahmen: interner operativer Kredit von Kirchberg herausgerechnet."
+  },
+  kirchberg: {
+    revenue: 0,
+    practiceCosts: -100000,
+    note: "-100.000 EUR Praxisausgaben: interner operativer Kredit an Ulmet herausgerechnet."
+  }
+};
+
 function CashflowCostReconciliation({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
   const bankRows = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId && row.siteId !== "konzern");
   const availablePeriods = periodOptionsFromBankMovements(bankRows.length ? bankRows : importedData?.bankMovementRows);
@@ -12410,9 +12423,12 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
         : "red";
   };
   const comparisonRows = activeSites.map((site) => {
-    const bankRevenue = Math.abs(bankMovementValueForPeriod(rowFor(site.id, "geldeingang_bank_gesamt"), period));
+    const manualAdjustment = bankBwaReconciliationManualAdjustments[site.id];
+    const rawBankRevenue = Math.abs(bankMovementValueForPeriod(rowFor(site.id, "geldeingang_bank_gesamt"), period));
+    const bankRevenue = Math.max(0, rawBankRevenue + (manualAdjustment?.revenue ?? 0));
     const bwaRevenue = Math.abs(bwaValue(site.id, "summe_umsatz"));
-    const bankPracticeCosts = Math.abs(bankMovementValueForPeriod(rowFor(site.id, "davon_praxisausgaben"), period));
+    const rawBankPracticeCosts = Math.abs(bankMovementValueForPeriod(rowFor(site.id, "davon_praxisausgaben"), period));
+    const bankPracticeCosts = Math.max(0, rawBankPracticeCosts + (manualAdjustment?.practiceCosts ?? 0));
     const importedOperatingCosts = Math.abs(bwaValue(site.id, "operative_prozesskosten_bis_ebitda"));
     const fallbackOperatingCosts = Math.max(0, bwaRevenue - bwaValue(site.id, "ebitda"));
     const operatingCosts = importedOperatingCosts || fallbackOperatingCosts;
@@ -12439,7 +12455,8 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
       costDeviation,
       costDeviationPct,
       signal,
-      signalLabel
+      signalLabel,
+      adjustmentNote: manualAdjustment?.note ?? ""
     };
   });
   const totals = comparisonRows.reduce(
@@ -12475,6 +12492,7 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
       </div>
       <div className="border-b border-border bg-slate-50 p-3 text-sm text-muted-foreground">
         Abgleichslogik: Einnahmenseite = Bankeinnahmen vs. BWA-Umsatz. Kostenseite = Praxisausgaben gem. Bankbewegung vs. operative BWA-Kosten bis EBITDA plus Investitionen. Tilgung, Zins und Intercompany sind hier bewusst nicht enthalten.
+        Fix hinterlegte Bereinigung: Ulmet -100.000 EUR Bankeinnahmen und Kirchberg -100.000 EUR Praxisausgaben wegen internem operativem Kredit Kirchberg an Ulmet.
       </div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
@@ -12501,7 +12519,12 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
           <tbody>
             {comparisonRows.map((row) => (
               <tr key={row.site.id}>
-                <TableCell strong>{row.site.name}</TableCell>
+                <TableCell strong>
+                  <span>{row.site.name}</span>
+                  {row.adjustmentNote ? (
+                    <span className="mt-1 block text-xs font-semibold text-amber-700">{row.adjustmentNote}</span>
+                  ) : null}
+                </TableCell>
                 <TableCell>{eur(row.bankRevenue)}</TableCell>
                 <TableCell>{eur(row.bwaRevenue)}</TableCell>
                 <TableCell tone={row.revenueDeviation < 0 ? "red" : row.revenueDeviation > 0 ? "green" : undefined}>{eur(row.revenueDeviation)}</TableCell>
