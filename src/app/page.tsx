@@ -12544,7 +12544,7 @@ function Bankenreporting({
     {
       label: "Kapitaldienstfähigkeit",
       value: `${bankKpiMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
-      detail: "EBITDA / Tilgung + Zins",
+      detail: "Zeitraum: Vertragsperiode | EBITDA / Tilgung + Zins",
       status: statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
       icon: Gauge,
       emphasis: true,
@@ -12553,7 +12553,7 @@ function Bankenreporting({
     {
       label: "Net Debt / Run-Rate EBITDA",
       value: `${bankKpiLeverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
-      detail: "Restschuld im Verhältnis zur Ergebnis-Run-Rate",
+      detail: "Stand aktuell | Run-Rate seit Praxisstart",
       status: statusForLower(bankKpiLeverageRunRate, 2.5, 3.5),
       icon: Landmark,
       emphasis: true,
@@ -12562,7 +12562,7 @@ function Bankenreporting({
     {
       label: "Cashflow-Konversion",
       value: pct(bankKpiCashflowConversion),
-      detail: "Cashflow gem. BWA / EBITDA",
+      detail: "Zeitraum: Vertragsperiode | Cashflow / EBITDA",
       status: statusForHigher(bankKpiCashflowConversion, 50, 25),
       icon: Wallet,
       emphasis: true,
@@ -12571,7 +12571,7 @@ function Bankenreporting({
     {
       label: "Forderungsquote",
       value: pct(bankKpiReceivablesRatio),
-      detail: "offene Forderungen / Gesamtleistung",
+      detail: "Stand aktuell vs. Vertragsperiode",
       status: statusByRule(bankKpiReceivablesRatio, rules.offene_forderungen),
       icon: ReceiptText,
       emphasis: true,
@@ -12580,7 +12580,7 @@ function Bankenreporting({
     {
       label: "Gesamtleistung",
       value: eur(bankKpiMetrics.gesamtleistung),
-      detail: bankKpiPeriodLabel,
+      detail: `Zeitraum: ${bankKpiPeriodLabel}`,
       status: "green",
       icon: BarChart3,
       info: <p>Summe der Gesamtleistung über alle berücksichtigten Standorte seit jeweiligem Vertragsstart. Die Werte kommen aus dem bestätigten CFO-/BWA-Import.</p>
@@ -12588,7 +12588,7 @@ function Bankenreporting({
     {
       label: "EBITDA / Marge",
       value: `${eur(bankKpiMetrics.ebitda, true)} / ${pct(bankKpiMetrics.ebitdaMarge)}`,
-      detail: "Ergebnisqualität seit Vertragsstart",
+      detail: "Zeitraum: Vertragsperiode seit Start",
       status: statusByRule(bankKpiMetrics.ebitdaMarge, rules.ebitda_marge),
       icon: TrendingUp,
       info: <p>EBITDA absolut und als Marge. Formel Marge: EBITDA geteilt durch Gesamtleistung. Die Kennzahl zeigt, wie viel Ergebnisqualität aus der Leistung entsteht.</p>
@@ -12596,7 +12596,7 @@ function Bankenreporting({
     {
       label: "Cashflow gem. BWA",
       value: eur(bankKpiMetrics.cashflow),
-      detail: "seit Vertragsstart nach BWA-Brücke",
+      detail: "Zeitraum: Vertragsperiode | BWA-Brücke",
       status: statusByRule(bankKpiMetrics.cashflow, rules.cashflow_bwa),
       icon: Wallet,
       info: <p>Cashflow nach der BWA-Brücke. Enthält vorläufiges Ergebnis plus Abschreibungen abzüglich Investitionen, Tilgung, Umbuchungen und weitere Cashflow-Adjustments.</p>
@@ -12604,7 +12604,7 @@ function Bankenreporting({
     {
       label: "Kostenquote",
       value: pct(bankKpiMetrics.kostenquote),
-      detail: "Kostenmix seit Vertragsstart",
+      detail: "Zeitraum: Vertragsperiode | Kostenmix",
       status: statusByRule(bankKpiMetrics.kostenquote, rules.kostenquote),
       icon: PieIcon,
       info: <p>Operative Kostenbelastung im Verhältnis zur Gesamtleistung. Enthalten sind Materialquote, Fremdlaborquote, Personalkostenquote und sonstige operative Kostenquote.</p>
@@ -12612,7 +12612,7 @@ function Bankenreporting({
     {
       label: "Restschuld",
       value: eur(bankKpiMetrics.restschuld),
-      detail: `${pct(bankKpiRepaymentProgress)} der aufgenommenen Darlehen getilgt`,
+      detail: `Stand aktuell | ${pct(bankKpiRepaymentProgress)} getilgt`,
       status: statusForHigher(bankKpiRepaymentProgress, 20, 8),
       icon: Landmark,
       info: <p>Aktuell offene Darlehensrestschuld über die Gruppe. Der Prozentwert zeigt den Tilgungsfortschritt: bisherige Tilgung geteilt durch ursprünglich aufgenommenes Fremdkapital.</p>
@@ -12620,7 +12620,7 @@ function Bankenreporting({
     {
       label: "Kapitaldienst",
       value: eur(bankKpiMetrics.kapitaldienst),
-      detail: `${eur(bankKpiMetrics.tilgung, true)} Tilgung / ${eur(bankKpiMetrics.zins, true)} Zins`,
+      detail: `Zeitraum: Vertragsperiode | ${eur(bankKpiMetrics.tilgung, true)} Tilgung / ${eur(bankKpiMetrics.zins, true)} Zins`,
       status: statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
       icon: Banknote,
       info: <p>Summe aus Tilgung und Zins im betrachteten Datenstand. Diese Größe wird gegen EBITDA gespiegelt, um die Kapitaldienstfähigkeit zu berechnen.</p>
@@ -12628,7 +12628,7 @@ function Bankenreporting({
     {
       label: "Personal-FTE",
       value: personnelSummary ? personnelSummary.fte.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : "n. v.",
-      detail: personnelSummary ? `${personnelSummary.activeCount} aktive MA | ${personnelSummary.dentists} Zahnärzte` : "Personalimport noch nicht aktiv",
+      detail: personnelSummary ? `Stand Personalimport | ${personnelSummary.activeCount} aktive MA` : "Personalimport noch nicht aktiv",
       status: personnelSummary ? "green" : "yellow",
       icon: Users,
       info: <p>FTE der aktiven Mitarbeiter aus dem Personalimport. Grundlage sind aktive Mitarbeiter und vertragliche Wochenstunden, um die operative Kapazität der Gruppe einzuordnen.</p>
@@ -12636,7 +12636,7 @@ function Bankenreporting({
     {
       label: "Krankheit je FTE",
       value: personnelSummary ? personnelSummary.sicknessDaysPerFte.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : "n. v.",
-      detail: personnelSummary ? `${personnelSummary.sicknessDays} Tage ${personnelSummary.sicknessYear}` : "Personalimport noch nicht aktiv",
+      detail: personnelSummary ? `Zeitraum: ${personnelSummary.sicknessYear} | ${personnelSummary.sicknessDays} Tage` : "Personalimport noch nicht aktiv",
       status: personnelSummary ? statusForLower(personnelSummary.sicknessDaysPerFte, 8, 14) : "yellow",
       icon: Stethoscope,
       info: <p>Krankheitstage je FTE aus dem Personalimport. Formel: Krankheitstage im ausgewählten Jahr geteilt durch aktive FTE. Niedrigere Werte sprechen für stabilere operative Kapazität.</p>
