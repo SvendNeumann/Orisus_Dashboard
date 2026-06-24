@@ -12445,19 +12445,14 @@ const bankBwaReconciliationManualAdjustments: Record<string, { revenue: number; 
 
 function CashflowCostReconciliation({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
   const bankRows = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId && row.siteId !== "konzern");
-  const availablePeriods = periodOptionsFromBankMovements(bankRows.length ? bankRows : importedData?.bankMovementRows);
-  const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
-
-  useEffect(() => {
-    if (!availablePeriods.includes(period)) setPeriod(defaultPeriodFromOptions(availablePeriods));
-  }, [availablePeriods, period]);
+  const period = "Gesamte Periode";
 
   if (!importedData?.bwaRows?.length || !bankRows.length) {
     return (
       <Card className="p-4">
-        <h2 className="font-bold">Plausibilitätsabgleich Bank vs. BWA</h2>
+        <h2 className="font-bold">Abweichungsmonitor Bank vs. BWA</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Nach dem nächsten bestätigten CFO-Import werden hier Bankeinnahmen gegen BWA-Umsatz und Bank-Praxisausgaben gegen operative BWA-Kosten plus Investitionen plausibilisiert.
+          Nach dem nächsten bestätigten CFO-Import werden hier je Standort Bankeinnahmen gegen BWA-Umsatz und Bank-Praxisausgaben gegen operative BWA-Kosten plus Investitionen über die gesamte Vertragsperiode plausibilisiert.
         </p>
       </Card>
     );
@@ -12528,25 +12523,40 @@ function CashflowCostReconciliation({ sites = standorte, importedData }: { sites
   );
   const totalRevenueDeviationPct = totals.bwaRevenue ? (totals.revenueDeviation / totals.bwaRevenue) * 100 : 0;
   const totalCostDeviationPct = totals.bwaCostBase ? (totals.costDeviation / totals.bwaCostBase) * 100 : 0;
+  const redRows = comparisonRows.filter((row) => row.signal === "red");
+  const yellowRows = comparisonRows.filter((row) => row.signal === "yellow");
+  const largestDeviation = comparisonRows
+    .flatMap((row) => [
+      { site: row.site.name, label: "Einnahmen", value: row.revenueDeviation },
+      { site: row.site.name, label: "Kosten", value: row.costDeviation }
+    ])
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))[0];
 
   return (
     <Card className="overflow-hidden">
       <div className="table-head flex flex-col gap-3 p-4 text-white sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-bold">Plausibilitätsabgleich Bank vs. BWA | {performancePeriodLabel(period)}</h2>
+          <h2 className="text-xl font-bold">Abweichungsmonitor Bank vs. BWA | gesamte Vertragsperiode</h2>
           <p className="mt-1 text-sm text-white/75">
-            Bankeinnahmen gegen BWA-Umsatz; Bank-Praxisausgaben gegen operative BWA-Kosten plus Investitionen.
+            Je Standort seit Vertragsstart: Bankeinnahmen gegen BWA-Umsatz; Bank-Praxisausgaben gegen operative BWA-Kosten plus Investitionen.
           </p>
         </div>
-        <Select className="w-full bg-white text-foreground sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
-          {availablePeriods.map((option) => (
-            <option key={option} value={option}>{performancePeriodLabel(option)}</option>
-          ))}
-        </Select>
+        <Badge tone={redRows.length ? "red" : yellowRows.length ? "yellow" : "green"}>
+          {redRows.length ? `${redRows.length} auffällig` : yellowRows.length ? `${yellowRows.length} prüfen` : "Plausibel"}
+        </Badge>
       </div>
       <div className="border-b border-border bg-slate-50 p-3 text-sm text-muted-foreground">
-        Abgleichslogik: Einnahmenseite = Bankeinnahmen vs. BWA-Umsatz. Kostenseite = Praxisausgaben gem. Bankbewegung vs. operative BWA-Kosten bis EBITDA plus Investitionen. Tilgung, Zins und Intercompany sind hier bewusst nicht enthalten.
+        Abgleichslogik über die gesamte Vertragsperiode je Standort, weil KZV-Zahlungen zeitversetzt auf der Bank ankommen können. Einnahmenseite = Bankeinnahmen vs. BWA-Umsatz. Kostenseite = Praxisausgaben gem. Bankbewegung vs. operative BWA-Kosten bis EBITDA plus Investitionen. Tilgung, Zins und Intercompany sind hier bewusst nicht enthalten.
         Fix hinterlegte Bereinigung: Ulmet -100.000 EUR Bankeinnahmen und Kirchberg -100.000 EUR Praxisausgaben wegen internem operativem Kredit Kirchberg an Ulmet.
+      </div>
+      <div className="grid gap-3 border-b border-border p-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Mini label="Auffällige Standorte" value={redRows.length ? redRows.map((row) => row.site.name).join(", ") : "Keine"} />
+        <Mini label="Abw. Einnahmen gesamt" value={`${eur(totals.revenueDeviation)} | ${pct(totalRevenueDeviationPct)}`} />
+        <Mini label="Abw. Kosten gesamt" value={`${eur(totals.costDeviation)} | ${pct(totalCostDeviationPct)}`} />
+        <Mini
+          label="Größte Einzelabweichung"
+          value={largestDeviation ? `${largestDeviation.site}: ${largestDeviation.label} ${eur(largestDeviation.value)}` : "Keine"}
+        />
       </div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
