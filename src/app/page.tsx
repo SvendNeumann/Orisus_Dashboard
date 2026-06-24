@@ -2065,10 +2065,30 @@ function betterProviderDisplayName(siteId: string, currentName: string, nextName
     : currentCanonical;
 }
 
+function isExplicitProviderAlias(siteId: string, name: string) {
+  return Boolean(providerNameAliasesBySite[siteId]?.[normalizeMetric(name)]);
+}
+
+function providerRevenueValueKey(siteId: string, sourceName: string, canonicalName: string) {
+  if (isExplicitProviderAlias(siteId, sourceName)) return normalizeMetric(canonicalProviderName(siteId, sourceName));
+  return `${normalizeMetric(canonicalName)}::${normalizeMetric(sourceName)}`;
+}
+
+function shouldDedupeProviderAlias(siteId: string, currentName: string, nextName: string) {
+  return (
+    canonicalProviderKey(siteId, currentName) === canonicalProviderKey(siteId, nextName) &&
+    (isExplicitProviderAlias(siteId, currentName) || isExplicitProviderAlias(siteId, nextName))
+  );
+}
+
 function groupedProviderDetailRows(rows: ImportedBehandlerDetailRow[], siteId: string) {
   const grouped = new Map<string, ImportedBehandlerDetailRow>();
-  const mergeValues = (target: Record<string, number>, source: Record<string, number>) => {
+  const mergeValues = (target: Record<string, number>, source: Record<string, number>, dedupe = false) => {
     Object.entries(source).forEach(([period, value]) => {
+      if (dedupe && target[period] != null) {
+        target[period] = Math.abs(value) > Math.abs(target[period]) ? value : target[period];
+        return;
+      }
       target[period] = (target[period] ?? 0) + value;
     });
   };
@@ -2088,9 +2108,19 @@ function groupedProviderDetailRows(rows: ImportedBehandlerDetailRow[], siteId: s
       return;
     }
     existing.name = betterProviderDisplayName(siteId, existing.name, row.name);
-    mergeValues(existing.honorarByMonth, row.honorarByMonth);
-    mergeValues(existing.eigenlaborByMonth, row.eigenlaborByMonth);
-    mergeValues(existing.totalByMonth, row.totalByMonth);
+    const dedupeAlias = shouldDedupeProviderAlias(siteId, existing.name, row.name);
+    mergeValues(existing.honorarByMonth, row.honorarByMonth, dedupeAlias);
+    mergeValues(existing.eigenlaborByMonth, row.eigenlaborByMonth, dedupeAlias);
+    mergeValues(existing.totalByMonth, row.totalByMonth, dedupeAlias);
+  });
+
+  grouped.forEach((entry) => {
+    const monthKeys = new Set([...Object.keys(entry.honorarByMonth), ...Object.keys(entry.eigenlaborByMonth), ...Object.keys(entry.totalByMonth)]);
+    monthKeys.forEach((monthKey) => {
+      if (entry.honorarByMonth[monthKey] != null || entry.eigenlaborByMonth[monthKey] != null) {
+        entry.totalByMonth[monthKey] = (entry.honorarByMonth[monthKey] ?? 0) + (entry.eigenlaborByMonth[monthKey] ?? 0);
+      }
+    });
   });
 
   return Array.from(grouped.values());
@@ -7039,6 +7069,7 @@ function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], expor
     const currentPriority = priorityByValue.get(priorityKey) ?? 0;
     if (priority < currentPriority) return;
     const previousContribution = contributionByValue.get(priorityKey) ?? 0;
+    if (priority === currentPriority && Math.abs(previousContribution) > Math.abs(value)) return;
     target[monthKey] = (target[monthKey] ?? 0) - previousContribution + value;
     contributionByValue.set(priorityKey, value);
     priorityByValue.set(priorityKey, priority);
@@ -7065,7 +7096,8 @@ function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], expor
 
     const entry = ensureEntry(siteName, name);
     const monthKey = `${year}-${month}`;
-    const valueKey = `${entry.siteId}::${normalizeMetric(entry.name)}::${normalizeMetric(name)}::${monthKey}`;
+    const providerValueKey = providerRevenueValueKey(entry.siteId, name, entry.name);
+    const valueKey = `${entry.siteId}::${providerValueKey}::${monthKey}`;
     if (isHonorar) setValue(entry.honorarByMonth, monthKey, `${valueKey}::honorar`, value, priority);
     if (isEigenlabor) setValue(entry.eigenlaborByMonth, monthKey, `${valueKey}::eigenlabor`, value, priority);
     if (isTotal) setValue(entry.totalByMonth, monthKey, `${valueKey}::total`, value, priority);
