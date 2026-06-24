@@ -3902,7 +3902,7 @@ export default function HomePage() {
               }}
             />
           )}
-          {importedData && page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} monthlyData={dashboardMonthly} />}
+          {importedData && page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} monthlyData={dashboardMonthly} personalData={personalData} />}
           {importedData && page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} personalData={personalData} />}
           {importedData && page === "patienten-auswertungen" && <PatientenAuswertungen sites={dashboardSites} importedData={importedData} />}
           {importedData && page === "bwa" && <Bwa importedData={importedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
@@ -8651,11 +8651,13 @@ function bwaTableNumberClass(
 function StandortDetail({
   site,
   importedData,
-  monthlyData = monthly
+  monthlyData = monthly,
+  personalData
 }: {
   site: DashboardSite;
   importedData?: ImportedDashboardData | null;
   monthlyData?: typeof monthly;
+  personalData?: PersonalDashboardData | null;
 }) {
   const rules = useKpiRules();
   const availablePeriods = bwaPeriodOptionsFor(importedData);
@@ -8806,7 +8808,7 @@ function StandortDetail({
       <SitePvsMonthlyRevenue site={site} importedData={importedData} monthlyData={monthlyData} />
       <SiteBehandlerMonthlyRevenue site={site} importedData={importedData} />
       <SiteBankMovementDetail site={site} importedData={importedData} />
-      <SiteBehandlerPersonnelCosts site={site} importedData={importedData} />
+      <SiteBehandlerPersonnelCosts site={site} importedData={importedData} personalData={personalData} />
     </section>
   );
 }
@@ -10820,10 +10822,12 @@ function SiteBehandlerRevenueRow({
 
 function SiteBehandlerPersonnelCosts({
   site,
-  importedData
+  importedData,
+  personalData
 }: {
   site: DashboardSite;
   importedData?: ImportedDashboardData | null;
+  personalData?: PersonalDashboardData | null;
 }) {
   const visibleRows = personnelCostComparisonRows(importedData, site.id);
   const totals = visibleRows.reduce(
@@ -10853,20 +10857,23 @@ function SiteBehandlerPersonnelCosts({
           </tr>
         </thead>
         <tbody>
-          {visibleRows.map((row) => (
-            <tr key={`${row.employeeId}-${row.name}`}>
-              <TableCell strong>
-                <span>{row.name}</span>
-                {personnelCostStatusNote(row) ? (
-                  <span className="mt-1 block text-xs font-semibold text-amber-200">{personnelCostStatusNote(row)}</span>
-                ) : null}
-              </TableCell>
-              <TableCell>{row.type}</TableCell>
-              <TableCell>{eur(row.personnelCost)}</TableCell>
-              <TableCell>{eur(row.honorar)}</TableCell>
-              <TableCell>{pctOneDecimal(row.pkQuote * 100)}</TableCell>
-            </tr>
-          ))}
+          {visibleRows.map((row) => {
+            const statusNote = personnelCostDisplayStatusNote(row, personalData, site.id);
+            return (
+              <tr key={`${row.employeeId}-${row.name}`}>
+                <TableCell strong>
+                  <span>{row.name}</span>
+                  {statusNote ? (
+                    <span className="mt-1 block text-xs font-semibold text-amber-700">{statusNote}</span>
+                  ) : null}
+                </TableCell>
+                <TableCell>{row.type}</TableCell>
+                <TableCell>{eur(row.personnelCost)}</TableCell>
+                <TableCell>{eur(row.honorar)}</TableCell>
+                <TableCell>{pctOneDecimal(row.pkQuote * 100)}</TableCell>
+              </tr>
+            );
+          })}
           {visibleRows.length ? (
             <tr className="summary-row">
               <TableCell strong summary>Gesamt</TableCell>
@@ -16798,6 +16805,47 @@ function personnelCostStatusNote(row: Pick<PersonnelCostComparisonRow, "status" 
   if (!isInactivePersonnelCostStatus(row.status)) return "";
   const exitDate = personnelCostExitDate(row.activePeriod);
   return exitDate ? `Inaktiv | Austritt ${exitDate}` : "Inaktiv";
+}
+
+function isInactivePersonalStatus(status: string) {
+  const normalized = normalizeMetric(status);
+  return ["inaktiv", "ausgetreten", "gekuendigt", "gekundigt"].some((term) => normalized.includes(term));
+}
+
+function personnelCostNameTokens(name: string) {
+  return normalizeMetric(name)
+    .split("_")
+    .filter((token) => token.length >= 3 && !["dr", "pzr", "za", "zfa", "assi", "zahnarzt", "zahnaerztin", "zahnärztin"].includes(token));
+}
+
+function findPersonalEmployeeForPersonnelCost(
+  personalData: PersonalDashboardData | null | undefined,
+  siteId: string,
+  row: Pick<PersonnelCostComparisonRow, "name" | "employeeId">
+) {
+  const rowName = normalizeMetric(row.name);
+  const rowTokens = personnelCostNameTokens(row.name);
+  return (personalData?.employees ?? []).find((employee) => {
+    if (siteIdForName(employee.site) !== siteId) return false;
+    if (row.employeeId && employee.id && normalizeMetric(employee.id) === normalizeMetric(row.employeeId)) return true;
+    const employeeName = normalizeMetric(employee.name);
+    if (employeeName === rowName) return true;
+    const employeeTokens = personnelCostNameTokens(employee.name);
+    if (rowTokens.length >= 2 && rowTokens.every((token) => employeeTokens.includes(token))) return true;
+    return rowTokens.length >= 2 && employeeTokens.every((token) => rowTokens.includes(token));
+  });
+}
+
+function personnelCostDisplayStatusNote(
+  row: PersonnelCostComparisonRow,
+  personalData: PersonalDashboardData | null | undefined,
+  siteId: string
+) {
+  const cfoNote = personnelCostStatusNote(row);
+  if (cfoNote) return cfoNote;
+  const employee = findPersonalEmployeeForPersonnelCost(personalData, siteId, row);
+  if (!employee || !isInactivePersonalStatus(employee.status)) return "";
+  return employee.exitDate ? `Inaktiv | Austritt ${employee.exitDate}` : "Inaktiv";
 }
 
 function isExcludedFromPmrPersonnelCostReport(siteId: string, row: PersonnelCostComparisonRow) {
