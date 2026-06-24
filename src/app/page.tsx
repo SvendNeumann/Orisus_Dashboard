@@ -12360,6 +12360,7 @@ function BankKpiTile({
   value,
   detail,
   status,
+  icon: Icon,
   emphasis = false,
   info
 }: {
@@ -12367,34 +12368,48 @@ function BankKpiTile({
   value: string;
   detail: string;
   status: Status;
+  icon: React.ComponentType<{ className?: string }>;
   emphasis?: boolean;
   info: React.ReactNode;
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
+  const DetailIcon = status === "red" ? ArrowDownRight : ArrowUpRight;
+  const detailClass = status === "red" ? "text-red-700" : status === "yellow" ? "text-amber-700" : "text-emerald-700";
   return (
-    <div className={cn("relative min-h-[9.5rem] bg-[#143f4d] p-4 text-white", emphasis && "bg-[#0f5160]")}>
-      <div className="flex items-start justify-between gap-3">
-        <p className="pr-14 text-xs font-bold uppercase tracking-wide text-slate-200">{label}</p>
-        <div className="absolute right-3 top-3 flex items-center gap-2">
+    <Card className={cn("relative flex min-h-[12.5rem] flex-col p-5 text-center", emphasis && "border-primary/80")}>
+      <div className="mb-3 flex min-h-8 items-start justify-between gap-3">
+        <div className="w-8 shrink-0">
           <button
             type="button"
             aria-label={`${label} erklären`}
-            className="flex h-6 w-6 items-center justify-center rounded-full border border-white/25 bg-white/10 text-slate-100 transition hover:border-teal-200 hover:bg-teal-300/20"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:text-primary"
             onClick={() => setInfoOpen((open) => !open)}
           >
-            <Info className="h-3.5 w-3.5" />
+            <Info className="h-4 w-4" />
           </button>
+        </div>
+        <div className="flex min-w-0 justify-end">
           <StatusDot status={status} label="" />
         </div>
       </div>
-      <p className="mt-3 break-words text-2xl font-extrabold tracking-tight text-white">{value}</p>
-      <p className="mt-2 text-sm leading-5 text-slate-200">{detail}</p>
+      <div className="flex flex-1 flex-col items-center justify-center">
+        <div className="flex h-11 w-11 items-center justify-center rounded-md table-total text-primary">
+          <Icon className="h-5 w-5" />
+        </div>
+        <p className="mt-4 max-w-full text-sm font-semibold text-muted-foreground">{label}</p>
+        <p className="mt-1 break-words text-2xl font-bold tracking-tight">{value}</p>
+        <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 text-sm font-semibold", detailClass)}>
+          <DetailIcon className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 break-words">{detail}</span>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">Ampelstatus nach vorläufiger CFO-Logik.</p>
+      </div>
       {infoOpen ? (
         <InfoDialog title={label} onClose={() => setInfoOpen(false)}>
           {info}
         </InfoDialog>
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -12514,12 +12529,13 @@ function Bankenreporting({
       statusByRule(boardCostRatio(site), rules.kostenquote) === "red"
     );
   });
-  const bankKpis: Array<{ label: string; value: string; detail: string; status: Status; emphasis?: boolean; info: React.ReactNode }> = [
+  const bankKpis: Array<{ label: string; value: string; detail: string; status: Status; icon: React.ComponentType<{ className?: string }>; emphasis?: boolean; info: React.ReactNode }> = [
     {
       label: "Kapitaldienstfähigkeit",
       value: `${bankPeriodMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
       detail: "EBITDA / Tilgung + Zins",
       status: statusByRule(bankPeriodMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
+      icon: Gauge,
       emphasis: true,
       info: <p>Zeigt, wie oft das EBITDA den Kapitaldienst deckt. Formel: EBITDA der ausgewählten Periode geteilt durch Tilgung plus Zins. Für Banken ist das die zentrale Tragfähigkeitskennzahl.</p>
     },
@@ -12528,6 +12544,7 @@ function Bankenreporting({
       value: `${leverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
       detail: "Restschuld im Verhältnis zur Ergebnis-Run-Rate",
       status: statusForLower(leverageRunRate, 2.5, 3.5),
+      icon: Landmark,
       emphasis: true,
       info: <p>Setzt die aktuelle Restschuld ins Verhältnis zur EBITDA-Run-Rate. Formel: Restschuld geteilt durch annualisiertes EBITDA. Je niedriger der Wert, desto besser ist die Entschuldungsfähigkeit.</p>
     },
@@ -12536,6 +12553,7 @@ function Bankenreporting({
       value: pct(cashflowConversion),
       detail: "Cashflow gem. BWA / EBITDA",
       status: statusForHigher(cashflowConversion, 50, 25),
+      icon: Wallet,
       emphasis: true,
       info: <p>Zeigt, welcher Anteil des EBITDA als Cashflow gem. BWA ankommt. Formel: Cashflow gem. BWA geteilt durch EBITDA. Niedrige Werte weisen auf Tilgung, Investitionen, Forderungsaufbau oder Umbuchungen hin.</p>
     },
@@ -12544,6 +12562,7 @@ function Bankenreporting({
       value: pct(receivablesRatio),
       detail: "offene Forderungen / Gesamtleistung",
       status: statusByRule(receivablesRatio, rules.offene_forderungen),
+      icon: ReceiptText,
       emphasis: true,
       info: <p>Misst die Kapitalbindung in offenen Forderungen. Formel: offene Forderungen geteilt durch Gesamtleistung der ausgewählten Periode. Für Banken ist eine hohe Quote ein Working-Capital-Risiko.</p>
     },
@@ -12552,6 +12571,7 @@ function Bankenreporting({
       value: eur(bankPeriodMetrics.gesamtleistung),
       detail: performancePeriodLabel(bankTablePeriod),
       status: "green",
+      icon: BarChart3,
       info: <p>Summe der Gesamtleistung über alle berücksichtigten Standorte im ausgewählten Zeitraum. Die Werte kommen aus dem bestätigten CFO-/BWA-Import.</p>
     },
     {
@@ -12559,6 +12579,7 @@ function Bankenreporting({
       value: `${eur(bankPeriodMetrics.ebitda, true)} / ${pct(bankPeriodMetrics.ebitdaMarge)}`,
       detail: "Ergebnisqualität der Periode",
       status: statusByRule(bankPeriodMetrics.ebitdaMarge, rules.ebitda_marge),
+      icon: TrendingUp,
       info: <p>EBITDA absolut und als Marge. Formel Marge: EBITDA geteilt durch Gesamtleistung. Die Kennzahl zeigt, wie viel Ergebnisqualität aus der Leistung entsteht.</p>
     },
     {
@@ -12566,6 +12587,7 @@ function Bankenreporting({
       value: eur(bankPeriodMetrics.cashflow),
       detail: "nach Tilgung, Investitionen, Umbuchungen",
       status: statusByRule(bankPeriodMetrics.cashflow, rules.cashflow_bwa),
+      icon: Wallet,
       info: <p>Cashflow nach der BWA-Brücke. Enthält vorläufiges Ergebnis plus Abschreibungen abzüglich Investitionen, Tilgung, Umbuchungen und weitere Cashflow-Adjustments.</p>
     },
     {
@@ -12573,6 +12595,7 @@ function Bankenreporting({
       value: pct(bankPeriodMetrics.kostenquote),
       detail: "Material, Fremdlabor, Personal, sonstige Kosten",
       status: statusByRule(bankPeriodMetrics.kostenquote, rules.kostenquote),
+      icon: PieIcon,
       info: <p>Operative Kostenbelastung im Verhältnis zur Gesamtleistung. Enthalten sind Materialquote, Fremdlaborquote, Personalkostenquote und sonstige operative Kostenquote.</p>
     },
     {
@@ -12580,6 +12603,7 @@ function Bankenreporting({
       value: eur(bankPeriodMetrics.restschuld),
       detail: `${pct(repaymentProgress)} der aufgenommenen Darlehen getilgt`,
       status: statusForHigher(repaymentProgress, 20, 8),
+      icon: Landmark,
       info: <p>Aktuell offene Darlehensrestschuld über die Gruppe. Der Prozentwert zeigt den Tilgungsfortschritt: bisherige Tilgung geteilt durch ursprünglich aufgenommenes Fremdkapital.</p>
     },
     {
@@ -12587,6 +12611,7 @@ function Bankenreporting({
       value: eur(bankPeriodMetrics.kapitaldienst),
       detail: `${eur(bankPeriodMetrics.tilgung, true)} Tilgung / ${eur(bankPeriodMetrics.zins, true)} Zins`,
       status: statusByRule(bankPeriodMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
+      icon: Banknote,
       info: <p>Summe aus Tilgung und Zins im betrachteten Datenstand. Diese Größe wird gegen EBITDA gespiegelt, um die Kapitaldienstfähigkeit zu berechnen.</p>
     },
     {
@@ -12594,6 +12619,7 @@ function Bankenreporting({
       value: personnelSummary ? personnelSummary.fte.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : "n. v.",
       detail: personnelSummary ? `${personnelSummary.activeCount} aktive MA | ${personnelSummary.dentists} Zahnärzte` : "Personalimport noch nicht aktiv",
       status: personnelSummary ? "green" : "yellow",
+      icon: Users,
       info: <p>FTE der aktiven Mitarbeiter aus dem Personalimport. Grundlage sind aktive Mitarbeiter und vertragliche Wochenstunden, um die operative Kapazität der Gruppe einzuordnen.</p>
     },
     {
@@ -12601,6 +12627,7 @@ function Bankenreporting({
       value: personnelSummary ? personnelSummary.sicknessDaysPerFte.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : "n. v.",
       detail: personnelSummary ? `${personnelSummary.sicknessDays} Tage ${personnelSummary.sicknessYear}` : "Personalimport noch nicht aktiv",
       status: personnelSummary ? statusForLower(personnelSummary.sicknessDaysPerFte, 8, 14) : "yellow",
+      icon: Stethoscope,
       info: <p>Krankheitstage je FTE aus dem Personalimport. Formel: Krankheitstage im ausgewählten Jahr geteilt durch aktive FTE. Niedrigere Werte sprechen für stabilere operative Kapazität.</p>
     }
   ];
@@ -12611,11 +12638,11 @@ function Bankenreporting({
         title="Bankenreporting"
         text="Kreditgeber-Sicht auf Rückzahlungsfähigkeit, Cashflow-Qualität, Working Capital, Margen, Standortstreuung und operative Stabilität."
       />
-      <Card className="grid gap-px overflow-hidden table-grid-bg md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {bankKpis.map((kpi) => (
           <BankKpiTile key={kpi.label} {...kpi} />
         ))}
-      </Card>
+      </div>
 
       <Card className="p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
