@@ -651,7 +651,7 @@ Tab wurde von `Analyse` in `Benchmarking` umbenannt.
 Ziel:
 
 - Standort-Benchmarking mit relativen Indexkennzahlen.
-- Vergleich mit Gruppendurchschnitt oder anderen Vergleichswerten.
+- Vergleich mit `Ø Orisus ohne Standort`: Der ausgewaertete Standort wird aus dem Durchschnitt der Vergleichsgruppe herausgerechnet, damit er seinen eigenen Benchmark nicht verwaessert.
 - Standortleiter-Ansicht.
 - PDF-Export sauber, farbig, druckfaehig, nicht nur Screenshot der App.
 - Oben in der Ansicht muss immer `Standort-Benchmarking: <Standortname>` stehen, nicht `ausgewaehlter Standort`.
@@ -659,6 +659,7 @@ Ziel:
 - `Gesamte Periode` bedeutet je Standort: seit jeweiligem Vertragsstart, nicht pauschal derselbe Zeitraum fuer alle.
 - Der ausgewaehlte Standort darf im Benchmarking im Klartext genannt und visuell markiert werden.
 - Vergleichsstandorte duerfen nicht im Klartext erscheinen, sondern anonymisiert als Peer-/Standort-Vergleich.
+- In Basis-Tabellen, Kacheln, Heatmaps und PDF-Reports muss der Vergleich als `Ø Orisus ohne Standort` bzw. sinngemaess als Durchschnitt der anderen Standorte beschriftet werden.
 - Nicht sichtbar machen, dass die Gruppe nur aus einer bestimmten Anzahl Standorten besteht. Formulierungen wie `Peer-Auszug`, `Top-Peer-Auszug` oder `anonymisierte Vergleichsgruppe` verwenden, nicht `Standort A-E` als vollstaendige Gruppenliste.
 - Forderungsquote soll aus den oberen Benchmark-Kacheln entfernt bleiben.
 - Benchmarking-Report fuer Standortleiter/PMR:
@@ -1241,6 +1242,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
 - Benchmarking im PMR:
   - Ausgewaehlter Standort darf im Klartext stehen.
   - Vergleichsstandorte anonymisieren als Peer-Auszug.
+  - Ø-Orisus-/Vergleichswerte im PMR-Benchmarking muessen den ausgewaehlten Standort ausschliessen.
   - Nicht offenlegen, wie viele Standorte die Gruppe insgesamt hat.
   - Seite 2 muss komprimiert und druckfaehig sein.
 
