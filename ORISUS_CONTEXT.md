@@ -1118,6 +1118,8 @@ Diese Punkte sind nicht zwingend offen, aber bei zukuenftigen Aenderungen besond
 - EBITDA ist Kennzahl, keine Kostenposition.
 - Honorarumsatz gehoert nicht in BWA.
 - BWA, PVS, Behandlerumsatz, Bank-Cashflow und Personal sind fachlich unterschiedliche Datenwelten und muessen klar beschriftet bleiben.
+- Standortlisten, Standortfilter, Standorttabellen und Standortkarten sollen grundsaetzlich nach Vertragsstart sortiert sein.
+  - Ausnahmen sind echte Rankings, z. B. Top-/Flop-Listen oder Score-Sortierungen; dort bleibt die fachliche Ranking-Reihenfolge massgeblich.
 - Statussignale sind Steuerungsindikatoren, keine Werturteile:
   - Sichtbar weich und konkret formulieren.
   - `Handlungsbedarf` vermeiden.

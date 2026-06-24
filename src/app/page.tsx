@@ -1699,6 +1699,19 @@ function sortSitesByContractStart<T extends { start: string; name: string }>(sit
   return [...sites].sort((a, b) => startDateValue(a.start) - startDateValue(b.start) || a.name.localeCompare(b.name, "de"));
 }
 
+function siteSortValueByName(siteName: string) {
+  const knownSite = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase());
+  return knownSite ? startDateValue(knownSite.start) : Number.MAX_SAFE_INTEGER;
+}
+
+function compareSiteNamesByContractStart(a: string, b: string) {
+  return siteSortValueByName(a) - siteSortValueByName(b) || a.localeCompare(b, "de");
+}
+
+function sortSiteNamesByContractStart(siteNames: string[]) {
+  return [...siteNames].sort(compareSiteNamesByContractStart);
+}
+
 function uniqueSortedText(values: unknown[], fallback: string[] = []) {
   const normalized = values.map(asText).filter(Boolean);
   const result = Array.from(new Set(normalized)).sort((a, b) => a.localeCompare(b, "de"));
@@ -1873,7 +1886,7 @@ function parsePersonalSettings(workbook: XLSX.WorkBook, employees: PersonalEmplo
   const rows = readSheetRows(workbook, "Einstellungen");
   const values = rows.flat();
   return {
-    sites: uniqueSortedText([...employees.map((employee) => employee.site), ...values.filter((value) => ["Kirchberg", "Essen", "Kehl", "Ulmet", "Hüttenberg"].includes(asText(value)))]),
+    sites: sortSiteNamesByContractStart(uniqueSortedText([...employees.map((employee) => employee.site), ...values.filter((value) => ["Kirchberg", "Essen", "Kehl", "Ulmet", "Hüttenberg"].includes(asText(value)))])),
     statuses: uniqueSortedText(employees.map((employee) => employee.status), ["Aktiv", "Elternzeit", "Inaktiv"]),
     employmentTypes: uniqueSortedText(employees.map((employee) => employee.employmentType)),
     functions: uniqueSortedText(employees.map((employee) => employee.functionName)),
@@ -1903,7 +1916,7 @@ function buildPersonalDashboardData(workbook: XLSX.WorkBook, fileName: string, p
   const actionEntries = parsePersonalActionEntries(workbook);
   const settings = parsePersonalSettings(workbook, employees);
   const years = uniqueSortedNumbers(sicknessEntries.map((entry) => entry.year));
-  const sites = uniqueSortedText(employees.map((employee) => employee.site));
+  const sites = sortSiteNamesByContractStart(uniqueSortedText(employees.map((employee) => employee.site)));
   const employeeChanges = countNewAndChanged(employees, previous?.employees);
   const sicknessChanges = countNewAndChanged(sicknessEntries, previous?.sicknessEntries);
   const salaryChanges = countNewAndChanged(salaryEntries, previous?.salaryEntries);
@@ -3015,7 +3028,7 @@ function buildImportedBwaRows(rows: Record<string, unknown>[], report: ImportRep
   const importRows = rows.filter((row) => !isExcludedPlanRow(row));
   const bwaRows = importRows.filter((row) => rowDomain(row) === "bwa");
   const validYears = report.jahre.filter((year) => year > 1900);
-  return report.standorte.flatMap((siteName) =>
+  return sortSiteNamesByContractStart(report.standorte).flatMap((siteName) =>
     bwaMetricDefinitions.map((definition) => {
       const isPercent = definitionFlag(definition, "percent");
       const isEmphasis = definitionFlag(definition, "emphasis");
@@ -3458,7 +3471,7 @@ function buildImportReport(workbook: XLSX.WorkBook, fileName: string, workbookSh
   if (!usableRows.some((row) => asText(row.Datenbereich).toLowerCase().includes("finanzen"))) warnings.push("Es wurden keine Finanzdaten im Konsolidierungsblatt erkannt.");
   if (excludedPlanRows > 0) warnings.push(`${excludedPlanRows.toLocaleString("de-DE")} klassische Planwert-Zeilen wurden erkannt und vom App-Import ausgeschlossen.`);
 
-  const standorteList = uniqueSortedText(usableRows.map((row) => row.Standortname)).filter((site) => site.toLowerCase() !== "konzern");
+  const standorteList = sortSiteNamesByContractStart(uniqueSortedText(usableRows.map((row) => row.Standortname)).filter((site) => site.toLowerCase() !== "konzern"));
   const jahre = uniqueSortedNumbers(usableRows.map(rowYear)).filter((year) => year >= 1900);
   const monate = uniqueSortedNumbers(usableRows.map(rowMonth)).filter((month) => month >= 1 && month <= 12);
   const datenbereiche = uniqueSortedText(usableRows.map((row) => row.Standard_Datenbereich || row.Datenbereich));
@@ -4802,7 +4815,9 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
   const periodLabel = `Geschäftsjahr ${selectedYear}`;
   const isActiveStatus = (employee: PersonalEmployee) => employee.status.toLowerCase() === "aktiv";
   const active = personalData.employees.filter(isActiveStatus);
-  const sites = personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site));
+  const sites = sortSiteNamesByContractStart(
+    personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site))
+  );
   const siteRows = sites.map((site) => {
     const siteEmployees = personalData.employees.filter((employee) => employee.site === site && isActiveStatus(employee));
     return {
@@ -5183,7 +5198,9 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
   const selectedYear = Number(year);
   const formatOneDecimal = (value: number) =>
     value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const sites = personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site));
+  const sites = sortSiteNamesByContractStart(
+    personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site))
+  );
   const siteRows = sites.map((site) => {
     const employeesInYear = personalData.employees.filter((employee) => employee.site === site && personalWasEmployedInYear(employee, selectedYear));
     const entries = personalData.sicknessEntries.filter((entry) => entry.site === site && entry.year === selectedYear);
@@ -5552,7 +5569,7 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
         />
         <Select value={site} onChange={(event) => setSite(event.target.value)}>
           <option>Alle Standorte</option>
-          {personalData.settings.sites.map((item) => <option key={item}>{item}</option>)}
+          {sortSiteNamesByContractStart(personalData.settings.sites).map((item) => <option key={item}>{item}</option>)}
         </Select>
         <Select value={status} onChange={(event) => setStatus(event.target.value)}>
           <option>Alle Status</option>
@@ -5792,6 +5809,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
   const expectedEarnOutInfo = <ExpectedEarnOutInfo rows={earnOutRows} period={period} />;
   const expectedGrowthPaymentInfo = <ExpectedGrowthPaymentInfo rows={earnOutRows} period={period} />;
   const expectedObligationInfo = <ExpectedObligationInfo rows={earnOutRows} period={period} />;
+  const sortedSites = sortSitesByContractStart(sites);
 
   const kpis = [
     {
@@ -5803,7 +5821,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       info: (
         <div className="space-y-1">
           <p className="font-bold text-slate-900">Herleitung aktueller Stand</p>
-          {sites.map((site) => (
+          {sortedSites.map((site) => (
             <InfoLine key={site.id} label={site.name} value={site.kontostand} />
           ))}
           <div className="mt-2 border-t border-border pt-2">
@@ -5821,7 +5839,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       info: (
         <div className="space-y-1">
           <p className="font-bold text-slate-900">Zusammensetzung aktueller Stand</p>
-          {sites.map((site) => (
+          {sortedSites.map((site) => (
             <InfoLine key={site.id} label={site.name} value={site.forderungen} />
           ))}
           <div className="mt-2 border-t border-border pt-2">
@@ -6428,6 +6446,7 @@ function CashflowBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
 }
 
 function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
+  const sortedSites = sortSitesByContractStart(sites);
   const aufgenommen = sites.reduce((sum, site) => sum + site.darlehen.darlehen, 0);
   const rest = sites.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
   const getilgt = Math.max(0, aufgenommen - rest);
@@ -6452,7 +6471,7 @@ function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
           info={
             <div className="space-y-1">
               <p className="font-bold text-slate-900">Zusammensetzung seit Vertragsstart</p>
-              {sortSitesByContractStart(sites).map((site) => (
+              {sortedSites.map((site) => (
                 <InfoLine key={site.id} label={site.name} value={site.darlehen.darlehen} />
               ))}
               <div className="mt-2 border-t border-border pt-2">
@@ -6483,7 +6502,7 @@ function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {sites.map((site) => {
+        {sortedSites.map((site) => {
           const siteGetilgt = Math.max(0, site.darlehen.darlehen - site.darlehen.restschuld);
           const siteQuote = site.darlehen.darlehen ? (siteGetilgt / site.darlehen.darlehen) * 100 : 0;
           return (
@@ -6597,11 +6616,12 @@ function Insights({ setPage }: { setPage: (page: Page) => void }) {
 }
 
 function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void; sites?: DashboardSite[] }) {
+  const sortedSites = sortSitesByContractStart(sites);
   return (
     <section className="space-y-5">
       <PageTitle title="Standorte" text="Kumulierte Standortwerte seit jeweiligem Vertragsstart; Kontostand und Forderungen als aktueller Stand." />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {sites.map((site) => (
+        {sortedSites.map((site) => (
           <Card key={site.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -6665,7 +6685,7 @@ function buildImportedPvsRevenueRows(
   const validYears = report.jahre.filter((year) => year > 1900);
   const dashboardMonthlyValues = dashboardPerformanceMonthlyValues(workbook, ["pvs_gesamtumsatz_inkl_fl_mat", "monats"]);
   const dashboardContractValues = dashboardPerformanceContractValues(workbook, ["pvs_gesamtumsatz_je_standort"]);
-  return report.standorte.map((siteName) => {
+  return sortSiteNamesByContractStart(report.standorte).map((siteName) => {
     const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
     const siteExportRows = exportRows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
@@ -6823,7 +6843,7 @@ function exportRowsFromWorkbook(workbook: XLSX.WorkBook) {
 
 function buildImportedBehandlerHonorarRows(detailRows: ImportedBehandlerDetailRow[], report: ImportReport): ImportedPeriodValueRow[] {
   const validYears = report.jahre.filter((year) => year > 1900);
-  return report.standorte.map((siteName) => {
+  return sortSiteNamesByContractStart(report.standorte).map((siteName) => {
     const siteId = siteIdForName(siteName);
     const siteRows = detailRows.filter((row) => row.siteId === siteId);
     const valuesByYear = Object.fromEntries(
@@ -7101,7 +7121,7 @@ function buildImportedPatientRows(rows: Record<string, unknown>[]): ImportedPati
         contractValue: aggregateValue(entry.contractSum, entry.contractCount)
       } satisfies ImportedPatientMetricRow;
     })
-    .sort((a, b) => a.siteName.localeCompare(b.siteName, "de") || a.label.localeCompare(b.label, "de"));
+    .sort((a, b) => compareSiteNamesByContractStart(a.siteName, b.siteName) || a.label.localeCompare(b.label, "de"));
 }
 
 function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], exportRows: Record<string, unknown>[], report: ImportReport): ImportedBehandlerDetailRow[] {
@@ -7178,7 +7198,7 @@ function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], expor
   const totalFor = (entry: ImportedBehandlerDetailRow) => Object.values(entry.totalByMonth).reduce((sum, value) => sum + value, 0);
   return [...grouped.values()]
     .filter((entry) => Math.abs(totalFor(entry)) > 0)
-    .sort((a, b) => a.siteName.localeCompare(b.siteName, "de") || totalFor(b) - totalFor(a) || a.name.localeCompare(b.name, "de"));
+    .sort((a, b) => compareSiteNamesByContractStart(a.siteName, b.siteName) || totalFor(b) - totalFor(a) || a.name.localeCompare(b.name, "de"));
 }
 
 function buildImportedPersonnelCostRows(workbook: XLSX.WorkBook): ImportedPersonnelCostRow[] {
@@ -7244,7 +7264,7 @@ function buildImportedPersonnelCostRows(workbook: XLSX.WorkBook): ImportedPerson
     });
   });
 
-  return rows.sort((a, b) => a.siteName.localeCompare(b.siteName, "de") || a.year - b.year || b.personnelCost - a.personnelCost);
+  return rows.sort((a, b) => compareSiteNamesByContractStart(a.siteName, b.siteName) || a.year - b.year || b.personnelCost - a.personnelCost);
 }
 
 function dashboardPerformanceMonthlyValues(workbook: XLSX.WorkBook, titleTerms: string[]) {
@@ -7508,7 +7528,7 @@ function buildImportedBehandlerTotalRows(workbook: XLSX.WorkBook, rows: Record<s
   const validYears = report.jahre.filter((year) => year > 1900);
   const dashboardMonthlyValues = dashboardPerformanceBehandlerMonthlyValues(workbook);
   const dashboardContractValues = dashboardPerformanceContractValues(workbook, ["behandlerumsatz_je_standort"]);
-  return report.standorte.map((siteName) => {
+  return sortSiteNamesByContractStart(report.standorte).map((siteName) => {
     const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
     const siteId = siteIdForName(siteName);
@@ -8008,7 +8028,7 @@ function repairImportedCashflowData(importedData: ImportedDashboardData): Import
     };
   });
 
-  const sites = importedData.sites.map((site) => {
+  const sites = sortSitesByContractStart(importedData.sites).map((site) => {
     const details = {
       vorlaeufigesErgebnis: Math.round(rowFor(site.id, "vorlaeufiges_ergebnis")?.contractValue ?? site.cashflowDetails?.vorlaeufigesErgebnis ?? 0),
       abschreibungen: Math.abs(
@@ -9552,7 +9572,7 @@ function Fruehwarnsystem({
 
   const sortedWarnings = [...warnings].sort((a, b) => {
     const severity = { red: 0, yellow: 1, green: 2 };
-    return severity[a.signal] - severity[b.signal] || a.siteName.localeCompare(b.siteName, "de") || a.category.localeCompare(b.category, "de");
+    return severity[a.signal] - severity[b.signal] || compareSiteNamesByContractStart(a.siteName, b.siteName) || a.category.localeCompare(b.category, "de");
   });
   const redCount = sortedWarnings.filter((warning) => warning.signal === "red").length;
   const yellowCount = sortedWarnings.filter((warning) => warning.signal === "yellow").length;
@@ -9606,7 +9626,7 @@ function Fruehwarnsystem({
       };
     })
     .filter((summary) => summary.count > 0)
-    .sort((a, b) => b.red - a.red || b.count - a.count || a.site.name.localeCompare(b.site.name, "de"));
+    .sort((a, b) => b.red - a.red || b.count - a.count || compareSiteNamesByContractStart(a.site.name, b.site.name));
   const leadingFindings = sortedWarnings.slice(0, 5);
   const statusLabel = redCount ? "Auffällig" : yellowCount ? "Beobachten" : "Stabil";
   const statusTone: Status = redCount ? "red" : yellowCount ? "yellow" : "green";
@@ -10046,7 +10066,7 @@ function OrisusPerformance({
     }
   }, [bankPeriod, bankPeriods, bwaPeriods, chartPeriod, honorarMonthlyPeriod, honorarPeriod, honorarPeriods, operationalPeriod, pvsMonthlyPeriod, pvsPeriod, pvsPeriods]);
   const chartData = bwaChartDataForPeriod(importedData, monthlyData, chartPeriod);
-  const operationalSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, operationalPeriod)) : sites;
+  const operationalSites = sortSitesByContractStart(importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, operationalPeriod)) : sites);
   const pvsTotal = totalForSites(sites, "pvsUmsatz");
   const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   const performanceKpiInfo = {
@@ -12959,7 +12979,7 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
-        <CostRatios sites={importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, chartPeriod)) : sites} periodLabel={chartPeriod === "Gesamte Periode" ? "seit Vertragsstart" : chartPeriod} />
+        <CostRatios sites={sortSitesByContractStart(importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, chartPeriod)) : sites)} periodLabel={chartPeriod === "Gesamte Periode" ? "seit Vertragsstart" : chartPeriod} />
       </div>
     </section>
   );
@@ -13781,7 +13801,9 @@ function bankPersonnelBySite(personalData?: PersonalDashboardData | null) {
   if (!personalData) return [];
   const latestSicknessYear =
     personalData.sicknessEntries.reduce((latest, entry) => Math.max(latest, entry.year), 0) || new Date().getFullYear();
-  const sites = personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site));
+  const sites = sortSiteNamesByContractStart(
+    personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site))
+  );
   return sites.map((site) => {
     const active = personalData.employees.filter((employee) => employee.site === site && employee.status.toLowerCase() === "aktiv");
     const fte = active.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
@@ -13835,11 +13857,11 @@ function Bankenreporting({
     }
   }, [availablePeriods, bankChartPeriod, bankTablePeriod, importedData]);
   const bankChartData = bwaChartDataForPeriod(importedData, monthlyData, bankChartPeriod);
-  const bankTableSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, bankTablePeriod)) : sites;
+  const bankTableSites = sortSitesByContractStart(importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, bankTablePeriod)) : sites);
   const bankKpiPeriod = "Gesamte Periode";
   const bankKpiPeriodLabel = "gesamte Vertragsperiode";
   const bankKpiEndPeriod = defaultBwaPeriodFor(importedData);
-  const bankKpiSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, bankKpiPeriod)) : sites;
+  const bankKpiSites = sortSitesByContractStart(importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, bankKpiPeriod)) : sites);
   const bankKpiMetrics = cfoMetrics(bankKpiSites, monthlyData, rules);
   const bankKpiRunRateEbitda = bankKpiSites.reduce((sum, site) => {
     const monthsSinceStart = monthsSinceStartForPeriod(site, bankKpiEndPeriod);
@@ -15098,13 +15120,15 @@ function buildCfoUploadQualityRows(importedData?: ImportedDashboardData | null):
 
 function buildPersonalUploadQualityRows(personalData?: PersonalDashboardData | null): UploadQualitySiteRow[] {
   if (!personalData) return [];
-  const siteNames = uniqueSortedText([
-    ...personalData.settings.sites,
-    ...personalData.employees.map((employee) => employee.site),
-    ...personalData.sicknessEntries.map((entry) => entry.site),
-    ...personalData.salaryEntries.map((entry) => entry.site),
-    ...personalData.actionEntries.map((entry) => entry.site)
-  ]);
+  const siteNames = sortSiteNamesByContractStart(
+    uniqueSortedText([
+      ...personalData.settings.sites,
+      ...personalData.employees.map((employee) => employee.site),
+      ...personalData.sicknessEntries.map((entry) => entry.site),
+      ...personalData.salaryEntries.map((entry) => entry.site),
+      ...personalData.actionEntries.map((entry) => entry.site)
+    ])
+  );
 
   return siteNames.map((siteName) => {
     const employees = personalData.employees.filter((employee) => employee.site === siteName);
