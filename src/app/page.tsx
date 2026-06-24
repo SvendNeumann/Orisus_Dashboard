@@ -5915,17 +5915,22 @@ function siteStatusLabel(site: DashboardSite) {
 function ChartCard({
   title,
   icon: Icon,
-  children
+  children,
+  action
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;
+  action?: React.ReactNode;
 }) {
   return (
     <Card className="h-full p-4">
-      <div className="mb-4 flex items-center gap-2">
-        <Icon className="h-5 w-5 text-primary" />
-        <h2 className="font-bold">{title}</h2>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-primary" />
+          <h2 className="font-bold">{title}</h2>
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       {children}
     </Card>
@@ -6060,49 +6065,6 @@ function SitePerformanceChart({ sites = standorte }: { sites?: DashboardSite[] }
         <Bar dataKey="ebitda" name="EBITDA" fill="#0891b2" radius={[5, 5, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
-  );
-}
-
-function StandortCfoComparison({ sites = standorte }: { sites?: DashboardSite[] }) {
-  return (
-    <Card className="overflow-hidden">
-      <div className="border-b border-border p-4">
-        <h2 className="font-bold">Standortvergleich CFO-Kennzahlen | seit Vertragsstart</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Konsolidierte Steuerungssicht je Standort seit Vertragsstart: Ergebnisqualität, Cashflow gem. BWA, Forderungen und Kostenquote.
-        </p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="data-table border-separate border-spacing-0 text-sm">
-          <thead>
-            <tr>
-              {["Standort", "Gesamtleistung", "EBITDA", "EBITDA-Marge", "Cashflow gem. BWA", "Forderungen", "Kostenquote", "Ampel"].map((head) => (
-                <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
-                  {head}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sites.filter((site) => site.gesamtleistung > 0).map((site) => {
-              const kostenquote = site.materialquote + site.fremdlaborquote + (site.personalquote ?? 0) + site.sonstigeKostenquote;
-              return (
-                <tr key={site.id}>
-                  <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
-                  <td className="border-b border-r border-border p-3 text-right font-semibold">{eur(site.gesamtleistung)}</td>
-                  <td className="border-b border-r border-border p-3 text-right font-semibold">{eur(site.ebitda)}</td>
-                  <td className="border-b border-r border-border p-3 text-right font-semibold">{pct(site.ebitdaMarge)}</td>
-                  <td className={cn("border-b border-r border-border p-3 text-right font-semibold", site.cashflow < 0 && "text-red-700")}>{eur(site.cashflow)}</td>
-                  <td className="border-b border-r border-border p-3 text-right font-semibold">{eur(site.forderungen)}</td>
-                  <td className="border-b border-r border-border p-3 text-right font-semibold">{pct(kostenquote)}</td>
-                  <td className="border-b border-r border-border p-3"><StatusDot status={site.status} /></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
   );
 }
 
@@ -12349,6 +12311,138 @@ function Bankenreporting({
   );
 }
 
+type BoardAnalysisItem = {
+  title: string;
+  status: Status;
+  finding: string;
+  implication: string;
+  action: string;
+};
+
+function boardCostRatio(site: DashboardSite) {
+  return site.materialquote + site.fremdlaborquote + (site.personalquote ?? 0) + site.sonstigeKostenquote;
+}
+
+function boardSiteAnalysis(site: DashboardSite, group: ReturnType<typeof cfoMetrics>, rules: KpiRules): BoardAnalysisItem {
+  const costRatio = boardCostRatio(site);
+  const receivablesRatio = site.gesamtleistung ? (site.forderungen / site.gesamtleistung) * 100 : 0;
+  const cashflowConversion = site.ebitda ? (site.cashflow / site.ebitda) * 100 : 0;
+  const targetAchievement = kvEbitdaAchievement(site);
+  const status = statusForSiteByRules(site, rules);
+  const pressurePoints = [
+    statusByRule(site.ebitdaMarge, rules.ebitda_marge) === "red" ? "EBITDA-Marge unter Zielkorridor" : "",
+    statusByRule(costRatio, rules.kostenquote) === "red" ? "Kostenquote erhöht" : "",
+    statusByRule(receivablesRatio, rules.offene_forderungen) === "red" ? "Forderungsbestand bindet Liquidität" : "",
+    site.cashflow < 0 ? "Cashflow gem. BWA negativ" : "",
+    targetAchievement !== null && statusByRule(targetAchievement, rules.ziel_ebitda_kaufvertrag) === "red" ? "Ziel-EBITDA Kaufvertrag unter Sollpfad" : ""
+  ].filter(Boolean);
+
+  const positiveSignals = [
+    site.ebitdaMarge >= group.ebitdaMarge ? "Marge über Gruppenschnitt" : "",
+    site.cashflow >= 0 ? "Cashflow positiv" : "",
+    targetAchievement !== null && targetAchievement >= 100 ? "Ziel-EBITDA übererfüllt" : ""
+  ].filter(Boolean);
+
+  const action =
+    pressurePoints.length > 0
+      ? [
+          statusByRule(receivablesRatio, rules.offene_forderungen) === "red" ? "Forderungsmanagement wöchentlich nachhalten" : "",
+          statusByRule(costRatio, rules.kostenquote) === "red" ? "Material-, Fremdlabor- und Personalkosten auf Behandler-/Leistungsebene prüfen" : "",
+          site.cashflow < 0 ? "Bank-Cashflow mit Tilgung, Investitionen und Umbuchungen abstimmen" : "",
+          statusByRule(site.ebitdaMarge, rules.ebitda_marge) === "red" ? "Umsatzmix, Auslastung und operative Kosten mit Standortleitung monatlich steuern" : ""
+        ]
+          .filter(Boolean)
+          .join("; ")
+      : "Stabilitätsniveau halten: Forecast, Kostenquote und Forderungen monatlich gegen Sollpfad spiegeln.";
+
+  return {
+    title: site.name,
+    status,
+    finding: pressurePoints.length ? pressurePoints.join("; ") : positiveSignals.join("; ") || "Keine wesentliche Auffälligkeit im aktuellen Boardpack-Kontext.",
+    implication: `EBITDA-Marge ${pct(site.ebitdaMarge)}, Kostenquote ${pct(costRatio)}, Forderungsquote ${pct(receivablesRatio)}, Cashflow-Konversion ${pct(cashflowConversion)}.`,
+    action
+  };
+}
+
+function BoardManagementAnalysis({ sites, metrics, rules }: { sites: DashboardSite[]; metrics: ReturnType<typeof cfoMetrics>; rules: KpiRules }) {
+  const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
+  const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
+  const cashflowConversion = metrics.ebitda ? (metrics.cashflow / metrics.ebitda) * 100 : 0;
+  const groupFindings = [
+    {
+      title: "Ergebnisqualität",
+      status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge),
+      text: `Die Gruppe erzielt ${pct(metrics.ebitdaMarge)} EBITDA-Marge. Investorenseitig ist das die zentrale Qualität des Umsatzes, weil sie Ziel-EBITDA, Earn-Out-Pfad und Verschuldungstragfähigkeit verbindet.`,
+      action: metrics.ebitdaMarge < rules.ebitda_marge.green ? "Standorte mit unterdurchschnittlicher Marge in ein monatliches Maßnahmenreview nehmen." : "Marge über Forecast stabilisieren und Pre-/Mix-Effekte in der Planung absichern."
+    },
+    {
+      title: "Liquidität & Cash Conversion",
+      status: statusByRule(metrics.cashflow, rules.cashflow_bwa),
+      text: `Cashflow gem. BWA liegt bei ${eur(metrics.cashflow, true)}; die Cashflow-Konversion auf EBITDA beträgt ${pct(cashflowConversion)}. Für Investoren zählt hier, ob EBITDA tatsächlich in Liquidität übersetzt wird.`,
+      action: cashflowConversion < 40 ? "Tilgung, Investitionen, Forderungsaufbau und Umbuchungen als separate Cash-Brücke je Standort nachhalten." : "Cash-Brücke beibehalten und größere Abweichungen je Standort kommentieren."
+    },
+    {
+      title: "Forderungen & Working Capital",
+      status: statusByRule(receivablesRatio, rules.offene_forderungen),
+      text: `Offene Forderungen betragen ${eur(metrics.forderungen, true)} bzw. ${pct(receivablesRatio)} der Gesamtleistung. Das ist der schnellste Hebel zwischen Ergebnis und Kontostand.`,
+      action: receivablesRatio > rules.offene_forderungen.green ? "Standortbezogene Forderungslisten priorisieren, Altposten eskalieren und PVS-/KZV-Zahlungsläufe gegen Monatsabschluss prüfen." : "Forderungsquote weiter als Frühwarnindikator im Boardpack führen."
+    },
+    {
+      title: "Kapitaldienst & Verschuldung",
+      status: statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
+      text: `Kapitaldienstfähigkeit liegt bei ${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x; Restschuld ${eur(metrics.restschuld, true)}, Tilgung bisher ${eur(metrics.getilgt, true)}.`,
+      action: metrics.kapitaldienstfaehigkeit < rules.kapitaldienstfaehigkeit.green ? "Banken-Covenant-Logik mit Forecast und Sensitivität auf EBITDA-Marge aktualisieren." : "Tragfähigkeit dokumentieren und Finanzierungsspielraum für Integrations-/Wachstumsinvestitionen bewerten."
+    }
+  ];
+  const siteAnalyses = activeSites.map((site) => boardSiteAnalysis(site, metrics, rules));
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h2 className="font-bold">Executive Summary | CFO- und Investorensicht</h2>
+          <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
+            Management-Lesart der aktuellen Kennzahlen: Was fällt auf, was bedeutet es für Ergebnisqualität, Liquidität und
+            Finanzierungsfähigkeit, und welche Gegenmaßnahmen sind sinnvoll.
+          </p>
+        </div>
+        <Badge tone={metrics.kritisch.length ? "yellow" : "green"}>{metrics.kritisch.length ? `${metrics.kritisch.length} Fokus-Standort(e)` : "Regelbereit"}</Badge>
+      </div>
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        {groupFindings.map((item) => (
+          <div key={item.title} className="rounded-lg border border-border bg-slate-50 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-bold">{item.title}</h3>
+              <StatusDot status={item.status} />
+            </div>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.text}</p>
+            <p className="mt-3 text-sm font-semibold leading-6 text-slate-900">Gegenmaßnahme: {item.action}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5">
+        <h3 className="font-bold">Standortbezogene Ableitungen</h3>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          {siteAnalyses.map((item) => (
+            <div key={item.title} className="rounded-lg border border-border bg-white/75 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <h4 className="font-bold">{item.title}</h4>
+                <StatusDot status={item.status} />
+              </div>
+              <p className="mt-2 text-sm leading-6">{item.finding}</p>
+              <p className="mt-2 text-xs font-semibold uppercase text-muted-foreground">Einordnung</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.implication}</p>
+              <p className="mt-3 text-sm font-semibold leading-6 text-slate-900">Maßnahme: {item.action}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function BoardPack({
   sites = standorte,
   monthlyData = monthly,
@@ -12360,15 +12454,12 @@ function BoardPack({
 }) {
   const rules = useKpiRules();
   const metrics = cfoMetrics(sites, monthlyData, rules);
-  const boardPeriod = importedData ? defaultBwaPeriodFor(importedData) : "aktueller Importzeitraum";
-  const summary = [
-    `Gesamtleistung YTD liegt bei ${eur(metrics.gesamtleistung, true)}; die Gruppe bleibt auf Wachstumskurs.`,
-    `EBITDA YTD beträgt ${eur(metrics.ebitda, true)} bei einer Marge von ${pct(metrics.ebitdaMarge)}.`,
-    `Run-Rate EBITDA liegt bei ${eur(metrics.runRateEbitda, true)} und ist die wichtigste Exit-nahe Kennzahl.`,
-    `Cashflow gem. BWA ist mit ${eur(metrics.cashflow, true)} positiv nach Tilgung und Adjustments.`,
-    `${metrics.kritisch.length} Standort(e) benötigen Management-Fokus: ${metrics.kritisch.map((site) => site.name).join(", ") || "keine"}.`,
-    `Fremdkapital ist mit ${eur(metrics.restschuld, true)} Restschuld transparent steuerbar; ${eur(metrics.getilgt, true)} wurden bereits getilgt.`
-  ];
+  const boardPeriodOptions = importedData ? bwaPeriodOptionsFor(importedData) : bwaPeriodOptions;
+  const [boardPeriod, setBoardPeriod] = useState(() => defaultPeriodFromOptions(boardPeriodOptions));
+  useEffect(() => {
+    if (!boardPeriodOptions.includes(boardPeriod)) setBoardPeriod(defaultPeriodFromOptions(boardPeriodOptions));
+  }, [boardPeriod, boardPeriodOptions]);
+  const boardChartData = bwaChartDataForPeriod(importedData, monthlyData, boardPeriod);
 
   return (
     <section className="space-y-5">
@@ -12377,28 +12468,24 @@ function BoardPack({
         text="Monatliche Management-Übersicht für Gesellschafter: Executive Summary, KPI-Entwicklung, Standortbeiträge, Risiken und Akquisitionen."
       />
 
-      <Card className="p-4">
-        <h2 className="font-bold">Executive Summary | aktueller Stand</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {summary.map((item) => (
-            <div key={item} className="rounded-md bg-slate-50 p-3 text-sm leading-6">
-              {item}
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Mini label="Gesamtleistung YTD" value={eur(metrics.gesamtleistung)} />
-        <Mini label="EBITDA / Marge" value={`${eur(metrics.ebitda, true)} / ${pct(metrics.ebitdaMarge)}`} />
-        <Mini label="Run-Rate EBITDA" value={eur(metrics.runRateEbitda)} />
-        <Mini label="Cashflow gem. BWA" value={eur(metrics.cashflow)} />
-      </div>
+      <BoardManagementAnalysis sites={sites} metrics={metrics} rules={rules} />
 
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <ChartCard title={`Board KPI Entwicklung | ${boardPeriod}`} icon={TrendingUp}>
+        <ChartCard
+          title={`Board KPI Entwicklung | ${boardPeriod}`}
+          icon={TrendingUp}
+          action={
+            <Select value={boardPeriod} onChange={(event) => setBoardPeriod(event.target.value)} className="w-full min-w-52 sm:w-auto">
+              {boardPeriodOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </Select>
+          }
+        >
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={monthlyData}>
+            <ComposedChart data={boardChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="month" />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
@@ -12430,7 +12517,6 @@ function BoardPack({
         </Card>
       </div>
 
-      <StandortCfoComparison sites={sites} />
       <AcquisitionIntegration sites={sites} />
     </section>
   );
