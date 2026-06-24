@@ -14671,6 +14671,7 @@ function buildReportDocument({
           overflow: hidden;
           page-break-after: always;
           background: white;
+          align-content: start;
         }
         .pmr-benchmark-header {
           display: grid;
@@ -14686,6 +14687,7 @@ function buildReportDocument({
         .pmr-benchmark-header img { width: 130px; max-height: 39px; object-fit: contain; filter: brightness(0) invert(1); }
         .pmr-benchmark-header h1 { margin: 1px 0; font-size: 16px; line-height: 1.05; }
         .pmr-benchmark-header p { margin: 0; color: rgba(255,255,255,.76); font-size: 7.8px; line-height: 1.2; }
+        .pmr-benchmark-header .logic { margin-top: 3px; color: rgba(255,255,255,.9); font-size: 6.5px; line-height: 1.15; }
         .pmr-benchmark-meta { display: grid; gap: 2px; justify-items: end; color: rgba(255,255,255,.82); font-size: 7.2px; }
         .pmr-benchmark-meta strong { color: white; font-size: 11px; }
         .pmr-benchmark-kpi-table {
@@ -14696,7 +14698,6 @@ function buildReportDocument({
         }
         .pmr-benchmark-kpi-table th,
         .pmr-benchmark-kpi-table td {
-          width: 16.666%;
           padding: 2px 3px;
           border: 1px solid #d3e2e8;
           text-align: center;
@@ -14739,16 +14740,42 @@ function buildReportDocument({
         .pmr-benchmark-grid.three {
           grid-template-columns: .86fr 1.07fr 1.07fr;
         }
-        .pmr-benchmark-note {
+        .pmr-benchmark-insights {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 4px;
+        }
+        .pmr-benchmark-insight {
           border-radius: 8px;
-          padding: 4px 6px;
+          padding: 5px 6px;
           background: #e9f7f6;
           border: 1px solid #b9dfdc;
           color: #12313c;
-          font-size: 5.8px;
-          line-height: 1.16;
+          min-height: 30px;
         }
-        .pmr-benchmark-note strong { color: #0a6f79; }
+        .pmr-benchmark-insight span {
+          display: block;
+          color: #0a6f79;
+          font-size: 5.4px;
+          font-weight: 900;
+          letter-spacing: .03em;
+          line-height: 1.05;
+          text-transform: uppercase;
+        }
+        .pmr-benchmark-insight strong {
+          display: block;
+          margin-top: 2px;
+          color: #0f1b2b;
+          font-size: 9px;
+          line-height: 1.05;
+        }
+        .pmr-benchmark-insight small {
+          display: block;
+          margin-top: 2px;
+          color: #496577;
+          font-size: 5.5px;
+          line-height: 1.1;
+        }
         .pmr-benchmark-page .report-section { border-radius: 8px; box-shadow: none; }
         .pmr-benchmark-page .section-head { padding: 4px 6px; }
         .pmr-benchmark-page .section-head h2 { font-size: 7.6px; }
@@ -14949,12 +14976,6 @@ function bankMovementReportRows(importedData?: ImportedDashboardData | null) {
   };
 }
 
-function reportStatusDot(status: Status | "neutral") {
-  const color = status === "green" ? "#16a34a" : status === "yellow" ? "#f59e0b" : status === "red" ? "#dc2626" : "#94a3b8";
-  const label = status === "green" ? "Stabil" : status === "yellow" ? "Beobachten" : status === "red" ? "Handlungsbedarf" : "n/a";
-  return `<span class="status-dot" style="background:${color}"></span><span class="status-label">${reportEscape(label)}</span>`;
-}
-
 function reportStatusDotWithLabel(status: Status | "neutral", label: string) {
   if (status === "neutral") return "";
   const color = status === "green" ? "#16a34a" : status === "yellow" ? "#f59e0b" : "#dc2626";
@@ -15145,12 +15166,13 @@ function pmrQuoteRows(importedData: ImportedDashboardData, siteId: string, perio
     <thead><tr><th>Kennzahl</th><th>Aktuell</th><th>Vorjahr</th><th>Delta</th><th>Status</th></tr></thead>
     <tbody>${definitions.map((row) => {
       const delta = row.current - row.previous;
+      const status = quoteTrendStatus(row.current, row.previous, row.higher);
       return `<tr>
         <td>${reportEscape(row.label)}</td>
         <td>${reportEscape(pct(row.current))}</td>
         <td>${row.hasPrevious ? reportEscape(pct(row.previous)) : ""}</td>
         <td>${row.hasPrevious ? reportEscape(pct(delta)) : ""}</td>
-        <td>${row.hasPrevious ? reportStatusDot(quoteTrendStatus(row.current, row.previous, row.higher)) : ""}</td>
+        <td>${row.hasPrevious ? reportStatusDotWithLabel(status, pmrTrendStatusLabel(status, row.higher)) : ""}</td>
       </tr>`;
     }).join("")}</tbody>
   </table>`;
@@ -15378,6 +15400,15 @@ function pmrBenchmarkRankingRows<T extends { label: string; value: number | null
   return topRows;
 }
 
+function pmrBenchmarkComparisonText(value: number | null | undefined, basis: number | null | undefined, higherIsBetter = true, type: "currency" | "percent" | "number" = "number") {
+  if (value == null || basis == null || !Number.isFinite(value) || !Number.isFinite(basis)) return "Vergleich n. v.";
+  const diff = value - basis;
+  const tolerance = type === "percent" ? 0.5 : Math.max(1, Math.abs(basis) * 0.02);
+  if (Math.abs(diff) <= tolerance) return "nahe Vergleich";
+  if (higherIsBetter) return diff > 0 ? "über Vergleich" : "unter Vergleich";
+  return diff > 0 ? "erhöht ggü. Vergleich" : "unter Vergleich";
+}
+
 function buildPmrBenchmarkPage(
   site: DashboardSite,
   sites: DashboardSite[],
@@ -15506,10 +15537,24 @@ function buildPmrBenchmarkPage(
       type: "index" as const
     },
     {
+      label: "Umsatz je Öffnungsstunde",
+      value: pmrBenchmarkIndex(selectedRow?.pvsPerOpeningHour, averages.pvsPerOpeningHour),
+      group: 100,
+      higherIsBetter: true,
+      type: "index" as const
+    },
+    {
       label: "Terminwahrnehmung",
       value: selectedRow?.attendanceRate ?? null,
       group: averages.attendanceRate,
       higherIsBetter: true,
+      type: "percent" as const
+    },
+    {
+      label: "Terminausfall",
+      value: selectedRow?.cancellationRate ?? null,
+      group: averages.cancellationRate,
+      higherIsBetter: false,
       type: "percent" as const
     }
   ];
@@ -15543,6 +15588,35 @@ function buildPmrBenchmarkPage(
   const pvsMax = Math.max(...pvsRanking.map((row) => row.value ?? 0), 1);
   const marginMax = Math.max(...marginRanking.map((row) => row.value ?? 0), 1);
   const roomMax = Math.max(...roomRanking.map((row) => row.value ?? 0), 1);
+  const insightCards = [
+    {
+      label: "Umsatz je Öffnungsstunde",
+      value: pmrBenchmarkFormat(selectedRow?.pvsPerOpeningHour, "currency"),
+      detail: `${pmrBenchmarkComparisonText(selectedRow?.pvsPerOpeningHour, averages.pvsPerOpeningHour, true, "currency")} | Vergleich ${pmrBenchmarkFormat(averages.pvsPerOpeningHour, "currency")}`
+    },
+    {
+      label: "EBITDA-Marge",
+      value: pmrBenchmarkFormat(selectedRow?.ebitdaMargin, "percent"),
+      detail: `${pmrBenchmarkComparisonText(selectedRow?.ebitdaMargin, averages.ebitdaMargin, true, "percent")} | Vergleich ${pmrBenchmarkFormat(averages.ebitdaMargin, "percent")}`
+    },
+    {
+      label: "Gesamtkostenquote",
+      value: pmrBenchmarkFormat(selectedRow?.gesamtkostenquote, "percent"),
+      detail: `${pmrBenchmarkComparisonText(selectedRow?.gesamtkostenquote, averages.gesamtkostenquote, false, "percent")} | Vergleich ${pmrBenchmarkFormat(averages.gesamtkostenquote, "percent")}`
+    },
+    {
+      label: "Terminausfall",
+      value: pmrBenchmarkFormat(selectedRow?.cancellationRate, "percent"),
+      detail: `${pmrBenchmarkComparisonText(selectedRow?.cancellationRate, averages.cancellationRate, false, "percent")} | Vergleich ${pmrBenchmarkFormat(averages.cancellationRate, "percent")}`
+    }
+  ];
+  const insights = `<div class="pmr-benchmark-insights">${insightCards.map((card) => `
+    <div class="pmr-benchmark-insight">
+      <span>${reportEscape(card.label)}</span>
+      <strong>${reportEscape(card.value)}</strong>
+      <small>${reportEscape(card.detail)}</small>
+    </div>
+  `).join("")}</div>`;
   const heatRows = rows.map((row) => `<tr>
     <td>${reportEscape(row.label)}</td>
     <td class="${pmrBenchmarkHeatClass(row.materialquote, averages.materialquote)}">${reportEscape(pmrBenchmarkFormat(row.materialquote, "percent"))}</td>
@@ -15562,13 +15636,11 @@ function buildPmrBenchmarkPage(
   return `<div class="pmr-benchmark-page">
     <header class="pmr-benchmark-header">
       <div><img src="/orisus-logo.png" alt="Orisus Zahnmedizin" /></div>
-      <div><div class="eyebrow">Benchmarking-Report</div><h1>Benchmark ${reportEscape(selectedSite.name)}</h1><p>${reportEscape(periodLabel)} | anonymisierter Peer-Auszug | Standortleiter-Anlage</p></div>
+      <div><div class="eyebrow">Benchmarking-Report</div><h1>Benchmark ${reportEscape(selectedSite.name)}</h1><p>${reportEscape(periodLabel)} | anonymisierter Peer-Auszug | Standortleiter-Anlage</p><p class="logic">Leselogik: ${reportEscape(selectedSite.name)} bleibt sichtbar, Vergleichsstandorte anonymisiert. Index 100 % entspricht dem Vergleichsniveau; bei Kosten- und Ausfallquoten ist niedriger besser.</p></div>
       <div class="pmr-benchmark-meta"><strong>Seite 2</strong><span>PMR-Anlage</span><span>Vertraulich</span></div>
     </header>
     ${kpiCards}
-    <div class="pmr-benchmark-note">
-      <strong>Leselogik:</strong> Der ausgewählte Standort bleibt im Klartext sichtbar. Alle Vergleichsstandorte werden anonymisiert. Index 100 % entspricht dem Vergleichsniveau im gewählten Zeitraum; bei Kostenquoten ist niedriger besser.
-    </div>
+    ${insights}
     <div class="pmr-benchmark-grid three">
       ${reportSection("Peer-Auszug Umsatz je Zahnarzt-FTE", reportBarList(pvsRanking.map((row) => ({
         label: row.label,
