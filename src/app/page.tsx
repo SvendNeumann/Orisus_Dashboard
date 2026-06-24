@@ -1963,12 +1963,16 @@ function normalizeMetric(value: unknown) {
 const providerNameAliasesBySite: Record<string, Record<string, string>> = {
   kirchberg: {
     pzr_pomsel_plus: "S. Pomsel",
+    pzr_pomsel: "S. Pomsel",
     pzr_bomsel_plus: "S. Pomsel",
+    pzr_bomsel: "S. Pomsel",
     samira_pomsel: "S. Pomsel",
     s_pomsel: "S. Pomsel",
     s_bomsel: "S. Pomsel",
     f_patsch: "F. Patsch",
+    f_paatsch: "F. Patsch",
     pzr_patsch: "F. Patsch",
+    pzr_paatsch: "F. Patsch",
     f_parch: "F. Patsch",
     pzr_parch: "F. Patsch",
     p_heinz: "P. Heinz",
@@ -2016,6 +2020,36 @@ function canonicalProviderKey(siteId: string, name: string) {
   return tokens.join("_") || normalizeMetric(name);
 }
 
+function providerSurnameKey(siteId: string, name: string) {
+  const explicitAlias = providerNameAliasesBySite[siteId]?.[normalizeMetric(name)] ?? name;
+  const tokens = normalizeMetric(explicitAlias).split("_").filter(Boolean);
+  while (tokens.length > 1 && providerRolePrefixKeys.has(tokens[0])) tokens.shift();
+  return tokens.at(-1) ?? normalizeMetric(name);
+}
+
+function providerMergeKey(siteId: string, name: string, existingKeys: Iterable<string>) {
+  const rawKey = canonicalProviderKey(siteId, name);
+  const surname = providerSurnameKey(siteId, name);
+  if (!surname) return rawKey;
+  const keys = Array.from(existingKeys);
+  if (!rawKey.includes("_")) {
+    return keys.find((key) => key.endsWith(`_${surname}`)) ?? rawKey;
+  }
+  return rawKey;
+}
+
+function promoteProviderSingleSurnameKey<T>(grouped: Map<string, T>, siteId: string, name: string) {
+  const rawKey = canonicalProviderKey(siteId, name);
+  const surname = providerSurnameKey(siteId, name);
+  if (!rawKey.includes("_") || !surname || !grouped.has(surname) || grouped.has(rawKey)) return rawKey;
+  const existing = grouped.get(surname);
+  if (existing) {
+    grouped.delete(surname);
+    grouped.set(rawKey, existing);
+  }
+  return rawKey;
+}
+
 function providerDisplayRank(siteId: string, name: string) {
   const normalizedName = normalizeMetric(name);
   if (providerNameAliasesBySite[siteId]?.[normalizedName]) return 0;
@@ -2040,10 +2074,11 @@ function groupedProviderDetailRows(rows: ImportedBehandlerDetailRow[], siteId: s
   };
 
   rows.forEach((row) => {
-    const key = canonicalProviderKey(siteId, row.name);
-    const existing = grouped.get(key);
+    promoteProviderSingleSurnameKey(grouped, siteId, row.name);
+    const resolvedKey = providerMergeKey(siteId, row.name, grouped.keys());
+    const existing = grouped.get(resolvedKey);
     if (!existing) {
-      grouped.set(key, {
+      grouped.set(resolvedKey, {
         ...row,
         name: canonicalProviderName(siteId, row.name),
         honorarByMonth: { ...row.honorarByMonth },
@@ -14464,6 +14499,20 @@ function buildReportDocument({
           overflow: hidden;
           text-overflow: ellipsis;
         }
+        .pmr-benchmark-page .kpi-grid {
+          grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+          gap: 3px !important;
+        }
+        .pmr-benchmark-page .kpi-card {
+          min-height: 22px !important;
+          border-radius: 7px !important;
+          padding: 3px 5px !important;
+          box-shadow: none !important;
+          overflow: hidden !important;
+        }
+        .pmr-benchmark-page .kpi-label { font-size: 4.8px !important; line-height: 1.02 !important; }
+        .pmr-benchmark-page .kpi-value { margin-top: 1px !important; font-size: 8.4px !important; line-height: 1 !important; }
+        .pmr-benchmark-page .kpi-detail { margin-top: 1px !important; font-size: 4.7px !important; line-height: 1.02 !important; }
         .pmr-benchmark-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -14908,7 +14957,8 @@ function personnelCostComparisonRows(importedData: ImportedDashboardData | null 
     .filter((row) => row.siteId === siteId)
     .forEach((row) => {
       const canonicalName = canonicalProviderName(siteId, row.name);
-      const key = canonicalProviderKey(siteId, row.name);
+      promoteProviderSingleSurnameKey(grouped, siteId, row.name);
+      const key = providerMergeKey(siteId, row.name, grouped.keys());
       const existing = grouped.get(key) ?? {
         employeeId: row.employeeId || key,
         name: canonicalName,
