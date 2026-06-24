@@ -14452,25 +14452,29 @@ function buildReportDocument({
         .pmr-benchmark-header p { margin: 0; color: rgba(255,255,255,.76); font-size: 7.8px; line-height: 1.2; }
         .pmr-benchmark-meta { display: grid; gap: 2px; justify-items: end; color: rgba(255,255,255,.82); font-size: 7.2px; }
         .pmr-benchmark-meta strong { color: white; font-size: 11px; }
-        .pmr-benchmark-kpi-strip {
-          display: grid;
-          grid-template-columns: repeat(6, minmax(0, 1fr));
-          gap: 3px;
+        .pmr-benchmark-kpi-table {
+          width: 100%;
+          table-layout: fixed;
+          border-collapse: separate;
+          border-spacing: 3px 0;
         }
-        .pmr-benchmark-kpi {
+        .pmr-benchmark-kpi-table td {
+          width: 16.666%;
+          height: 29px;
+          max-height: 29px;
+          vertical-align: top;
           border-radius: 7px;
           padding: 3px 5px 4px;
           background: #ffffff;
           border: 1px solid #d5e0e5;
           border-left: 3px solid #117989;
-          min-height: 22px;
           overflow: hidden;
         }
-        .pmr-benchmark-kpi.green { border-left-color: #13b981; }
-        .pmr-benchmark-kpi.yellow { border-left-color: #f59e0b; }
-        .pmr-benchmark-kpi.red { border-left-color: #dc2626; }
-        .pmr-benchmark-kpi.blue { border-left-color: #117989; }
-        .pmr-benchmark-kpi span {
+        .pmr-benchmark-kpi-table td.green { border-left-color: #13b981; }
+        .pmr-benchmark-kpi-table td.yellow { border-left-color: #f59e0b; }
+        .pmr-benchmark-kpi-table td.red { border-left-color: #dc2626; }
+        .pmr-benchmark-kpi-table td.blue { border-left-color: #117989; }
+        .pmr-benchmark-kpi-table .label {
           display: block;
           color: #6b7a8b;
           font-size: 4.8px;
@@ -14482,14 +14486,14 @@ function buildReportDocument({
           overflow: hidden;
           text-overflow: ellipsis;
         }
-        .pmr-benchmark-kpi strong {
+        .pmr-benchmark-kpi-table strong {
           display: block;
           margin-top: 1px;
           color: #0f1b2b;
           font-size: 8.4px;
           line-height: 1;
         }
-        .pmr-benchmark-kpi small {
+        .pmr-benchmark-kpi-table .detail {
           display: block;
           margin-top: 1px;
           color: #137667;
@@ -15268,22 +15272,22 @@ function buildPmrBenchmarkPage(
       type: "percent" as const
     }
   ];
-  const kpiCards = `<div class="pmr-benchmark-kpi-strip">${indexCards.map((card) => {
+  const kpiCards = `<table class="pmr-benchmark-kpi-table"><tbody><tr>${indexCards.map((card) => {
     const diff = card.value != null && card.group != null ? card.value - card.group : null;
     const tone = diff == null || !Number.isFinite(diff)
       ? "blue"
       : Math.abs(diff) < (card.type === "percent" ? 1 : 3)
         ? "yellow"
         : (card.higherIsBetter ? diff >= 0 : diff <= 0)
-          ? "green"
-          : "red";
+        ? "green"
+        : "red";
     const suffix = card.type === "index" ? "Index" : "Vergleich";
-    return `<div class="pmr-benchmark-kpi ${tone}">
-      <span>${reportEscape(card.label)}</span>
+    return `<td class="${tone}">
+      <span class="label">${reportEscape(card.label)}</span>
       <strong>${reportEscape(pmrBenchmarkFormat(card.value, card.type))}</strong>
-      <small>${card.group == null ? "Vergleich n. v." : `${reportEscape(suffix)}: ${reportEscape(pmrBenchmarkFormat(card.group, card.type))}`}</small>
-    </div>`;
-  }).join("")}</div>`;
+      <span class="detail">${card.group == null ? "Vergleich n. v." : `${reportEscape(suffix)}: ${reportEscape(pmrBenchmarkFormat(card.group, card.type))}`}</span>
+    </td>`;
+  }).join("")}</tr></tbody></table>`;
   const pvsRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.pvsPerDentist })), selectedSite.id);
   const marginRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.ebitdaMargin })), selectedSite.id);
   const roomRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.pvsPerRoom })), selectedSite.id);
