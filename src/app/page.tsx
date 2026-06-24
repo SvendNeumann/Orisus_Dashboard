@@ -2791,8 +2791,10 @@ function pvsTotalRevenueFromRows(rows: Record<string, unknown>[]) {
   const directValue =
     sumRowsByCategory(rows, ["gesamtumsatz_inkl_fl_mat"], ["finanzen"], ["pvs_umsatzstatistik_honorare"]) ||
     sumRowsByCategory(rows, ["gesamtumsatz_inkl_fl_mat"], ["finanzen"], ["pvs"]) ||
+    sumRowsByCategory(rows, ["gesamtumsatz_inkl_fl_mat"], ["finanzen"], ["pvs_auswertung"]) ||
     sumRowsByCategory(rows, ["soll_forderung_pvs"], ["finanzen"], ["soll"]) ||
-    sumRowsByCategory(rows, ["soll_forderung_pvs"], ["finanzen"], ["pvs"]);
+    sumRowsByCategory(rows, ["soll_forderung_pvs"], ["finanzen"], ["pvs"]) ||
+    sumRowsByCategory(rows, ["soll_forderung_pvs"], ["finanzen"], ["pvs_auswertung"]);
   if (directValue) return directValue;
 
   const istCashGeflossen = sumRows(rows, null, ["ist_cash_geflossen_pvs"], ["finanzen"]);
@@ -3394,7 +3396,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     topBehandler: topBehandlerFromDetailRows(behandlerDetailRows, latestYear, latestBehandlerMonth),
     topBehandlerPeriod: behandlerHonorarPeriodLabelFromDetailRows(behandlerDetailRows, latestYear),
     bwaRows: buildImportedBwaRows(rows, report),
-    pvsRevenueRows: buildImportedPvsRevenueRows(workbook, rows, report, latestYear),
+    pvsRevenueRows: buildImportedPvsRevenueRows(workbook, rows, exportRows, report, latestYear),
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(behandlerDetailRows, report),
     behandlerTotalRows: buildImportedBehandlerTotalRows(workbook, rows, report, latestYear),
     behandlerDetailRows,
@@ -6643,17 +6645,28 @@ function Mini({ label, value, info }: { label: string; value: string; info?: Rea
   );
 }
 
-function buildImportedPvsRevenueRows(workbook: XLSX.WorkBook, rows: Record<string, unknown>[], report: ImportReport, latestYear: number): ImportedPeriodValueRow[] {
+function buildImportedPvsRevenueRows(
+  workbook: XLSX.WorkBook,
+  rows: Record<string, unknown>[],
+  exportRows: Record<string, unknown>[],
+  report: ImportReport,
+  latestYear: number
+): ImportedPeriodValueRow[] {
   const validYears = report.jahre.filter((year) => year > 1900);
   const dashboardMonthlyValues = dashboardPerformanceMonthlyValues(workbook, ["pvs_gesamtumsatz_inkl_fl_mat", "monats"]);
   const dashboardContractValues = dashboardPerformanceContractValues(workbook, ["pvs_gesamtumsatz_je_standort"]);
   return report.standorte.map((siteName) => {
     const fallback = standorte.find((site) => site.name.toLowerCase() === siteName.toLowerCase()) ?? standorte[0];
     const siteRows = rows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
+    const siteExportRows = exportRows.filter((row) => asText(row.Standortname) === siteName && isOnOrAfterStart(row, fallback.start));
     const siteId = siteIdForName(siteName);
     const dashboardValuesForSite = dashboardMonthlyValues.get(siteId);
     const valuesByYear = Object.fromEntries(
-      validYears.map((year) => [String(year), pvsTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year))])
+      validYears.map((year) => {
+        const primaryValue = pvsTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year));
+        const exportValue = pvsTotalRevenueFromRows(siteExportRows.filter((row) => (rowYear(row) ?? 0) === year));
+        return [String(year), primaryValue || exportValue];
+      })
     );
     const valuesByMonth: Record<string, number> = Object.fromEntries(
       validYears.flatMap((year) =>
@@ -6661,10 +6674,11 @@ function buildImportedPvsRevenueRows(workbook: XLSX.WorkBook, rows: Record<strin
           const month = index + 1;
           const dashboardValue = year === latestYear ? dashboardValuesForSite?.[month] : undefined;
           const rawValue = pvsTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
+          const exportValue = pvsTotalRevenueFromRows(siteExportRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
           const value =
             dashboardValue != null && Math.abs(dashboardValue) > 0
               ? dashboardValue
-              : rawValue;
+              : rawValue || exportValue;
           return [`${year}-${month}`, value];
         })
       )
@@ -6673,13 +6687,14 @@ function buildImportedPvsRevenueRows(workbook: XLSX.WorkBook, rows: Record<strin
       valuesByYear[String(latestYear)] = Array.from({ length: 12 }, (_, index) => valuesByMonth[`${latestYear}-${index + 1}`] ?? 0).reduce((sum, value) => sum + value, 0);
     }
     const rawContractValue = pvsTotalRevenueFromRows(siteRows);
+    const exportContractValue = pvsTotalRevenueFromRows(siteExportRows);
     const dashboardContractValue = dashboardContractValues.get(siteId);
     return {
       siteId,
       siteName,
       valuesByYear,
       valuesByMonth,
-      contractValue: dashboardContractValue != null && Math.abs(dashboardContractValue) > 0 ? dashboardContractValue : rawContractValue
+      contractValue: dashboardContractValue != null && Math.abs(dashboardContractValue) > 0 ? dashboardContractValue : rawContractValue || exportContractValue
     };
   });
 }
