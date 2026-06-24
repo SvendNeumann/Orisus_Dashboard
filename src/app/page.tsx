@@ -8821,11 +8821,17 @@ function KennzahlenEntwicklung({
   const averageTargetAchievement = totalTarget ? (totalEbitda / totalTarget) * 100 : 0;
   const monthlyPeriods = bwaPeriodOptionsFor(importedData);
   const [monthlyPeriod, setMonthlyPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const [standortPeriod, setStandortPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   useEffect(() => {
     if (!monthlyPeriods.includes(monthlyPeriod)) {
       setMonthlyPeriod(defaultBwaPeriodFor(importedData));
     }
   }, [importedData, monthlyPeriod, monthlyPeriods]);
+  useEffect(() => {
+    if (!monthlyPeriods.includes(standortPeriod)) {
+      setStandortPeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [importedData, monthlyPeriods, standortPeriod]);
   const filteredMonthlyData = bwaChartDataForPeriod(importedData, monthlyData, monthlyPeriod);
   const weakest = activeSites
     .map((site) => ({ site, achievement: (site.ebitda / (targetBySite[site.id] || 1)) * 100 }))
@@ -8839,7 +8845,7 @@ function KennzahlenEntwicklung({
       />
 
       <Card className="overflow-hidden">
-        <div className="table-head p-3 text-lg font-bold text-white">Standort-Performance | BWA-Kennzahlen je Standort | seit Vertragsstart</div>
+        <div className="table-head p-3 text-lg font-bold text-white">Standort-Performance | Überblick | seit Vertragsstart</div>
         <div className="border-b border-border bg-slate-50 p-3 text-sm italic text-muted-foreground">
           Auswertung: bestätigter Import | Standorte seit jeweiligem Vertragsstart | Quelle: {importedData?.fileName ?? "Kein Upload bestätigt"}
         </div>
@@ -8853,7 +8859,15 @@ function KennzahlenEntwicklung({
         </div>
       </Card>
 
-      <KennzahlenStandortTable targetBySite={targetBySite} sites={activeSites} monthlyData={monthlyData} />
+      <KennzahlenStandortTable
+        targetBySite={targetBySite}
+        sites={activeSites}
+        monthlyData={monthlyData}
+        importedData={importedData}
+        period={standortPeriod}
+        availablePeriods={monthlyPeriods}
+        setPeriod={setStandortPeriod}
+      />
       <MonthlyEbitdaTable
         targetBySite={targetBySite}
         sites={activeSites}
@@ -8877,10 +8891,59 @@ function KennzahlTile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function KennzahlenStandortTable({ targetBySite, sites = standorte, monthlyData = monthly }: { targetBySite: Record<string, number>; sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+function KennzahlenStandortTable({
+  targetBySite,
+  sites = standorte,
+  monthlyData = monthly,
+  importedData,
+  period = "Gesamte Periode",
+  availablePeriods = bwaPeriodOptions,
+  setPeriod
+}: {
+  targetBySite: Record<string, number>;
+  sites?: DashboardSite[];
+  monthlyData?: typeof monthly;
+  importedData?: ImportedDashboardData | null;
+  period?: string;
+  availablePeriods?: string[];
+  setPeriod?: (period: string) => void;
+}) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
+  const selection = selectedBwaPeriod(period);
+  const monthsInPeriodForSite = (siteId: string) => {
+    if (selection.year && selection.months?.length) return selection.months.length;
+    if (selection.year && importedData?.bwaRows?.length) {
+      return Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+        importedData.bwaRows.some((row) => row.siteId === siteId && row.hasDataByMonth[`${selection.year}-${month}`])
+      ).length;
+    }
+    if (!selection.year && importedData?.bwaRows?.length) {
+      return Array.from(
+        new Set(
+          importedData.bwaRows
+            .filter((row) => row.siteId === siteId)
+            .flatMap((row) => Object.entries(row.hasDataByMonth).filter(([, hasData]) => hasData).map(([key]) => key))
+        )
+      ).length;
+    }
+    return monthlyData.length;
+  };
+
   return (
     <Card className="overflow-hidden">
+      <div className="flex flex-col gap-3 table-head p-3 text-white sm:flex-row sm:items-center sm:justify-between">
+        <div className="font-bold">Standort-Performance | BWA-Kennzahlen je Standort | {performancePeriodLabel(period)}</div>
+        {setPeriod ? (
+          <Select className="w-full bg-white text-foreground sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
+            {availablePeriods.map((option) => (
+              <option key={option} value={option}>{performancePeriodLabel(option)}</option>
+            ))}
+          </Select>
+        ) : null}
+      </div>
+      <div className="border-b border-border bg-slate-50 p-3 text-sm italic text-muted-foreground">
+        Auswertung: {performancePeriodLabel(period)} | bestätigter Import | Quelle: {importedData?.fileName ?? "Kein Upload bestätigt"}
+      </div>
       <div className="overflow-x-auto">
         <table className="data-table border-separate border-spacing-0 text-xs">
           <thead>
@@ -8915,34 +8978,35 @@ function KennzahlenStandortTable({ targetBySite, sites = standorte, monthlyData 
           </thead>
           <tbody>
             {activeSites.map((site) => {
-              const target = targetBySite[site.id] ?? 0;
-              const deviation = site.ebitda - target;
-              const achievement = target ? (site.ebitda / target) * 100 : 0;
-              const monthsInPeriod = monthlyData.length;
+              const periodSite = filteredSiteForPeriod(site, importedData, period);
+              const target = periodSite.darlehen.zielEbitdaUebernahme || periodSite.darlehen.zielEbitda || targetBySite[site.id] || 0;
+              const deviation = periodSite.ebitda - target;
+              const achievement = target ? (periodSite.ebitda / target) * 100 : 0;
+              const monthsInPeriod = monthsInPeriodForSite(site.id);
               const monthsSinceJoin = site.id === "kirchberg" ? 12 : site.id === "essen" ? 6 : site.id === "kehl" ? 3 : site.id === "ulmet" ? 1 : site.id === "huettenberg" ? 6 : 0;
-              const runRate = monthsInPeriod ? (site.ebitda / monthsInPeriod) * 12 : 0;
+              const runRate = monthsInPeriod ? (periodSite.ebitda / monthsInPeriod) * 12 : 0;
               return (
                 <tr key={site.id}>
                   <TableCell strong>{site.name}</TableCell>
                   <TableCell>{site.start}</TableCell>
                   <TableCell>{monthsInPeriod}</TableCell>
-                  <TableCell>{eur(site.gesamtleistung)}</TableCell>
-                  <TableCell>{eur(site.ebitda)}</TableCell>
-                  <TableCell>{pct(site.ebitdaMarge)}</TableCell>
-                  <TableCell>{pct(27.8 + site.sonstigeKostenquote * 0.38)}</TableCell>
-                  <TableCell>{pct(site.materialquote)}</TableCell>
-                  <TableCell>{pct(site.fremdlaborquote)}</TableCell>
-                  <TableCell>{eur(site.cashflow)}</TableCell>
+                  <TableCell>{eur(periodSite.gesamtleistung)}</TableCell>
+                  <TableCell>{eur(periodSite.ebitda)}</TableCell>
+                  <TableCell>{pct(periodSite.ebitdaMarge)}</TableCell>
+                  <TableCell>{pct(periodSite.personalquote ?? 0)}</TableCell>
+                  <TableCell>{pct(periodSite.materialquote)}</TableCell>
+                  <TableCell>{pct(periodSite.fremdlaborquote)}</TableCell>
+                  <TableCell>{eur(periodSite.cashflow)}</TableCell>
                   <TableCell>{eur(target)}</TableCell>
                   <TableCell tone={deviation < 0 ? "red" : "green"}>{eur(deviation)}</TableCell>
                   <TableCell>{pct(achievement)}</TableCell>
                   <TableCell tone={achievement >= 100 ? "green" : "red"}>{achievement >= 100 ? "● Ziel erreicht" : "● Ziel nicht erreicht"}</TableCell>
-                  <TableCell>{eur(site.ebitda)}</TableCell>
-                  <TableCell>{eur(site.ebitda)}</TableCell>
+                  <TableCell>{eur(periodSite.ebitda)}</TableCell>
+                  <TableCell>{eur(periodSite.ebitda)}</TableCell>
                   <TableCell>{eur(runRate)}</TableCell>
                   <TableCell>{eur(runRate)}</TableCell>
-                  <TableCell>{eur(monthsSinceJoin ? site.ebitda / monthsSinceJoin : 0)}</TableCell>
-                  <TableCell>{eur((site.darlehen.zielEbitda || target) * 2)}</TableCell>
+                  <TableCell>{eur(monthsSinceJoin ? periodSite.ebitda / monthsSinceJoin : 0)}</TableCell>
+                  <TableCell>{eur((periodSite.darlehen.zielEbitda || target) * 2)}</TableCell>
                 </tr>
               );
             })}
