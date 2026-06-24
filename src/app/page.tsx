@@ -2771,11 +2771,20 @@ function openReceivablesSinceStart(
 }
 
 function pvsTotalRevenueFromRows(rows: Record<string, unknown>[]) {
-  return (
+  const directValue =
     sumRowsByCategory(rows, ["gesamtumsatz_inkl_fl_mat"], ["finanzen"], ["pvs_umsatzstatistik_honorare"]) ||
     sumRowsByCategory(rows, ["gesamtumsatz_inkl_fl_mat"], ["finanzen"], ["pvs"]) ||
-    sumRowsByCategory(rows, ["soll_forderung_pvs"], ["finanzen"], ["pvs"])
-  );
+    sumRowsByCategory(rows, ["soll_forderung_pvs"], ["finanzen"], ["soll"]) ||
+    sumRowsByCategory(rows, ["soll_forderung_pvs"], ["finanzen"], ["pvs"]);
+  if (directValue) return directValue;
+
+  const istCashGeflossen = sumRows(rows, null, ["ist_cash_geflossen_pvs"], ["finanzen"]);
+  const nochNichtGeflossen =
+    sumRows(rows, null, ["noch_nicht_geflossen"], ["finanzen"]) ||
+    sumRows(rows, null, ["noch_ausstehend_vs_bank"], ["finanzen"]);
+
+  if (istCashGeflossen || nochNichtGeflossen) return istCashGeflossen + nochNichtGeflossen;
+  return 0;
 }
 
 function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
@@ -2808,6 +2817,7 @@ function consolidationRowsFromWorkbook(workbook: XLSX.WorkBook) {
           "offene_forderungen_gesamt",
           "gesamtumsatz_inkl_fl_mat",
           "soll_forderung_pvs",
+          "ist_cash_geflossen_pvs",
           "noch_nicht_geflossen",
           "noch_ausstehend_vs_bank",
           "aufgenommenes_fremdkapital",
