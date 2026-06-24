@@ -9050,7 +9050,13 @@ function MonthlyEbitdaTable({
   const selection = selectedBwaPeriod(periodLabel);
   const periodYear = selection.year;
   const targetTotal = activeSites.reduce((sum, site) => sum + (targetBySite[site.id] ?? 0), 0);
-  const importedMetricRow = (siteId: string) => importedData?.bwaRows.find((row) => row.siteId === siteId && row.metricKey === "ebitda");
+  const importedMetricRow = (siteId: string, metricKey = "ebitda") => importedData?.bwaRows.find((row) => row.siteId === siteId && row.metricKey === metricKey);
+  const importedMonthTotal = (metricKey: string, month: number) =>
+    !selection.year
+      ? 0
+      : activeSites.reduce((sum, site) => sum + (importedMetricRow(site.id, metricKey)?.valuesByMonth[`${selection.year}-${month}`] ?? 0), 0);
+  const importedYearTotal = (metricKey: string, year: number) =>
+    activeSites.reduce((sum, site) => sum + (importedMetricRow(site.id, metricKey)?.valuesByYear[String(year)] ?? 0), 0);
   const rowSource = importedData?.bwaRows?.length
     ? !selection.year
       ? importedData.report.jahre
@@ -9059,7 +9065,9 @@ function MonthlyEbitdaTable({
             label: String(year),
             siteValues: Object.fromEntries(
               activeSites.map((site) => [site.id, Math.round(importedMetricRow(site.id)?.valuesByYear[String(year)] ?? 0)])
-            ) as Record<string, number>
+            ) as Record<string, number>,
+            targetTakeover: importedYearTotal("ziel_ebitda_uebernahme", year),
+            targetBankKv: importedYearTotal("ziel_ebitda_kaufvertrag", year)
           }))
           .filter((row) => Object.values(row.siteValues).some((value) => value !== 0))
       : (
@@ -9068,34 +9076,47 @@ function MonthlyEbitdaTable({
             : Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
                 activeSites.some((site) => importedMetricRow(site.id)?.hasDataByMonth[`${selection.year}-${month}`])
               )
-        ).map((month) => ({
-          label: `${bwaMonths[month - 1] ?? String(month)} ${String(selection.year).slice(-2)}`,
-          siteValues: Object.fromEntries(
-            activeSites.map((site) => [site.id, Math.round(importedMetricRow(site.id)?.valuesByMonth[`${selection.year}-${month}`] ?? 0)])
-          ) as Record<string, number>
-        }))
+        ).map((month) => {
+          const targetTakeover = importedMonthTotal("ziel_ebitda_uebernahme", month);
+          const targetBankKv = importedMonthTotal("ziel_ebitda_kaufvertrag", month);
+          return {
+            label: `${bwaMonths[month - 1] ?? String(month)} ${String(selection.year).slice(-2)}`,
+            siteValues: Object.fromEntries(
+              activeSites.map((site) => [site.id, Math.round(importedMetricRow(site.id)?.valuesByMonth[`${selection.year}-${month}`] ?? 0)])
+            ) as Record<string, number>,
+            targetTakeover,
+            targetBankKv
+          };
+        })
     : monthlyData.map((month) => {
         const totalPositiveEbitda = activeSites.reduce((sum, site) => sum + Math.max(0, site.ebitda), 0) || 1;
+        const fallbackTarget = targetTotal / Math.max(monthlyData.length, 1);
         return {
           label: periodYear ? `${month.month} ${String(periodYear).slice(-2)}` : month.month,
           siteValues: Object.fromEntries(
             activeSites.map((site) => [site.id, Math.round(month.ebitda * (Math.max(0, site.ebitda) / totalPositiveEbitda))])
-          ) as Record<string, number>
+          ) as Record<string, number>,
+          targetTakeover: fallbackTarget,
+          targetBankKv: fallbackTarget * 0.885
         };
       });
 
-  const rows = rowSource.map((source, monthIndex) => {
+  let cumulativeTargetTakeover = 0;
+  let cumulativeTargetBank = 0;
+  const rows = rowSource.map((source) => {
     const siteValues = source.siteValues;
     const totalValue = Object.values(siteValues).reduce((sum, value) => sum + value, 0);
-    const targetTakeover = Math.round(targetTotal * ((monthIndex + 1) / Math.max(rowSource.length, 1)));
-    const targetBank = Math.round(targetTakeover * 0.885);
+    const targetTakeoverMonth = source.targetTakeover || source.targetBankKv ? source.targetTakeover : targetTotal / Math.max(rowSource.length, 1);
+    const targetBankMonth = source.targetBankKv || targetTakeoverMonth * 0.885;
+    cumulativeTargetTakeover += targetTakeoverMonth;
+    cumulativeTargetBank += targetBankMonth;
     return {
       month: source.label,
       siteValues,
       totalValue,
       cumulative: 0,
-      targetTakeover,
-      targetBank
+      targetTakeover: Math.round(cumulativeTargetTakeover),
+      targetBank: Math.round(cumulativeTargetBank)
     };
   });
 
