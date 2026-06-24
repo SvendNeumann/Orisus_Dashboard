@@ -9496,6 +9496,7 @@ function OrisusPerformance({
   monthlyData?: typeof monthly;
   importedData?: ImportedDashboardData | null;
 }) {
+  const rules = useKpiRules();
   const metrics = cfoMetrics(sites, monthlyData);
   const bwaPeriods = bwaPeriodOptionsFor(importedData);
   const honorarPeriods = periodOptionsFromImportedRows(importedData?.behandlerTotalRows);
@@ -9533,6 +9534,56 @@ function OrisusPerformance({
   }, [bankPeriod, bankPeriods, bwaPeriods, chartPeriod, honorarMonthlyPeriod, honorarPeriod, honorarPeriods, operationalPeriod, pvsMonthlyPeriod, pvsPeriod, pvsPeriods]);
   const chartData = bwaChartDataForPeriod(importedData, monthlyData, chartPeriod);
   const operationalSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, operationalPeriod)) : sites;
+  const pvsTotal = totalForSites(sites, "pvsUmsatz");
+  const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
+  const performanceKpiInfo = {
+    grossPerformance: (
+      <>
+        <p className="font-semibold text-slate-950">Was ist das?</p>
+        <p>Die Gesamtleistung ist der BWA-Umsatz der Orisus-Gruppe über die aktuelle Importbasis bzw. die Standort-Vertragsperioden.</p>
+        <InfoLine label="Summe BWA-Gesamtleistung aller Standorte" value={metrics.gesamtleistung} strong />
+        <InfoTextLine label="Quelle" value="BWA / bestätigter CFO-Import" />
+      </>
+    ),
+    pvsRevenue: (
+      <>
+        <p className="font-semibold text-slate-950">Was ist das?</p>
+        <p>Der PVS-Umsatz zeigt die standortbezogenen PVS-Gesamtumsätze. Er ist keine BWA-Gesamtleistung, sondern kommt aus den PVS-/Performance-Daten des Imports.</p>
+        <InfoLine label="Summe PVS-Umsatz aller Standorte" value={pvsTotal} strong />
+        <InfoTextLine label="Quelle" value="PVS / Performance-Export" />
+      </>
+    ),
+    ebitdaMargin: (
+      <>
+        <p className="font-semibold text-slate-950">Was ist das?</p>
+        <p>Die EBITDA-Marge zeigt, welcher Anteil der Gesamtleistung als EBITDA verbleibt.</p>
+        <InfoLine label="EBITDA" value={metrics.ebitda} />
+        <InfoLine label="Gesamtleistung" value={metrics.gesamtleistung} />
+        <InfoTextLine label="Berechnung" value="EBITDA / Gesamtleistung" strong />
+        <InfoTextLine label="Ergebnis" value={pct(metrics.ebitdaMarge)} strong />
+        <InfoTextLine label="Quelle" value="BWA / bestätigter CFO-Import" />
+      </>
+    ),
+    cashflow: (
+      <>
+        <p className="font-semibold text-slate-950">Was ist das?</p>
+        <p>Cashflow gem. BWA ist der aus der BWA-Brücke abgeleitete Free Cashflow, nicht der Bank-Cashflow aus den Bankbewegungen.</p>
+        <InfoLine label="Cashflow gem. BWA" value={metrics.cashflow} strong />
+        <InfoTextLine label="Berechnung" value="Vorläufiges Ergebnis + Abschreibungen - Investitionen - Tilgung - Umbuchungen - weitere BWA-Adjustments" />
+        <InfoTextLine label="Quelle" value="BWA-Cashflow-Adjustments / bestätigter CFO-Import" />
+      </>
+    ),
+    receivables: (
+      <>
+        <p className="font-semibold text-slate-950">Was ist das?</p>
+        <p>Offene Forderungen zeigen die aktuell im Import ausgewiesenen Forderungen über die Standorte. Sie dienen als Working-Capital- und Liquiditätsindikator.</p>
+        <InfoLine label="Offene Forderungen" value={metrics.forderungen} strong />
+        <InfoLine label="Gesamtleistung als Bezugsgröße" value={metrics.gesamtleistung} />
+        <InfoTextLine label="Forderungsquote" value={pct(receivablesRatio)} strong />
+        <InfoTextLine label="Quelle" value="PVS/Finanzen/Kontostand- bzw. Forderungsdaten im bestätigten Import" />
+      </>
+    )
+  };
   return (
     <section className="space-y-5">
       <PageTitle
@@ -9540,11 +9591,11 @@ function OrisusPerformance({
         text="Operative Performance der Gruppe: Umsatzentwicklung, Standortleistung, PVS, Forderungen und Cashflow gem. BWA."
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <Mini label="Gesamtleistung" value={eur(metrics.gesamtleistung)} />
-        <Mini label="PVS-Umsatz" value={eur(totalForSites(sites, "pvsUmsatz"))} />
-        <Mini label="EBITDA-Marge" value={pct(metrics.ebitdaMarge)} />
-        <Mini label="Cashflow gem. BWA" value={eur(metrics.cashflow)} />
-        <Mini label="Offene Forderungen" value={eur(metrics.forderungen)} />
+        <KpiCard label="Gesamtleistung" value={metrics.gesamtleistung} delta="seit Vertragsstart" icon={TrendingUp} status="green" info={performanceKpiInfo.grossPerformance} />
+        <KpiCard label="PVS-Umsatz" value={pvsTotal} delta="PVS / Performance" icon={BadgeEuro} status="green" info={performanceKpiInfo.pvsRevenue} />
+        <KpiCard label="EBITDA-Marge" value={metrics.ebitdaMarge} percent delta="EBITDA / Gesamtleistung" icon={Gauge} status={statusByRule(metrics.ebitdaMarge, rules.ebitda_marge)} info={performanceKpiInfo.ebitdaMargin} />
+        <KpiCard label="Cashflow gem. BWA" value={metrics.cashflow} delta="gem. BWA-Brücke" icon={Wallet} status={statusByRule(metrics.cashflow, rules.cashflow_bwa)} info={performanceKpiInfo.cashflow} />
+        <KpiCard label="Offene Forderungen" value={metrics.forderungen} delta={`${pct(receivablesRatio)} der Gesamtleistung`} icon={FileBarChart} status={statusByRule(receivablesRatio, rules.offene_forderungen)} info={performanceKpiInfo.receivables} />
       </div>
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard
