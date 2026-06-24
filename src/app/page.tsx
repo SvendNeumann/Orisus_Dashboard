@@ -3795,8 +3795,14 @@ export default function HomePage() {
       </header>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-[60] bg-slate-950/55 backdrop-blur-sm xl:hidden">
-          <div className="app-mobile-menu ml-auto flex h-dvh max-h-dvh w-80 max-w-[86vw] flex-col overflow-hidden p-5 shadow-soft">
+        <div
+          className="fixed inset-0 z-[60] cursor-default bg-slate-950/55 backdrop-blur-sm xl:hidden"
+          onClick={() => setMenuOpen(false)}
+        >
+          <div
+            className="app-mobile-menu ml-auto flex h-dvh max-h-dvh w-80 max-w-[86vw] flex-col overflow-hidden p-5 shadow-soft"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="shrink-0 flex items-center justify-between">
               <Brand compact onClick={() => go(defaultPageForRole(userRole))} />
               <button
