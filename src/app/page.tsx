@@ -1614,10 +1614,6 @@ function pctOneDecimal(value: number) {
   return `${value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
 }
 
-function total(key: keyof (typeof standorte)[number]) {
-  return standorte.reduce((sum, site) => sum + Number(site[key] ?? 0), 0);
-}
-
 function totalForSites(sites: DashboardSite[], key: keyof DashboardSite) {
   return sites.reduce((sum, site) => sum + Number(site[key] ?? 0), 0);
 }
@@ -2982,11 +2978,6 @@ function latestBehandlerHonorarMonth(rows: Record<string, unknown>[], year: numb
   }, 0);
 }
 
-function behandlerHonorarPeriodLabel(rows: Record<string, unknown>[], year: number) {
-  const latestMonth = latestBehandlerHonorarMonth(rows, year);
-  return latestMonth ? `YTD ${year} bis ${bwaMonths[latestMonth - 1]}` : `Geschäftsjahr ${year}`;
-}
-
 function latestBehandlerHonorarMonthFromDetailRows(rows: ImportedBehandlerDetailRow[], year: number) {
   return rows.reduce((latest, row) => {
     Object.entries(row.honorarByMonth).forEach(([period, value]) => {
@@ -3015,32 +3006,6 @@ function topBehandlerFromDetailRows(rows: ImportedBehandlerDetailRow[], latestYe
         return sum + value;
       }, 0)
     }))
-    .filter((entry) => entry.honorar > 0)
-    .sort((a, b) => b.honorar - a.honorar)
-    .slice(0, 6);
-}
-
-function topBehandlerFromRows(rows: Record<string, unknown>[], latestYear: number, latestMonth = 12): TopBehandlerEntry[] {
-  const grouped = new Map<string, { name: string; standort: string; honorar: number }>();
-
-  rows.forEach((row) => {
-    if ((rowYear(row) ?? 0) !== latestYear) return;
-    if (!isPureBehandlerHonorarRow(row)) return;
-    const month = rowMonth(row) ?? 0;
-    if (!month || month > latestMonth) return;
-
-    const name = asText(row.Objekt_Name || row.Behandler || row.Behandlername);
-    const standort = asText(row.Standortname);
-    const honorar = asNumber(row.Wert) ?? 0;
-    if (!name || !standort || !honorar || normalizeMetric(name) === "standort") return;
-
-    const key = `${siteIdForName(standort)}::${normalizeMetric(name)}`;
-    const current = grouped.get(key) ?? { name, standort, honorar: 0 };
-    current.honorar += honorar;
-    grouped.set(key, current);
-  });
-
-  return [...grouped.values()]
     .filter((entry) => entry.honorar > 0)
     .sort((a, b) => b.honorar - a.honorar)
     .slice(0, 6);
@@ -3336,11 +3301,6 @@ function kvEbitdaAchievement(site: DashboardSite) {
   return (site.ebitda / target) * 100;
 }
 
-function isCriticalKvEbitdaGap(site: DashboardSite) {
-  const achievement = kvEbitdaAchievement(site);
-  return achievement !== null && achievement < 85;
-}
-
 function cfoMetrics(sites: DashboardSite[] = standorte, monthlyData: typeof monthly = monthly, rules: KpiRules = defaultKpiRules) {
   const activeSites = sites.filter((site) => site.gesamtleistung > 0);
   const gesamtleistung = totalForSites(sites, "gesamtleistung");
@@ -3402,7 +3362,6 @@ export default function HomePage() {
   const [previousPage, setPreviousPage] = useState<Page | null>(null);
   const [importedData, setImportedData] = useState<ImportedDashboardData | null>(null);
   const [personalData, setPersonalData] = useState<PersonalDashboardData | null>(null);
-  const [userEmail, setUserEmail] = useState("");
   const [userDisplayName, setUserDisplayName] = useState("Svend Neumann");
   const [userRole, setUserRole] = useState<UserRole>("info");
   const [authProfileReady, setAuthProfileReady] = useState(false);
@@ -3492,14 +3451,12 @@ export default function HomePage() {
           window.localStorage.removeItem(activePageStorageKey);
           window.localStorage.removeItem(activeSiteStorageKey);
           clearSupabaseSession();
-          setUserEmail("");
           setUserDisplayName("Svend Neumann");
           setUserRole("info");
           setAuthProfileReady(false);
           setAuthStep("welcome");
           return;
         }
-        setUserEmail(currentUserEmail());
         setUserDisplayName(currentUserName());
         setUserRole(currentUserRole());
         setAuthProfileReady(true);
@@ -3574,7 +3531,6 @@ export default function HomePage() {
   const setPersistentAuthStep = (step: AuthStep) => {
     if (step === "app") {
       window.localStorage.setItem(authStorageKey, "true");
-      setUserEmail(currentUserEmail());
       setUserDisplayName(currentUserName());
       setUserRole(currentUserRole());
       setAuthProfileReady(true);
@@ -3587,7 +3543,6 @@ export default function HomePage() {
     window.localStorage.removeItem(activePageStorageKey);
     window.localStorage.removeItem(activeSiteStorageKey);
     clearSupabaseSession();
-    setUserEmail("");
     setUserDisplayName("Svend Neumann");
     setUserRole("info");
     setAuthProfileReady(false);
@@ -4071,7 +4026,6 @@ function AuthFlow({
                 step={step}
                 email={email}
                 password={password}
-                passwordConfigured={passwordConfigured}
                 isMobileDevice={isMobileDevice}
                 passkeyBusy={passkeyBusy}
                 loginMessage={loginMessage}
@@ -4101,7 +4055,6 @@ function AuthFlow({
             step={step}
             email={email}
             password={password}
-            passwordConfigured={passwordConfigured}
             isMobileDevice={isMobileDevice}
             passkeyBusy={passkeyBusy}
             loginMessage={loginMessage}
@@ -4124,7 +4077,6 @@ function LandingLoginCard({
   step,
   email,
   password,
-  passwordConfigured,
   isMobileDevice,
   passkeyBusy,
   loginMessage,
@@ -4140,7 +4092,6 @@ function LandingLoginCard({
   step: AuthStep;
   email: string;
   password: string;
-  passwordConfigured: boolean;
   isMobileDevice: boolean;
   passkeyBusy: boolean;
   loginMessage: string;
@@ -4425,18 +4376,6 @@ function LandingMockup() {
   );
 }
 
-function FormShell({ title, text, children }: { title: string; text: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold">{title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{text}</p>
-      </div>
-      {children}
-    </div>
-  );
-}
-
 function Brand({ compact = false, onClick }: { compact?: boolean; onClick?: () => void }) {
   const content = (
     <>
@@ -4613,31 +4552,6 @@ function NoPersonalImportState({ canUpload, onUpload }: { canUpload: boolean; on
   );
 }
 
-function personalActiveEmployees(data: PersonalDashboardData) {
-  return data.employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
-}
-
-function personalEmployeesBySite(data: PersonalDashboardData) {
-  const sites = data.settings.sites.length ? data.settings.sites : uniqueSortedText(data.employees.map((employee) => employee.site));
-  return sites.map((site) => {
-    const employees = data.employees.filter((employee) => employee.site === site);
-    const active = employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
-    return {
-      site,
-      employees: active.length,
-      active: active.length,
-      hours: active.reduce((sum, employee) => sum + employee.weeklyHours, 0),
-      employerCost: active.reduce((sum, employee) => sum + employee.employerCost, 0),
-      dentists: active.filter((employee) => employee.isDentist).length
-    };
-  });
-}
-
-function personalYearFromDisplayDate(value: string) {
-  const parts = value.split(".");
-  return Number(parts[2]) || 0;
-}
-
 function personalDateFromDisplayDate(value: string) {
   const [day, month, year] = value.split(".").map(Number);
   if (!day || !month || !year) return null;
@@ -4665,11 +4579,6 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
     const parts = value.split(".");
     return Number(parts[2]) || 0;
   };
-  const dateFromDisplayDate = (value: string) => {
-    const [day, month, year] = value.split(".").map(Number);
-    if (!day || !month || !year) return null;
-    return new Date(year, month - 1, day).getTime();
-  };
   const availableYears = uniqueSortedNumbers([
     ...personalData.report.years,
     ...personalData.employees.map((employee) => yearFromDisplayDate(employee.entryDate)),
@@ -4679,13 +4588,6 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
   const [year, setYear] = useState(String(latestSicknessYear));
   const selectedYear = Number(year);
   const periodLabel = `Geschäftsjahr ${selectedYear}`;
-  const periodStart = new Date(selectedYear, 0, 1).getTime();
-  const periodEnd = new Date(selectedYear, 11, 31).getTime();
-  const wasEmployedInSelectedYear = (employee: PersonalEmployee) => {
-    const entryDate = dateFromDisplayDate(employee.entryDate) ?? -Infinity;
-    const exitDate = dateFromDisplayDate(employee.exitDate) ?? Infinity;
-    return entryDate <= periodEnd && exitDate >= periodStart;
-  };
   const isActiveStatus = (employee: PersonalEmployee) => employee.status.toLowerCase() === "aktiv";
   const active = personalData.employees.filter(isActiveStatus);
   const sites = personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site));
@@ -6303,63 +6205,6 @@ function CostRatios({ site, sites = standorte, periodLabel = "seit Vertragsstart
   );
 }
 
-function Ranking({ title, metric, sites = standorte }: { title: string; metric: "ebitda" | "gesamtleistung" | "cashflow"; sites?: DashboardSite[] }) {
-  const rules = useKpiRules();
-  const rows = [...sites].sort((a, b) => b[metric] - a[metric]);
-  const ebitdaTarget = (site: DashboardSite) => site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda;
-  const ebitdaRankingStatus = (site: DashboardSite): Status => {
-    const target = ebitdaTarget(site);
-    if (target > 0) {
-      const achievement = (site.ebitda / target) * 100;
-      return statusByRule(achievement, rules.ziel_ebitda_kaufvertrag);
-    }
-    return statusByRule(site.ebitdaMarge, rules.ebitda_marge);
-  };
-  const performanceRankingStatus = (site: DashboardSite): Status => {
-    if (site.gesamtleistung > 0) return "green";
-    if (site.gesamtleistung === 0) return "yellow";
-    return "red";
-  };
-  const cashflowRankingStatus = (site: DashboardSite): Status => statusByRule(site.cashflow, rules.cashflow_bwa);
-  const maxValue = Math.max(...rows.map((site) => Math.abs(site[metric])), 1);
-  const statusFor = (site: DashboardSite): Status => {
-    if (metric === "ebitda") return ebitdaRankingStatus(site);
-    if (metric === "cashflow") return cashflowRankingStatus(site);
-    return performanceRankingStatus(site);
-  };
-  const progressFor = (site: DashboardSite) => {
-    if (metric === "ebitda") {
-      const target = ebitdaTarget(site);
-      return target > 0 ? (site.ebitda / target) * 100 : site.ebitdaMarge * 4;
-    }
-    if (metric === "cashflow") return (Math.abs(site.cashflow) / maxValue) * 100;
-    return (site.gesamtleistung / maxValue) * 100;
-  };
-
-  return (
-    <Card className="p-4">
-      <h2 className="font-bold">{title}</h2>
-      <div className="mt-4 space-y-3">
-        {rows.map((site) => {
-          const status = statusFor(site);
-          return (
-            <button key={site.id} className="w-full rounded-md bg-slate-50 p-3 text-left">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-semibold">{site.name}</span>
-                <StatusDot status={status} />
-              </div>
-              <div className="flex items-center gap-3">
-                <Progress value={progressFor(site)} tone={statusMap[status].tone} />
-                <span className={cn("min-w-20 text-right text-sm font-bold", site[metric] < 0 && "text-red-700")}>{eur(site[metric], true)}</span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
-
 function CashflowBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
   const totalCashflow = totalForSites(sites, "cashflow");
   const hasImportedDetails = sites.some((site) => site.cashflowDetails);
@@ -6401,23 +6246,6 @@ function CashflowBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
           <div key={label} className="rounded-md bg-slate-50 p-3">
             <p className="text-sm text-muted-foreground">{label}</p>
             <p className={cn("mt-1 text-xl font-bold", Number(value) < 0 && "text-red-700")}>{eur(Number(value))}</p>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function AccountsBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
-  return (
-    <Card className="p-4">
-      <h2 className="font-bold">Kontostände | aktueller Stand</h2>
-      <p className="mt-1 text-sm text-muted-foreground">Konsolidiert: {eur(totalForSites(sites, "kontostand"))}</p>
-      <div className="mt-4 space-y-3">
-        {sites.map((site) => (
-          <div key={site.id} className="flex items-center justify-between rounded-md bg-slate-50 p-3">
-            <span className="font-semibold">{site.name}</span>
-            <span className="font-bold">{eur(site.kontostand)}</span>
           </div>
         ))}
       </div>
@@ -11880,75 +11708,6 @@ function DriverLine({ label, value }: { label: string; value: number }) {
   );
 }
 
-function debtServiceStatus(value: number): { status: Status; tone: string; label: string; hint: string } {
-  if (value >= 1.5) {
-    return {
-      status: "green",
-      tone: "text-emerald-700",
-      label: "Stabil",
-      hint: "Komfortabler Puffer für Banken: EBITDA deckt Kapitaldienst deutlich."
-    };
-  }
-  if (value >= 1) {
-    return {
-      status: "yellow",
-      tone: "text-amber-700",
-      label: "Beobachten",
-      hint: "Kapitaldienst ist gedeckt, aber mit begrenztem Puffer."
-    };
-  }
-  return {
-    status: "red",
-    tone: "text-red-700",
-    label: "Kritisch",
-    hint: "EBITDA reicht nicht aus, um Tilgung und Zins vollständig zu decken."
-  };
-}
-
-function DebtServiceCoverageTile({ value }: { value: number }) {
-  const [open, setOpen] = useState(false);
-  const state = debtServiceStatus(value);
-  return (
-    <Card className="relative p-4">
-      <button
-        type="button"
-        aria-label="Kapitaldienstfähigkeit erklären"
-        className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white text-muted-foreground shadow-sm"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <Info className="h-4 w-4" />
-      </button>
-      <div className="pr-10">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-muted-foreground">Kapitaldienstfähigkeit | seit Vertragsstart</p>
-          <StatusDot status={state.status} />
-        </div>
-        <p className={cn("mt-2 text-3xl font-bold", state.tone)}>{value.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x</p>
-        <p className={cn("mt-2 text-sm font-semibold", state.tone)}>{state.label}: {state.hint}</p>
-      </div>
-      {open && (
-        <div className="mt-4 rounded-lg border border-border bg-slate-50 p-3 text-sm text-muted-foreground">
-          <p className="font-semibold text-foreground">Was bedeutet das?</p>
-          <p className="mt-1">
-            EBITDA geteilt durch Tilgung plus Zins. 1,79x heißt: Das EBITDA deckt den Kapitaldienst 1,79-mal.
-          </p>
-          <p className="mt-2">Ampel: grün ab 1,50x, orange ab 1,00x, rot unter 1,00x.</p>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function AnalysisTile({ title, value, text }: { title: string; value: string; text: string }) {
-  return (
-    <Card className="p-4">
-      <p className="text-sm font-semibold text-muted-foreground">{title}</p>
-      <p className="mt-2 text-3xl font-bold">{value}</p>
-      <p className="mt-2 text-sm text-muted-foreground">{text}</p>
-    </Card>
-  );
-}
-
 function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { importedData?: ImportedDashboardData | null; sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
   const chartPeriods = bwaPeriodOptionsFor(importedData);
   const [chartPeriod, setChartPeriod] = useState(() => defaultBwaPeriodFor(importedData));
@@ -12296,39 +12055,6 @@ function snapshotValueForRows(rows: ImportedBankMovementRow[], period: string, v
     .at(-1);
   if (!latestMonth) return rows.reduce((sum, row) => sum + row.contractValue, 0);
   return rows.reduce((sum, row) => sum + (row.valuesByMonth[`${selection.year}-${latestMonth}`] ?? 0), 0);
-}
-
-function SiteBankCashflowSection({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
-  const siteRows = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId && row.siteId !== "konzern");
-  const sitesWithRows = sortSitesByContractStart(
-    sites.filter((site) => siteRows.some((row) => row.siteId === site.id && matchesBankMovementKey(row.label, "cashflow_gesamt_im_monat")))
-  );
-
-  if (!siteRows.length) {
-    return (
-      <Card className="p-4">
-        <h2 className="font-bold">Bankbewegungen je Standort</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Nach dem nächsten bestätigten Excel-Import werden hier die Bank-/Geldbewegungen monatlich je Standort dargestellt.
-        </p>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Bankbewegungen je Standort</h2>
-        <p className="text-sm text-muted-foreground">
-          Monatliche Geldeingänge, Geldausgänge, Bank-Cashflow und Kontostände aus Bank / Geldbewegungen aus Input_Finanzen,
-          je Standort mit eigener Zeitraumfilterung.
-        </p>
-      </div>
-      {sitesWithRows.map((site) => (
-        <SiteBankCashflowCard key={site.id} site={site} rows={siteRows.filter((row) => row.siteId === site.id)} variant="detail" />
-      ))}
-    </div>
-  );
 }
 
 function SiteBankMovementDetail({ site, importedData }: { site: DashboardSite; importedData?: ImportedDashboardData | null }) {
