@@ -773,6 +773,14 @@ function canModifyData(role: UserRole) {
   return role === "admin";
 }
 
+function canLoadCfoData(role: UserRole) {
+  return role === "admin" || role === "info";
+}
+
+function canLoadPersonalData(role: UserRole) {
+  return role === "admin" || role === "info" || role === "praxismanagement";
+}
+
 function currentSupabaseAccessToken() {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(supabaseAccessTokenKey) ?? "";
@@ -3717,7 +3725,13 @@ export default function HomePage() {
   }, [page, visibleNavSections]);
 
   useEffect(() => {
-    if (authStep !== "app") return;
+    if (authStep !== "app" || !authProfileReady) return;
+    if (!canLoadCfoData(userRole)) {
+      setImportedData(null);
+      setImportDataLoading(false);
+      void clearLocalConfirmedImport();
+      return;
+    }
     let isMounted = true;
     setImportDataLoading(true);
     loadConfirmedImportData()
@@ -3731,10 +3745,15 @@ export default function HomePage() {
     return () => {
       isMounted = false;
     };
-  }, [authStep]);
+  }, [authProfileReady, authStep, userRole]);
 
   useEffect(() => {
-    if (authStep !== "app") return;
+    if (authStep !== "app" || !authProfileReady) return;
+    if (!canLoadPersonalData(userRole)) {
+      setPersonalData(null);
+      setPersonalDataLoading(false);
+      return;
+    }
     let isMounted = true;
     setPersonalDataLoading(true);
     loadConfirmedPersonalImportData()
@@ -3748,7 +3767,7 @@ export default function HomePage() {
     return () => {
       isMounted = false;
     };
-  }, [authStep]);
+  }, [authProfileReady, authStep, userRole]);
 
   const setPersistentAuthStep = (step: AuthStep) => {
     if (step === "app") {
@@ -6151,22 +6170,41 @@ function ChartCard({
   title,
   icon: Icon,
   children,
-  action
+  action,
+  info
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;
   action?: React.ReactNode;
+  info?: React.ReactNode;
 }) {
+  const [infoOpen, setInfoOpen] = useState(false);
+
   return (
     <Card className="h-full p-4">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Icon className="h-5 w-5 text-primary" />
           <h2 className="font-bold">{title}</h2>
+          {info ? (
+            <button
+              type="button"
+              aria-label={`${title} erklären`}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-xs font-extrabold text-muted-foreground transition hover:border-primary hover:text-primary"
+              onClick={() => setInfoOpen(true)}
+            >
+              !
+            </button>
+          ) : null}
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
+      {infoOpen && info ? (
+        <InfoDialog title={title} onClose={() => setInfoOpen(false)}>
+          {info}
+        </InfoDialog>
+      ) : null}
       {children}
     </Card>
   );
@@ -8820,6 +8858,22 @@ function StandortDetail({
         <ChartCard
           title={`Entwicklung über Zeit | ${site.name}`}
           icon={TrendingUp}
+          info={
+            <div className="space-y-3">
+              <p>
+                Dieses Diagramm zeigt keine PVS- oder Bankdaten, sondern die BWA-Entwicklung des ausgewählten Standorts im gewählten Zeitraum.
+              </p>
+              <div className="space-y-1">
+                <InfoTextLine label="Gesamtleistung" value="BWA-Umsatz / Gesamtleistung" />
+                <InfoTextLine label="EBITDA" value="BWA-Ergebniskennzahl bis EBITDA" />
+                <InfoTextLine label="Cashflow" value="Cashflow gem. BWA, nicht Bank-Cashflow" />
+                <InfoTextLine label="Zeitraum" value={periodLabel} />
+              </div>
+              <p className="text-slate-600">
+                Monate ohne bestätigte BWA-Daten werden nicht als echte Null interpretiert. Bankbewegungen und Kontostand stehen separat im Bankbereich der Standortdetails.
+              </p>
+            </div>
+          }
           action={
             <Select value={period} onChange={(event) => setPeriod(event.target.value)} className="w-full min-w-52 sm:w-auto">
               {availablePeriods.map((option) => (
@@ -10161,6 +10215,22 @@ function OrisusPerformance({
         <ChartCard
           title={`Operative Entwicklung | ${performancePeriodLabel(chartPeriod)}`}
           icon={TrendingUp}
+          info={
+            <div className="space-y-3">
+              <p>
+                Die operative Entwicklung bündelt die Gruppe auf Basis des bestätigten CFO-/BWA-Imports für den gewählten Zeitraum.
+              </p>
+              <div className="space-y-1">
+                <InfoTextLine label="Säulen" value="BWA-Gesamtleistung" />
+                <InfoTextLine label="Blaue Linie" value="Ist-EBITDA gem. BWA" />
+                <InfoTextLine label="Gelbe Linie" value="Soll-EBITDA gem. Übernahme" />
+                <InfoTextLine label="Graue Linie" value="Cashflow gem. BWA" />
+              </div>
+              <p className="text-slate-600">
+                Die Soll-Linie ist kein klassischer Planwert, sondern der importierte Zielwert aus der Übernahme-/Kaufvertragslogik. Fehlende Monate bleiben aus der Logik heraus und werden nicht als operative Null gewertet.
+              </p>
+            </div>
+          }
           action={
             <Select
               className="w-full min-w-52 sm:w-auto"
@@ -10193,7 +10263,22 @@ function OrisusPerformance({
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#64748b]" /> Cashflow gem. BWA</span>
           </div>
         </ChartCard>
-        <ChartCard title="Forderungen nach Standort | aktueller Stand" icon={FileBarChart}>
+        <ChartCard
+          title="Forderungen nach Standort | aktueller Stand"
+          icon={FileBarChart}
+          info={
+            <div className="space-y-3">
+              <p>
+                Die Forderungen sind ein aktueller Working-Capital-Indikator. Sie werden nicht über den Zeitraum aufsummiert,
+                sondern als aktueller Stand aus der bestätigten Importbasis gezeigt.
+              </p>
+              <div className="space-y-1">
+                <InfoTextLine label="Datenwelt" value="PVS / Forderungs- bzw. Finanzdaten" />
+                <InfoTextLine label="Vergleich" value="Standortvergleich aktueller Forderungsstände" />
+              </div>
+            </div>
+          }
+        >
           <ReceivablesChart sites={sites} />
         </ChartCard>
       </div>
@@ -18178,6 +18263,7 @@ function AdminKpiRules() {
         text="Interner Einstellungsbereich für App-Zugänge, Rollen, Status-Schwellenwerte und Zielerreichungslogik."
       />
       <AccessUserManagement />
+      <RoleSecurityCheck />
       <PracticeOpeningHoursSettings />
       <Card className="p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -18262,6 +18348,66 @@ function AdminKpiRules() {
         </Card>
       </div>
     </section>
+  );
+}
+
+function RoleSecurityCheck() {
+  const rows: Array<{ label: string; status: Status; text: string }> = [
+    {
+      label: "Admin",
+      status: "green",
+      text: "Vollzugriff auf App-Zugänge, CFO-/Personal-Uploads, KPI-Regeln, Reports und alle Auswertungen."
+    },
+    {
+      label: "Info-Rolle",
+      status: "green",
+      text: "Lesender Zugriff auf Finanz-, Standort-, Performance-, Reporting- und Personalansichten; keine Uploads, keine Admin-Funktionen."
+    },
+    {
+      label: "Praxismanagement",
+      status: "green",
+      text: "Beschränkt auf Krankheit/Fehlzeiten, Mitarbeiterübersicht und Personalmaßnahmen. CFO-/Finanzimportdaten werden für diese Rolle nicht geladen."
+    },
+    {
+      label: "Sensible Personaldaten",
+      status: "green",
+      text: "Gehalts-/Arbeitgeberkosten-Spalten bleiben für Praxismanagement ausgeblendet und werden nicht in dessen Exportansicht aufgenommen."
+    },
+    {
+      label: "Admin-API",
+      status: "green",
+      text: "Zugangsverwaltung läuft serverseitig mit Service Role, prüft aktive Admin-Rolle und blockt fremde Origins sowie zu viele Anfragen."
+    },
+    {
+      label: "Supabase-RLS",
+      status: "yellow",
+      text: "Datenbank-Policies müssen in Supabase weiterhin separat geprüft bleiben: Tabellen mit Import- und Rolleninformationen sollten RLS aktiv und rollengetrennte Policies haben."
+    }
+  ];
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-col gap-2 border-b border-border p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="font-bold">Rollen- und Sicherheitsprüfung</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Kompakter Check, welche Rollen was sehen dürfen und welche Schutzschichten aktiv sind.
+          </p>
+        </div>
+        <Badge tone="green">App-seitig geprüft</Badge>
+      </div>
+      <div className="grid gap-px table-grid-bg md:grid-cols-2 xl:grid-cols-3">
+        {rows.map((row) => (
+          <div key={row.label} className="bg-white p-4">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-bold text-slate-900">{row.label}</h3>
+              <StatusDot status={row.status} />
+            </div>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{row.text}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 

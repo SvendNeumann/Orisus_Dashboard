@@ -96,6 +96,7 @@ Praxismanagement:
   - Personalmaßnahmen
   - Mitarbeiteruebersicht
 - Darf keine CFO-, BWA-, Finanz-, Upload-, Admin- oder Reportingbereiche sehen.
+- CFO-/Finanzimportdaten werden fuer Praxismanagement app-seitig nicht geladen und beim Rollenwechsel auf Praxismanagement aus dem lokalen Geraetecache entfernt.
 - In der Mitarbeiteruebersicht duerfen keine Gehalts-/Arbeitgeberkosten sichtbar sein:
   - keine KPI-Kachel Arbeitgeberaufwand
   - keine Spalten Fixgehalt
@@ -236,6 +237,7 @@ App nach Login:
 - Diagramme:
   - Y-Achsenbeschriftungen meist ausblenden, wenn sie keinen Mehrwert bieten.
   - Ausnahmen: echte Saeulen-/Vergleichsdiagramme, wenn Achse fuer Interpretation noetig ist.
+  - Fachliche Erklaerungen zu Diagrammen sollen nicht in die Chartflaeche gelegt werden, sondern dezent per klickbarem `!` in der Diagramm-Kopfzeile erscheinen.
 - Desktop-Layouts muessen rahmen- und kachelbuendig sein. Diagrammkarten sollen in der Breite konsistent wirken.
 - Mobile Layouts muessen mit App-Abstaenden arbeiten; keine nahtlosen Uebergaenge zwischen Kachel- und Tabellenbereichen.
 - Status-Badges in KPI-Kacheln duerfen nicht ins Logo/Icon oder in den Kachelrand laufen.
@@ -1164,6 +1166,11 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Eingabefelder in dunklen Tabellen/Kacheln muessen helle, gut lesbare Schrift haben.
   - Das betrifft besonders Oeffnungszeiten/KPI-Regelwerte auf Mobile mit Tastatur.
   - Status-Schwellenwerte steuern Cockpit, Standortdetails, Bankenreporting und Board-Pack.
+- Rollen-/Sicherheitspruefung:
+  - Admin-Bereich enthaelt einen kompakten Rollen- und Sicherheitscheck.
+  - Admin-API prueft aktive Admin-Rolle serverseitig, nutzt Service Role nur serverseitig und hat Same-Origin-/Rate-Limit-Schutz.
+  - Praxismanagement bekommt nur Personalbereiche und keine CFO-/Finanzimportdaten in den App-State.
+  - Supabase-RLS/Policies bleiben als separate Datenbank-Pruefung relevant und duerfen nicht durch reine UI-Sichtbarkeit ersetzt werden.
 - Statusueberarbeitung:
   - Sichtbare Statuslabels: `Stabil`, `Beobachten`, `Auffaellig`.
   - `Handlungsbedarf` wurde aus sichtbaren App-/Reporttexten entfernt.
