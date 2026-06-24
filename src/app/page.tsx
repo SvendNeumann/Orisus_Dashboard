@@ -14391,9 +14391,12 @@ function buildReportDocument({
         }
         .page-break { break-before: page; }
         .pmr-document {
+          width: 287mm;
+          max-width: none;
           min-height: auto;
           gap: 0;
           background: white;
+          transform-origin: top left;
         }
         .pmr-document .pmr-page {
           height: 200mm;
@@ -14484,68 +14487,45 @@ function buildReportDocument({
         .pmr-benchmark-kpi-table {
           width: 100%;
           table-layout: fixed;
-          border-collapse: separate;
-          border-spacing: 3px 0;
+          border-collapse: collapse;
+          border-spacing: 0;
         }
+        .pmr-benchmark-kpi-table th,
         .pmr-benchmark-kpi-table td {
           width: 16.666%;
-          height: 29px;
-          max-height: 29px;
-          vertical-align: top;
-          border-radius: 7px;
-          padding: 3px 5px 4px;
-          background: #ffffff;
-          border: 1px solid #d5e0e5;
-          border-left: 3px solid #117989;
+          padding: 2px 3px;
+          border: 1px solid #d3e2e8;
+          text-align: center;
+          white-space: nowrap;
           overflow: hidden;
+          text-overflow: ellipsis;
         }
-        .pmr-benchmark-kpi-table td.green { border-left-color: #13b981; }
-        .pmr-benchmark-kpi-table td.yellow { border-left-color: #f59e0b; }
-        .pmr-benchmark-kpi-table td.red { border-left-color: #dc2626; }
-        .pmr-benchmark-kpi-table td.blue { border-left-color: #117989; }
-        .pmr-benchmark-kpi-table .label {
-          display: block;
-          color: #6b7a8b;
-          font-size: 4.8px;
-          font-weight: 800;
-          letter-spacing: .05em;
-          line-height: 1.02;
+        .pmr-benchmark-kpi-table th {
+          color: white;
+          background: #0b6372;
+          font-size: 5.2px;
+          font-weight: 900;
+          letter-spacing: .03em;
+          line-height: 1.05;
           text-transform: uppercase;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
         }
-        .pmr-benchmark-kpi-table strong {
-          display: block;
-          margin-top: 1px;
+        .pmr-benchmark-kpi-table td {
           color: #0f1b2b;
-          font-size: 8.4px;
-          line-height: 1;
+          background: #ffffff;
+          font-size: 7px;
+          font-weight: 900;
+          line-height: 1.05;
         }
-        .pmr-benchmark-kpi-table .detail {
-          display: block;
-          margin-top: 1px;
+        .pmr-benchmark-kpi-table tr:last-child td {
           color: #137667;
-          font-size: 4.7px;
-          line-height: 1.02;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          background: #eef7f8;
+          font-size: 5.2px;
+          font-weight: 800;
         }
-        .pmr-benchmark-page .kpi-grid {
-          grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-          gap: 3px !important;
-        }
-        .pmr-benchmark-page .kpi-card {
-          min-height: 22px !important;
-          border-radius: 7px !important;
-          padding: 3px 5px !important;
-          box-shadow: none !important;
-          overflow: hidden !important;
-        }
-        .pmr-benchmark-page .kpi-label { font-size: 4.8px !important; line-height: 1.02 !important; }
-        .pmr-benchmark-page .kpi-value { margin-top: 1px !important; font-size: 8.4px !important; line-height: 1 !important; }
-        .pmr-benchmark-page .kpi-detail { margin-top: 1px !important; font-size: 4.7px !important; line-height: 1.02 !important; }
+        .pmr-benchmark-kpi-table .green { border-bottom: 2px solid #13b981; }
+        .pmr-benchmark-kpi-table .yellow { border-bottom: 2px solid #f59e0b; }
+        .pmr-benchmark-kpi-table .red { border-bottom: 2px solid #dc2626; }
+        .pmr-benchmark-kpi-table .blue { border-bottom: 2px solid #117989; }
         .pmr-benchmark-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -14616,6 +14596,7 @@ function buildReportDocument({
         .heat-neutral { background: #eef4f6; color: #607080; }
         @media print {
           body { background: white; }
+          .pmr-document { width: auto !important; zoom: 1 !important; }
           .report-section, .kpi-card, .hero { box-shadow: none; }
           .pmr-document .pmr-page,
           .pmr-document .pmr-benchmark-page { break-after: page; }
@@ -14645,6 +14626,33 @@ function buildReportDocument({
           <span>Druckexport</span>
         </footer>
       </main>
+      ${
+        isPmrDocument
+          ? `<script>
+        (function () {
+          var page = document.querySelector(".pmr-document");
+          if (!page) return;
+          var targetWidth = 1084;
+          var fit = function () {
+            if (window.matchMedia && window.matchMedia("print").matches) return;
+            var scale = Math.min(1, Math.max(0.25, (window.innerWidth - 8) / targetWidth));
+            page.style.zoom = String(scale);
+            document.body.style.minHeight = Math.ceil(page.scrollHeight * scale) + "px";
+            document.body.style.overflowX = "hidden";
+          };
+          var reset = function () {
+            page.style.zoom = "1";
+            document.body.style.minHeight = "";
+            document.body.style.overflowX = "";
+          };
+          fit();
+          window.addEventListener("resize", fit);
+          window.addEventListener("beforeprint", reset);
+          window.addEventListener("afterprint", fit);
+        })();
+      </script>`
+          : ""
+      }
     </body>
   </html>`;
 }
@@ -15301,7 +15309,7 @@ function buildPmrBenchmarkPage(
       type: "percent" as const
     }
   ];
-  const kpiCards = `<table class="pmr-benchmark-kpi-table"><tbody><tr>${indexCards.map((card) => {
+  const benchmarkKpiCells = indexCards.map((card) => {
     const diff = card.value != null && card.group != null ? card.value - card.group : null;
     const tone = diff == null || !Number.isFinite(diff)
       ? "blue"
@@ -15311,12 +15319,20 @@ function buildPmrBenchmarkPage(
         ? "green"
         : "red";
     const suffix = card.type === "index" ? "Index" : "Vergleich";
-    return `<td class="${tone}">
-      <span class="label">${reportEscape(card.label)}</span>
-      <strong>${reportEscape(pmrBenchmarkFormat(card.value, card.type))}</strong>
-      <span class="detail">${card.group == null ? "Vergleich n. v." : `${reportEscape(suffix)}: ${reportEscape(pmrBenchmarkFormat(card.group, card.type))}`}</span>
-    </td>`;
-  }).join("")}</tr></tbody></table>`;
+    return {
+      label: reportEscape(card.label),
+      value: reportEscape(pmrBenchmarkFormat(card.value, card.type)),
+      detail: card.group == null ? "Vergleich n. v." : `${reportEscape(suffix)}: ${reportEscape(pmrBenchmarkFormat(card.group, card.type))}`,
+      tone
+    };
+  });
+  const kpiCards = `<table class="pmr-benchmark-kpi-table">
+    <thead><tr>${benchmarkKpiCells.map((card) => `<th>${card.label}</th>`).join("")}</tr></thead>
+    <tbody>
+      <tr>${benchmarkKpiCells.map((card) => `<td class="${card.tone}">${card.value}</td>`).join("")}</tr>
+      <tr>${benchmarkKpiCells.map((card) => `<td>${card.detail}</td>`).join("")}</tr>
+    </tbody>
+  </table>`;
   const pvsRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.pvsPerDentist })), selectedSite.id);
   const marginRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.ebitdaMargin })), selectedSite.id);
   const roomRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.pvsPerRoom })), selectedSite.id);
