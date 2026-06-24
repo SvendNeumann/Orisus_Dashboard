@@ -14348,17 +14348,53 @@ function buildReportDocument({
         .pmr-benchmark-header p { margin: 0; color: rgba(255,255,255,.76); font-size: 7.8px; line-height: 1.2; }
         .pmr-benchmark-meta { display: grid; gap: 2px; justify-items: end; color: rgba(255,255,255,.82); font-size: 7.2px; }
         .pmr-benchmark-meta strong { color: white; font-size: 11px; }
-        .pmr-benchmark-page .kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; align-items: stretch; }
-        .pmr-benchmark-page .kpi-card {
-          min-height: 27px;
-          border-radius: 7px;
-          padding: 3px 5px;
-          box-shadow: none;
-          border-left-width: 3px;
+        .pmr-benchmark-kpi-strip {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 3px;
         }
-        .pmr-benchmark-page .kpi-label { font-size: 4.9px; line-height: 1.05; letter-spacing: .05em; }
-        .pmr-benchmark-page .kpi-value { margin-top: 1px; font-size: 8.7px; line-height: 1; }
-        .pmr-benchmark-page .kpi-detail { margin-top: 1px; font-size: 4.9px; line-height: 1.05; }
+        .pmr-benchmark-kpi {
+          border-radius: 7px;
+          padding: 3px 5px 4px;
+          background: #ffffff;
+          border: 1px solid #d5e0e5;
+          border-left: 3px solid #117989;
+          min-height: 22px;
+          overflow: hidden;
+        }
+        .pmr-benchmark-kpi.green { border-left-color: #13b981; }
+        .pmr-benchmark-kpi.yellow { border-left-color: #f59e0b; }
+        .pmr-benchmark-kpi.red { border-left-color: #dc2626; }
+        .pmr-benchmark-kpi.blue { border-left-color: #117989; }
+        .pmr-benchmark-kpi span {
+          display: block;
+          color: #6b7a8b;
+          font-size: 4.8px;
+          font-weight: 800;
+          letter-spacing: .05em;
+          line-height: 1.02;
+          text-transform: uppercase;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .pmr-benchmark-kpi strong {
+          display: block;
+          margin-top: 1px;
+          color: #0f1b2b;
+          font-size: 8.4px;
+          line-height: 1;
+        }
+        .pmr-benchmark-kpi small {
+          display: block;
+          margin-top: 1px;
+          color: #137667;
+          font-size: 4.7px;
+          line-height: 1.02;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
         .pmr-benchmark-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -14875,15 +14911,22 @@ function pmrTopSicknessTable(personalData: PersonalDashboardData | null | undefi
 
 function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, period: string, comparisonYear: number) {
   const comparisonPeriod = comparisonPeriodFor(period, comparisonYear);
-  const rows = (importedData.behandlerDetailRows ?? [])
+  const grouped = new Map<string, { name: string; honorar: number; eigenlabor: number; total: number; previousTotal: number }>();
+  (importedData.behandlerDetailRows ?? [])
     .filter((row) => row.siteId === siteId)
-    .map((row) => {
+    .forEach((row) => {
+      const name = canonicalProviderName(siteId, row.name);
+      const key = normalizeMetric(name);
+      const existing = grouped.get(key) ?? { name, honorar: 0, eigenlabor: 0, total: 0, previousTotal: 0 };
       const honorar = periodValueFromMonths(row.honorarByMonth, period);
       const eigenlabor = periodValueFromMonths(row.eigenlaborByMonth, period);
-      const total = honorar + eigenlabor;
-      const previousTotal = periodValueFromMonths(row.totalByMonth, comparisonPeriod);
-      return { name: row.name, honorar, eigenlabor, total, previousTotal };
-    })
+      existing.honorar += honorar;
+      existing.eigenlabor += eigenlabor;
+      existing.total += honorar + eigenlabor;
+      existing.previousTotal += periodValueFromMonths(row.totalByMonth, comparisonPeriod);
+      grouped.set(key, existing);
+    });
+  const rows = Array.from(grouped.values())
     .filter((row) => Math.abs(row.total) > 0 || Math.abs(row.previousTotal) > 0)
     .sort((a, b) => b.total - a.total);
   const totalRevenue = rows.reduce((sum, row) => sum + row.total, 0);
@@ -15103,7 +15146,7 @@ function buildPmrBenchmarkPage(
       type: "percent" as const
     }
   ];
-  const kpiCards = reportKpiGrid(indexCards.map((card) => {
+  const kpiCards = `<div class="pmr-benchmark-kpi-strip">${indexCards.map((card) => {
     const diff = card.value != null && card.group != null ? card.value - card.group : null;
     const tone = diff == null || !Number.isFinite(diff)
       ? "blue"
@@ -15113,13 +15156,12 @@ function buildPmrBenchmarkPage(
           ? "green"
           : "red";
     const suffix = card.type === "index" ? "Index" : "Vergleich";
-    return {
-      label: card.label,
-      value: pmrBenchmarkFormat(card.value, card.type),
-      detail: card.group == null ? "Vergleich n. v." : `${suffix}: ${pmrBenchmarkFormat(card.group, card.type)}`,
-      tone
-    };
-  }));
+    return `<div class="pmr-benchmark-kpi ${tone}">
+      <span>${reportEscape(card.label)}</span>
+      <strong>${reportEscape(pmrBenchmarkFormat(card.value, card.type))}</strong>
+      <small>${card.group == null ? "Vergleich n. v." : `${reportEscape(suffix)}: ${reportEscape(pmrBenchmarkFormat(card.group, card.type))}`}</small>
+    </div>`;
+  }).join("")}</div>`;
   const pvsRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.pvsPerDentist })), selectedSite.id);
   const marginRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.ebitdaMargin })), selectedSite.id);
   const roomRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.pvsPerRoom })), selectedSite.id);
