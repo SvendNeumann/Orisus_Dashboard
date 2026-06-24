@@ -1960,6 +1960,38 @@ function normalizeMetric(value: unknown) {
     .replace(/^_+|_+$/g, "");
 }
 
+const providerNameAliasesBySite: Record<string, Record<string, string>> = {
+  kirchberg: {
+    pzr_pomsel_plus: "S. Pomsel",
+    pzr_bomsel_plus: "S. Pomsel",
+    samira_pomsel: "S. Pomsel",
+    s_pomsel: "S. Pomsel",
+    s_bomsel: "S. Pomsel",
+    f_patsch: "F. Patsch",
+    pzr_patsch: "F. Patsch",
+    f_parch: "F. Patsch",
+    pzr_parch: "F. Patsch",
+    p_heinz: "P. Heinz",
+    assi_patrizia_heinz: "P. Heinz",
+    patrizia_heinz: "P. Heinz",
+    s_grafe: "S. Gräfe",
+    pzr_grafe: "S. Gräfe",
+    n_orsos: "N. Orsós",
+    nicole_n_orsos: "N. Orsós",
+    n_orjus: "N. Orsós",
+    nicole_n_orjus: "N. Orsós",
+    za_nicole_orsos: "N. Orsós",
+    zahnarztin_nicole_orsos: "N. Orsós",
+    zahnarztin_nicole: "N. Orsós",
+    pzr_dietrich: "S. Dietrich",
+    s_dietrich: "S. Dietrich"
+  }
+};
+
+function canonicalProviderName(siteId: string, name: string) {
+  return providerNameAliasesBySite[siteId]?.[normalizeMetric(name)] ?? name;
+}
+
 const bankMovementKeyAliases: Record<string, string[]> = {
   cashflow_gesamt_im_monat: ["bank_cashflow_gesamt_im_monat"],
   cashflow_vor_intercompany: [
@@ -6831,15 +6863,17 @@ function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], expor
   const siteByName = new Map(standorte.map((site) => [site.name.toLowerCase(), site]));
   const grouped = new Map<string, ImportedBehandlerDetailRow>();
   const priorityByValue = new Map<string, number>();
+  const contributionByValue = new Map<string, number>();
   const ensureEntry = (siteName: string, name: string) => {
     const site = siteByName.get(siteName.toLowerCase()) ?? standorte[0];
-    const key = `${site.id}::${normalizeMetric(name)}`;
+    const canonicalName = canonicalProviderName(site.id, name);
+    const key = `${site.id}::${normalizeMetric(canonicalName)}`;
     const existing = grouped.get(key);
     if (existing) return existing;
     const next: ImportedBehandlerDetailRow = {
       siteId: site.id,
       siteName,
-      name,
+      name: canonicalName,
       honorarByMonth: {},
       eigenlaborByMonth: {},
       totalByMonth: {}
@@ -6850,7 +6884,9 @@ function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], expor
   const setValue = (target: Record<string, number>, monthKey: string, priorityKey: string, value: number, priority: number) => {
     const currentPriority = priorityByValue.get(priorityKey) ?? 0;
     if (priority < currentPriority) return;
-    target[monthKey] = value;
+    const previousContribution = contributionByValue.get(priorityKey) ?? 0;
+    target[monthKey] = (target[monthKey] ?? 0) - previousContribution + value;
+    contributionByValue.set(priorityKey, value);
     priorityByValue.set(priorityKey, priority);
   };
 
@@ -6875,7 +6911,7 @@ function buildImportedBehandlerDetailRows(rows: Record<string, unknown>[], expor
 
     const entry = ensureEntry(siteName, name);
     const monthKey = `${year}-${month}`;
-    const valueKey = `${entry.siteId}::${normalizeMetric(name)}::${monthKey}`;
+    const valueKey = `${entry.siteId}::${normalizeMetric(entry.name)}::${normalizeMetric(name)}::${monthKey}`;
     if (isHonorar) setValue(entry.honorarByMonth, monthKey, `${valueKey}::honorar`, value, priority);
     if (isEigenlabor) setValue(entry.eigenlaborByMonth, monthKey, `${valueKey}::eigenlabor`, value, priority);
     if (isTotal) setValue(entry.totalByMonth, monthKey, `${valueKey}::total`, value, priority);
