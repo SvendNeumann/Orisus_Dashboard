@@ -12514,15 +12514,24 @@ function Bankenreporting({
   }, [availablePeriods, bankChartPeriod, bankTablePeriod, importedData]);
   const bankChartData = bwaChartDataForPeriod(importedData, monthlyData, bankChartPeriod);
   const bankTableSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, bankTablePeriod)) : sites;
-  const bankPeriodMetrics = cfoMetrics(bankTableSites, bankChartData, rules);
-  const receivablesRatio = bankPeriodMetrics.gesamtleistung ? (bankPeriodMetrics.forderungen / bankPeriodMetrics.gesamtleistung) * 100 : 0;
-  const cashflowConversion = bankPeriodMetrics.ebitda ? (bankPeriodMetrics.cashflow / bankPeriodMetrics.ebitda) * 100 : 0;
-  const leverageRunRate = bankPeriodMetrics.runRateEbitda ? bankPeriodMetrics.restschuld / bankPeriodMetrics.runRateEbitda : 0;
-  const repaymentProgress = bankPeriodMetrics.aufgenommen ? (bankPeriodMetrics.getilgt / bankPeriodMetrics.aufgenommen) * 100 : 0;
+  const bankKpiPeriod = "Gesamte Periode";
+  const bankKpiPeriodLabel = "gesamte Vertragsperiode";
+  const bankKpiEndPeriod = defaultBwaPeriodFor(importedData);
+  const bankKpiSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, bankKpiPeriod)) : sites;
+  const bankKpiMetrics = cfoMetrics(bankKpiSites, monthlyData, rules);
+  const bankKpiRunRateEbitda = bankKpiSites.reduce((sum, site) => {
+    const monthsSinceStart = monthsSinceStartForPeriod(site, bankKpiEndPeriod);
+    return sum + (monthsSinceStart ? (site.ebitda / monthsSinceStart) * 12 : 0);
+  }, 0);
+  const bankKpiReceivablesRatio = bankKpiMetrics.gesamtleistung ? (bankKpiMetrics.forderungen / bankKpiMetrics.gesamtleistung) * 100 : 0;
+  const bankKpiCashflowConversion = bankKpiMetrics.ebitda ? (bankKpiMetrics.cashflow / bankKpiMetrics.ebitda) * 100 : 0;
+  const bankKpiLeverageRunRate = bankKpiRunRateEbitda ? bankKpiMetrics.restschuld / bankKpiRunRateEbitda : 0;
+  const bankKpiRepaymentProgress = bankKpiMetrics.aufgenommen ? (bankKpiMetrics.getilgt / bankKpiMetrics.aufgenommen) * 100 : 0;
   const personnelSummary = bankPersonnelSummary(personalData);
   const personnelBySite = bankPersonnelBySite(personalData);
   const activeSites = sortSitesByContractStart(bankTableSites).filter((site) => site.gesamtleistung > 0);
-  const criticalSites = activeSites.filter((site) => {
+  const bankKpiActiveSites = sortSitesByContractStart(bankKpiSites).filter((site) => site.gesamtleistung > 0);
+  const bankKpiCriticalSites = bankKpiActiveSites.filter((site) => {
     const siteReceivablesRatio = site.gesamtleistung ? (site.forderungen / site.gesamtleistung) * 100 : 0;
     return (
       statusByRule(site.ebitdaMarge, rules.ebitda_marge) === "red" ||
@@ -12534,85 +12543,85 @@ function Bankenreporting({
   const bankKpis: Array<{ label: string; value: string; detail: string; status: Status; icon: React.ComponentType<{ className?: string }>; emphasis?: boolean; info: React.ReactNode }> = [
     {
       label: "Kapitaldienstfähigkeit",
-      value: `${bankPeriodMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
+      value: `${bankKpiMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
       detail: "EBITDA / Tilgung + Zins",
-      status: statusByRule(bankPeriodMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
+      status: statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
       icon: Gauge,
       emphasis: true,
-      info: <p>Zeigt, wie oft das EBITDA den Kapitaldienst deckt. Formel: EBITDA der ausgewählten Periode geteilt durch Tilgung plus Zins. Für Banken ist das die zentrale Tragfähigkeitskennzahl.</p>
+      info: <p>Zeigt, wie oft das EBITDA den Kapitaldienst deckt. Formel: EBITDA der gesamten Vertragsperiode geteilt durch Tilgung plus Zins seit Vertragsstart. Für Banken ist das die zentrale Tragfähigkeitskennzahl.</p>
     },
     {
       label: "Net Debt / Run-Rate EBITDA",
-      value: `${leverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
+      value: `${bankKpiLeverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
       detail: "Restschuld im Verhältnis zur Ergebnis-Run-Rate",
-      status: statusForLower(leverageRunRate, 2.5, 3.5),
+      status: statusForLower(bankKpiLeverageRunRate, 2.5, 3.5),
       icon: Landmark,
       emphasis: true,
-      info: <p>Setzt die aktuelle Restschuld ins Verhältnis zur EBITDA-Run-Rate. Formel: Restschuld geteilt durch annualisiertes EBITDA. Je niedriger der Wert, desto besser ist die Entschuldungsfähigkeit.</p>
+      info: <p>Setzt die aktuelle Restschuld ins Verhältnis zur EBITDA-Run-Rate. Formel: Restschuld geteilt durch die Summe der standortbezogenen EBITDA-Run-Rates seit jeweiligem Praxisstart. Je niedriger der Wert, desto besser ist die Entschuldungsfähigkeit.</p>
     },
     {
       label: "Cashflow-Konversion",
-      value: pct(cashflowConversion),
+      value: pct(bankKpiCashflowConversion),
       detail: "Cashflow gem. BWA / EBITDA",
-      status: statusForHigher(cashflowConversion, 50, 25),
+      status: statusForHigher(bankKpiCashflowConversion, 50, 25),
       icon: Wallet,
       emphasis: true,
-      info: <p>Zeigt, welcher Anteil des EBITDA als Cashflow gem. BWA ankommt. Formel: Cashflow gem. BWA geteilt durch EBITDA. Niedrige Werte weisen auf Tilgung, Investitionen, Forderungsaufbau oder Umbuchungen hin.</p>
+      info: <p>Zeigt, welcher Anteil des EBITDA als Cashflow gem. BWA ankommt. Formel: Cashflow gem. BWA seit Vertragsstart geteilt durch EBITDA seit Vertragsstart. Niedrige Werte weisen auf Tilgung, Investitionen, Forderungsaufbau oder Umbuchungen hin.</p>
     },
     {
       label: "Forderungsquote",
-      value: pct(receivablesRatio),
+      value: pct(bankKpiReceivablesRatio),
       detail: "offene Forderungen / Gesamtleistung",
-      status: statusByRule(receivablesRatio, rules.offene_forderungen),
+      status: statusByRule(bankKpiReceivablesRatio, rules.offene_forderungen),
       icon: ReceiptText,
       emphasis: true,
-      info: <p>Misst die Kapitalbindung in offenen Forderungen. Formel: offene Forderungen geteilt durch Gesamtleistung der ausgewählten Periode. Für Banken ist eine hohe Quote ein Working-Capital-Risiko.</p>
+      info: <p>Misst die Kapitalbindung in offenen Forderungen. Formel: offene Forderungen geteilt durch Gesamtleistung der gesamten Vertragsperiode. Für Banken ist eine hohe Quote ein Working-Capital-Risiko.</p>
     },
     {
       label: "Gesamtleistung",
-      value: eur(bankPeriodMetrics.gesamtleistung),
-      detail: performancePeriodLabel(bankTablePeriod),
+      value: eur(bankKpiMetrics.gesamtleistung),
+      detail: bankKpiPeriodLabel,
       status: "green",
       icon: BarChart3,
-      info: <p>Summe der Gesamtleistung über alle berücksichtigten Standorte im ausgewählten Zeitraum. Die Werte kommen aus dem bestätigten CFO-/BWA-Import.</p>
+      info: <p>Summe der Gesamtleistung über alle berücksichtigten Standorte seit jeweiligem Vertragsstart. Die Werte kommen aus dem bestätigten CFO-/BWA-Import.</p>
     },
     {
       label: "EBITDA / Marge",
-      value: `${eur(bankPeriodMetrics.ebitda, true)} / ${pct(bankPeriodMetrics.ebitdaMarge)}`,
-      detail: "Ergebnisqualität der Periode",
-      status: statusByRule(bankPeriodMetrics.ebitdaMarge, rules.ebitda_marge),
+      value: `${eur(bankKpiMetrics.ebitda, true)} / ${pct(bankKpiMetrics.ebitdaMarge)}`,
+      detail: "Ergebnisqualität seit Vertragsstart",
+      status: statusByRule(bankKpiMetrics.ebitdaMarge, rules.ebitda_marge),
       icon: TrendingUp,
       info: <p>EBITDA absolut und als Marge. Formel Marge: EBITDA geteilt durch Gesamtleistung. Die Kennzahl zeigt, wie viel Ergebnisqualität aus der Leistung entsteht.</p>
     },
     {
       label: "Cashflow gem. BWA",
-      value: eur(bankPeriodMetrics.cashflow),
-      detail: "nach Tilgung, Investitionen, Umbuchungen",
-      status: statusByRule(bankPeriodMetrics.cashflow, rules.cashflow_bwa),
+      value: eur(bankKpiMetrics.cashflow),
+      detail: "seit Vertragsstart nach BWA-Brücke",
+      status: statusByRule(bankKpiMetrics.cashflow, rules.cashflow_bwa),
       icon: Wallet,
       info: <p>Cashflow nach der BWA-Brücke. Enthält vorläufiges Ergebnis plus Abschreibungen abzüglich Investitionen, Tilgung, Umbuchungen und weitere Cashflow-Adjustments.</p>
     },
     {
       label: "Kostenquote",
-      value: pct(bankPeriodMetrics.kostenquote),
-      detail: "Material, Fremdlabor, Personal, sonstige Kosten",
-      status: statusByRule(bankPeriodMetrics.kostenquote, rules.kostenquote),
+      value: pct(bankKpiMetrics.kostenquote),
+      detail: "Kostenmix seit Vertragsstart",
+      status: statusByRule(bankKpiMetrics.kostenquote, rules.kostenquote),
       icon: PieIcon,
       info: <p>Operative Kostenbelastung im Verhältnis zur Gesamtleistung. Enthalten sind Materialquote, Fremdlaborquote, Personalkostenquote und sonstige operative Kostenquote.</p>
     },
     {
       label: "Restschuld",
-      value: eur(bankPeriodMetrics.restschuld),
-      detail: `${pct(repaymentProgress)} der aufgenommenen Darlehen getilgt`,
-      status: statusForHigher(repaymentProgress, 20, 8),
+      value: eur(bankKpiMetrics.restschuld),
+      detail: `${pct(bankKpiRepaymentProgress)} der aufgenommenen Darlehen getilgt`,
+      status: statusForHigher(bankKpiRepaymentProgress, 20, 8),
       icon: Landmark,
       info: <p>Aktuell offene Darlehensrestschuld über die Gruppe. Der Prozentwert zeigt den Tilgungsfortschritt: bisherige Tilgung geteilt durch ursprünglich aufgenommenes Fremdkapital.</p>
     },
     {
       label: "Kapitaldienst",
-      value: eur(bankPeriodMetrics.kapitaldienst),
-      detail: `${eur(bankPeriodMetrics.tilgung, true)} Tilgung / ${eur(bankPeriodMetrics.zins, true)} Zins`,
-      status: statusByRule(bankPeriodMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
+      value: eur(bankKpiMetrics.kapitaldienst),
+      detail: `${eur(bankKpiMetrics.tilgung, true)} Tilgung / ${eur(bankKpiMetrics.zins, true)} Zins`,
+      status: statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
       icon: Banknote,
       info: <p>Summe aus Tilgung und Zins im betrachteten Datenstand. Diese Größe wird gegen EBITDA gespiegelt, um die Kapitaldienstfähigkeit zu berechnen.</p>
     },
@@ -12655,25 +12664,25 @@ function Bankenreporting({
               Working-Capital-Disziplin, stabile Margen und eine beherrschbare Standortstreuung.
             </p>
           </div>
-          <Badge tone={criticalSites.length ? "yellow" : "green"}>{criticalSites.length ? `${criticalSites.length} Fokus-Standort(e)` : "Bankenfähig stabil"}</Badge>
+          <Badge tone={bankKpiCriticalSites.length ? "yellow" : "green"}>{bankKpiCriticalSites.length ? `${bankKpiCriticalSites.length} Fokus-Standort(e)` : "Bankenfähig stabil"}</Badge>
         </div>
         <div className="mt-4 grid gap-3 xl:grid-cols-2">
-          <BankAnalysisCard title="Rückzahlungsfähigkeit" status={statusByRule(bankPeriodMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)}>
-            Die Kapitaldienstfähigkeit liegt bei <strong>{bankPeriodMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x</strong>.
+          <BankAnalysisCard title="Rückzahlungsfähigkeit | gesamte Vertragsperiode" status={statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)}>
+            Die Kapitaldienstfähigkeit liegt seit Vertragsstart bei <strong>{bankKpiMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x</strong>.
             Kritisch aus Bankensicht wäre ein Absinken unter den Covenant-Puffer, weil dann Tilgung und Zins nicht mehr komfortabel aus EBITDA gedeckt sind.
           </BankAnalysisCard>
-          <BankAnalysisCard title="Cashflow-Qualität" status={statusForHigher(cashflowConversion, 50, 25)}>
-            Die Cashflow-Konversion beträgt <strong>{pct(cashflowConversion)}</strong>. Je stärker EBITDA in Bank-Cashflow und Kontostand übersetzt wird,
+          <BankAnalysisCard title="Cashflow-Qualität | gesamte Vertragsperiode" status={statusForHigher(bankKpiCashflowConversion, 50, 25)}>
+            Die Cashflow-Konversion beträgt seit Vertragsstart <strong>{pct(bankKpiCashflowConversion)}</strong>. Je stärker EBITDA in Bank-Cashflow und Kontostand übersetzt wird,
             desto belastbarer wirkt die Gruppe für weitere Finanzierungslinien.
           </BankAnalysisCard>
-          <BankAnalysisCard title="Working Capital / Forderungen" status={statusByRule(receivablesRatio, rules.offene_forderungen)}>
-            Forderungen liegen bei <strong>{eur(bankPeriodMetrics.forderungen, true)}</strong> bzw. <strong>{pct(receivablesRatio)}</strong> der Gesamtleistung.
+          <BankAnalysisCard title="Working Capital / Forderungen | gesamte Vertragsperiode" status={statusByRule(bankKpiReceivablesRatio, rules.offene_forderungen)}>
+            Forderungen liegen bei <strong>{eur(bankKpiMetrics.forderungen, true)}</strong> bzw. <strong>{pct(bankKpiReceivablesRatio)}</strong> der Gesamtleistung seit Vertragsstart.
             Eine hohe Forderungsquote ist für Banken ein Frühwarnsignal, weil Ergebnisqualität dann nicht vollständig liquiditätswirksam ist.
           </BankAnalysisCard>
-          <BankAnalysisCard title="Standortstreuung & Integrationsrisiko" status={criticalSites.length ? "yellow" : "green"}>
-            {criticalSites.length
-              ? `Fokus auf ${criticalSites.map((site) => site.name).join(", ")}: dort treffen Margen-, Kosten-, Cashflow- oder Forderungsthemen zusammen.`
-              : "Keine rote Standortkonzentration im aktuellen Datenstand. Die Gruppe wirkt diversifiziert und steuerbar."}
+          <BankAnalysisCard title="Standortstreuung & Integrationsrisiko | gesamte Vertragsperiode" status={bankKpiCriticalSites.length ? "yellow" : "green"}>
+            {bankKpiCriticalSites.length
+              ? `Fokus auf ${bankKpiCriticalSites.map((site) => site.name).join(", ")}: dort treffen Margen-, Kosten-, Cashflow- oder Forderungsthemen seit Vertragsstart zusammen.`
+              : "Keine rote Standortkonzentration in der Gesamtvertragsperiode. Die Gruppe wirkt diversifiziert und steuerbar."}
           </BankAnalysisCard>
         </div>
       </Card>
@@ -12710,14 +12719,14 @@ function Bankenreporting({
           </ResponsiveContainer>
         </ChartCard>
         <Card className="p-4">
-          <h2 className="font-bold">Covenant- und Risikoprofil | {performancePeriodLabel(bankTablePeriod)}</h2>
+          <h2 className="font-bold">Covenant- und Risikoprofil | gesamte Vertragsperiode</h2>
           <div className="mt-4 space-y-3">
             {[
-              ["Kapitaldienstfähigkeit", `${bankPeriodMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, statusByRule(bankPeriodMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)],
-              ["Net Debt / Run-Rate EBITDA", `${leverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, statusForLower(leverageRunRate, 2.5, 3.5)],
-              ["Cashflow-Konversion", pct(cashflowConversion), statusForHigher(cashflowConversion, 50, 25)],
-              ["Forderungsquote", pct(receivablesRatio), statusByRule(receivablesRatio, rules.offene_forderungen)],
-              ["Kostenquote", pct(bankPeriodMetrics.kostenquote), statusByRule(bankPeriodMetrics.kostenquote, rules.kostenquote)]
+              ["Kapitaldienstfähigkeit", `${bankKpiMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)],
+              ["Net Debt / Run-Rate EBITDA", `${bankKpiLeverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, statusForLower(bankKpiLeverageRunRate, 2.5, 3.5)],
+              ["Cashflow-Konversion", pct(bankKpiCashflowConversion), statusForHigher(bankKpiCashflowConversion, 50, 25)],
+              ["Forderungsquote", pct(bankKpiReceivablesRatio), statusByRule(bankKpiReceivablesRatio, rules.offene_forderungen)],
+              ["Kostenquote", pct(bankKpiMetrics.kostenquote), statusByRule(bankKpiMetrics.kostenquote, rules.kostenquote)]
             ].map(([label, value, status]) => (
               <div key={label} className="flex items-center justify-between rounded-md bg-slate-50 p-3">
                 <div>
@@ -12732,9 +12741,9 @@ function Bankenreporting({
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <ChartCard title={`Kosten- und Margenqualität je Standort | ${performancePeriodLabel(bankTablePeriod)}`} icon={BarChart3}>
+        <ChartCard title="Kosten- und Margenqualität je Standort | gesamte Vertragsperiode" icon={BarChart3}>
           <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={activeSites.map((site) => ({ name: site.name, marge: site.ebitdaMarge, kostenquote: boardCostRatio(site), personal: site.personalquote ?? 0 }))}>
+            <BarChart data={bankKpiActiveSites.map((site) => ({ name: site.name, marge: site.ebitdaMarge, kostenquote: boardCostRatio(site), personal: site.personalquote ?? 0 }))}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="name" tickLine={false} axisLine={false} />
               <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${value}%`} />
@@ -12745,9 +12754,9 @@ function Bankenreporting({
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="Forderungen und Restschuld je Standort" icon={FileBarChart}>
+        <ChartCard title="Forderungen und Restschuld je Standort | gesamte Vertragsperiode" icon={FileBarChart}>
           <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={activeSites.map((site) => ({ name: site.name, forderungen: site.forderungen, restschuld: site.darlehen.restschuld }))} layout="vertical">
+            <BarChart data={bankKpiActiveSites.map((site) => ({ name: site.name, forderungen: site.forderungen, restschuld: site.darlehen.restschuld }))} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis type="number" tickFormatter={(value) => eur(Number(value), true)} />
               <YAxis type="category" dataKey="name" width={88} tickLine={false} axisLine={false} />
