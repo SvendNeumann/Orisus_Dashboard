@@ -1,6 +1,6 @@
 # Orisus CFO Dashboard - Projektuebergabe
 
-Stand: 23.06.2026, nach Commit `e2ccbd5a`
+Stand: 24.06.2026, nach Commit `dcb510ff`
 
 Dieses Dokument fasst den Projektstand, fachliche Entscheidungen, Datenlogiken, Architektur und offene Punkte aus dem bisherigen Chat zusammen. Es dient als Startpunkt fuer neue Codex-/Entwicklungs-Chats.
 
@@ -14,7 +14,7 @@ Dieses Dokument fasst den Projektstand, fachliche Entscheidungen, Datenlogiken, 
 - Branch: `main`
 - Deployment laeuft ueber GitHub -> Vercel.
 - Der letzte gepruefte Stand war buildfaehig mit `pnpm exec next build`.
-- Letzter gepushter Stand in diesem Chat: `e2ccbd5a Clean up PMR report filters`.
+- Letzter gepushter Stand in diesem Chat: `dcb510ff Fix Ulmet PVS monthly import fallback`.
 
 Wichtige Regel: Veraenderungen sollen immer committed und gepusht werden, wenn sie live gehen sollen. Vercel deployed dann automatisch.
 Der Nutzer erwartet, dass umgesetzte Aenderungen nicht nur lokal bleiben, sondern nach erfolgreichem Check auf `main` gepusht werden.
@@ -160,6 +160,13 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Personalkosten-/Honorar-Gegenueberstellung je Behandler in PMR und Standortdetails.
 - Benchmarking mit dynamischem Standortnamen und Standardzeitraum `Gesamte Periode`.
 - KPI-Regeln im Admin-Bereich editierbar, mit verbessertem Kontrast der Eingabefelder.
+- Mobile Menues koennen ueber die abgedunkelte Flaeche geschlossen werden.
+- CFO-Cockpit Earn-Out-/Wachstums-KPI-Logik ist fachlich getrennt:
+  - erwarteter Earn-Out Run-Rate
+  - erwartete Wachstumszahlung Run-Rate
+  - erwartete Gesamtzahlung nach Vertragsende
+- PMR-Export enthaelt Seite 1 Standortleiter-PMR und Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort.
+- Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
 
 Mobile Bottom-Navigation, gewuenschte Reihenfolge:
 
@@ -385,6 +392,16 @@ Zuletzt genannte Vergleichswerte nach neuem Import:
 
 Die App hatte zeitweise 915.724 EUR gezeigt. Das galt als veraltet/falsch.
 
+PVS-Gesamtumsatz / Orisus Performance:
+
+- `PVS-Gesamtumsatz inkl. FL + MAT` darf nicht mit BWA-Gesamtleistung verwechselt werden.
+- Primäre Quelle ist eine direkte Importzeile `Gesamtumsatz inkl. FL + MAT` bzw. `SOLL Forderung PVS`.
+- Wenn eine direkte Gesamtumsatz-/SOLL-Zeile fuer einen Standort/Monat fehlt, aber die Excel-Mappe PVS-Bausteine enthaelt, wird der PVS-Gesamtumsatz ersatzweise hergeleitet:
+  - `IST Cash geflossen PVS + Noch nicht geflossen`
+  - alternativ `IST Cash geflossen PVS + Noch ausstehend vs. Bank`
+- Diese Fallback-Logik wurde zuletzt fuer Ulmet/Mai relevant, weil der Mai im Export als PVS-Cash plus offener Anteil vorlag, aber nicht als direkte Gesamtumsatzzeile in der Performance-Uebersicht erschien.
+- Nach Aenderungen an Importlogik muss der CFO-Upload neu importiert/bestaetigt werden, damit persistierte Importdaten die neue Logik enthalten.
+
 ## 12. Kontostaende
 
 Kontostaende sollen aus Import/Export gezogen werden:
@@ -521,8 +538,10 @@ Inhalte:
   - Daten aus den Personalkosten-Exporttabs
   - Honorarumsatz aus Behandlerdetails gematcht
   - alle Mitarbeiter aufnehmen, die im Personalkosten-Tab des jeweiligen Standortes vorkommen, nicht nur reine Behandler
-  - Spalten: Mitarbeiter, Typ, Status, Personalkosten, Honorarumsatz, PK-Quote, Datenstatus
-  - Zeitraumfilter soll zur vorhandenen Standort-/BWA-Logik passen
+  - Spalten: Mitarbeiter, Typ, Personalkosten, Honorarumsatz, PK-Quote
+  - keine technischen Hinweise wie Datenstatus oder `Honorarumsatz automatisch` anzeigen
+  - Standardzeitraum: gesamte Vertragsperiode / seit Vertragsbeginn
+  - PK-Quote immer mit einer Nachkommastelle darstellen
 
 Wichtig:
 
@@ -531,6 +550,13 @@ Wichtig:
 - Kontostand und Forderungen als aktueller Stand.
 - PVS-Umsatz muss aus Export gezogen werden, nicht BWA-Gesamtleistung.
 - Die Personalkosten-/Honorarquote in Standortdetails muss dieselbe dynamische Datenbasis wie der PMR-Report nutzen, keine Fantasiewerte.
+- Bei Kirchberg gab es doppelte Behandlerbezeichnungen aus Import-/Exporttabs, z. B. `PZR Pomsel`/`S. Pomsel`, `F. Paaatsch`/`PZR Paaatsch`, `P. Heinz`/`Assi Patrizia Heinz`, `S. Gräfe`/`PZR Gräfe`, `N. Orsós`/`ZA Nicole Orsós`, `S. Dietrich`/`PZR Dietrich`.
+- Wichtig: Deduplizierung darf echte doppelte Importzeilen nicht einfach addieren, wenn es fachlich dieselbe Leistung/Person doppelt im Export ist. Honorar- und Eigenlaborumsaetze muessen aus den korrekten Umsatzquellen gezogen und je fachlicher Person eindeutig ausgewiesen werden.
+- Fuer PMR Kirchberg sollen aus der Personalkosten-/Honorar-Gegenueberstellung nicht relevante Eintraege ausgeblendet werden:
+  - Samira Pomsel
+  - Prophylaxe / unregelmaessige Behandler
+  - PZR Dietrich
+  - S. Dietrich
 
 ## 16. Orisus Performance
 
@@ -571,6 +597,17 @@ Ziel:
 - Oben in der Ansicht muss immer `Standort-Benchmarking: <Standortname>` stehen, nicht `ausgewaehlter Standort`.
 - Standardzeitraum ist `Gesamte Periode`.
 - `Gesamte Periode` bedeutet je Standort: seit jeweiligem Vertragsstart, nicht pauschal derselbe Zeitraum fuer alle.
+- Der ausgewaehlte Standort darf im Benchmarking im Klartext genannt und visuell markiert werden.
+- Vergleichsstandorte duerfen nicht im Klartext erscheinen, sondern anonymisiert als Peer-/Standort-Vergleich.
+- Nicht sichtbar machen, dass die Gruppe nur aus einer bestimmten Anzahl Standorten besteht. Formulierungen wie `Peer-Auszug`, `Top-Peer-Auszug` oder `anonymisierte Vergleichsgruppe` verwenden, nicht `Standort A-E` als vollstaendige Gruppenliste.
+- Forderungsquote soll aus den oberen Benchmark-Kacheln entfernt bleiben.
+- Benchmarking-Report fuer Standortleiter/PMR:
+  - wird als Seite 2 an den Standortleiter-PMR angehaengt
+  - Querformat
+  - muss auf genau eine Seite passen
+  - keine uebergrossen Kacheln oder weissen Leerflaechen
+  - kompakte KPI-Kacheln, kompakte Peer-Auszug-Charts und Tabellen
+  - keine horizontal verschobenen Inhalte im Druckfenster
 
 Wichtige Kennzahlen:
 
@@ -963,7 +1000,77 @@ Diese Punkte waren zuletzt noch offen bzw. sollten geprueft werden:
 - Honorarumsatz gehoert nicht in BWA.
 - BWA, PVS, Behandlerumsatz, Bank-Cashflow und Personal sind fachlich unterschiedliche Datenwelten und muessen klar beschriftet bleiben.
 
-## 28. Empfohlener Start fuer einen neuen Chat
+## 28. Aktueller Arbeitsstand 24.06.2026
+
+Zuletzt umgesetzte / festgelegte Punkte:
+
+- Git-/Deploy-Regel:
+  - Aenderungen sollen nach erfolgreichem Build committed und auf `main` gepusht werden.
+  - Vercel deployed dann automatisch.
+  - `tsconfig.tsbuildinfo` ist lokale Build-Datei und soll nicht committed werden.
+- Build:
+  - `pnpm exec next build` laeuft durch.
+  - Es gibt bekannte bestehende Warnungen zu ungenutzten Variablen und `<img>`, aber keine Build-Fehler.
+  - Der alte Next-Lint-Befehl ist nicht mehr zeitgemaess; perspektivisch ESLint-CLI modernisieren.
+- CFO-Upload:
+  - Nach Bestaetigung eines CFO- oder Personalimports soll ein klares Popup/Feedback erscheinen, damit sichtbar ist, dass der Importbericht eingelesen/bestaetigt wurde.
+  - Importlogik-Aenderungen wirken erst nach erneutem Import auf persistierte Importdaten.
+- PVS / Ulmet:
+  - Ulmet-Mai darf in Orisus Performance nicht leer bleiben, wenn PVS-Werte in `Export_Ulmet` vorhanden sind.
+  - Fallback fuer fehlende direkte PVS-Gesamtzeile: `IST Cash geflossen PVS + Noch nicht geflossen`.
+  - Bei Ulmet gibt es je Behandler keine separat erfassten Eigenlaborumsaetze; dort nur Honorarumsatz je Behandler verwenden.
+- Kirchberg Behandlerumsaetze:
+  - Doppelte Behandlerbezeichnungen duerfen nicht blind addiert werden.
+  - Es muss zwischen Alias derselben Person und echten Zusatzumsatzzeilen unterschieden werden.
+  - Honorar- und Eigenlaborumsaetze muessen aus den korrekten Export-/Importtabs hergeleitet werden.
+- Mobile Verhalten:
+  - Header/Menue soll auf Mobile gut erreichbar bleiben.
+  - Mobile Sidebar muss ueber die abgedunkelte Flaeche ausserhalb des Menues geschlossen werden koennen.
+  - iPad-/Tablet-Ansicht darf nicht horizontal ueberlaufen oder durch Menueleisten verdeckt werden.
+  - App-Hintergrund darf beim Scrollen keine weissen Flaechen freilegen.
+- Admin / KPI-Regeln:
+  - Eingabefelder in dunklen Tabellen/Kacheln muessen helle, gut lesbare Schrift haben.
+  - Das betrifft besonders Oeffnungszeiten/KPI-Regelwerte auf Mobile mit Tastatur.
+- Bankenreporting:
+  - Tab soll aus Bank-/Kreditgeberperspektive aufgebaut sein, analytischer als reine Datenablage.
+  - KPI-Kacheln muessen im normalen App-Kachelstil bleiben, nicht als grosse flache Tabellenzellen.
+  - Kacheln ohne eigenen Zeitraumfilter beziehen sich auf gesamte Vertragsperiode seit Standortstart.
+  - Jede KPI-Kachel muss den betrachteten Zeitraum klar sichtbar ausweisen.
+  - In Diagrammen `Gesamtleistung und EBITDA-Entwicklung` soll zusaetzlich `Soll-EBITDA gemaess Kaufvertrag` visualisiert werden.
+  - Bankgeldbewegungen: Monate ohne Werte leer lassen, nicht mit 0 fuellen.
+- Investor Boardpack:
+  - `Akquisition und Integration seit Vertragsstart` bleibt.
+  - Board-KPI-Entwicklung/Spike-Diagramm bleibt und braucht Zeitraumfilter.
+  - Standortvergleich CFO-Kennzahlen seit Vertragsstart wurde als entbehrlich markiert.
+  - Stattdessen tiefere Executive-/Investor-Analyse mit Standort- und Gruppenblick, Ableitungen und Gegenmassnahmen.
+- PMR Standortleiter-Report:
+  - Nur Standortleiter-PMR ist aktuell in Reports sichtbar.
+  - Monatsreport, YTD-/Management-Report, Bankenreport und Standortreport sind in der Reportauswahl vorerst ausgeblendet.
+  - PMR-Export soll im Querformat insgesamt zwei Seiten haben:
+    - Seite 1: PMR Standortleiter-Report
+    - Seite 2: Benchmarking-Auszug fuer denselben Standort
+  - Beide Seiten muessen auf je eine Seite passen, ohne Ueberlauf, riesige Kacheln oder grosse Leerflaechen.
+  - BWA im PMR bleibt detailliert bis zum vereinbarten EBITDA-/Abweichungsblock.
+  - Auszahlungslogik im PMR:
+    - `indikativ Earn-Out aktuell`
+    - `indikativ Wachstumszahlung`
+    - `indikativ gesamt erwartet`
+  - Top-10-Krankheitstage sollen im PMR zur Nutzung freier Flaechen aufgenommen werden.
+  - Personalkosten je Behandler im PMR immer seit Vertragsbeginn / gesamte Vertragsperiode.
+- Benchmarking im PMR:
+  - Ausgewaehlter Standort darf im Klartext stehen.
+  - Vergleichsstandorte anonymisieren als Peer-Auszug.
+  - Nicht offenlegen, wie viele Standorte die Gruppe insgesamt hat.
+  - Seite 2 muss komprimiert und druckfaehig sein.
+
+Aktuell besonders sensible Pruefpunkte:
+
+- Nach jedem CFO-Import kontrollieren, ob Ulmet PVS Mai und Behandlerumsaetze korrekt eingelesen werden.
+- Nach Kirchberg-Deduplizierung kontrollieren, dass keine Umsaetze doppelt addiert wurden.
+- PMR-PDF immer mit echter Druck-/PDF-Vorschau pruefen, nicht nur in der App-Ansicht.
+- Bei Layoutkorrekturen keine Werte-/Importlogik veraendern.
+
+## 29. Empfohlener Start fuer einen neuen Chat
 
 Wenn ein neuer Codex-Chat gestartet wird, diesen Text verwenden:
 
