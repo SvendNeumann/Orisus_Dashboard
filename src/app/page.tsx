@@ -6492,15 +6492,17 @@ function buildImportedPvsRevenueRows(workbook: XLSX.WorkBook, rows: Record<strin
         Array.from({ length: 12 }, (_, index) => {
           const month = index + 1;
           const dashboardValue = year === latestYear ? dashboardValuesForSite?.[month] : undefined;
+          const rawValue = pvsTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
           const value =
-            dashboardValue ??
-            pvsTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
+            dashboardValue != null && Math.abs(dashboardValue) > 0
+              ? dashboardValue
+              : rawValue;
           return [`${year}-${month}`, value];
         })
       )
     );
     if (dashboardValuesForSite) {
-      valuesByYear[String(latestYear)] = Object.values(dashboardValuesForSite).reduce((sum, value) => sum + value, 0);
+      valuesByYear[String(latestYear)] = Array.from({ length: 12 }, (_, index) => valuesByMonth[`${latestYear}-${index + 1}`] ?? 0).reduce((sum, value) => sum + value, 0);
     }
     return {
       siteId,
