@@ -12327,6 +12327,7 @@ function Cashflow({
       <PageTitle title="Cashflow" text="Cashflow gem. BWA sowie Bank-Cashflow aus Praxiseingängen, Kosten, Annuitäten und Umbuchungen MVZ." />
       <CashflowBlock sites={sites} />
       <BankCashflowControlTable sites={sites} importedData={importedData} />
+      <CashflowCostReconciliation sites={sites} importedData={importedData} />
     </section>
   );
 }
@@ -12347,6 +12348,158 @@ function bankMovementMonthlyValue(row: ImportedBankMovementRow | undefined, peri
   if (!selection.year) return null;
   const key = `${selection.year}-${month}`;
   return row.hasValueByMonth[key] ? row.valuesByMonth[key] ?? 0 : null;
+}
+
+function CashflowCostReconciliation({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
+  const bankRows = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId && row.siteId !== "konzern");
+  const availablePeriods = periodOptionsFromBankMovements(bankRows.length ? bankRows : importedData?.bankMovementRows);
+  const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
+
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) setPeriod(defaultPeriodFromOptions(availablePeriods));
+  }, [availablePeriods, period]);
+
+  if (!importedData?.bwaRows?.length || !bankRows.length) {
+    return (
+      <Card className="p-4">
+        <h2 className="font-bold">Kostenabgleich Bank vs. BWA</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Nach dem nächsten bestätigten CFO-Import werden hier Bankabgänge gegen operative BWA-Kosten plus Investitionen je Standort plausibilisiert.
+        </p>
+      </Card>
+    );
+  }
+
+  const rowFor = (siteId: string, key: string) => bankRows.find((row) => row.siteId === siteId && matchesBankMovementKey(row.label, key));
+  const bwaValue = (siteId: string, metricKey: string) => importedBwaMetricValue(importedData.bwaRows, siteId, metricKey, period);
+  const activeSites = sortSitesByContractStart(
+    sites.filter((site) => bankRows.some((row) => row.siteId === site.id) || importedData.bwaRows.some((row) => row.siteId === site.id))
+  );
+  const comparisonRows = activeSites.map((site) => {
+    const bankOutflow = Math.abs(bankMovementValueForPeriod(rowFor(site.id, "geldausgang_bank_inkl_kredit"), period));
+    const bankPracticeCosts = Math.abs(bankMovementValueForPeriod(rowFor(site.id, "davon_praxisausgaben"), period));
+    const bankDebtService = Math.abs(bankMovementValueForPeriod(rowFor(site.id, "davon_tilgung_zins"), period));
+    const bankIntercompany = Math.abs(bankMovementValueForPeriod(rowFor(site.id, "davon_umbuchungen_an_orisus_zmvz"), period));
+    const importedOperatingCosts = Math.abs(bwaValue(site.id, "operative_prozesskosten_bis_ebitda"));
+    const fallbackOperatingCosts = Math.max(0, bwaValue(site.id, "summe_umsatz") - bwaValue(site.id, "ebitda"));
+    const operatingCosts = importedOperatingCosts || fallbackOperatingCosts;
+    const investments = Math.abs(bwaValue(site.id, "investitionsausgaben"));
+    const bwaCostBase = operatingCosts + investments;
+    const deviation = bankPracticeCosts - bwaCostBase;
+    const deviationPct = bwaCostBase ? (deviation / bwaCostBase) * 100 : 0;
+    const absoluteDeviation = Math.abs(deviation);
+    const signal: Status =
+      absoluteDeviation <= Math.max(50000, bwaCostBase * 0.1)
+        ? "green"
+        : absoluteDeviation <= Math.max(100000, bwaCostBase * 0.2)
+          ? "yellow"
+          : "red";
+    const signalLabel = signal === "green" ? "Plausibel" : signal === "yellow" ? "Prüfen" : "Auffällig";
+    return {
+      site,
+      bankOutflow,
+      bankPracticeCosts,
+      bankDebtService,
+      bankIntercompany,
+      operatingCosts,
+      investments,
+      bwaCostBase,
+      deviation,
+      deviationPct,
+      signal,
+      signalLabel
+    };
+  });
+  const totals = comparisonRows.reduce(
+    (sum, row) => ({
+      bankOutflow: sum.bankOutflow + row.bankOutflow,
+      bankPracticeCosts: sum.bankPracticeCosts + row.bankPracticeCosts,
+      bankDebtService: sum.bankDebtService + row.bankDebtService,
+      bankIntercompany: sum.bankIntercompany + row.bankIntercompany,
+      operatingCosts: sum.operatingCosts + row.operatingCosts,
+      investments: sum.investments + row.investments,
+      bwaCostBase: sum.bwaCostBase + row.bwaCostBase,
+      deviation: sum.deviation + row.deviation
+    }),
+    { bankOutflow: 0, bankPracticeCosts: 0, bankDebtService: 0, bankIntercompany: 0, operatingCosts: 0, investments: 0, bwaCostBase: 0, deviation: 0 }
+  );
+  const totalDeviationPct = totals.bwaCostBase ? (totals.deviation / totals.bwaCostBase) * 100 : 0;
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="table-head flex flex-col gap-3 p-4 text-white sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold">Kostenabgleich Bank vs. BWA | {performancePeriodLabel(period)}</h2>
+          <p className="mt-1 text-sm text-white/75">
+            Prüft je Standort, ob Bank-Praxisausgaben grob zu operativen BWA-Kosten plus Investitionen passen.
+          </p>
+        </div>
+        <Select className="w-full bg-white text-foreground sm:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>{performancePeriodLabel(option)}</option>
+          ))}
+        </Select>
+      </div>
+      <div className="border-b border-border bg-slate-50 p-3 text-sm text-muted-foreground">
+        Abgleichslogik: Bank-Praxisausgaben werden gegen operative BWA-Kosten bis EBITDA plus Investitionsausgaben gestellt. Geldausgang inkl. Kredit, Tilgung/Zins und Intercompany stehen zur Einordnung daneben.
+      </div>
+      <div className="overflow-x-auto">
+        <table className="data-table border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              {[
+                "Standort",
+                "Bankausgang inkl. Kredit",
+                "davon Praxisausgaben",
+                "davon Tilgung + Zins",
+                "davon Intercompany",
+                "BWA operative Kosten",
+                "Investitionen",
+                "BWA Vergleichsbasis",
+                "Abweichung",
+                "Abw. %",
+                "Signal"
+              ].map((head) => (
+                <th key={head} className="border-b border-r border-border table-head p-2 text-center font-bold text-white">{head}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {comparisonRows.map((row) => (
+              <tr key={row.site.id}>
+                <TableCell strong>{row.site.name}</TableCell>
+                <TableCell>{eur(row.bankOutflow)}</TableCell>
+                <TableCell>{eur(row.bankPracticeCosts)}</TableCell>
+                <TableCell>{eur(row.bankDebtService)}</TableCell>
+                <TableCell>{eur(row.bankIntercompany)}</TableCell>
+                <TableCell>{eur(row.operatingCosts)}</TableCell>
+                <TableCell>{eur(row.investments)}</TableCell>
+                <TableCell strong>{eur(row.bwaCostBase)}</TableCell>
+                <TableCell tone={row.deviation > 0 ? "red" : row.deviation < 0 ? "green" : undefined}>{eur(row.deviation)}</TableCell>
+                <TableCell tone={Math.abs(row.deviationPct) > 20 ? "red" : Math.abs(row.deviationPct) <= 10 ? "green" : undefined}>{pct(row.deviationPct)}</TableCell>
+                <TableCell>
+                  <StatusDot status={row.signal} label={row.signalLabel} />
+                </TableCell>
+              </tr>
+            ))}
+            <tr className="summary-row">
+              <TableCell strong summary>Gesamt</TableCell>
+              <TableCell strong summary>{eur(totals.bankOutflow)}</TableCell>
+              <TableCell strong summary>{eur(totals.bankPracticeCosts)}</TableCell>
+              <TableCell strong summary>{eur(totals.bankDebtService)}</TableCell>
+              <TableCell strong summary>{eur(totals.bankIntercompany)}</TableCell>
+              <TableCell strong summary>{eur(totals.operatingCosts)}</TableCell>
+              <TableCell strong summary>{eur(totals.investments)}</TableCell>
+              <TableCell strong summary>{eur(totals.bwaCostBase)}</TableCell>
+              <TableCell strong summary tone={totals.deviation > 0 ? "red" : totals.deviation < 0 ? "green" : undefined}>{eur(totals.deviation)}</TableCell>
+              <TableCell strong summary tone={Math.abs(totalDeviationPct) > 20 ? "red" : Math.abs(totalDeviationPct) <= 10 ? "green" : undefined}>{pct(totalDeviationPct)}</TableCell>
+              <TableCell summary>{""}</TableCell>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
 }
 
 function BankCashflowControlTable({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
