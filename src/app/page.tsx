@@ -10848,6 +10848,86 @@ function Analysen({
     sonstigeKostenquote: numericAverage((row) => row.sonstigeKostenquote) ?? 0,
     gesamtkostenquote: numericAverage((row) => row.gesamtkostenquote) ?? 0
   };
+  const scoreValue = (value: number | null | undefined) =>
+    value == null || !Number.isFinite(value) ? null : Math.round(Math.max(0, Math.min(100, value)));
+  const scoreHigher = (value: number | null | undefined, basis: number | null | undefined) =>
+    value != null && basis && Number.isFinite(value) && Number.isFinite(basis) ? scoreValue((value / basis) * 100) : null;
+  const scoreLower = (value: number | null | undefined, basis: number | null | undefined) =>
+    value != null && basis && Number.isFinite(value) && Number.isFinite(basis) ? scoreValue((basis / Math.max(value, 0.01)) * 100) : null;
+  const averageScore = (values: Array<number | null | undefined>) => {
+    const valid = values.filter((value): value is number => value != null && Number.isFinite(value));
+    return valid.length ? Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length) : null;
+  };
+  const scoreTone = (score: number | null): Status => score == null ? "yellow" : score >= 75 ? "green" : score >= 55 ? "yellow" : "red";
+  const scoreToneText = (score: number | null) => score == null ? "Daten prüfen" : score >= 75 ? "Stabil" : score >= 55 ? "Beobachten" : "Unter Zielniveau";
+  const scoreDisplay = (score: number | null) => score == null ? "n. v." : `${score}/100`;
+  const scoreBarClass = (score: number | null) =>
+    score == null ? "bg-slate-500" : score >= 75 ? "bg-emerald-400" : score >= 55 ? "bg-amber-400" : "bg-red-400";
+  const bankRowsForScore = (importedData?.bankMovementRows ?? []).filter((row) => row.siteId && row.siteId !== "konzern");
+  const scorecardRows = patientSiteRows.map((row) => {
+    const bankRowFor = (key: string) => bankRowsForScore.find((bankRow) => bankRow.siteId === row.site.id && matchesBankMovementKey(bankRow.label, key));
+    const manualAdjustment = bankBwaReconciliationManualAdjustments[row.site.id];
+    const bankRevenue = Math.max(0, Math.abs(bankMovementValueForPeriod(bankRowFor("geldeingang_bank_gesamt"), "Gesamte Periode")) + (manualAdjustment?.revenue ?? 0));
+    const bwaRevenue = Math.abs(importedBwaMetricValue(importedData?.bwaRows, row.site.id, "summe_umsatz", "Gesamte Periode"));
+    const bankDeviationPct = bwaRevenue ? Math.abs((bankRevenue - bwaRevenue) / bwaRevenue) * 100 : null;
+    const bankScore = bankDeviationPct == null ? null : scoreValue(100 - Math.max(0, bankDeviationPct - 10) * 4);
+    const target = row.site.darlehen.zielEbitdaUebernahme || row.site.darlehen.zielEbitdaKaufvertrag || row.site.darlehen.zielEbitda;
+    const targetScore = target ? scoreValue((row.site.ebitda / target) * 100) : null;
+    const marginScore = scoreHigher(row.ebitdaMargin, numericAverage((item) => item.ebitdaMargin));
+    const costScore = scoreLower(row.gesamtkostenquote, costGroup.gesamtkostenquote);
+    const cashflowConversion = row.site.ebitda ? (row.site.cashflow / row.site.ebitda) * 100 : null;
+    const cashflowScore = row.site.cashflow < 0
+      ? scoreValue(25 + Math.max(-25, cashflowConversion ?? -25))
+      : scoreValue(65 + Math.min(35, Math.max(0, cashflowConversion ?? 0) * 0.5));
+    const productivityScore = averageScore([
+      scoreHigher(row.pvsPerDentist, numericAverage((item) => item.pvsPerDentist)),
+      scoreHigher(row.pvsPerRoom, numericAverage((item) => item.pvsPerRoom)),
+      scoreHigher(row.pvsPerOpeningHour, numericAverage((item) => item.pvsPerOpeningHour))
+    ]);
+    const personnelScore = averageScore([
+      scoreLower(row.personalquote, costGroup.personalquote),
+      row.dentistFte ? 100 : null
+    ]);
+    const patientScore = averageScore([
+      scoreHigher(row.patientsPerRoom, patientAverage((item) => item.patientsPerRoom)),
+      scoreHigher(row.attendanceRate, patientAverage((item) => item.attendanceRate)),
+      scoreLower(row.cancellationRate, patientAverage((item) => item.cancellationRate))
+    ]);
+    const dataScore = scoreValue(
+      [
+        row.site.gesamtleistung > 0,
+        row.site.pvsUmsatz > 0,
+        bankRowsForScore.some((bankRow) => bankRow.siteId === row.site.id),
+        row.dentistFte > 0,
+        row.hasPatientData
+      ].filter(Boolean).length * 20
+    );
+    const financeScore = averageScore([marginScore, targetScore, costScore]);
+    const totalScore = averageScore([financeScore, cashflowScore, bankScore, productivityScore, personnelScore, patientScore, dataScore]);
+    const dimensionScores = [
+      { label: "Finanzen", score: financeScore },
+      { label: "Cashflow", score: cashflowScore },
+      { label: "Bank/PVS", score: bankScore },
+      { label: "Produktivität", score: productivityScore },
+      { label: "Personal", score: personnelScore },
+      { label: "Patienten", score: patientScore },
+      { label: "Datenbasis", score: dataScore }
+    ];
+    const focus = dimensionScores
+      .filter((item) => item.score == null || item.score < 65)
+      .sort((a, b) => (a.score ?? -1) - (b.score ?? -1))
+      .slice(0, 2)
+      .map((item) => item.label);
+    return {
+      site: row.site,
+      label: row.label,
+      score: totalScore,
+      tone: scoreTone(totalScore),
+      dimensionScores,
+      focus: focus.length ? focus.join(", ") : "keine Auffälligkeit",
+      bankDeviationPct
+    };
+  }).sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
   const marginGap = (selectedRow?.ebitdaMargin ?? 0) - marginGroup;
   const costDrivers = [
     { label: "Materialquote", value: (selectedRow?.materialquote ?? 0) - costGroup.materialquote },
@@ -11597,6 +11677,72 @@ function Analysen({
             <option>Intern</option>
           </Select>
         </FilterShell>
+      </div>
+
+      <div className="analysis-print-block min-w-0 overflow-hidden rounded-xl border border-white/15 bg-slate-950/55 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+        <div className="flex flex-col gap-2 border-b border-white/10 p-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Standort-Scorecard | {period}</h2>
+            <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-300">
+              Management-Radar je Standort: Finanzen, Cashflow, Bank/PVS-Abgleich, Produktivität, Personal/Kapazität,
+              Patienten und Datenbasis. 100 Punkte entsprechen stabiler bzw. überdurchschnittlicher Einordnung.
+            </p>
+          </div>
+          <div className="rounded-lg border border-teal-200/20 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100">
+            Bank/PVS-Abgleich immer auf gesamter Vertragsperiode
+          </div>
+        </div>
+        <div className="max-w-full overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+          <table className="w-full min-w-[1080px] border-collapse text-xs">
+            <thead>
+              <tr>
+                {["Standort", "Score", "Status", "Finanzen", "Cashflow", "Bank/PVS", "Produktivität", "Personal", "Patienten", "Datenbasis", "Fokus"].map((head) => (
+                  <th key={head} className="border border-white/10 bg-white/5 p-2 text-left font-bold uppercase text-slate-200">
+                    {head}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {scorecardRows.map((row) => {
+                const scoreMap = new Map(row.dimensionScores.map((item) => [item.label, item.score]));
+                return (
+                  <tr key={row.site.id}>
+                    <td className="border border-white/10 p-2 font-bold text-white">{row.label}</td>
+                    <td className="border border-white/10 p-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-14 font-extrabold text-white">{scoreDisplay(row.score)}</span>
+                        <div className="h-2 min-w-28 flex-1 overflow-hidden rounded-full bg-white/10">
+                          <div className={cn("h-full rounded-full", scoreBarClass(row.score))} style={{ width: `${row.score ?? 8}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="border border-white/10 p-2">
+                      <StatusDot status={row.tone} label={scoreToneText(row.score)} />
+                    </td>
+                    {["Finanzen", "Cashflow", "Bank/PVS", "Produktivität", "Personal", "Patienten", "Datenbasis"].map((label) => {
+                      const score = scoreMap.get(label) ?? null;
+                      return (
+                        <td key={label} className="border border-white/10 p-2">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("h-2.5 w-2.5 rounded-full", scoreBarClass(score))} />
+                            <span className="font-semibold text-slate-100">{scoreDisplay(score)}</span>
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td className="border border-white/10 p-2 text-slate-200">{row.focus}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="border-t border-white/10 p-3 text-xs leading-5 text-slate-300">
+          Leselogik: Finanzen bündelt EBITDA-Marge, Zielerreichung und Kostenquote. Cashflow bewertet Cashflow-Konversion.
+          Bank/PVS vergleicht Bankeinnahmen gegen BWA-Umsatz über die gesamte Vertragsperiode. Produktivität normalisiert auf
+          Zahnarzt-FTE, Zimmer und Öffnungsstunden. Patientenwerte werden nur gerechnet, wenn Importdaten vorhanden sind.
+        </div>
       </div>
 
       <div className="analysis-print-block min-w-0 rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] lg:grid lg:grid-cols-[1fr_1.4fr] lg:items-center">
