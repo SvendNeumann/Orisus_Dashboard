@@ -6621,16 +6621,16 @@ function Mini({ label, value, info }: { label: string; value: string; info?: Rea
   const [infoOpen, setInfoOpen] = useState(false);
   return (
     <div className="relative flex min-h-24 flex-col items-center justify-center rounded-md bg-slate-50 p-4 text-center">
-      <div className="flex items-start justify-center gap-2">
+      <div className="flex items-center justify-center gap-2">
         <p className="text-xs font-semibold text-muted-foreground">{label}</p>
         {info ? (
           <button
             type="button"
-            className="absolute right-3 top-3 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-white text-cyan-800 shadow-sm"
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border bg-white text-cyan-800 shadow-sm transition hover:bg-cyan-50"
             aria-label={`${label} erklären`}
             onClick={() => setInfoOpen((open) => !open)}
           >
-            <Info className="h-3.5 w-3.5" />
+            <Info className="h-3 w-3" />
           </button>
         ) : null}
       </div>
