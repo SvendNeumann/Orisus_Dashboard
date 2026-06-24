@@ -3697,7 +3697,7 @@ export default function HomePage() {
           {importedData && page === "bwa" && <Bwa importedData={importedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
           {importedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {importedData && page === "darlehen" && <Darlehen sites={dashboardSites} importedData={importedData} />}
-          {importedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {importedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} personalData={personalData} />}
           {importedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
           {page === "uploads" && isAdmin && (
             <Uploads
@@ -12163,17 +12163,117 @@ function SiteBankCashflowCard({
   );
 }
 
+function BankKpiTile({
+  label,
+  value,
+  detail,
+  status,
+  emphasis = false
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  status: Status;
+  emphasis?: boolean;
+}) {
+  return (
+    <div className={cn("bg-white p-4", emphasis && "bg-[#e7fbf8]")}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-bold uppercase text-muted-foreground">{label}</p>
+        <StatusDot status={status} label="" />
+      </div>
+      <p className="mt-2 text-2xl font-bold">{value}</p>
+      <p className="mt-1 text-sm leading-5 text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function BankAnalysisCard({
+  title,
+  status,
+  children
+}: {
+  title: string;
+  status: Status;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-slate-50 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="font-bold">{title}</h3>
+        <StatusDot status={status} />
+      </div>
+      <div className="mt-2 text-sm leading-6 text-muted-foreground">{children}</div>
+    </div>
+  );
+}
+
+function bankPersonnelSummary(personalData?: PersonalDashboardData | null) {
+  if (!personalData) return null;
+  const active = personalData.employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
+  const latestSicknessYear =
+    personalData.sicknessEntries.reduce((latest, entry) => Math.max(latest, entry.year), 0) || new Date().getFullYear();
+  const sicknessDays = personalData.sicknessEntries
+    .filter((entry) => entry.year === latestSicknessYear)
+    .reduce((sum, entry) => sum + entry.days, 0);
+  const fte = active.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+  const dentists = active.filter((employee) => employee.isDentist).length;
+  return {
+    activeCount: active.length,
+    fte,
+    dentists,
+    sicknessYear: latestSicknessYear,
+    sicknessDays,
+    sicknessDaysPerFte: fte ? sicknessDays / fte : 0
+  };
+}
+
+function bankPersonnelBySite(personalData?: PersonalDashboardData | null) {
+  if (!personalData) return [];
+  const latestSicknessYear =
+    personalData.sicknessEntries.reduce((latest, entry) => Math.max(latest, entry.year), 0) || new Date().getFullYear();
+  const sites = personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site));
+  return sites.map((site) => {
+    const active = personalData.employees.filter((employee) => employee.site === site && employee.status.toLowerCase() === "aktiv");
+    const fte = active.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+    const sicknessDays = personalData.sicknessEntries
+      .filter((entry) => entry.site === site && entry.year === latestSicknessYear)
+      .reduce((sum, entry) => sum + entry.days, 0);
+    return {
+      site,
+      active: active.length,
+      fte,
+      dentists: active.filter((employee) => employee.isDentist).length,
+      sicknessDays,
+      sicknessDaysPerFte: fte ? sicknessDays / fte : 0
+    };
+  });
+}
+
+function statusForLower(value: number, green: number, yellow: number): Status {
+  if (value <= green) return "green";
+  if (value <= yellow) return "yellow";
+  return "red";
+}
+
+function statusForHigher(value: number, green: number, yellow: number): Status {
+  if (value >= green) return "green";
+  if (value >= yellow) return "yellow";
+  return "red";
+}
+
 function Bankenreporting({
   sites = standorte,
   monthlyData = monthly,
-  importedData
+  importedData,
+  personalData
 }: {
   sites?: DashboardSite[];
   monthlyData?: typeof monthly;
   importedData?: ImportedDashboardData | null;
+  personalData?: PersonalDashboardData | null;
 }) {
   const rules = useKpiRules();
-  const metrics = cfoMetrics(sites, monthlyData, rules);
   const availablePeriods = bwaPeriodOptionsFor(importedData);
   const [bankChartPeriod, setBankChartPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   const [bankTablePeriod, setBankTablePeriod] = useState(() => defaultBwaPeriodFor(importedData));
@@ -12187,18 +12287,45 @@ function Bankenreporting({
   }, [availablePeriods, bankChartPeriod, bankTablePeriod, importedData]);
   const bankChartData = bwaChartDataForPeriod(importedData, monthlyData, bankChartPeriod);
   const bankTableSites = importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, bankTablePeriod)) : sites;
-  const bankKpis = [
-    { label: "Gesamtleistung YTD", value: eur(metrics.gesamtleistung), detail: "+4,2 % ggü. Vorjahr" },
-    { label: "EBITDA YTD", value: eur(metrics.ebitda), detail: `${pct(metrics.ebitdaMarge)} EBITDA-Marge` },
-    { label: "Run-Rate EBITDA", value: eur(metrics.runRateEbitda), detail: "auf Basis aktueller Monate" },
-    { label: "Cashflow gem. BWA", value: eur(metrics.cashflow), detail: "nach Tilgung und Adjustments aus BWA" },
-    { label: "Aufgenommenes Fremdkapital", value: eur(metrics.aufgenommen), detail: "konsolidiert über Vertragsperioden" },
-    { label: "Restschuld", value: eur(metrics.restschuld), detail: `${eur(metrics.getilgt, true)} bereits getilgt` },
-    { label: "Kapitaldienst", value: eur(metrics.kapitaldienst), detail: `${eur(metrics.tilgung, true)} Tilgung / ${eur(metrics.zins, true)} Zins` },
+  const bankPeriodMetrics = cfoMetrics(bankTableSites, bankChartData, rules);
+  const receivablesRatio = bankPeriodMetrics.gesamtleistung ? (bankPeriodMetrics.forderungen / bankPeriodMetrics.gesamtleistung) * 100 : 0;
+  const cashflowConversion = bankPeriodMetrics.ebitda ? (bankPeriodMetrics.cashflow / bankPeriodMetrics.ebitda) * 100 : 0;
+  const leverageRunRate = bankPeriodMetrics.runRateEbitda ? bankPeriodMetrics.restschuld / bankPeriodMetrics.runRateEbitda : 0;
+  const repaymentProgress = bankPeriodMetrics.aufgenommen ? (bankPeriodMetrics.getilgt / bankPeriodMetrics.aufgenommen) * 100 : 0;
+  const personnelSummary = bankPersonnelSummary(personalData);
+  const personnelBySite = bankPersonnelBySite(personalData);
+  const activeSites = sortSitesByContractStart(bankTableSites).filter((site) => site.gesamtleistung > 0);
+  const criticalSites = activeSites.filter((site) => {
+    const siteReceivablesRatio = site.gesamtleistung ? (site.forderungen / site.gesamtleistung) * 100 : 0;
+    return (
+      statusByRule(site.ebitdaMarge, rules.ebitda_marge) === "red" ||
+      statusByRule(site.cashflow, rules.cashflow_bwa) === "red" ||
+      statusByRule(siteReceivablesRatio, rules.offene_forderungen) === "red" ||
+      statusByRule(boardCostRatio(site), rules.kostenquote) === "red"
+    );
+  });
+  const bankKpis: Array<{ label: string; value: string; detail: string; status: Status; emphasis?: boolean }> = [
+    { label: "Kapitaldienstfähigkeit", value: `${bankPeriodMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "EBITDA / Tilgung + Zins", status: statusByRule(bankPeriodMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit), emphasis: true },
+    { label: "Net Debt / Run-Rate EBITDA", value: `${leverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "Restschuld im Verhältnis zur Ergebnis-Run-Rate", status: statusForLower(leverageRunRate, 2.5, 3.5), emphasis: true },
+    { label: "Cashflow-Konversion", value: pct(cashflowConversion), detail: "Cashflow gem. BWA / EBITDA", status: statusForHigher(cashflowConversion, 50, 25), emphasis: true },
+    { label: "Forderungsquote", value: pct(receivablesRatio), detail: "offene Forderungen / Gesamtleistung", status: statusByRule(receivablesRatio, rules.offene_forderungen), emphasis: true },
+    { label: "Gesamtleistung", value: eur(bankPeriodMetrics.gesamtleistung), detail: performancePeriodLabel(bankTablePeriod), status: "green" },
+    { label: "EBITDA / Marge", value: `${eur(bankPeriodMetrics.ebitda, true)} / ${pct(bankPeriodMetrics.ebitdaMarge)}`, detail: "Ergebnisqualität der Periode", status: statusByRule(bankPeriodMetrics.ebitdaMarge, rules.ebitda_marge) },
+    { label: "Cashflow gem. BWA", value: eur(bankPeriodMetrics.cashflow), detail: "nach Tilgung, Investitionen, Umbuchungen", status: statusByRule(bankPeriodMetrics.cashflow, rules.cashflow_bwa) },
+    { label: "Kostenquote", value: pct(bankPeriodMetrics.kostenquote), detail: "Material, Fremdlabor, Personal, sonstige Kosten", status: statusByRule(bankPeriodMetrics.kostenquote, rules.kostenquote) },
+    { label: "Restschuld", value: eur(bankPeriodMetrics.restschuld), detail: `${pct(repaymentProgress)} der aufgenommenen Darlehen getilgt`, status: statusForHigher(repaymentProgress, 20, 8) },
+    { label: "Kapitaldienst", value: eur(bankPeriodMetrics.kapitaldienst), detail: `${eur(bankPeriodMetrics.tilgung, true)} Tilgung / ${eur(bankPeriodMetrics.zins, true)} Zins`, status: statusByRule(bankPeriodMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit) },
     {
-      label: "Kapitaldienstfähigkeit",
-      value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
-      detail: "EBITDA / Kapitaldienst"
+      label: "Personal-FTE",
+      value: personnelSummary ? personnelSummary.fte.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : "n. v.",
+      detail: personnelSummary ? `${personnelSummary.activeCount} aktive MA | ${personnelSummary.dentists} Zahnärzte` : "Personalimport noch nicht aktiv",
+      status: personnelSummary ? "green" : "yellow"
+    },
+    {
+      label: "Krankheit je FTE",
+      value: personnelSummary ? personnelSummary.sicknessDaysPerFte.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : "n. v.",
+      detail: personnelSummary ? `${personnelSummary.sicknessDays} Tage ${personnelSummary.sicknessYear}` : "Personalimport noch nicht aktiv",
+      status: personnelSummary ? statusForLower(personnelSummary.sicknessDaysPerFte, 8, 14) : "yellow"
     }
   ];
 
@@ -12206,24 +12333,55 @@ function Bankenreporting({
     <section className="space-y-5">
       <PageTitle
         title="Bankenreporting"
-        text="Kompakte Bankenübersicht mit Ergebnisentwicklung, Cashflow gem. BWA, Fremdkapital und Kapitaldienstfähigkeit."
+        text="Kreditgeber-Sicht auf Rückzahlungsfähigkeit, Cashflow-Qualität, Working Capital, Margen, Standortstreuung und operative Stabilität."
       />
       <Card className="grid gap-px overflow-hidden table-grid-bg md:grid-cols-2 xl:grid-cols-4">
         {bankKpis.map((kpi) => (
-          <div key={kpi.label} className="bg-white p-4">
-            <p className="text-xs font-bold uppercase text-muted-foreground">{kpi.label}</p>
-            <p className="mt-2 text-2xl font-bold">{kpi.value}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{kpi.detail}</p>
-          </div>
+          <BankKpiTile key={kpi.label} {...kpi} />
         ))}
       </Card>
 
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="font-bold">Kreditgeber-Einschätzung | Management View</h2>
+            <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
+              Banken achten primär auf nachhaltige Rückzahlungsfähigkeit, freie Liquidität nach Kapitaldienst,
+              Working-Capital-Disziplin, stabile Margen und eine beherrschbare Standortstreuung.
+            </p>
+          </div>
+          <Badge tone={criticalSites.length ? "yellow" : "green"}>{criticalSites.length ? `${criticalSites.length} Fokus-Standort(e)` : "Bankenfähig stabil"}</Badge>
+        </div>
+        <div className="mt-4 grid gap-3 xl:grid-cols-2">
+          <BankAnalysisCard title="Rückzahlungsfähigkeit" status={statusByRule(bankPeriodMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)}>
+            Die Kapitaldienstfähigkeit liegt bei <strong>{bankPeriodMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x</strong>.
+            Kritisch aus Bankensicht wäre ein Absinken unter den Covenant-Puffer, weil dann Tilgung und Zins nicht mehr komfortabel aus EBITDA gedeckt sind.
+          </BankAnalysisCard>
+          <BankAnalysisCard title="Cashflow-Qualität" status={statusForHigher(cashflowConversion, 50, 25)}>
+            Die Cashflow-Konversion beträgt <strong>{pct(cashflowConversion)}</strong>. Je stärker EBITDA in Bank-Cashflow und Kontostand übersetzt wird,
+            desto belastbarer wirkt die Gruppe für weitere Finanzierungslinien.
+          </BankAnalysisCard>
+          <BankAnalysisCard title="Working Capital / Forderungen" status={statusByRule(receivablesRatio, rules.offene_forderungen)}>
+            Forderungen liegen bei <strong>{eur(bankPeriodMetrics.forderungen, true)}</strong> bzw. <strong>{pct(receivablesRatio)}</strong> der Gesamtleistung.
+            Eine hohe Forderungsquote ist für Banken ein Frühwarnsignal, weil Ergebnisqualität dann nicht vollständig liquiditätswirksam ist.
+          </BankAnalysisCard>
+          <BankAnalysisCard title="Standortstreuung & Integrationsrisiko" status={criticalSites.length ? "yellow" : "green"}>
+            {criticalSites.length
+              ? `Fokus auf ${criticalSites.map((site) => site.name).join(", ")}: dort treffen Margen-, Kosten-, Cashflow- oder Forderungsthemen zusammen.`
+              : "Keine rote Standortkonzentration im aktuellen Datenstand. Die Gruppe wirkt diversifiziert und steuerbar."}
+          </BankAnalysisCard>
+        </div>
+      </Card>
+
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <ChartCard title={`Gesamtleistung & EBITDA Entwicklung | ${performancePeriodLabel(bankChartPeriod)}`} icon={TrendingUp}>
-          <div className="mb-3">
+        <ChartCard
+          title={`Gesamtleistung, EBITDA & Cashflow | ${performancePeriodLabel(bankChartPeriod)}`}
+          icon={TrendingUp}
+          action={
             <Select
               value={bankChartPeriod}
               onChange={(event) => setBankChartPeriod(event.target.value)}
+              className="w-full min-w-52 sm:w-auto"
             >
               {availablePeriods.map((option) => (
                 <option key={option} value={option}>
@@ -12231,7 +12389,8 @@ function Bankenreporting({
                 </option>
               ))}
             </Select>
-          </div>
+          }
+        >
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={bankChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -12240,17 +12399,19 @@ function Bankenreporting({
               <Tooltip formatter={(v) => eur(Number(v))} />
               <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
               <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
+              <Line dataKey="cashflow" name="Cashflow gem. BWA" stroke="#64748b" strokeWidth={3} />
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
         <Card className="p-4">
-          <h2 className="font-bold">Bankenampel | aktueller Stand</h2>
+          <h2 className="font-bold">Covenant- und Risikoprofil | {performancePeriodLabel(bankTablePeriod)}</h2>
           <div className="mt-4 space-y-3">
             {[
-              ["EBITDA-Marge", pct(metrics.ebitdaMarge), statusByRule(metrics.ebitdaMarge, rules.ebitda_marge)],
-              ["Cashflow gem. BWA", eur(metrics.cashflow), statusByRule(metrics.cashflow, rules.cashflow_bwa)],
-              ["Kapitaldienstfähigkeit", `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)],
-              ["Restschuld-Entwicklung", `${pct((metrics.getilgt / (metrics.aufgenommen || 1)) * 100)} getilgt`, "yellow"]
+              ["Kapitaldienstfähigkeit", `${bankPeriodMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, statusByRule(bankPeriodMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)],
+              ["Net Debt / Run-Rate EBITDA", `${leverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, statusForLower(leverageRunRate, 2.5, 3.5)],
+              ["Cashflow-Konversion", pct(cashflowConversion), statusForHigher(cashflowConversion, 50, 25)],
+              ["Forderungsquote", pct(receivablesRatio), statusByRule(receivablesRatio, rules.offene_forderungen)],
+              ["Kostenquote", pct(bankPeriodMetrics.kostenquote), statusByRule(bankPeriodMetrics.kostenquote, rules.kostenquote)]
             ].map(([label, value, status]) => (
               <div key={label} className="flex items-center justify-between rounded-md bg-slate-50 p-3">
                 <div>
@@ -12264,9 +12425,40 @@ function Bankenreporting({
         </Card>
       </div>
 
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ChartCard title={`Kosten- und Margenqualität je Standort | ${performancePeriodLabel(bankTablePeriod)}`} icon={BarChart3}>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={activeSites.map((site) => ({ name: site.name, marge: site.ebitdaMarge, kostenquote: boardCostRatio(site), personal: site.personalquote ?? 0 }))}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${value}%`} />
+              <Tooltip formatter={(value) => pct(Number(value))} />
+              <Bar dataKey="marge" name="EBITDA-Marge" fill="#0f766e" radius={[5, 5, 0, 0]} />
+              <Bar dataKey="kostenquote" name="Gesamtkostenquote" fill="#0891b2" radius={[5, 5, 0, 0]} />
+              <Bar dataKey="personal" name="Personalkostenquote" fill="#f59e0b" radius={[5, 5, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title="Forderungen und Restschuld je Standort" icon={FileBarChart}>
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={activeSites.map((site) => ({ name: site.name, forderungen: site.forderungen, restschuld: site.darlehen.restschuld }))} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis type="number" tickFormatter={(value) => eur(Number(value), true)} />
+              <YAxis type="category" dataKey="name" width={88} tickLine={false} axisLine={false} />
+              <Tooltip formatter={(value) => eur(Number(value))} />
+              <Bar dataKey="forderungen" name="Forderungen" fill="#0f766e" radius={[0, 5, 5, 0]} />
+              <Bar dataKey="restschuld" name="Restschuld" fill="#64748b" radius={[0, 5, 5, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
       <Card className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-bold">Standortbeitrag für Bankenreporting | {performancePeriodLabel(bankTablePeriod)}</h2>
+          <div>
+            <h2 className="font-bold">Standort-Risikomatrix für Banken | {performancePeriodLabel(bankTablePeriod)}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Kreditrelevante Standortbeiträge: Ergebnisqualität, Liquidität, Working Capital und Kostenstruktur.</p>
+          </div>
           <Select
             className="w-full sm:w-64"
             value={bankTablePeriod}
@@ -12283,7 +12475,7 @@ function Bankenreporting({
           <table className="data-table border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
-                {["Standort", "Gesamtleistung", "EBITDA", "Marge", "Cashflow gem. BWA", "Restschuld", "Tilgung", "Zins"].map((head) => (
+                {["Standort", "Gesamtleistung", "EBITDA", "Marge", "Cashflow gem. BWA", "Forderungsquote", "Kostenquote", "Personalquote", "Restschuld", "Bankenfokus"].map((head) => (
                   <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
                     {head}
                   </th>
@@ -12291,22 +12483,80 @@ function Bankenreporting({
               </tr>
             </thead>
             <tbody>
-              {sortSitesByContractStart(bankTableSites).map((site) => (
-                <tr key={site.id}>
-                  <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
-                  <td className="border-b border-r border-border p-3 text-right">{eur(site.gesamtleistung)}</td>
-                  <td className="border-b border-r border-border p-3 text-right">{eur(site.ebitda)}</td>
-                  <td className="border-b border-r border-border p-3 text-right">{pct(site.ebitdaMarge)}</td>
-                  <td className={cn("border-b border-r border-border p-3 text-right", site.cashflow < 0 && "text-red-700")}>{eur(site.cashflow)}</td>
-                  <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.restschuld)}</td>
-                  <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.tilgung)}</td>
-                  <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.zins)}</td>
-                </tr>
-              ))}
+              {activeSites.map((site) => {
+                const siteReceivablesRatio = site.gesamtleistung ? (site.forderungen / site.gesamtleistung) * 100 : 0;
+                const siteCostRatio = boardCostRatio(site);
+                const focus = [
+                  statusByRule(site.ebitdaMarge, rules.ebitda_marge) === "red" ? "Marge" : "",
+                  statusByRule(site.cashflow, rules.cashflow_bwa) === "red" ? "Cashflow" : "",
+                  statusByRule(siteReceivablesRatio, rules.offene_forderungen) === "red" ? "Forderungen" : "",
+                  statusByRule(siteCostRatio, rules.kostenquote) === "red" ? "Kosten" : ""
+                ].filter(Boolean);
+                return (
+                  <tr key={site.id}>
+                    <td className="border-b border-r border-border p-3 font-bold">{site.name}</td>
+                    <td className="border-b border-r border-border p-3 text-right">{eur(site.gesamtleistung)}</td>
+                    <td className="border-b border-r border-border p-3 text-right">{eur(site.ebitda)}</td>
+                    <td className="border-b border-r border-border p-3 text-right">{pct(site.ebitdaMarge)}</td>
+                    <td className={cn("border-b border-r border-border p-3 text-right", site.cashflow < 0 && "text-red-700")}>{eur(site.cashflow)}</td>
+                    <td className="border-b border-r border-border p-3 text-right">{pct(siteReceivablesRatio)}</td>
+                    <td className="border-b border-r border-border p-3 text-right">{pct(siteCostRatio)}</td>
+                    <td className="border-b border-r border-border p-3 text-right">{pct(site.personalquote ?? 0)}</td>
+                    <td className="border-b border-r border-border p-3 text-right">{eur(site.darlehen.restschuld)}</td>
+                    <td className="border-b border-r border-border p-3">
+                      <StatusDot status={focus.length ? "yellow" : "green"} label={focus.length ? focus.join(", ") : "stabil"} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </Card>
+
+      <Card className="overflow-hidden">
+        <div className="border-b border-border p-4">
+          <h2 className="font-bold">Personal- und Kapazitätssignale für Banken</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Operative Stabilität hinter der Kapitaldienstfähigkeit: aktive Mitarbeiter, FTE, Behandlerkapazität und Krankheitstage.
+          </p>
+        </div>
+        {personnelBySite.length ? (
+          <div className="overflow-x-auto">
+            <table className="data-table border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr>
+                  {["Standort", "Aktive MA", "FTE", "Zahnärzte", "Krankheitstage", "Krankheit / FTE", "Signal"].map((head) => (
+                    <th key={head} className="border-b border-r border-border table-head p-3 text-left text-xs font-bold uppercase text-white">
+                      {head}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {personnelBySite.map((row) => {
+                  const signal = statusForLower(row.sicknessDaysPerFte, 8, 14);
+                  return (
+                    <tr key={row.site}>
+                      <td className="border-b border-r border-border p-3 font-bold">{row.site}</td>
+                      <td className="border-b border-r border-border p-3 text-right">{row.active.toLocaleString("de-DE")}</td>
+                      <td className="border-b border-r border-border p-3 text-right">{row.fte.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</td>
+                      <td className="border-b border-r border-border p-3 text-right">{row.dentists.toLocaleString("de-DE")}</td>
+                      <td className="border-b border-r border-border p-3 text-right">{row.sicknessDays.toLocaleString("de-DE")}</td>
+                      <td className="border-b border-r border-border p-3 text-right">{row.sicknessDaysPerFte.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</td>
+                      <td className="border-b border-r border-border p-3"><StatusDot status={signal} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-4 text-sm text-muted-foreground">Personalimport noch nicht aktiv. Nach Import erscheinen hier FTE, aktive Mitarbeiter, Behandlerkapazität und Krankheitssignale je Standort.</div>
+        )}
+      </Card>
+
+      <BankCashflowControlTable sites={sites} importedData={importedData} />
     </section>
   );
 }
