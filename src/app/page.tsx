@@ -2955,11 +2955,16 @@ function latestActiveBwaYear(rows: Record<string, unknown>[], siteNames: string[
   );
 }
 
+function isPeriodOnOrAfterStart(year: number, month: number, start: string) {
+  if (!year || year < 1900 || month < 1 || month > 12) return false;
+  return year * 100 + month >= startPeriodValue(start);
+}
+
 function isOnOrAfterStart(row: Record<string, unknown>, start: string) {
   const year = rowYear(row);
   const month = rowMonth(row);
   if (!year || year < 1900) return false;
-  return year * 100 + (month && month >= 1 ? month : 1) >= startPeriodValue(start);
+  return isPeriodOnOrAfterStart(year, month && month >= 1 ? month : 1, start);
 }
 
 function targetEbitdaValue(rows: Record<string, unknown>[], siteName: string, mode: "kv" | "uebernahme", year?: number, month?: number) {
@@ -9435,12 +9440,13 @@ function Fruehwarnsystem({
 
     availableMonths.forEach((month) => {
       const monthLabel = `${bwaMonths[month - 1]} ${year}`;
+      const previousPeriodInContract = isPeriodOnOrAfterStart(year - 1, month, site.start);
       const revenue = monthValue(site.id, "summe_umsatz", month);
-      const previousRevenue = previousMonthValue(site.id, "summe_umsatz", month);
+      const previousRevenue = previousPeriodInContract ? previousMonthValue(site.id, "summe_umsatz", month) : null;
       const currentCostQuote = costQuote(site.id, month);
-      const previousCostQuote = costQuote(site.id, month, true);
+      const previousCostQuote = previousPeriodInContract ? costQuote(site.id, month, true) : null;
       const currentPersonalQuote = personalQuote(site.id, month);
-      const previousPersonalQuote = personalQuote(site.id, month, true);
+      const previousPersonalQuote = previousPeriodInContract ? personalQuote(site.id, month, true) : null;
       const revenueDeclinePct = revenue != null && previousRevenue ? ((revenue - previousRevenue) / Math.abs(previousRevenue)) * 100 : null;
 
       if (currentCostQuote != null && previousCostQuote != null && currentCostQuote - previousCostQuote >= 5) {
@@ -9478,7 +9484,7 @@ function Fruehwarnsystem({
       }
 
       const treated = patientMonthValue(site.id, "treatedPatients", month);
-      const previousTreated = patientMonthValue(site.id, "treatedPatients", month, year - 1);
+      const previousTreated = previousPeriodInContract ? patientMonthValue(site.id, "treatedPatients", month, year - 1) : null;
       const rooms = staticTreatmentRoomsForSite(site.id);
       if (rooms && treated != null && previousTreated != null && previousTreated > 0) {
         const currentPatientsPerRoom = treated / rooms;
@@ -9501,8 +9507,8 @@ function Fruehwarnsystem({
 
       const missed = patientMonthValue(site.id, "missedAppointments", month);
       const booked = patientMonthValue(site.id, "bookedAppointments", month);
-      const previousMissed = patientMonthValue(site.id, "missedAppointments", month, year - 1);
-      const previousBooked = patientMonthValue(site.id, "bookedAppointments", month, year - 1);
+      const previousMissed = previousPeriodInContract ? patientMonthValue(site.id, "missedAppointments", month, year - 1) : null;
+      const previousBooked = previousPeriodInContract ? patientMonthValue(site.id, "bookedAppointments", month, year - 1) : null;
       if (missed != null && booked && previousMissed != null && previousBooked) {
         const currentCancellationRate = (missed / booked) * 100;
         const previousCancellationRate = (previousMissed / previousBooked) * 100;
@@ -9584,7 +9590,7 @@ function Fruehwarnsystem({
     },
     Kosten: {
       label: "Kosten",
-      text: "Kostenquote gegenüber dem Vorjahresmonat."
+      text: "Kostenquote gegenüber dem Vorjahresmonat, nur wenn dieser nach Vertragsstart liegt."
     },
     "Cash/Bank": {
       label: "Bank/PVS",
@@ -9592,11 +9598,11 @@ function Fruehwarnsystem({
     },
     Personal: {
       label: "Personal",
-      text: "Personalkostenquote bei sinkendem Umsatz."
+      text: "Personalkostenquote bei sinkendem Umsatz, nur mit Vergleichsmonat nach Vertragsstart."
     },
     Patienten: {
       label: "Patienten",
-      text: "Auslastung und Terminausfälle aus Patientendaten."
+      text: "Auslastung und Terminausfälle aus Patientendaten; Vorjahr nur innerhalb der Vertragsperiode."
     },
     Datenbasis: {
       label: "Datenbasis",

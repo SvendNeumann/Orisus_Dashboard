@@ -1113,6 +1113,11 @@ Diese Punkte sind nicht zwingend offen, aber bei zukuenftigen Aenderungen besond
   - YTD bis neuestem vorhandenen Monat
   - historische Jahre
   - keine Future-Leerjahre wie 2033 als Default
+- Vorjahres-/Vergleichslogik:
+  - Niemals einen Vergleichsmonat verwenden, der vor dem Vertragsstart des jeweiligen Standorts liegt.
+  - Wenn der Vorjahresmonat vor Vertragsstart liegt, keinen `ggü. Vorjahr`-Befund erzeugen und den Wert nicht als 0 interpretieren.
+  - Unterjaehrige Vertragsstarts muessen anteilig/periodengerecht bewertet werden.
+  - Besonders im Fruehwarnsystem duerfen Kosten-, Personal-, Patienten- und Terminausfallwarnungen nur Vorjahresvergleiche zeigen, wenn der Vergleichsmonat innerhalb der Vertragsperiode liegt.
 - Kein Plan/Ist-Vergleich, weil es keine klassischen Planwerte gibt.
 - Ziel-EBITDA gemaess Kaufvertrag und Ziel-EBITDA gemaess Uebernahme sind importierte Zielwerte, aber keine klassischen Planwerte.
 - EBITDA ist Kennzahl, keine Kostenposition.
