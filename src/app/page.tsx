@@ -2070,8 +2070,7 @@ function isExplicitProviderAlias(siteId: string, name: string) {
 }
 
 function providerRevenueValueKey(siteId: string, sourceName: string, canonicalName: string) {
-  if (isExplicitProviderAlias(siteId, sourceName)) return normalizeMetric(canonicalProviderName(siteId, sourceName));
-  return `${normalizeMetric(canonicalName)}::${normalizeMetric(sourceName)}`;
+  return canonicalProviderKey(siteId, sourceName || canonicalName);
 }
 
 function shouldDedupeProviderAlias(siteId: string, currentName: string, nextName: string) {
@@ -6644,12 +6643,14 @@ function buildImportedPvsRevenueRows(workbook: XLSX.WorkBook, rows: Record<strin
     if (dashboardValuesForSite) {
       valuesByYear[String(latestYear)] = Array.from({ length: 12 }, (_, index) => valuesByMonth[`${latestYear}-${index + 1}`] ?? 0).reduce((sum, value) => sum + value, 0);
     }
+    const rawContractValue = pvsTotalRevenueFromRows(siteRows);
+    const dashboardContractValue = dashboardContractValues.get(siteId);
     return {
       siteId,
       siteName,
       valuesByYear,
       valuesByMonth,
-      contractValue: dashboardContractValues.get(siteId) ?? pvsTotalRevenueFromRows(siteRows)
+      contractValue: dashboardContractValue != null && Math.abs(dashboardContractValue) > 0 ? dashboardContractValue : rawContractValue
     };
   });
 }
@@ -7464,9 +7465,11 @@ function buildImportedBehandlerTotalRows(workbook: XLSX.WorkBook, rows: Record<s
         Array.from({ length: 12 }, (_, index) => {
           const month = index + 1;
           const dashboardValue = year === latestYear ? dashboardValuesForSite?.[month] : undefined;
+          const rawValue = behandlerTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
           const value =
-            dashboardValue ??
-            behandlerTotalRevenueFromRows(siteRows.filter((row) => (rowYear(row) ?? 0) === year && (rowMonth(row) ?? 0) === month));
+            dashboardValue != null && Math.abs(dashboardValue) > 0
+              ? dashboardValue
+              : rawValue;
           return [`${year}-${month}`, value];
         })
       )
@@ -7474,12 +7477,14 @@ function buildImportedBehandlerTotalRows(workbook: XLSX.WorkBook, rows: Record<s
     if (dashboardValuesForSite) {
       valuesByYear[String(latestYear)] = Object.values(dashboardValuesForSite).reduce((sum, value) => sum + value, 0);
     }
+    const rawContractValue = behandlerTotalRevenueFromRows(siteRows);
+    const dashboardContractValue = dashboardContractValues.get(siteId);
     return {
       siteId,
       siteName,
       valuesByYear,
       valuesByMonth,
-      contractValue: dashboardContractValues.get(siteId) ?? behandlerTotalRevenueFromRows(siteRows)
+      contractValue: dashboardContractValue != null && Math.abs(dashboardContractValue) > 0 ? dashboardContractValue : rawContractValue
     };
   });
 }
