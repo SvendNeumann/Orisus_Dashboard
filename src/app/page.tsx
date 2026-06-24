@@ -10122,7 +10122,10 @@ function BankMovementsTable({
   ];
   const displayRows = importedRows.length
     ? importedRows.map((row) => {
-        const values = Array.from({ length: 12 }, (_, index) => monthValueFor(row, index + 1));
+        const values = Array.from({ length: 12 }, (_, index) => {
+          const month = index + 1;
+          return selection.year && visibleMonths.has(month) ? monthValueFor(row, month) : null;
+        });
         const total = selectedTotalFor(row);
         return {
           label: row.label,
