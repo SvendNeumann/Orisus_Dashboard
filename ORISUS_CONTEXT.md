@@ -118,7 +118,10 @@ Gewuenschte finale Logik:
 - Face-ID-Login soll fuer mobile Nutzung optional moeglich sein.
 - Desktop: Login mit Login/E-Mail und Passwort.
 - Automatischer Logout nach 5 Minuten Inaktivitaet wurde wieder rueckgaengig gemacht.
-- Nutzer sollen angemeldet bleiben, bis sie sich aktiv abmelden.
+- Nutzer sollen nicht mehr unbegrenzt angemeldet bleiben:
+  - Pro Geraet/Browser wird die letzte Aktivitaet lokal gespeichert.
+  - Nach 2 Tagen ohne Aktivitaet wird der Nutzer auf diesem Geraet automatisch abgemeldet.
+  - Andere Geraete/Sessions sind davon unabhaengig.
 
 Wichtig: Supabase Service Role Key muss in Vercel gesetzt sein, sonst funktioniert Nutzeranlage/Loeschen/Rollenverwaltung nicht.
 

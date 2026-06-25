@@ -160,6 +160,8 @@ const bwaPeriodOptions = [
 
 const authStorageKey = "orisus-cfo-authenticated";
 const authPasswordConfiguredKey = "orisus-cfo-password-configured";
+const authLastActivityStorageKey = "orisus-cfo-last-activity-at";
+const authInactivityTimeoutMs = 2 * 24 * 60 * 60 * 1000;
 const passkeyStorageKey = "orisus-cfo-passkey-id";
 const importStorageKey = "orisus-cfo-import-report";
 const importDashboardStorageKey = "orisus-cfo-import-dashboard-data";
@@ -1007,6 +1009,23 @@ function currentSupabaseAccessToken() {
   return window.localStorage.getItem(supabaseAccessTokenKey) ?? "";
 }
 
+function rememberAuthActivity() {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(authLastActivityStorageKey, String(Date.now()));
+}
+
+function authSessionExpiredByInactivity() {
+  if (typeof window === "undefined") return false;
+  if (window.localStorage.getItem(authStorageKey) !== "true") return false;
+  const rawLastActivity = window.localStorage.getItem(authLastActivityStorageKey);
+  const lastActivity = rawLastActivity ? Number(rawLastActivity) : 0;
+  if (!lastActivity || !Number.isFinite(lastActivity)) {
+    rememberAuthActivity();
+    return false;
+  }
+  return Date.now() - lastActivity > authInactivityTimeoutMs;
+}
+
 function supabaseHeaders(token = currentSupabaseAccessToken()) {
   return {
     apikey: supabaseAnonKey,
@@ -1036,7 +1055,10 @@ function rememberSupabaseSession(session: SupabaseAuthResponse, fallbackEmail: s
   window.localStorage.setItem(supabaseAccessTokenKey, session.access_token);
   if (session.refresh_token) window.localStorage.setItem(supabaseRefreshTokenKey, session.refresh_token);
   window.localStorage.setItem(supabaseUserEmailKey, session.user?.email ?? fallbackEmail);
-  if (authenticated) window.localStorage.setItem(authStorageKey, "true");
+  if (authenticated) {
+    window.localStorage.setItem(authStorageKey, "true");
+    rememberAuthActivity();
+  }
   return true;
 }
 
@@ -1113,6 +1135,7 @@ async function loadSupabaseAuthUser(token = currentSupabaseAccessToken()) {
 }
 
 async function validateStoredSupabaseSession() {
+  if (authSessionExpiredByInactivity()) return false;
   if (!isSupabaseConfigured()) return true;
   let token = currentSupabaseAccessToken();
   let user = token ? await loadSupabaseAuthUser(token).catch(() => null) : null;
@@ -1122,7 +1145,9 @@ async function validateStoredSupabaseSession() {
     user = token ? await loadSupabaseAuthUser(token).catch(() => null) : null;
   }
   if (!user?.email) return false;
-  return loadAndRememberAccessProfile(user.email);
+  const isValid = await loadAndRememberAccessProfile(user.email);
+  if (isValid) rememberAuthActivity();
+  return isValid;
 }
 
 function authParamsFromCurrentUrl() {
@@ -1169,6 +1194,7 @@ function clearSupabaseSession() {
   window.localStorage.removeItem(supabaseUserEmailKey);
   window.localStorage.removeItem(supabaseUserRoleKey);
   window.localStorage.removeItem(supabaseUserNameKey);
+  window.localStorage.removeItem(authLastActivityStorageKey);
 }
 
 async function loadSupabaseConfirmedImport() {
@@ -4020,6 +4046,7 @@ export default function HomePage() {
   const setPersistentAuthStep = (step: AuthStep) => {
     if (step === "app") {
       window.localStorage.setItem(authStorageKey, "true");
+      rememberAuthActivity();
       setUserDisplayName(currentUserName());
       setUserRole(currentUserRole());
       setAuthProfileReady(true);
@@ -4038,6 +4065,42 @@ export default function HomePage() {
     setMenuOpen(false);
     setAuthStep("welcome");
   };
+
+  useEffect(() => {
+    if (authStep !== "app" || !authProfileReady) return;
+    rememberAuthActivity();
+    let lastActivityWrite = Date.now();
+    const handleActivity = () => {
+      if (authSessionExpiredByInactivity()) {
+        logout();
+        return;
+      }
+      const now = Date.now();
+      if (now - lastActivityWrite < 60_000) return;
+      lastActivityWrite = now;
+      rememberAuthActivity();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (authSessionExpiredByInactivity()) {
+        logout();
+        return;
+      }
+      lastActivityWrite = Date.now();
+      rememberAuthActivity();
+    };
+    const activityEvents: Array<keyof WindowEventMap> = ["click", "keydown", "pointerdown", "scroll", "touchstart"];
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, handleActivity, { passive: true }));
+    document.addEventListener("visibilitychange", handleVisibility);
+    const interval = window.setInterval(() => {
+      if (authSessionExpiredByInactivity()) logout();
+    }, 60_000);
+    return () => {
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, handleActivity));
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.clearInterval(interval);
+    };
+  }, [authProfileReady, authStep]);
 
   if (authStep === "checking") {
     return (
