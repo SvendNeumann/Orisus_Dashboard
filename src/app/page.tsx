@@ -8099,6 +8099,13 @@ function TabExecutiveSummary({
     icon?: React.ComponentType<{ className?: string }>;
   }>;
 }) {
+  const itemGridClass =
+    items.length <= 3
+      ? "sm:grid-cols-2 lg:grid-cols-3"
+      : items.length === 4
+        ? "sm:grid-cols-2 xl:grid-cols-4"
+        : "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
+
   return (
     <Card className="tab-start-card overflow-hidden p-4 sm:p-5">
       <div className="grid gap-4 xl:grid-cols-[0.95fr_1.55fr]">
@@ -8107,20 +8114,22 @@ function TabExecutiveSummary({
           <h2 className="mt-2 text-xl font-extrabold text-white">{title}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
         </div>
-        <div className="tab-start-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className={cn("tab-start-grid grid auto-rows-fr gap-3", itemGridClass)}>
           {items.map((item) => {
             const Icon = item.icon ?? Gauge;
             return (
-              <div key={item.label} className="rounded-xl border border-white/12 bg-white/7 p-4 shadow-sm shadow-black/10">
+              <div key={item.label} className="flex h-full min-h-36 flex-col rounded-xl border border-white/12 bg-white/7 p-4 shadow-sm shadow-black/10">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#30d5c8]/25 bg-[#30d5c8]/12 text-[#73f2e8]">
                     <Icon className="h-4 w-4" />
                   </div>
                   {item.status ? <StatusDot status={item.status} /> : null}
                 </div>
-                <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
-                <p className="mt-1 text-2xl font-extrabold tracking-tight text-white">{item.value}</p>
-                <p className="mt-1 text-xs font-semibold text-slate-300">{item.detail}</p>
+                <div className="mt-3 flex flex-1 flex-col justify-end">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+                  <p className="mt-1 text-2xl font-extrabold tracking-tight text-white">{item.value}</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-300">{item.detail}</p>
+                </div>
               </div>
             );
           })}

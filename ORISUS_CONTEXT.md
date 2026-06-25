@@ -222,6 +222,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - KPI-Sparklines sind rein visuelle Verlaufslinien. Sie duerfen beim Hover/Slide keine Tooltip-Werte anzeigen und sollen keine interaktive Chartflaeche wirken.
   - Tabellen sollen appweit kompakter, mit klarer Kopfzeile, ruhiger Zeilenstruktur und deutlicher Summenzeile dargestellt werden; Inhalte und Reihenfolge bleiben fachlich erhalten.
   - Lange Status-/Warnhinweise in Karten muessen auf Tablet-Breiten innerhalb der Kachel umbrechen und duerfen nicht ueber Kartenraender oder Nachbarkacheln laufen.
+  - Start-/Ueberblick-Kachelgruppen sollen ihre Spaltenzahl an die tatsaechliche Anzahl der KPIs anpassen, damit auf iPad/Desktop keine leeren Spalten entstehen und die Kacheln unten buendig abschliessen.
 - PMR-Export enthaelt Seite 1 Standortleiter-PMR und Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort.
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
 - Orisus Performance hat oben KPI-Kacheln im einheitlichen App-Kachelstil mit Info-Buttons/Herleitungen.
