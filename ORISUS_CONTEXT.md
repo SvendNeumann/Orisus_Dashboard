@@ -556,6 +556,10 @@ Entfernte/zu entfernende Doppelungen im CFO Cockpit:
 
 Diagramme:
 
+- CFO Cockpit Diagramm `Ist EBITDA vs. Ziel-EBITDA` zeigt:
+  - Ist-EBITDA seit Vertragsstart als Balken
+  - Ziel-EBITDA gemaess Kaufvertrag als Linie
+  - Ziel-EBITDA gemaess Uebernahme als gestrichelte Linie
 - Offene Forderungen je Standort soll neben/unter EBITDA-vs-Ziel-Diagramm oben stehen.
 - Top Behandler nach Honorarumsatz:
   - nur Honorarumsatz, kein Eigenlabor
