@@ -6198,6 +6198,7 @@ function ZusammenfassungTab({ sites, importedData }: { sites: DashboardSite[]; i
         title="Zusammenfassung"
         text="Kompakte Tabellenansicht für BWA-Umsatz, EBITDA, Cashflow, PVS-Umsatz, Behandlerumsatz inklusive Eigenlabor und Bankbewegungen."
       />
+      <SummaryKpiCards sites={sites} importedData={importedData} />
       <SummaryBwaOverviewTable sites={sites} importedData={importedData} />
       <div className="grid gap-5 xl:grid-cols-2">
         <SummaryPeriodValueTable
@@ -6217,6 +6218,116 @@ function ZusammenfassungTab({ sites, importedData }: { sites: DashboardSite[]; i
       </div>
       <BankCashflowControlTable sites={sites} importedData={importedData} />
     </section>
+  );
+}
+
+function SummaryKpiCards({ sites, importedData }: { sites: DashboardSite[]; importedData: ImportedDashboardData }) {
+  const rules = useKpiRules();
+  const sortedSites = sortSitesByContractStart(sites);
+  const availablePeriods = bwaPeriodOptionsFor(importedData);
+  const [period, setPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) setPeriod(defaultBwaPeriodFor(importedData));
+  }, [availablePeriods, importedData, period]);
+
+  const ebitdaRows = sortedSites.map((site) => {
+    const actual = importedBwaMetricValue(importedData.bwaRows, site.id, "ebitda", period);
+    const target = importedBwaMetricValue(importedData.bwaRows, site.id, "ziel_ebitda_uebernahme", period);
+    return { site, actual, target };
+  });
+  const ebitdaActual = ebitdaRows.reduce((sum, row) => sum + row.actual, 0);
+  const ebitdaTarget = ebitdaRows.reduce((sum, row) => sum + row.target, 0);
+  const ebitdaDeviation = ebitdaActual - ebitdaTarget;
+  const ebitdaAchievement = ebitdaTarget ? (ebitdaActual / ebitdaTarget) * 100 : 0;
+  const metrics = cfoMetrics(sortedSites, monthly, rules);
+  const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
+
+  return (
+    <div className="grid auto-rows-fr items-stretch gap-4 lg:grid-cols-3">
+      <KpiCard
+        label="EBITDA Ist vs. Ziel gem. Übernahme"
+        value={ebitdaActual}
+        valueLabel={`${eur(ebitdaActual)} / ${ebitdaTarget ? eur(ebitdaTarget) : "n. v."}`}
+        secondaryValue={ebitdaTarget ? `Abw. ${ebitdaDeviation >= 0 ? "+" : ""}${eur(ebitdaDeviation)} | ${ebitdaAchievement.toLocaleString("de-DE", { maximumFractionDigits: 1 })} % Zielerreichung` : "Ziel Übernahme n. v."}
+        delta={performancePeriodLabel(period)}
+        icon={TrendingUp}
+        status={ebitdaTarget ? statusByRule(ebitdaAchievement, rules.ziel_ebitda_uebernahme) : "yellow"}
+        control={
+          <Select className="mx-auto h-9 w-full max-w-[11.5rem] px-2 text-xs font-semibold" value={period} onChange={(event) => setPeriod(event.target.value)}>
+            {availablePeriods.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </Select>
+        }
+        info={
+          <div className="space-y-2">
+            <p className="font-bold text-slate-900">Herleitung EBITDA Ist vs. Ziel gem. Übernahme</p>
+            <InfoTextLine label="Zeitraum" value={performancePeriodLabel(period)} strong />
+            <p className="text-slate-700">
+              Ist ist die BWA-Zeile EBITDA. Ziel ist die BWA-/Stammdaten-Zeile Ziel-EBITDA gemäß Übernahme im gleichen Zeitraum.
+            </p>
+            <div className="space-y-1">
+              {ebitdaRows.map((row) => (
+                <InfoTextLine key={row.site.id} label={row.site.name} value={`${eur(row.actual)} / ${row.target ? eur(row.target) : "n. v."}`} />
+              ))}
+            </div>
+            <div className="border-t border-border pt-2">
+              <InfoLine label="= EBITDA Ist" value={ebitdaActual} strong />
+              <InfoLine label="= Ziel-EBITDA Übernahme" value={ebitdaTarget} strong />
+              <InfoLine label="= Abweichung Ist minus Ziel" value={ebitdaDeviation} strong />
+              <InfoTextLine label="Zielerreichung" value={ebitdaTarget ? pct(ebitdaAchievement) : "n. v."} strong />
+            </div>
+          </div>
+        }
+      />
+      <KpiCard
+        label="Aktuelle Liquidität"
+        value={metrics.kontostand}
+        delta="aktueller konsolidierter Kontostand"
+        icon={CircleDollarSign}
+        status={statusByRule(metrics.kontostand, rules.aktuelle_liquiditaet)}
+        info={
+          <div className="space-y-2">
+            <p className="font-bold text-slate-900">Herleitung aktuelle Liquidität</p>
+            <p className="text-slate-700">Summe der aktuellen Kontostände je Standort aus der Bank-/Finanzdatenlogik.</p>
+            <div className="space-y-1">
+              {sortedSites.map((site) => (
+                <InfoLine key={site.id} label={site.name} value={site.kontostand} />
+              ))}
+            </div>
+            <div className="border-t border-border pt-2">
+              <InfoLine label="= Aktuelle Liquidität" value={metrics.kontostand} strong />
+            </div>
+          </div>
+        }
+      />
+      <KpiCard
+        label="Offene Forderungen"
+        value={metrics.forderungen}
+        delta={`${pct(receivablesRatio)} der Gesamtleistung`}
+        icon={FileBarChart}
+        status={statusByRule(receivablesRatio, rules.offene_forderungen)}
+        info={
+          <div className="space-y-2">
+            <p className="font-bold text-slate-900">Herleitung offene Forderungen</p>
+            <p className="text-slate-700">
+              Offene Forderungen zeigen den aktuell importierten Forderungsbestand je Standort. Bezugsgröße für den Status ist die Gesamtleistung.
+            </p>
+            <div className="space-y-1">
+              {sortedSites.map((site) => (
+                <InfoLine key={site.id} label={site.name} value={site.forderungen} />
+              ))}
+            </div>
+            <div className="border-t border-border pt-2">
+              <InfoLine label="= Offene Forderungen" value={metrics.forderungen} strong />
+              <InfoLine label="Gesamtleistung als Bezugsgröße" value={metrics.gesamtleistung} />
+              <InfoTextLine label="Forderungsquote" value={pct(receivablesRatio)} strong />
+            </div>
+          </div>
+        }
+      />
+    </div>
   );
 }
 

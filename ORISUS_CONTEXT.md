@@ -168,6 +168,10 @@ Navigation wurde gruppiert:
 Aktuelle wichtige Live-Ergaenzungen:
 
 - Unter `Zusammenfassung` gibt es zusaetzlich einen Tab `Zusammenfassung`:
+  - Oben stehen genau drei KPI-Kacheln mit Info-Herleitung:
+    - `EBITDA Ist vs. Ziel gem. Übernahme` mit BWA-Zeitraumfilter.
+    - `Aktuelle Liquidität` als aktueller konsolidierter Kontostand.
+    - `Offene Forderungen` als aktueller Forderungsbestand.
   - Tabelle `BWA-Uebersicht` mit Standort- und Zeitraumfilter: Umsatz gemaess BWA, EBITDA gemaess BWA, EBITDA-Marge und Cashflow gemaess BWA.
   - Tabelle `PVS-Gesamtumsatz` mit Standort- und Zeitraumfilter.
   - Tabelle `Honorarumsatz plus Eigenlabor` mit Standort- und Zeitraumfilter.
