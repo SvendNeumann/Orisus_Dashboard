@@ -5708,7 +5708,7 @@ function Cockpit({
         <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Fokusbereiche." />
         <CompactDataStatus importedData={importedData} />
       </div>
-      <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} />
+      <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} importedData={importedData} />
 
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Ist EBITDA vs. Ziel-EBITDA Kaufvertrag | seit Vertragsstart" icon={TrendingUp}>
@@ -5786,27 +5786,34 @@ function DataStatusStrip({ importedData }: { importedData?: ImportedDashboardDat
   );
 }
 
-function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[]; monthlyData: typeof monthly; period: string }) {
+function DailyCfoCockpit({
+  sites,
+  monthlyData,
+  period,
+  importedData
+}: {
+  sites: DashboardSite[];
+  monthlyData: typeof monthly;
+  period: string;
+  importedData?: ImportedDashboardData | null;
+}) {
   const rules = useKpiRules();
   const metrics = cfoMetrics(sites, monthlyData, rules);
-  const criticalSites = metrics.kritisch;
-  const riskLabel = criticalSites.length ? criticalSites.map((site) => site.name).join(", ") : "Keine auffälligen Standorte";
-  const criticalReasons = criticalSites.map((site) => {
-    const kvAchievement = kvEbitdaAchievement(site);
-    const receivablesRatio = site.gesamtleistung ? (site.forderungen / site.gesamtleistung) * 100 : 0;
-    const reasons = [
-      statusForSiteByRules(site, rules) === "red" ? "Standortstatus auffällig" : "",
-      statusByRule(site.cashflow, rules.cashflow_bwa) === "red" ? `Cashflow gem. BWA auffällig (${eur(site.cashflow)})` : "",
-      statusByRule(site.ebitdaMarge, rules.ebitda_marge) === "red" ? `EBITDA-Marge auffällig (${pct(site.ebitdaMarge)})` : "",
-      statusByRule(receivablesRatio, rules.offene_forderungen) === "red"
-        ? `Forderungen erhöht (${pct(receivablesRatio)} der Gesamtleistung)`
-        : "",
-      kvAchievement !== null && statusByRule(kvAchievement, rules.ziel_ebitda_kaufvertrag) === "red"
-        ? `Ziel-EBITDA KV unter Soll (${pct(kvAchievement)} Zielerreichung)`
-        : ""
-    ].filter(Boolean);
-    return { site: site.name, reasons };
-  });
+  const revenuePeriods = useMemo(() => bwaPeriodOptionsFor(importedData), [importedData]);
+  const [revenuePeriod, setRevenuePeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  useEffect(() => {
+    if (!revenuePeriods.includes(revenuePeriod)) {
+      setRevenuePeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [importedData, revenuePeriod, revenuePeriods]);
+  const sortedSites = sortSitesByContractStart(sites);
+  const revenueBySite = sortedSites.map((site) => ({
+    site,
+    value: importedData?.bwaRows?.length
+      ? Math.round(importedBwaMetricValue(importedData.bwaRows, site.id, "summe_umsatz", revenuePeriod))
+      : site.gesamtleistung
+  }));
+  const bwaRevenue = revenueBySite.reduce((sum, row) => sum + row.value, 0);
   const cashflowDetails = sites.reduce(
     (sum, site) => ({
       vorlaeufigesErgebnis: sum.vorlaeufigesErgebnis + (site.cashflowDetails?.vorlaeufigesErgebnis ?? 0),
@@ -5833,9 +5840,40 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
   const expectedEarnOutInfo = <ExpectedEarnOutInfo rows={earnOutRows} period={period} />;
   const expectedGrowthPaymentInfo = <ExpectedGrowthPaymentInfo rows={earnOutRows} period={period} />;
   const expectedObligationInfo = <ExpectedObligationInfo rows={earnOutRows} period={period} />;
-  const sortedSites = sortSitesByContractStart(sites);
 
   const kpis = [
+    {
+      label: "Gesamtumsatz gem. BWA",
+      value: bwaRevenue,
+      delta: performancePeriodLabel(revenuePeriod),
+      icon: TrendingUp,
+      status: "green",
+      control: (
+        <Select className="w-full text-left" value={revenuePeriod} onChange={(event) => setRevenuePeriod(event.target.value)}>
+          {revenuePeriods.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </Select>
+      ),
+      info: (
+        <div className="space-y-2">
+          <p className="font-bold text-slate-900">Herleitung Gesamtumsatz gem. BWA</p>
+          <p>
+            Datenquelle ist die BWA-Zeile <span className="font-semibold">Summe Umsatz</span> im gewählten Zeitraum. Das ist bewusst
+            nicht der PVS-Umsatz und nicht der Behandlerumsatz.
+          </p>
+          <InfoTextLine label="Zeitraum" value={performancePeriodLabel(revenuePeriod)} strong />
+          <div className="space-y-1">
+            {revenueBySite.map((row) => (
+              <InfoLine key={row.site.id} label={row.site.name} value={row.value} />
+            ))}
+          </div>
+          <div className="mt-2 border-t border-border pt-2">
+            <InfoLine label="= Gesamtumsatz gem. BWA" value={bwaRevenue} strong />
+          </div>
+        </div>
+      )
+    },
     {
       label: "Aktuelle Liquidität | aktueller Stand",
       value: metrics.kontostand,
@@ -5971,35 +6009,6 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
       icon: ReceiptText,
       status: expectedTotalPayment > 0 ? "yellow" : "green",
       info: expectedObligationInfo
-    },
-    {
-      label: "Fokus-Standorte | aktueller Stand",
-      value: criticalSites.length,
-      delta: riskLabel,
-      icon: Building2,
-      plain: true,
-      status: criticalSites.length ? "yellow" : "green",
-      info: (
-        <div className="space-y-2">
-          <p className="font-bold text-slate-900">Warum ein Standort im Fokus ist</p>
-          <p>
-            Ein Standort wird hier gezählt, wenn mindestens eine CFO-Regel auffällig ist: Cashflow gem. BWA negativ,
-            EBITDA-Marge unter 10 %, offene Forderungen über 15 % der Gesamtleistung oder Ziel-EBITDA gemäß
-            Kaufvertrag bis zum aktuellen Datenstand unter 85 % erreicht.
-          </p>
-          {criticalReasons.length ? (
-            <div className="space-y-1">
-              {criticalReasons.map((row) => (
-                <p key={row.site}>
-                  <span className="font-semibold">{row.site}:</span> {row.reasons.join(", ")}
-                </p>
-              ))}
-            </div>
-          ) : (
-            <p>Aktuell greift bei keinem Standort eine dieser Regeln.</p>
-          )}
-        </div>
-      )
     }
   ] satisfies Array<{
     label: string;
@@ -6008,6 +6017,7 @@ function DailyCfoCockpit({ sites, monthlyData, period }: { sites: DashboardSite[
     icon: React.ComponentType<{ className?: string }>;
     plain?: boolean;
     status: Status;
+    control?: React.ReactNode;
     info?: React.ReactNode;
   }>;
 
@@ -6039,6 +6049,7 @@ function KpiCard({
   delta,
   icon: Icon,
   status,
+  control,
   info
 }: {
   label: string;
@@ -6048,6 +6059,7 @@ function KpiCard({
   delta: string;
   icon: React.ComponentType<{ className?: string }>;
   status: Status;
+  control?: React.ReactNode;
   info?: React.ReactNode;
 }) {
   const positive = !delta.startsWith("-");
@@ -6076,6 +6088,7 @@ function KpiCard({
           <Icon className="h-5 w-5" />
         </div>
         <p className="mt-4 max-w-full text-sm font-semibold text-muted-foreground">{label}</p>
+        {control ? <div className="mt-3 w-full max-w-[15rem]">{control}</div> : null}
         <p className="mt-1 text-2xl font-bold tracking-tight">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
         <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 text-sm font-semibold", positive ? "text-emerald-700" : "text-red-700")}>
           {positive ? <ArrowUpRight className="h-4 w-4 shrink-0" /> : <ArrowDownRight className="h-4 w-4 shrink-0" />}

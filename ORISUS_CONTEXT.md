@@ -521,15 +521,15 @@ Gewuenschte KPI-Kachelanordnung:
 
 Erste Reihe:
 
-1. Aktuelle Liquiditaet
-2. Offene Forderungen
-3. Cashflow gem. BWA seit Vertragsstart
+1. Gesamtumsatz gem. BWA mit Zeitraumfilter
+2. Aktuelle Liquiditaet
+3. Offene Forderungen
 
 Zweite Reihe:
 
-1. EBITDA seit Vertragsstart
-2. Fremdkapital seit Vertragsstart
-3. Fokus-Standorte
+1. Cashflow gem. BWA seit Vertragsstart
+2. EBITDA seit Vertragsstart
+3. Fremdkapital seit Vertragsstart
 
 Zusaetzlich gewuenscht:
 
@@ -537,9 +537,10 @@ Zusaetzlich gewuenscht:
 - Kachel erwartete Wachstumszahlung mit Info-Button
 - Jede KPI-Kachel soll oben ein `i` haben, mit Herleitung der Werte.
 - Aktuelle Liquiditaet: Info zeigt Kontostaende je Standort.
+- Gesamtumsatz gem. BWA: Info zeigt BWA-Zeile `Summe Umsatz` je Standort fuer den gewaehlten Zeitraum; nicht PVS-/Behandlerumsatz.
 - Offene Forderungen: Info zeigt Zusammensetzung je Standort.
 - Fremdkapital: Info zeigt aufgenommenes Fremdkapital, Tilgung, Restschuld je Standort.
-- Fokus-Standorte: Info erklaert, warum ein Standort im Fokus ist.
+- Fokus-Standorte-Kachel ist aus der oberen KPI-Reihe entfernt.
 
 Fokus-Standorte Logik:
 
