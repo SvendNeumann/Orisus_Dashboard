@@ -6883,15 +6883,11 @@ function EbitdaTargetTooltip({
     <div className="rounded-md border border-border bg-white p-3 text-sm shadow-lg">
       <p className="mb-2 font-bold text-slate-900">{label}</p>
       <p className="mb-2 text-xs font-semibold text-slate-500">{row.periodLabel}</p>
-      <p className="text-teal-700">Ist EBITDA: {eur(row.ebitda)}</p>
-      <p className="text-sky-700">Ziel-EBITDA KV: {eur(row.zielEbitdaKaufvertrag)}</p>
-      {row.zielEbitdaUebernahmeMonthly != null ? (
-        <p className="text-amber-700">Ziel-EBITDA Übernahme mtl.: {eur(row.zielEbitdaUebernahmeMonthly)}</p>
-      ) : null}
-      {row.zielEbitdaUebernahmePa != null ? <p className="text-amber-700">Ziel-EBITDA Übernahme p.a.: {eur(row.zielEbitdaUebernahmePa)}</p> : null}
-      {row.zielEbitdaUebernahme != null ? <p className="text-amber-700">Ziel-EBITDA Übernahme anteilig: {eur(row.zielEbitdaUebernahme)}</p> : null}
+      <p className="text-teal-700">Balken: Ist-EBITDA kumuliert: {eur(row.ebitda)}</p>
+      <p className="text-sky-700">Blaue Linie: Ziel-EBITDA Kaufvertrag: {eur(row.zielEbitdaKaufvertrag)}</p>
+      {row.zielEbitdaUebernahme != null ? <p className="text-amber-700">Gelbe Linie: Ziel-EBITDA Übernahme: {eur(row.zielEbitdaUebernahme)}</p> : null}
       <p className={cn("font-bold", row.abweichung < 0 ? "text-red-700" : "text-emerald-700")}>
-        Abw. KV: {eur(row.abweichung)} ({pct(row.abweichungPct)})
+        Abw. Kaufvertrag: {eur(row.abweichung)} ({pct(row.abweichungPct)})
       </p>
       {row.abweichungUebernahme != null && row.abweichungUebernahmePct != null ? (
         <p className={cn("font-bold", row.abweichungUebernahme < 0 ? "text-red-700" : "text-emerald-700")}>
@@ -6971,7 +6967,7 @@ function ebitdaTargetChartRow(site: DashboardSite, importedData?: ImportedDashbo
       abweichungPct: zielEbitdaKaufvertrag ? (abweichung / zielEbitdaKaufvertrag) * 100 : 0,
       abweichungUebernahme,
       abweichungUebernahmePct: zielEbitdaUebernahme && abweichungUebernahme != null ? (abweichungUebernahme / zielEbitdaUebernahme) * 100 : null,
-      periodLabel: `aktive Ist-BWA-Monate seit Vertragsstart: ${activeMonthKeys.length}; Übernahmeziel aus BWA-Monatswerten, sonst p.a.-Fallback`
+      periodLabel: `Zeitraum: kumuliert bis aktuellem Datenstand (${activeMonthKeys.length} aktive BWA-Monate)`
     };
   }
 
@@ -6990,7 +6986,7 @@ function ebitdaTargetChartRow(site: DashboardSite, importedData?: ImportedDashbo
     abweichungPct: zielEbitdaKaufvertrag ? (abweichung / zielEbitdaKaufvertrag) * 100 : 0,
     abweichungUebernahme,
     abweichungUebernahmePct: zielEbitdaUebernahme ? (abweichungUebernahme! / zielEbitdaUebernahme) * 100 : null,
-    periodLabel: "Fallback: Standortwerte seit Vertragsstart"
+    periodLabel: "Zeitraum: seit Vertragsstart"
   };
 }
 
@@ -7009,6 +7005,20 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
       <p className="text-xs leading-5 text-muted-foreground">
         Soll-Linien kumuliert nur für aktive Ist-BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen Datenstand. Admin-gepflegte Ziel-EBITDA-Stammdaten überschreiben Importwerte app-weit.
       </p>
+      <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-300">
+        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/7 px-2.5 py-1">
+          <span className="h-2 w-4 rounded-sm bg-[#30d5c8]" />
+          Ist-EBITDA kumuliert
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/7 px-2.5 py-1">
+          <span className="h-0.5 w-5 rounded-full bg-[#38bdf8]" />
+          Ziel Kaufvertrag
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/7 px-2.5 py-1">
+          <span className="h-0.5 w-5 rounded-full border-t-2 border-dashed border-[#f59e0b]" />
+          Ziel Übernahme
+        </span>
+      </div>
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={chartData}>
           <defs>
@@ -7021,11 +7031,11 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
           <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
           <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
           <Tooltip content={<EbitdaTargetTooltip />} />
-          <Bar dataKey="ebitda" name="Ist EBITDA seit Vertragsstart" fill="url(#ebitdaBarGradient)" radius={[8, 8, 0, 0]} />
+          <Bar dataKey="ebitda" name="Ist-EBITDA kumuliert" fill="url(#ebitdaBarGradient)" radius={[8, 8, 0, 0]} />
           <Line
             type="monotone"
             dataKey="zielEbitdaKaufvertrag"
-            name="Ziel-EBITDA Kaufvertrag"
+            name="Ziel Kaufvertrag"
             stroke="#38bdf8"
             strokeWidth={3}
             dot={{ r: 4, fill: "#38bdf8", stroke: "#082f49", strokeWidth: 2 }}
@@ -7033,7 +7043,7 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
           <Line
             type="monotone"
             dataKey="zielEbitdaUebernahme"
-            name="Ziel-EBITDA Übernahme anteilig"
+            name="Ziel Übernahme"
             stroke="#f59e0b"
             strokeWidth={3}
             strokeDasharray="7 5"
