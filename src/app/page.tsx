@@ -6078,6 +6078,7 @@ function Cockpit({
         <CompactDataStatus importedData={importedData} />
       </div>
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} importedData={importedData} />
+      <ManagementStoryline sites={sites} importedData={importedData} />
 
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Übernahme | seit Vertragsstart" icon={TrendingUp}>
@@ -6150,6 +6151,83 @@ function DataStatusStrip({ importedData }: { importedData?: ImportedDashboardDat
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Quelle</p>
         <p className="font-bold">{importedData?.fileName ?? "Kein Upload bestätigt"}</p>
+      </div>
+    </Card>
+  );
+}
+
+function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; importedData: ImportedDashboardData | null }) {
+  const sortedSites = sortSitesByContractStart(sites);
+  const metrics = cfoMetrics(sortedSites);
+  const targetRows = sortedSites.map((site) => ebitdaTargetChartRow(site, importedData));
+  const targetDeviation = targetRows.reduce((sum, row) => sum + (row.abweichungUebernahme ?? row.abweichung), 0);
+  const targetBase = targetRows.reduce((sum, row) => sum + (row.zielEbitdaUebernahme ?? row.zielEbitdaKaufvertrag), 0);
+  const targetDeviationPct = targetBase ? (targetDeviation / targetBase) * 100 : 0;
+  const highestReceivableSite = [...sortedSites].sort((a, b) => b.forderungen - a.forderungen)[0];
+  const weakestCashflowSite = [...sortedSites].sort((a, b) => a.cashflow - b.cashflow)[0];
+  const storyItems = [
+    {
+      label: "Ergebnisqualität",
+      value: pct(metrics.ebitdaMarge),
+      text: `${eur(metrics.ebitda, true)} EBITDA seit Vertragsstart`,
+      status: metrics.ebitdaMarge >= 18 ? "green" : metrics.ebitdaMarge >= 10 ? "yellow" : "red",
+      icon: TrendingUp
+    },
+    {
+      label: "Zielabweichung",
+      value: `${targetDeviation >= 0 ? "+" : ""}${eur(targetDeviation, true)}`,
+      text: `${targetDeviationPct >= 0 ? "+" : ""}${pct(targetDeviationPct)} ggü. Zielpfad`,
+      status: targetDeviation >= 0 ? "green" : targetDeviationPct > -15 ? "yellow" : "red",
+      icon: Gauge
+    },
+    {
+      label: "Forderungen",
+      value: eur(metrics.forderungen, true),
+      text: highestReceivableSite ? `höchster Bestand: ${highestReceivableSite.name}` : "aktueller Stand",
+      status: "yellow",
+      icon: ReceiptText
+    },
+    {
+      label: "Cashflow-Fokus",
+      value: weakestCashflowSite ? weakestCashflowSite.name : "n. v.",
+      text: weakestCashflowSite ? `${eur(weakestCashflowSite.cashflow, true)} Cashflow gem. BWA` : "keine Standortdaten",
+      status: weakestCashflowSite && weakestCashflowSite.cashflow < 0 ? "yellow" : "green",
+      icon: Wallet
+    }
+  ] satisfies Array<{
+    label: string;
+    value: string;
+    text: string;
+    status: Status;
+    icon: React.ComponentType<{ className?: string }>;
+  }>;
+
+  return (
+    <Card className="relative overflow-hidden p-4">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase text-primary">Management-Fokus</p>
+          <h2 className="mt-1 text-xl font-extrabold tracking-tight text-white">Was gerade steuerungsrelevant ist</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">Verdichtete Lesestrecke aus den bestehenden CFO-Kennzahlen.</p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {storyItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <div key={item.label} className="rounded-lg border border-white/12 bg-slate-950/20 p-4 shadow-inner">
+              <div className="flex items-start justify-between gap-3">
+                <div className="modern-icon-tile flex h-10 w-10 items-center justify-center rounded-lg text-primary">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <StatusDot status={item.status} />
+              </div>
+              <p className="mt-4 text-sm font-semibold text-muted-foreground">{item.label}</p>
+              <p className="mt-1 break-words text-2xl font-extrabold text-white">{item.value}</p>
+              <p className="mt-2 text-sm leading-5 text-muted-foreground">{item.text}</p>
+            </div>
+          );
+        })}
       </div>
     </Card>
   );
@@ -6412,7 +6490,7 @@ function PageTitle({ title, text }: { title: string; text: string }) {
 
 function AppViewModeBar({ mode, onChange }: { mode: AppViewMode; onChange: (mode: AppViewMode) => void }) {
   return (
-    <Card className="mb-5 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="view-mode-card mb-5 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-xs font-bold uppercase text-primary">Ansicht</p>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -6421,7 +6499,7 @@ function AppViewModeBar({ mode, onChange }: { mode: AppViewMode; onChange: (mode
             : "Analysemodus: alle Detailtabellen, Herleitungen und Prüfebenen sind sichtbar."}
         </p>
       </div>
-      <div className="grid grid-cols-2 gap-1 rounded-md border border-border bg-white/5 p-1">
+      <div className="grid grid-cols-2 gap-1 rounded-md border border-white/15 bg-slate-950/25 p-1 shadow-inner">
         {[
           { id: "management" as const, label: "Management" },
           { id: "analyse" as const, label: "Analyse" }
@@ -6431,7 +6509,7 @@ function AppViewModeBar({ mode, onChange }: { mode: AppViewMode; onChange: (mode
             type="button"
             className={cn(
               "rounded px-3 py-2 text-sm font-bold transition",
-              mode === item.id ? "bg-primary text-slate-950 shadow-sm" : "text-muted-foreground hover:bg-white/10 hover:text-white"
+              mode === item.id ? "bg-primary text-slate-950 shadow-sm" : "text-slate-200 hover:bg-white/10 hover:text-white"
             )}
             onClick={() => onChange(item.id)}
           >
@@ -6469,12 +6547,12 @@ function KpiCard({
   const positive = !delta.startsWith("-");
   const [infoOpen, setInfoOpen] = useState(false);
   return (
-    <Card className="relative flex min-h-[12.5rem] flex-col p-5 text-center">
+    <Card className="modern-kpi-card relative flex min-h-[12.5rem] flex-col p-5 text-center">
       <div className="mb-3 flex min-h-8 items-start justify-between gap-3">
         <div className="w-8 shrink-0">
           {info && (
           <button
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:text-primary"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-slate-950/18 text-slate-200 transition hover:border-primary hover:text-primary"
             type="button"
             aria-label={`${label} erklären`}
             onClick={() => setInfoOpen((open) => !open)}
@@ -6488,12 +6566,12 @@ function KpiCard({
         </div>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="flex h-11 w-11 items-center justify-center rounded-md table-total text-primary">
+        <div className="modern-icon-tile flex h-12 w-12 items-center justify-center rounded-lg text-primary">
           <Icon className="h-5 w-5" />
         </div>
         <p className="mt-4 max-w-full text-sm font-semibold text-muted-foreground">{label}</p>
         {control ? <div className="mt-3 w-full max-w-[15rem]">{control}</div> : null}
-        <p className="mt-1 text-2xl font-bold tracking-tight">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
+        <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
         {secondaryValue ? <p className="mt-1 text-sm font-bold text-slate-200">{secondaryValue}</p> : null}
         <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 text-sm font-semibold", positive ? "text-emerald-700" : "text-red-700")}>
           {positive ? <ArrowUpRight className="h-4 w-4 shrink-0" /> : <ArrowDownRight className="h-4 w-4 shrink-0" />}
@@ -6687,7 +6765,7 @@ function ChartCard({
   const [infoOpen, setInfoOpen] = useState(false);
 
   return (
-    <Card className="h-full p-4">
+    <Card className="chart-card relative h-full p-4">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Icon className="h-5 w-5 text-primary" />
@@ -6710,7 +6788,7 @@ function ChartCard({
           {info}
         </InfoDialog>
       ) : null}
-      {children}
+      <div className="chart-surface">{children}</div>
     </Card>
   );
 }
@@ -6874,18 +6952,24 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
       </p>
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="name" tickLine={false} axisLine={false} />
+          <defs>
+            <linearGradient id="ebitdaBarGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.92} />
+              <stop offset="100%" stopColor="#0f766e" stopOpacity={0.76} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+          <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
           <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
           <Tooltip content={<EbitdaTargetTooltip />} />
-          <Bar dataKey="ebitda" name="Ist EBITDA seit Vertragsstart" fill="#0f766e" radius={[5, 5, 0, 0]} />
+          <Bar dataKey="ebitda" name="Ist EBITDA seit Vertragsstart" fill="url(#ebitdaBarGradient)" radius={[8, 8, 0, 0]} />
           <Line
             type="monotone"
             dataKey="zielEbitdaKaufvertrag"
             name="Ziel-EBITDA Kaufvertrag"
-            stroke="#0369a1"
+            stroke="#38bdf8"
             strokeWidth={3}
-            dot={{ r: 4 }}
+            dot={{ r: 4, fill: "#38bdf8", stroke: "#082f49", strokeWidth: 2 }}
           />
           <Line
             type="monotone"
@@ -6894,7 +6978,7 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
             stroke="#f59e0b"
             strokeWidth={3}
             strokeDasharray="7 5"
-            dot={{ r: 4 }}
+            dot={{ r: 4, fill: "#f59e0b", stroke: "#422006", strokeWidth: 2 }}
           />
         </ComposedChart>
       </ResponsiveContainer>
@@ -6953,12 +7037,22 @@ function SitePerformanceChart({ sites = standorte }: { sites?: DashboardSite[] }
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={sites}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="name" tickLine={false} axisLine={false} />
+        <defs>
+          <linearGradient id="sitePerformanceRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.92} />
+            <stop offset="100%" stopColor="#0f766e" stopOpacity={0.7} />
+          </linearGradient>
+          <linearGradient id="sitePerformanceEbitdaGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.9} />
+            <stop offset="100%" stopColor="#0369a1" stopOpacity={0.68} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+        <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
         <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
         <Tooltip formatter={(v) => eur(Number(v))} />
-        <Bar dataKey="gesamtleistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
-        <Bar dataKey="ebitda" name="EBITDA" fill="#0891b2" radius={[5, 5, 0, 0]} />
+        <Bar dataKey="gesamtleistung" name="Gesamtleistung" fill="url(#sitePerformanceRevenueGradient)" radius={[8, 8, 0, 0]} />
+        <Bar dataKey="ebitda" name="EBITDA" fill="url(#sitePerformanceEbitdaGradient)" radius={[8, 8, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -6976,7 +7070,13 @@ function TopBehandlerChart({ data = [] }: { data?: TopBehandlerEntry[] }) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={data} layout="vertical" margin={{ left: 4, right: 12 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <defs>
+          <linearGradient id="topBehandlerGradient" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#0f766e" stopOpacity={0.76} />
+            <stop offset="100%" stopColor="#30d5c8" stopOpacity={0.94} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
         <XAxis type="number" hide />
         <YAxis
           type="category"
@@ -6984,11 +7084,11 @@ function TopBehandlerChart({ data = [] }: { data?: TopBehandlerEntry[] }) {
           width={78}
           tickLine={false}
           axisLine={false}
-          tick={{ fontSize: 10, fill: "#64748b" }}
+          tick={{ fontSize: 10, fill: "#c8e5e7", fontWeight: 700 }}
           tickFormatter={(value) => String(value).length > 16 ? `${String(value).slice(0, 15)}…` : String(value)}
         />
         <Tooltip formatter={(v) => eur(Number(v))} labelFormatter={(label) => `${label} Honorarumsatz`} />
-        <Bar dataKey="honorar" name="Honorarumsatz" fill="#0f766e" radius={[0, 5, 5, 0]}>
+        <Bar dataKey="honorar" name="Honorarumsatz" fill="url(#topBehandlerGradient)" radius={[0, 8, 8, 0]}>
           <LabelList
             dataKey="honorar"
             position="insideRight"
@@ -7011,11 +7111,17 @@ function ReceivablesChart({ sites = standorte }: { sites?: DashboardSite[] }) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={chartData}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="name" tickLine={false} axisLine={false} />
+        <defs>
+          <linearGradient id="receivablesGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#5eead4" stopOpacity={0.92} />
+            <stop offset="100%" stopColor="#0f766e" stopOpacity={0.72} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+        <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
         <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
         <Tooltip formatter={(v) => eur(Number(v))} />
-        <Bar dataKey="forderungen" name="Offene Forderungen" fill="#0f766e" radius={[5, 5, 0, 0]} />
+        <Bar dataKey="forderungen" name="Offene Forderungen" fill="url(#receivablesGradient)" radius={[8, 8, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -15185,13 +15291,13 @@ function BankKpiTile({
   const DetailIcon = status === "red" ? ArrowDownRight : ArrowUpRight;
   const detailClass = status === "red" ? "text-red-700" : status === "yellow" ? "text-amber-700" : "text-emerald-700";
   return (
-    <Card className={cn("relative flex min-h-[12.5rem] flex-col p-5 text-center", emphasis && "border-primary/80")}>
+    <Card className={cn("modern-kpi-card relative flex min-h-[12.5rem] flex-col p-5 text-center", emphasis && "border-primary/80")}>
       <div className="mb-3 flex min-h-8 items-start justify-between gap-3">
         <div className="w-8 shrink-0">
           <button
             type="button"
             aria-label={`${label} erklären`}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:text-primary"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-slate-950/18 text-slate-200 transition hover:border-primary hover:text-primary"
             onClick={() => setInfoOpen((open) => !open)}
           >
             <Info className="h-4 w-4" />
@@ -15202,11 +15308,11 @@ function BankKpiTile({
         </div>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="flex h-11 w-11 items-center justify-center rounded-md table-total text-primary">
+        <div className="modern-icon-tile flex h-12 w-12 items-center justify-center rounded-lg text-primary">
           <Icon className="h-5 w-5" />
         </div>
         <p className="mt-4 max-w-full text-sm font-semibold text-muted-foreground">{label}</p>
-        <p className="mt-1 break-words text-2xl font-bold tracking-tight">{value}</p>
+        <p className="mt-1 break-words text-3xl font-extrabold tracking-tight text-white">{value}</p>
         <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 text-sm font-semibold", detailClass)}>
           <DetailIcon className="h-4 w-4 shrink-0" />
           <span className="min-w-0 break-words">{detail}</span>

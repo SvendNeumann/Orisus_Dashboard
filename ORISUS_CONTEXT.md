@@ -261,6 +261,10 @@ App nach Login:
   - `Analyse`: vollstaendige Sicht mit allen Detailtabellen, Herleitungen, Importpruefungen und Pruefebenen.
 - Wichtig: Der Ansichtsmodus ist reine UI-Ordnung. Es werden keine Informationen geloescht und keine Daten-/Importlogik veraendert.
 - Detailbereiche mit Klasse `analysis-only` sind in `Management` ausgeblendet und in `Analyse` voll sichtbar.
+- Die Modernisierung erfolgt ueber zentrale UI-Bausteine, damit die App konsistent wirkt:
+  - KPI-Karten mit ruhiger Premium-Optik, klareren Icons und besserer Wert-Hierarchie.
+  - Chart-Karten mit eigener Chart-Flaeche, dezenter Tiefe und modernisierten Recharts-Farbverlaeufen.
+  - CFO-Cockpit zusaetzlich mit `Management-Fokus` als kurzer Lesestrecke fuer Ergebnisqualitaet, Zielabweichung, Forderungen und Cashflow-Fokus.
 - Ziel der UI-Ordnung:
   - oben Entscheidungsebene
   - darunter Hauptdiagramm/Haupttabelle
