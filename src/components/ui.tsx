@@ -63,7 +63,7 @@ export function Select({
   return (
     <select
       className={cn(
-        "h-10 rounded-md border border-[#b2e2e5]/35 bg-white/95 px-3 pr-9 text-sm font-semibold text-slate-950 shadow-sm outline-none transition focus:border-[#30d5c8] focus:ring-4 focus:ring-[#30d5c8]/15",
+        "h-10 rounded-md border border-[#b2e2e5]/35 bg-white/95 px-3 pr-9 text-center text-sm font-semibold text-slate-950 shadow-sm outline-none transition focus:border-[#30d5c8] focus:ring-4 focus:ring-[#30d5c8]/15",
         className
       )}
       {...props}

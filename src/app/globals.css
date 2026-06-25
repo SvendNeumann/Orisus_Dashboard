@@ -163,6 +163,11 @@ select {
   color-scheme: light;
 }
 
+.app-shell select {
+  text-align: center !important;
+  text-align-last: center !important;
+}
+
 .app-shell input[type="search"],
 .app-shell input[type="text"],
 .app-shell input[type="email"],
@@ -353,6 +358,7 @@ select {
 .app-shell select option {
   color: #102a3a;
   background-color: #ffffff;
+  text-align: center;
 }
 
 .app-shell .text-cyan-800,
