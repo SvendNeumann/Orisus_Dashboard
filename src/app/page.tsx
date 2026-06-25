@@ -6382,8 +6382,9 @@ function ebitdaTargetChartRow(site: DashboardSite, importedData?: ImportedDashbo
   const activeMonthKeys = activeBwaMonthKeysForSite(importedData, site);
   const fallbackKvPa = site.darlehen.zielEbitdaKaufvertragPa ?? 0;
   const fallbackKvMonthly = fallbackKvPa ? fallbackKvPa / 12 : 0;
-  const fallbackUebernahmeMonthly =
-    site.darlehen.zielEbitdaUebernahme && activeMonthKeys.length ? site.darlehen.zielEbitdaUebernahme / activeMonthKeys.length : 0;
+  const contractMonths = contractMonthsForSite(site, activeMonthKeys.length || 12);
+  const takeoverTargetTotal = site.darlehen.zielEbitdaUebernahme ?? 0;
+  const fallbackUebernahmeMonthly = takeoverTargetTotal && contractMonths ? takeoverTargetTotal / contractMonths : 0;
 
   if (activeMonthKeys.length) {
     const ebitda = activeMonthKeys.reduce((sum, monthKey) => sum + (ebitdaRow?.valuesByMonth[monthKey] ?? 0), 0);
@@ -6391,10 +6392,9 @@ function ebitdaTargetChartRow(site: DashboardSite, importedData?: ImportedDashbo
       const importedTarget = targetRowKv?.valuesByMonth[monthKey] ?? 0;
       return sum + (importedTarget || fallbackKvMonthly);
     }, 0);
-    const zielEbitdaUebernahme = activeMonthKeys.reduce((sum, monthKey) => {
-      const importedTarget = targetRowUebernahme?.valuesByMonth[monthKey] ?? 0;
-      return sum + (importedTarget || fallbackUebernahmeMonthly);
-    }, 0);
+    const importedUebernahmeTarget = activeMonthKeys.reduce((sum, monthKey) => sum + (targetRowUebernahme?.valuesByMonth[monthKey] ?? 0), 0);
+    const periodizedUebernahmeTarget = fallbackUebernahmeMonthly ? fallbackUebernahmeMonthly * activeMonthKeys.length : 0;
+    const zielEbitdaUebernahme = periodizedUebernahmeTarget || importedUebernahmeTarget;
     const abweichung = ebitda - zielEbitdaKaufvertrag;
     const abweichungUebernahme = zielEbitdaUebernahme ? ebitda - zielEbitdaUebernahme : null;
     return {
@@ -6406,7 +6406,7 @@ function ebitdaTargetChartRow(site: DashboardSite, importedData?: ImportedDashbo
       abweichungPct: zielEbitdaKaufvertrag ? (abweichung / zielEbitdaKaufvertrag) * 100 : 0,
       abweichungUebernahme,
       abweichungUebernahmePct: zielEbitdaUebernahme && abweichungUebernahme != null ? (abweichungUebernahme / zielEbitdaUebernahme) * 100 : null,
-      periodLabel: `aktive BWA-Monate seit Vertragsstart: ${activeMonthKeys.length}`
+      periodLabel: `aktive BWA-Monate seit Vertragsstart: ${activeMonthKeys.length}; Übernahmeziel zeitanteilig über ${contractMonths} Vertragsmonate`
     };
   }
 
@@ -6440,7 +6440,7 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
   return (
     <div className="space-y-2">
       <p className="text-xs leading-5 text-muted-foreground">
-        Soll-Linien kumuliert nur für aktive BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen Datenstand.
+        Soll-Linien kumuliert nur für aktive BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen Datenstand. Kaufvertrag p.a.-anteilig, Übernahmeziel zeitanteilig über die Vertragsperiode.
       </p>
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={chartData}>
