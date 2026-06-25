@@ -1227,6 +1227,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Menuebereich `Christian Henrici` steht als letzter Hauptbereich unter Administration und ist nur fuer Rollen `Admin` und `Info` vorgesehen; Praxismanagement darf diesen Bereich nicht sehen.
   - Untertab `Allgemeine Informationen` zeigt je Standort Vertragsstart, statisches Abrufdarlehen, Ziel-EBITDA Kaufvertrag p.a., Kaufpreis inkl. Earn-Out-Potenzial, direkt bezahlten Upfront-Kaufpreis, aufgenommenes Fremdkapital, Tilgung und Restschuld.
   - KPI-Kacheln im Untertab `Allgemeine Informationen` haben Info-Buttons mit Herleitung und Datenquelle.
+  - Zusaetzliche Jahresentwicklung im Untertab `Allgemeine Informationen`: je Standort/Jahr EBITDA im Jahr, Ziel-EBITDA Kaufvertrag p.a., Tilgung im Jahr, kumulierte Tilgung bis Jahresende und rechnerische Restschuld zum Jahresende. Restschuld Jahresende = aufgenommenes Fremdkapital minus kumulierte Tilgung bis Jahresende; Jahre ohne EBITDA-/Tilgungsdaten werden nicht kuenstlich als Nullzeile angezeigt.
   - Abrufdarlehen Christian Henrici sind statisch im Code hinterlegt, nicht importiert: Kirchberg 125.000 EUR, Essen 80.000 EUR, Kehl 150.000 EUR, Ulmet 230.000 EUR, Huettenberg 100.000 EUR, Kassel 100.000 EUR; Gesamt 785.000 EUR.
   - Supabase-RLS/Policies bleiben als separate Datenbank-Pruefung relevant und duerfen nicht durch reine UI-Sichtbarkeit ersetzt werden.
 - Statusueberarbeitung:

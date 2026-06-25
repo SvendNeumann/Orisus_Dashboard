@@ -4190,7 +4190,7 @@ export default function HomePage() {
           {effectiveImportedData && page === "bwa" && <Bwa importedData={effectiveImportedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
           {effectiveImportedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "darlehen" && <Darlehen sites={dashboardSites} importedData={effectiveImportedData} />}
-          {effectiveImportedData && page === "christian-henrici-info" && <ChristianHenriciInfo sites={dashboardSites} />}
+          {effectiveImportedData && page === "christian-henrici-info" && <ChristianHenriciInfo sites={dashboardSites} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "christian-henrici-abrufdarlehen" && <ChristianHenriciAbrufdarlehen />}
           {effectiveImportedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} />}
           {effectiveImportedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
@@ -15856,8 +15856,44 @@ function christianHenriciInfoRows(sites: DashboardSite[]) {
   });
 }
 
-function ChristianHenriciInfo({ sites }: { sites: DashboardSite[] }) {
+function christianHenriciAnnualRows(sites: DashboardSite[], importedData: ImportedDashboardData) {
+  const rowFor = (siteId: string, metricKey: string) =>
+    importedData.bwaRows.find((row) => row.siteId === siteId && row.metricKey === metricKey);
+  const years = importedData.report.jahre.filter((year) => year >= 1900).sort((a, b) => a - b);
+
+  return christianHenriciInfoRows(sites).flatMap((infoRow) => {
+    const site = infoRow.site;
+    const ebitdaRow = rowFor(site.id, "ebitda");
+    const tilgungRow = rowFor(site.id, "tilgung");
+    let cumulativeRepaid = 0;
+
+    return years
+      .map((year) => {
+        const yearKey = String(year);
+        const ebitda = Math.round(ebitdaRow?.valuesByYear[yearKey] ?? 0);
+        const repaidInYear = Math.abs(Math.round(tilgungRow?.valuesByYear[yearKey] ?? 0));
+        const hasEbitda = Boolean(ebitdaRow?.hasDataByYear[yearKey]) || ebitda !== 0;
+        const hasRepayment = Boolean(tilgungRow?.hasDataByYear[yearKey]) || repaidInYear !== 0;
+        if (!hasEbitda && !hasRepayment) return null;
+        cumulativeRepaid += repaidInYear;
+        return {
+          site,
+          year,
+          ebitda,
+          repaidInYear,
+          cumulativeRepaid,
+          remaining: Math.max(0, infoRow.debt - cumulativeRepaid),
+          debt: infoRow.debt,
+          targetEbitdaKvPa: infoRow.targetEbitdaKvPa
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+  });
+}
+
+function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[]; importedData: ImportedDashboardData }) {
   const rows = christianHenriciInfoRows(sites);
+  const annualRows = christianHenriciAnnualRows(sites, importedData);
   const totals = rows.reduce(
     (sum, row) => ({
       abrufdarlehen: sum.abrufdarlehen + row.abrufdarlehen,
@@ -15997,6 +16033,55 @@ function ChristianHenriciInfo({ sites }: { sites: DashboardSite[] }) {
                 <td className="border-r border-border p-3 text-right font-extrabold text-emerald-700">{eur(totals.repaid)}</td>
                 <td className="p-3 text-right font-extrabold text-primary">{eur(totals.remaining)}</td>
               </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Jahresentwicklung EBITDA, Tilgung & Restschuld</h2>
+          <p className="mt-1 text-sm text-white/80">
+            Je Standort und Jahr aus den vorhandenen BWA-/Darlehensdaten. Restschuld zum Jahresende = aufgenommenes Fremdkapital minus kumulierte Tilgung bis Jahresende.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[68rem] text-sm">
+            <thead>
+              <tr className="bg-[#0f8b96]/90 text-left text-white">
+                {[
+                  "Standort",
+                  "Jahr",
+                  "EBITDA im Jahr",
+                  "Ziel-EBITDA KV p.a.",
+                  "Tilgung im Jahr",
+                  "Getilgt kumuliert bis Jahresende",
+                  "Restschuld Jahresende"
+                ].map((head) => (
+                  <th key={head} className="border-r border-white/15 p-3 text-xs font-bold uppercase last:border-r-0">
+                    {head}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {annualRows.length ? annualRows.map((row) => (
+                <tr key={`${row.site.id}-${row.year}`} className="border-t border-border">
+                  <td className="border-r border-border p-3 font-bold">{row.site.name}</td>
+                  <td className="border-r border-border p-3">{row.year}</td>
+                  <td className="border-r border-border p-3 text-right font-semibold">{eur(row.ebitda)}</td>
+                  <td className="border-r border-border p-3 text-right">{row.targetEbitdaKvPa ? eur(row.targetEbitdaKvPa) : "-"}</td>
+                  <td className="border-r border-border p-3 text-right text-emerald-700">{eur(row.repaidInYear)}</td>
+                  <td className="border-r border-border p-3 text-right font-semibold text-emerald-700">{eur(row.cumulativeRepaid)}</td>
+                  <td className="p-3 text-right font-semibold">{eur(row.remaining)}</td>
+                </tr>
+              )) : (
+                <tr>
+                  <td className="p-4 text-sm text-muted-foreground" colSpan={7}>
+                    Noch keine Jahreswerte für EBITDA oder Tilgung im bestätigten Import vorhanden.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
