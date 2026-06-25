@@ -8936,9 +8936,6 @@ function cfoWorkbookSheetsForImport(sheetNames: string[]) {
     if (!hasLegacyConsolidation) {
       if (standaloneFixedSheets.has(sheetName)) return true;
       if (/^input_/i.test(sheetName)) return true;
-      if (/^Dashboard_/i.test(sheetName) || /^Dashboar_/i.test(sheetName)) {
-        return !/helper|doku/i.test(sheetName);
-      }
       return false;
     }
     if (fixedSheets.has(sheetName)) return true;
@@ -8948,6 +8945,23 @@ function cfoWorkbookSheetsForImport(sheetNames: string[]) {
     if (/personalkosten/i.test(sheetName)) return true;
     return false;
   });
+}
+
+function siteFromCfoFileName(fileName: string) {
+  const fileKey = normalizeMetric(fileName);
+  const knownAliases: Record<string, string[]> = {
+    kirchberg: ["dresk", "kirchberg"],
+    essen: ["drkrause", "essen"],
+    kehl: ["dreszdb", "zdb", "kehl"],
+    ulmet: ["drhangx", "hangx", "ulmet", "ulm"],
+    huettenberg: ["drkrauhausen", "krauhausen", "huttenberg", "huettenberg"],
+    kassel: ["kassel"]
+  };
+  const match = sortSitesByContractStart(standorte).find((site) => {
+    const aliases = knownAliases[site.id] ?? [site.id, site.name];
+    return aliases.some((alias) => fileKey.includes(normalizeMetric(alias)));
+  });
+  return match?.name ?? "";
 }
 
 async function readCfoWorkbookFromFile(file: File) {
@@ -19438,6 +19452,124 @@ function Uploads({
     refreshImportHistory();
   }, []);
 
+  async function processCfoUploadFile(file: File, expectedSite?: DashboardSite) {
+    const workbook = await readCfoWorkbookFromFile(file);
+    const detectedSiteName = standaloneSiteNameFromWorkbook(workbook) || siteFromCfoFileName(file.name);
+    const detectedSiteId = detectedSiteName ? siteIdForName(detectedSiteName) : "";
+    const matchedSite = expectedSite ?? sortSitesByContractStart(standorte).find((site) => site.id === detectedSiteId);
+    const nextReport = buildImportReport(workbook, file.name);
+
+    if (!matchedSite || !detectedSiteId) {
+      return {
+        siteId: "",
+        fileName: file.name,
+        report: {
+          ...nextReport,
+          status: "error",
+          errors: [
+            ...nextReport.errors,
+            `Die Datei ${file.name} konnte keinem Standort zugeordnet werden. Bitte Input_Stammdaten prüfen oder den Standortnamen im Dateinamen ergänzen.`
+          ]
+        } satisfies ImportReport,
+        data: null as ImportedDashboardData | null
+      };
+    }
+
+    const checkedReport: ImportReport =
+      expectedSite && detectedSiteId !== expectedSite.id
+        ? {
+            ...nextReport,
+            status: "error",
+            errors: [
+              ...nextReport.errors,
+              `Diese Datei gehört zu ${detectedSiteName || matchedSite.name}, wurde aber im Upload-Feld ${expectedSite.name} ausgewählt. Bitte im richtigen Standort-Feld hochladen.`
+            ]
+          }
+        : nextReport;
+    const nextData =
+      checkedReport.status === "ready" || checkedReport.status === "warning"
+        ? buildImportedDashboardData(workbook, file.name, checkedReport)
+        : null;
+
+    return {
+      siteId: matchedSite.id,
+      fileName: file.name,
+      report: checkedReport,
+      data: nextData
+    };
+  }
+
+  async function handleBatchFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    if (!canEdit) return;
+    const files = Array.from(event.target.files ?? []);
+    if (!files.length) return;
+
+    setReport({ ...emptyImportReport, status: "reading", fileName: `${files.length} Standortdateien` });
+
+    try {
+      await waitForBrowserPaint();
+      const results = [];
+      for (const file of files) {
+        try {
+          results.push(await processCfoUploadFile(file));
+        } catch (error) {
+          results.push({
+            siteId: "",
+            fileName: file.name,
+            report: {
+              ...emptyImportReport,
+              status: "error",
+              fileName: file.name,
+              importedAt: new Date().toISOString(),
+              errors: [
+                error instanceof Error
+                  ? `Die Datei ${file.name} konnte nicht gelesen werden: ${error.message}.`
+                  : `Die Datei ${file.name} konnte nicht gelesen werden.`
+              ]
+            } satisfies ImportReport,
+            data: null as ImportedDashboardData | null
+          });
+        }
+      }
+
+      const nextSiteUploads = { ...siteUploads };
+      results.filter((result) => result.siteId).forEach((result) => {
+        nextSiteUploads[result.siteId] = { fileName: result.fileName, report: result.report, data: result.data };
+      });
+      setSiteUploads(nextSiteUploads);
+
+      const nextCombinedData = mergeImportedDashboardData(
+        confirmedDashboardData,
+        Object.values(nextSiteUploads)
+          .map((entry) => entry.data)
+          .filter((entry): entry is ImportedDashboardData => entry != null)
+      );
+      setPendingDashboardData(nextCombinedData);
+
+      const blockingErrors = results.flatMap((result) => result.report.errors.map((error) => `${result.fileName}: ${error}`));
+      const uploadWarnings = results.flatMap((result) => result.report.warnings.map((warning) => `${result.fileName}: ${warning}`));
+      if (nextCombinedData) {
+        setReport({
+          ...nextCombinedData.report,
+          fileName: results.map((result) => result.fileName).join(" + "),
+          status: blockingErrors.length || uploadWarnings.length || nextCombinedData.report.warnings.length ? "warning" : nextCombinedData.report.status,
+          warnings: [...nextCombinedData.report.warnings, ...uploadWarnings, ...blockingErrors],
+          errors: []
+        });
+      } else {
+        setReport({
+          ...emptyImportReport,
+          status: "error",
+          fileName: results.map((result) => result.fileName).join(" + "),
+          importedAt: new Date().toISOString(),
+          errors: blockingErrors.length ? blockingErrors : ["Keine der ausgewählten Dateien konnte importfähig gelesen werden."]
+        });
+      }
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   async function handleSiteFileUpload(site: DashboardSite, event: React.ChangeEvent<HTMLInputElement>) {
     if (!canEdit) return;
     const file = event.target.files?.[0];
@@ -19447,28 +19579,10 @@ function Uploads({
 
     try {
       await waitForBrowserPaint();
-      const workbook = await readCfoWorkbookFromFile(file);
-      const detectedSiteName = standaloneSiteNameFromWorkbook(workbook);
-      const nextReport = buildImportReport(workbook, file.name);
-      const detectedSiteId = detectedSiteName ? siteIdForName(detectedSiteName) : "";
-      const checkedReport: ImportReport =
-        detectedSiteId && detectedSiteId !== site.id
-          ? {
-              ...nextReport,
-              status: "error",
-              errors: [
-                ...nextReport.errors,
-                `Diese Datei gehört zu ${detectedSiteName}, wurde aber im Upload-Feld ${site.name} ausgewählt. Bitte im richtigen Standort-Feld hochladen.`
-              ]
-            }
-          : nextReport;
-      const nextData =
-        checkedReport.status === "ready" || checkedReport.status === "warning"
-          ? buildImportedDashboardData(workbook, file.name, checkedReport)
-          : null;
+      const result = await processCfoUploadFile(file, site);
       const nextSiteUploads = {
         ...siteUploads,
-        [site.id]: { fileName: file.name, report: checkedReport, data: nextData }
+        [site.id]: { fileName: file.name, report: result.report, data: result.data }
       };
       setSiteUploads(nextSiteUploads);
       const nextCombinedData = mergeImportedDashboardData(
@@ -19478,7 +19592,7 @@ function Uploads({
           .filter((entry): entry is ImportedDashboardData => entry != null)
       );
       setPendingDashboardData(nextCombinedData);
-      setReport(nextCombinedData?.report ?? checkedReport);
+      setReport(nextCombinedData?.report ?? result.report);
     } catch (error) {
       const errorReport = {
         ...emptyImportReport,
@@ -19548,10 +19662,10 @@ function Uploads({
             : "Noch kein Import";
 
   const importSteps = [
-    { label: "Standortdatei auswählen", done: report.status !== "idle" || Boolean(confirmedReport) },
+    { label: "Eine oder mehrere Standortdateien auswählen", done: report.status !== "idle" || Boolean(confirmedReport) },
     { label: "Input-Blätter je Standort erkennen", done: Boolean(activeReport?.presentSheets.length) },
-    { label: "Export/Input-Daten je Standort auslesen", done: Boolean(activeReport?.totalRows) },
-    { label: "Einzelupdate mit bestehenden Standorten zusammenführen", done: Boolean(pendingDashboardData || confirmedDashboardData) },
+    { label: "Input- und Dashboard-Daten je Standort auslesen", done: Boolean(activeReport?.totalRows) },
+    { label: "Standortupdates mit bestehenden Standorten zusammenführen", done: Boolean(pendingDashboardData || confirmedDashboardData) },
     { label: "Standorte, Jahre und Monate prüfen", done: Boolean(activeReport?.standorte.length && activeReport?.jahre.length) },
     { label: "Importbericht freigeben", done: Boolean(confirmedReport) }
   ];
@@ -19622,11 +19736,31 @@ function Uploads({
             <div>
               <h2 className="font-bold">Standortdateien hochladen</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Pro Standort eine eigene Controlling-Datei. Ein einzelner Upload aktualisiert nur diesen Standort und wird mit dem bestätigten Datenstand der übrigen Standorte kombiniert.
+                Mehrere Dateien gleichzeitig auswählen: Die App erkennt den Standort aus Input_Stammdaten oder, falls nötig, aus dem Dateinamen. Einzelne Standortfelder bleiben für gezielte Nachuploads.
               </p>
             </div>
             <Badge tone={statusTone}>{statusLabel}</Badge>
           </div>
+          <label
+            className={cn(
+              "mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-primary/45 bg-cyan-50/70 p-5 text-center transition",
+              canEdit ? "cursor-pointer hover:border-primary hover:bg-cyan-50" : "cursor-not-allowed opacity-60"
+            )}
+          >
+            <FileUp className="h-7 w-7 text-primary" />
+            <p className="mt-2 font-extrabold">Mehrere Standortdateien auswählen</p>
+            <p className="mt-1 max-w-xl text-sm font-semibold text-muted-foreground">
+              Du kannst alle Standortdateien auf einmal markieren. Bereits erkannte Standorte werden automatisch den Kacheln unten zugeordnet.
+            </p>
+            <input
+              className="sr-only"
+              type="file"
+              accept=".xlsx,.xls"
+              multiple
+              onChange={handleBatchFileUpload}
+              disabled={!canEdit}
+            />
+          </label>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {sortSitesByContractStart(standorte).map((site) => {
               const entry = siteUploads[site.id];

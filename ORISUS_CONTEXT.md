@@ -217,9 +217,10 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Sichtbare Chart-Beschriftung/Tooltip soll schlank bleiben: Balken = Ist-EBITDA kumuliert, blaue Linie = Ziel Kaufvertrag, gelbe gestrichelte Linie = Ziel Uebernahme. Monats-/p.a.-Hilfswerte gehoeren nicht prominent in den Tooltip.
 - CFO-Upload / Standortdateien:
   - Die alte konsolidierte Gesamtdatei soll nicht mehr der Standard-Upload sein.
-  - Der CFO-Upload arbeitet mit festen Uploadfeldern je Standort. Ein Upload im Standortfeld ersetzt nur diesen Standort; alle anderen bereits bestaetigten Standorte bleiben erhalten.
+  - Der CFO-Upload hat eine Mehrfachauswahl fuer mehrere Standortdateien auf einmal. Die App erkennt den Standort zuerst aus `Input_Stammdaten` und nutzt den Dateinamen als Fallback.
+  - Zusaetzlich bleiben feste Uploadfelder je Standort fuer gezielte Einzelupdates bestehen. Ein Upload im Standortfeld ersetzt nur diesen Standort; alle anderen bereits bestaetigten Standorte bleiben erhalten.
   - Eine Datei wird gegen den im Uploadfeld erwarteten Standort geprueft. Wird z. B. eine Essen-Datei im Kirchberg-Feld hochgeladen, blockiert der Import mit Fehlermeldung.
-  - Die App liest bei Standortdateien gezielt nur die Input- und Dashboard-Blaetter. `Export_Konzern`, PowerQuery-/Temp-Blaetter wie `__bpstmp_*` und sonstige Hilfsblaetter werden fuer den schnellen Standortimport nicht geladen.
+  - Die App liest bei Standortdateien gezielt nur die Input-Blaetter sowie `Dashboard_Management` und `Dashboard_Performance`. Ansichts-/PMR-/Helper-Dashboardblaetter, `Export_Konzern`, PowerQuery-/Temp-Blaetter wie `__bpstmp_*` und sonstige Hilfsblaetter werden fuer den schnellen Standortimport nicht geladen.
   - Relevante Standort-Inputblaetter sind: `Input_Stammdaten`, `Input_Finanzen`, `Input_BWA`, `Input_Kontostand`, `Input_Behandler`, `Input_Behandler_Leistung`, `Input_Personalkosten`, `Input_Operativ`, `Input_Operativ_Maske`, `Input_EBITDA_Ziele` und `Input_ausstehende Gehaelter`.
   - Patientendaten liegen typischerweise in `Input_Operativ`; die Importlogik nutzt dieses Blatt und weitere Inputblaetter als Fallback, damit keine Power-Query-Konsolidierung in einer Gesamtdatei noetig ist.
   - Die alte Konzern-Gesamtdatei bleibt als Legacy-Fallback technisch lesbar; neue Standortdateien sollen aber nicht mehr ueber Exportblaetter konsolidiert werden.
