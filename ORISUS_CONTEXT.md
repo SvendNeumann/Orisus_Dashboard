@@ -162,6 +162,11 @@ Aktuelle wichtige Live-Ergaenzungen:
 - PMR-Report mit Standortauswahl, Zeitraumfilter, Vergleichsjahr und Hoch-/Querformat.
 - Personalkosten-/Honorar-Gegenueberstellung je Behandler in PMR und Standortdetails.
 - Benchmarking mit dynamischem Standortnamen und Standardzeitraum `Gesamte Periode`.
+- Benchmarking-Tab ist auf Standortleiter-Lesbarkeit verdichtet:
+  - Oben direkte Tabelle `Standort vs. Ø Orisus`.
+  - Fokus auf wesentliche Kennzahlen: EBITDA-Marge, Kostenquoten, Gesamtumsatz je Zahnarzt-FTE/Zimmer, Patienten je Zimmer, Neupatientenquote, Terminwahrnehmung, Terminausfallquote.
+  - Doppelte Index-Kachelgruppen und redundante Rankingbloecke sind aus der Hauptansicht entfernt.
+  - Detail-Herleitungen sind einklappbar und standardmaessig geschlossen.
 - KPI-Regeln im Admin-Bereich editierbar, mit verbessertem Kontrast der Eingabefelder.
 - Mobile Menues koennen ueber die abgedunkelte Flaeche geschlossen werden.
 - CFO-Cockpit Earn-Out-/Wachstums-KPI-Logik ist fachlich getrennt:
@@ -660,6 +665,8 @@ Ziel:
 - Standort-Benchmarking mit relativen Indexkennzahlen.
 - Vergleich mit `Ø Orisus ohne Standort`: Der ausgewaertete Standort wird aus dem Durchschnitt der Vergleichsgruppe herausgerechnet, damit er seinen eigenen Benchmark nicht verwaessert.
 - Standortleiter-Ansicht.
+- In der App-Ansicht steht oben eine klare Tabelle `Standort vs. Ø Orisus`, damit Standortleiter sofort sehen, ob z. B. Personalquote, Kostenquoten, Patienten je Behandlungszimmer oder Neupatientenquote ueber/unter Vergleich liegen.
+- Die Hauptansicht soll nicht mit vielen doppelten Indexkacheln ueberladen sein; Detailtabellen/Rechenbasis bleiben einklappbar bzw. nachgelagert.
 - PDF-Export sauber, farbig, druckfaehig, nicht nur Screenshot der App.
 - Oben in der Ansicht muss immer `Standort-Benchmarking: <Standortname>` stehen, nicht `ausgewaehlter Standort`.
 - Standardzeitraum ist `Gesamte Periode`.

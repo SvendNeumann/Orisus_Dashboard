@@ -12048,6 +12048,107 @@ function Analysen({
       basis: "Nicht wahrgenommene Termine / gebuchte Termine"
     }
   ];
+  const benchmarkOverviewRows = [
+    {
+      group: "Ergebnis",
+      label: "EBITDA-Marge",
+      siteValue: selectedRow?.ebitdaMargin ?? null,
+      orisusValue: marginGroup,
+      type: "percent" as const,
+      higherIsBetter: true,
+      source: "BWA"
+    },
+    {
+      group: "Kosten",
+      label: "Personalkostenquote",
+      siteValue: selectedRow?.personalquote ?? null,
+      orisusValue: costGroup.personalquote,
+      type: "percent" as const,
+      higherIsBetter: false,
+      source: "BWA"
+    },
+    {
+      group: "Kosten",
+      label: "Materialquote",
+      siteValue: selectedRow?.materialquote ?? null,
+      orisusValue: costGroup.materialquote,
+      type: "percent" as const,
+      higherIsBetter: false,
+      source: "BWA"
+    },
+    {
+      group: "Kosten",
+      label: "Fremdlaborquote",
+      siteValue: selectedRow?.fremdlaborquote ?? null,
+      orisusValue: costGroup.fremdlaborquote,
+      type: "percent" as const,
+      higherIsBetter: false,
+      source: "BWA"
+    },
+    {
+      group: "Kosten",
+      label: "Gesamtkostenquote",
+      siteValue: selectedRow?.gesamtkostenquote ?? null,
+      orisusValue: costGroup.gesamtkostenquote,
+      type: "percent" as const,
+      higherIsBetter: false,
+      source: "BWA"
+    },
+    {
+      group: "Kapazität",
+      label: "Gesamtumsatz je Zahnarzt-FTE",
+      siteValue: selectedRow?.pvsPerDentist ?? null,
+      orisusValue: numericAverage((row) => row.pvsPerDentist),
+      type: "currency" as const,
+      higherIsBetter: true,
+      source: "PVS / Personal"
+    },
+    {
+      group: "Kapazität",
+      label: "Gesamtumsatz je Behandlungszimmer",
+      siteValue: selectedRow?.pvsPerRoom ?? null,
+      orisusValue: numericAverage((row) => row.pvsPerRoom),
+      type: "currency" as const,
+      higherIsBetter: true,
+      source: "PVS / Stammdaten"
+    },
+    {
+      group: "Patienten",
+      label: "Patienten je Behandlungszimmer",
+      siteValue: selectedPatientRow?.patientsPerRoom ?? null,
+      orisusValue: patientAverage((row) => row.patientsPerRoom),
+      type: "number" as const,
+      higherIsBetter: true,
+      source: "Patienten"
+    },
+    {
+      group: "Patienten",
+      label: "Neupatientenquote",
+      siteValue: selectedPatientRow?.newPatientRate ?? null,
+      orisusValue: patientAverage((row) => row.newPatientRate),
+      type: "percent" as const,
+      higherIsBetter: true,
+      source: "Patienten"
+    },
+    {
+      group: "Patienten",
+      label: "Terminwahrnehmungsquote",
+      siteValue: selectedPatientRow?.attendanceRate ?? null,
+      orisusValue: patientAverage((row) => row.attendanceRate),
+      type: "percent" as const,
+      higherIsBetter: true,
+      source: "Patienten"
+    },
+    {
+      group: "Patienten",
+      label: "Terminausfallquote",
+      siteValue: selectedPatientRow?.cancellationRate ?? null,
+      orisusValue: patientAverage((row) => row.cancellationRate),
+      type: "percent" as const,
+      higherIsBetter: false,
+      source: "Patienten"
+    }
+  ];
 
   const benchmarkReportValue = (value: number | null | undefined, suffix = "%", unavailable = false) => {
     if (unavailable || value == null || !Number.isFinite(value)) return "n. v.";
@@ -12630,71 +12731,11 @@ function Analysen({
         </FilterShell>
       </div>
 
-      <div className="analysis-print-block min-w-0 overflow-hidden rounded-xl border border-white/15 bg-slate-950/55 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-        <div className="flex flex-col gap-2 border-b border-white/10 p-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-white">Standort-Scorecard | {period}</h2>
-            <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-300">
-              Management-Radar je Standort: Finanzen, Cashflow, Bank/PVS-Abgleich, Produktivität, Personal/Kapazität,
-              Patienten und Datenbasis. 100 Punkte entsprechen stabiler bzw. überdurchschnittlicher Einordnung.
-            </p>
-          </div>
-          <div className="rounded-lg border border-teal-200/20 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100">
-            Bank/PVS-Abgleich immer auf gesamter Vertragsperiode
-          </div>
-        </div>
-        <div className="max-w-full overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-          <table className="w-full min-w-[1080px] border-collapse text-xs">
-            <thead>
-              <tr>
-                {["Standort", "Score", "Status", "Finanzen", "Cashflow", "Bank/PVS", "Produktivität", "Personal", "Patienten", "Datenbasis", "Fokus"].map((head) => (
-                  <th key={head} className="border border-white/10 bg-white/5 p-2 text-left font-bold uppercase text-slate-200">
-                    {head}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {scorecardRows.map((row) => {
-                const scoreMap = new Map(row.dimensionScores.map((item) => [item.label, item.score]));
-                return (
-                  <tr key={row.site.id}>
-                    <td className="border border-white/10 p-2 font-bold text-white">{row.label}</td>
-                    <td className="border border-white/10 p-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-14 font-extrabold text-white">{scoreDisplay(row.score)}</span>
-                        <div className="h-2 min-w-28 flex-1 overflow-hidden rounded-full bg-white/10">
-                          <div className={cn("h-full rounded-full", scoreBarClass(row.score))} style={{ width: `${row.score ?? 8}%` }} />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="border border-white/10 p-2">
-                      <StatusDot status={row.tone} label={scoreToneText(row.score)} />
-                    </td>
-                    {["Finanzen", "Cashflow", "Bank/PVS", "Produktivität", "Personal", "Patienten", "Datenbasis"].map((label) => {
-                      const score = scoreMap.get(label) ?? null;
-                      return (
-                        <td key={label} className="border border-white/10 p-2">
-                          <div className="flex items-center gap-2">
-                            <span className={cn("h-2.5 w-2.5 rounded-full", scoreBarClass(score))} />
-                            <span className="font-semibold text-slate-100">{scoreDisplay(score)}</span>
-                          </div>
-                        </td>
-                      );
-                    })}
-                    <td className="border border-white/10 p-2 text-slate-200">{row.focus}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="border-t border-white/10 p-3 text-xs leading-5 text-slate-300">
-          Leselogik: Finanzen bündelt EBITDA-Marge, Zielerreichung und Kostenquote. Cashflow bewertet Cashflow-Konversion.
-          Bank/PVS vergleicht Bank-Praxisumsatz gegen BWA-Umsatz über die gesamte Vertragsperiode. Produktivität normalisiert auf
-          Zahnarzt-FTE, Zimmer und Öffnungsstunden. Patientenwerte werden nur gerechnet, wenn Importdaten vorhanden sind.
-        </div>
-      </div>
+      <BenchmarkOverviewTable
+        rows={benchmarkOverviewRows}
+        siteName={displaySiteName}
+        period={period}
+      />
 
       <div className="analysis-print-block min-w-0 rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] lg:grid lg:grid-cols-[1fr_1.4fr] lg:items-center">
         <div>
@@ -12720,54 +12761,6 @@ function Analysen({
         </div>
       </div>
 
-      <div className="analysis-print-block min-w-0 rounded-xl border border-teal-200/20 bg-teal-400/10 p-4 text-sm leading-relaxed text-slate-200">
-        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-semibold uppercase tracking-[0.18em] text-teal-200">Logik der Vergleichskacheln</p>
-              <InlineInfoButton title="Was darf verglichen werden?" label="Vergleichslogik erklären">
-                <ComparisonRuleInfoContent context="Benchmarking und Scorecard" />
-              </InlineInfoButton>
-            </div>
-            <p className="mt-2">
-          Die Werte werden als Index gegen den gewählten Vergleich berechnet. <strong>100 %</strong> entspricht dem Ø Orisus der
-              anderen Standorte ohne den ausgewerteten Standort. Werte über 100 % bedeuten bei Umsatz-, Leistungs- und EBITDA-Kennzahlen eine bessere
-              relative Performance; bei Forderungs- und Kostenquoten ist ein niedrigerer Wert besser, weil weniger Kapitalbindung
-              bzw. geringere Kostenbelastung vorliegt.
-            </p>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-slate-950/35 px-3 py-2 text-xs text-slate-200 md:max-w-xs">
-            Beispiel: 118 % bei „Gesamtumsatz je Zahnarzt-FTE“ heißt 18 % über Ø Orisus. 85 % bei „EBITDA je Behandlungszimmer“ heißt 15 % unter Ø Orisus.
-          </div>
-        </div>
-      </div>
-
-      <BenchmarkBasisTable
-        rows={basisRows}
-        siteName={selectedSite?.name ?? "Standort"}
-        comparison={comparison}
-        period={period}
-      />
-
-      <BenchmarkPatientBasisTable
-        rows={patientBasisRows}
-        siteName={selectedSite?.name ?? "Standort"}
-        comparison={comparison}
-        period={period}
-      />
-
-      <div className="analysis-print-block grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {benchmarkItems.map((item) => (
-          <BenchmarkKpiCard key={item.label} {...item} />
-        ))}
-      </div>
-
-      <div className="analysis-print-block grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {patientBenchmarkItems.map((item) => (
-          <BenchmarkKpiCard key={item.label} {...item} />
-        ))}
-      </div>
-
       {viewMode === "Intern" && (
         <div className="analysis-print-block grid min-w-0 gap-3 rounded-xl border border-white/15 bg-slate-950/45 p-4 md:grid-cols-4">
           <Mini label={`${selectedSite?.name ?? "Standort"} Gesamtleistung`} value={eur(selectedSite?.gesamtleistung ?? 0)} />
@@ -12777,29 +12770,23 @@ function Analysen({
         </div>
       )}
 
-      <div className="analysis-print-page grid min-w-0 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <BenchmarkPanel title="Peer-Auszug im Benchmarking">
-          <div className="grid min-w-0 gap-5 lg:grid-cols-2">
-            <BenchmarkRanking
-              title="Umsatz je Zahnarzt-FTE (Index)"
-              rows={siteRows.map((row) => ({
-                label: row.label,
-                value: Math.round(indexFor(row.pvsPerDentist, numericAverage((item) => item.pvsPerDentist)) ?? 0),
-                selected: row.site.id === selectedSite?.id
-              }))}
-              suffix="%"
-              max={150}
-            />
-            <BenchmarkRanking
-              title="EBITDA-Marge (%)"
-              rows={siteRows.map((row) => ({
-                label: row.label,
-                value: row.ebitdaMargin,
-                selected: row.site.id === selectedSite?.id
-              }))}
-              suffix="%"
-              max={Math.max(30, ...siteRows.map((row) => row.ebitdaMargin))}
-            />
+      <div className="analysis-print-block grid min-w-0 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <BenchmarkPanel title="EBITDA-Margen-Treiber" subtitle={`Warum liegt ${displaySiteName} ${marginGap >= 0 ? "über" : "unter"} Ø Orisus?`}>
+          <div className="grid min-w-0 gap-4 md:grid-cols-[1fr_0.9fr]">
+            <div className="space-y-2">
+              {costDrivers.map((driver) => (
+                <DriverLine key={driver.label} label={driver.label} value={driver.value} />
+              ))}
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-slate-100">
+              <div className={cn("mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full border", marginGap >= 0 ? "border-emerald-300/40 text-emerald-300" : "border-amber-300/40 text-amber-300")}>
+                <Info className="h-5 w-5" />
+              </div>
+              <p>
+                Die EBITDA-Marge liegt {marginGap >= 0 ? "über" : "unter"} Ø Orisus ohne den ausgewerteten Standort.
+                Die wichtigsten Treiber sind {costDrivers.slice(0, 2).map((item) => item.label).join(" und ")}.
+              </p>
+            </div>
           </div>
         </BenchmarkPanel>
         <BenchmarkPanel title="Kostenquoten im Peer-Auszug (%)">
@@ -12807,7 +12794,7 @@ function Analysen({
         </BenchmarkPanel>
       </div>
 
-      <div className="analysis-print-page grid min-w-0 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="analysis-print-block grid min-w-0 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <BenchmarkPanel title={`Patienten- und Termin-Benchmarking | ${period}`} subtitle="Vergleich von Patientenvolumen, Termintreue und Kapazitätsnutzung im anonymisierten Peer-Auszug.">
           <div className="grid min-w-0 gap-5 lg:grid-cols-2">
             <BenchmarkRanking
@@ -12846,38 +12833,79 @@ function Analysen({
         </BenchmarkPanel>
       </div>
 
-      <div className="analysis-print-page grid min-w-0 gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-        <BenchmarkPanel title="EBITDA-Margen-Treiber" subtitle={`Warum liegt ${displaySiteName} ${marginGap >= 0 ? "über" : "unter"} Ø Orisus?`}>
-          <div className="grid min-w-0 gap-4 md:grid-cols-[1fr_0.9fr]">
-            <div className="space-y-2">
-              {costDrivers.map((driver) => (
-                <DriverLine key={driver.label} label={driver.label} value={driver.value} />
-              ))}
-            </div>
-            <div className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-slate-100">
-              <div className={cn("mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full border", marginGap >= 0 ? "border-emerald-300/40 text-emerald-300" : "border-amber-300/40 text-amber-300")}>
-                <Info className="h-5 w-5" />
-              </div>
-              <p>
-                Die EBITDA-Marge liegt {marginGap >= 0 ? "über" : "unter"} Ø Orisus ohne den ausgewerteten Standort.
-                Die wichtigsten Treiber sind {costDrivers.slice(0, 2).map((item) => item.label).join(" und ")}.
-              </p>
-            </div>
+      <div className="analysis-print-block min-w-0 overflow-hidden rounded-xl border border-white/15 bg-slate-950/55 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+        <div className="flex flex-col gap-2 border-b border-white/10 p-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white">Scorecard | alle Standorte</h2>
+            <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-300">
+              Kompakter Management-Radar als zweite Ebene. Der direkte Standortvergleich oben bleibt die Hauptsicht.
+            </p>
           </div>
-        </BenchmarkPanel>
-        <BenchmarkPanel title="Standortleiter-Insights">
-          <div className="grid min-w-0 gap-3 md:grid-cols-3">
-            {summaryItems.map((item, index) => (
-              <div key={item} className="rounded-lg border border-white/10 bg-white/5 p-4 text-sm text-slate-100">
-                <div className={cn("mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full border", index === 1 ? "border-amber-300/40 text-amber-300" : "border-emerald-300/40 text-emerald-300")}>
-                  {index === 1 ? <Gauge className="h-5 w-5" /> : <ArrowUpRight className="h-5 w-5" />}
-                </div>
-                <p>{item}</p>
-              </div>
-            ))}
+          <div className="rounded-lg border border-teal-200/20 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100">
+            Bank/PVS immer gesamte Vertragsperiode
           </div>
-        </BenchmarkPanel>
+        </div>
+        <div className="max-w-full overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+          <table className="w-full min-w-[880px] border-collapse text-xs">
+            <thead>
+              <tr>
+                {["Standort", "Score", "Status", "Finanzen", "Cashflow", "Bank/PVS", "Produktivität", "Personal", "Patienten", "Fokus"].map((head) => (
+                  <th key={head} className="border border-white/10 bg-white/5 p-2 text-left font-bold uppercase text-slate-200">
+                    {head}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {scorecardRows.map((row) => {
+                const scoreMap = new Map(row.dimensionScores.map((item) => [item.label, item.score]));
+                return (
+                  <tr key={row.site.id}>
+                    <td className="border border-white/10 p-2 font-bold text-white">{row.label}</td>
+                    <td className="border border-white/10 p-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-14 font-extrabold text-white">{scoreDisplay(row.score)}</span>
+                        <div className="h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-white/10">
+                          <div className={cn("h-full rounded-full", scoreBarClass(row.score))} style={{ width: `${row.score ?? 8}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="border border-white/10 p-2">
+                      <StatusDot status={row.tone} label={scoreToneText(row.score)} />
+                    </td>
+                    {["Finanzen", "Cashflow", "Bank/PVS", "Produktivität", "Personal", "Patienten"].map((label) => {
+                      const score = scoreMap.get(label) ?? null;
+                      return (
+                        <td key={label} className="border border-white/10 p-2">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("h-2.5 w-2.5 rounded-full", scoreBarClass(score))} />
+                            <span className="font-semibold text-slate-100">{scoreDisplay(score)}</span>
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td className="border border-white/10 p-2 text-slate-200">{row.focus}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      <BenchmarkBasisTable
+        rows={basisRows}
+        siteName={selectedSite?.name ?? "Standort"}
+        comparison={comparison}
+        period={period}
+      />
+
+      <BenchmarkPatientBasisTable
+        rows={patientBasisRows}
+        siteName={selectedSite?.name ?? "Standort"}
+        comparison={comparison}
+        period={period}
+      />
 
       <div className="flex flex-wrap items-center justify-center gap-4 border-t border-white/10 pt-4 text-xs text-slate-400">
         <span>Orisus Zahnmedizin MVZ GmbH</span>
@@ -12885,6 +12913,119 @@ function Analysen({
         <span>Exportdatum: {new Date().toLocaleDateString("de-DE")}</span>
       </div>
     </section>
+  );
+}
+
+type BenchmarkOverviewRow = {
+  group: string;
+  label: string;
+  siteValue: number | null;
+  orisusValue: number | null;
+  type: "currency" | "percent" | "number";
+  higherIsBetter: boolean;
+  source: string;
+};
+
+function BenchmarkOverviewTable({
+  rows,
+  siteName,
+  period
+}: {
+  rows: BenchmarkOverviewRow[];
+  siteName: string;
+  period: string;
+}) {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const formatValue = (value: number | null, type: BenchmarkOverviewRow["type"]) => {
+    if (value == null || !Number.isFinite(value)) return "n. v.";
+    if (type === "currency") return eur(value);
+    if (type === "percent") return pct(value);
+    return value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+  };
+  const statusFor = (row: BenchmarkOverviewRow): Status | "neutral" => {
+    if (row.siteValue == null || row.orisusValue == null || !Number.isFinite(row.siteValue) || !Number.isFinite(row.orisusValue)) return "neutral";
+    const diff = row.siteValue - row.orisusValue;
+    const tolerance = row.type === "currency" ? Math.max(Math.abs(row.orisusValue) * 0.03, 5000) : row.type === "number" ? 0.5 : 0.5;
+    if (Math.abs(diff) <= tolerance) return "yellow";
+    const better = row.higherIsBetter ? diff > 0 : diff < 0;
+    return better ? "green" : "red";
+  };
+  const statusTextFor = (row: BenchmarkOverviewRow) => {
+    const status = statusFor(row);
+    if (status === "neutral") return "n. v.";
+    if (status === "yellow") return "nahe Ø Orisus";
+    if (row.higherIsBetter) return status === "green" ? "über Ø Orisus" : "unter Ø Orisus";
+    return status === "green" ? "unter Ø Orisus" : "erhöht ggü. Ø Orisus";
+  };
+  const deviationText = (row: BenchmarkOverviewRow) => {
+    if (row.siteValue == null || row.orisusValue == null || !Number.isFinite(row.siteValue) || !Number.isFinite(row.orisusValue)) return "n. v.";
+    const diff = row.siteValue - row.orisusValue;
+    if (row.type === "currency") return `${diff >= 0 ? "+" : ""}${eur(diff)}`;
+    return `${diff >= 0 ? "+" : ""}${diff.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${row.type === "percent" ? " Pkt." : ""}`;
+  };
+
+  return (
+    <div className="analysis-print-block min-w-0 overflow-hidden rounded-xl border border-teal-200/25 bg-slate-950/65 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+      <div className="flex flex-col gap-3 border-b border-white/10 p-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-white">Standort vs. Ø Orisus | {siteName}</h2>
+            <button
+              type="button"
+              aria-label="Benchmarking-Leselogik erklären"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/20 text-xs font-extrabold text-slate-200 transition hover:border-teal-200 hover:text-teal-100"
+              onClick={() => setInfoOpen(true)}
+            >
+              !
+            </button>
+          </div>
+          <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-300">
+            Die wichtigsten Kennzahlen auf einen Blick: Standortwert gegen Ø Orisus ohne den ausgewerteten Standort. Zeitraum: {period}.
+          </p>
+        </div>
+        <div className="rounded-lg border border-teal-200/20 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100">
+          Kosten niedriger besser · Leistung/Patienten höher besser
+        </div>
+      </div>
+      {infoOpen ? (
+        <InfoDialog title="Benchmarking-Leselogik" onClose={() => setInfoOpen(false)}>
+          <ComparisonRuleInfoContent context="Benchmarking-Übersicht" />
+        </InfoDialog>
+      ) : null}
+      <div className="max-w-full overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+        <table className="w-full min-w-[780px] border-collapse text-xs">
+          <thead>
+            <tr>
+              {["Bereich", "Kennzahl", siteName, "Ø Orisus", "Abweichung", "Einordnung", "Quelle"].map((head) => (
+                <th key={head} className="border border-white/10 bg-white/5 p-2 text-left font-bold uppercase text-slate-200">
+                  {head}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const status = statusFor(row);
+              return (
+                <tr key={`${row.group}-${row.label}`}>
+                  <td className="border border-white/10 p-2 text-slate-300">{row.group}</td>
+                  <td className="border border-white/10 p-2 font-bold text-white">{row.label}</td>
+                  <td className="border border-white/10 p-2 text-right font-extrabold text-teal-100">{formatValue(row.siteValue, row.type)}</td>
+                  <td className="border border-white/10 p-2 text-right font-semibold text-slate-100">{formatValue(row.orisusValue, row.type)}</td>
+                  <td className={cn("border border-white/10 p-2 text-right font-bold", status === "red" ? "text-red-300" : status === "green" ? "text-emerald-300" : "text-amber-200")}>
+                    {deviationText(row)}
+                  </td>
+                  <td className="border border-white/10 p-2">
+                    {status === "neutral" ? <span className="text-slate-300">n. v.</span> : <StatusDot status={status} label={statusTextFor(row)} />}
+                  </td>
+                  <td className="border border-white/10 p-2 text-slate-300">{row.source}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -12899,7 +13040,7 @@ function BenchmarkBasisTable({
   comparison: string;
   period: string;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const formatBasisValue = (value: number | null, type: "currency" | "percent") => {
     if (value == null || !Number.isFinite(value)) return "n. v.";
     return type === "currency" ? eur(value) : pct(value);
@@ -12975,7 +13116,7 @@ function BenchmarkPatientBasisTable({
   comparison: string;
   period: string;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const formatPatientBasisValue = (value: number | null, type: "count" | "average" | "percent") => {
     if (value == null || !Number.isFinite(value)) return "n. v.";
     if (type === "percent") return pct(value);
@@ -13115,45 +13256,6 @@ function FilterShell({ label, children }: { label: string; children: ReactNode }
       <span className="mb-1 block">{label}</span>
       {children}
     </label>
-  );
-}
-
-function BenchmarkKpiCard({
-  label,
-  selected,
-  group,
-  higherIsBetter,
-  suffix = "%",
-  unavailable = false
-}: {
-  label: string;
-  selected: number | null;
-  group: number | null;
-  higherIsBetter: boolean;
-  suffix?: string;
-  unavailable?: boolean;
-}) {
-  const deviation = selected == null || group == null ? null : selected - group;
-  const good = deviation == null ? false : higherIsBetter ? deviation >= 0 : deviation <= 0;
-  const valueText = unavailable || selected == null ? "n. v." : `${selected.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`;
-  const groupText = unavailable || selected == null || group == null ? "n. v." : `${group.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`;
-  const deviationText = unavailable || deviation == null
-    ? "Basis fehlt"
-    : `${deviation > 0 ? "+" : ""}${deviation.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %-Pkt.`;
-  return (
-    <div className="min-w-0 rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="min-w-0 text-sm font-bold text-white">{label}</h3>
-        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full border", unavailable ? "border-slate-500/40 text-slate-400" : good ? "border-emerald-300/50 text-emerald-300" : "border-red-300/50 text-red-300")}>
-          {unavailable ? <Info className="h-5 w-5" /> : good ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownRight className="h-5 w-5" />}
-        </div>
-      </div>
-      <div className="mt-3 space-y-1 text-sm text-slate-200">
-        <div className="flex min-w-0 justify-between gap-3"><span className="min-w-0">Standortwert</span><strong className="shrink-0 text-right text-white">{valueText}</strong></div>
-        <div className="flex min-w-0 justify-between gap-3"><span className="min-w-0">Ø Orisus ohne Standort</span><strong className="shrink-0 text-right text-white">{groupText}</strong></div>
-        <div className="flex min-w-0 justify-between gap-3"><span className="min-w-0">Abweichung</span><strong className={cn("shrink-0 text-right", unavailable ? "text-slate-400" : good ? "text-emerald-300" : "text-red-300")}>{deviationText}</strong></div>
-      </div>
-    </div>
   );
 }
 
