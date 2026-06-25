@@ -2976,14 +2976,14 @@ function isOnOrAfterStart(row: Record<string, unknown>, start: string) {
 }
 
 function targetEbitdaValue(rows: Record<string, unknown>[], siteName: string, mode: "kv" | "uebernahme", year?: number, month?: number) {
-  const monthlyMetric = mode === "kv" ? "ziel_ebitda_kv" : "ziel_ebitda_ubernahme";
-  const annualMetric = mode === "kv" ? "ziel_ebitda_kaufvertrag_p_a" : "ziel_ebitda_ubernahme_p_a";
+  const monthlyMetrics = mode === "kv" ? ["ziel_ebitda_kv"] : ["ziel_ebitda_ubernahme", "ziel_ebitda_uebernahme"];
+  const annualMetrics = mode === "kv" ? ["ziel_ebitda_kaufvertrag_p_a"] : ["ziel_ebitda_ubernahme_p_a", "ziel_ebitda_uebernahme_p_a"];
   const targetRows = rows.filter((row) => asText(row.Standortname) === siteName);
   if (month && !hasActiveBwaMonth(rows, siteName, year, month)) return 0;
-  const monthlyTarget = sumMetricForPeriod(targetRows, siteName, [monthlyMetric], year, month);
+  const monthlyTarget = sumMetricForPeriod(targetRows, siteName, monthlyMetrics, year, month);
   if (monthlyTarget) return monthlyTarget;
 
-  const annualTarget = lastRowsValue(targetRows, siteName, [annualMetric], ["stammdaten"]);
+  const annualTarget = lastRowsValue(targetRows, siteName, annualMetrics, ["stammdaten"]);
   if (!annualTarget) return 0;
   if (month) return annualTarget / 12;
   if (!year) return annualTarget;
@@ -6315,6 +6315,7 @@ type EbitdaTargetChartRow = {
   ebitda: number;
   zielEbitdaKaufvertrag: number;
   zielEbitdaUebernahme: number | null;
+  zielEbitdaUebernahmePa: number | null;
   abweichung: number;
   abweichungPct: number;
   abweichungUebernahme: number | null;
@@ -6341,7 +6342,8 @@ function EbitdaTargetTooltip({
       <p className="mb-2 text-xs font-semibold text-slate-500">{row.periodLabel}</p>
       <p className="text-teal-700">Ist EBITDA: {eur(row.ebitda)}</p>
       <p className="text-sky-700">Ziel-EBITDA KV: {eur(row.zielEbitdaKaufvertrag)}</p>
-      {row.zielEbitdaUebernahme != null ? <p className="text-amber-700">Ziel-EBITDA Übernahme: {eur(row.zielEbitdaUebernahme)}</p> : null}
+      {row.zielEbitdaUebernahmePa != null ? <p className="text-amber-700">Ziel-EBITDA Übernahme p.a.: {eur(row.zielEbitdaUebernahmePa)}</p> : null}
+      {row.zielEbitdaUebernahme != null ? <p className="text-amber-700">Ziel-EBITDA Übernahme anteilig: {eur(row.zielEbitdaUebernahme)}</p> : null}
       <p className={cn("font-bold", row.abweichung < 0 ? "text-red-700" : "text-emerald-700")}>
         Abw. KV: {eur(row.abweichung)} ({pct(row.abweichungPct)})
       </p>
@@ -6395,6 +6397,10 @@ function ebitdaTargetChartRow(site: DashboardSite, importedData?: ImportedDashbo
     const importedUebernahmeTarget = activeMonthKeys.reduce((sum, monthKey) => sum + (targetRowUebernahme?.valuesByMonth[monthKey] ?? 0), 0);
     const periodizedUebernahmeTarget = fallbackUebernahmeMonthly ? fallbackUebernahmeMonthly * activeMonthKeys.length : 0;
     const zielEbitdaUebernahme = importedUebernahmeTarget || periodizedUebernahmeTarget;
+    const zielEbitdaUebernahmePa =
+      importedUebernahmeTarget && activeMonthKeys.length
+        ? (importedUebernahmeTarget / activeMonthKeys.length) * 12
+        : takeoverTargetPa || null;
     const abweichung = ebitda - zielEbitdaKaufvertrag;
     const abweichungUebernahme = zielEbitdaUebernahme ? ebitda - zielEbitdaUebernahme : null;
     return {
@@ -6402,6 +6408,7 @@ function ebitdaTargetChartRow(site: DashboardSite, importedData?: ImportedDashbo
       ebitda,
       zielEbitdaKaufvertrag,
       zielEbitdaUebernahme: zielEbitdaUebernahme || null,
+      zielEbitdaUebernahmePa,
       abweichung,
       abweichungPct: zielEbitdaKaufvertrag ? (abweichung / zielEbitdaKaufvertrag) * 100 : 0,
       abweichungUebernahme,
@@ -6419,6 +6426,7 @@ function ebitdaTargetChartRow(site: DashboardSite, importedData?: ImportedDashbo
     ebitda: site.ebitda,
     zielEbitdaKaufvertrag,
     zielEbitdaUebernahme,
+    zielEbitdaUebernahmePa: zielEbitdaUebernahme,
     abweichung,
     abweichungPct: zielEbitdaKaufvertrag ? (abweichung / zielEbitdaKaufvertrag) * 100 : 0,
     abweichungUebernahme,
@@ -6460,7 +6468,7 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
           <Line
             type="monotone"
             dataKey="zielEbitdaUebernahme"
-            name="Ziel-EBITDA Übernahme"
+            name="Ziel-EBITDA Übernahme anteilig"
             stroke="#f59e0b"
             strokeWidth={3}
             strokeDasharray="7 5"
