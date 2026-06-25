@@ -15828,6 +15828,11 @@ function christianHenriciAbrufdarlehenForSite(siteName: string) {
   return christianHenriciAbrufdarlehen.find((row) => siteIdForName(row.site) === siteIdForName(siteName))?.value ?? 0;
 }
 
+function isFutureContractStart(start: string) {
+  const startValue = startDateValue(start);
+  return Number.isFinite(startValue) && startValue > Date.now();
+}
+
 function christianHenriciInfoRows(sites: DashboardSite[]) {
   const bySiteId = new Map<string, DashboardSite>();
   [...standorte, ...sites].forEach((site) => bySiteId.set(site.id, site));
@@ -15845,6 +15850,7 @@ function christianHenriciInfoRows(sites: DashboardSite[]) {
     const totalPurchasePotential = directPaid + earnOutPotential;
     return {
       site,
+      futureStart: isFutureContractStart(site.start),
       abrufdarlehen: christianHenriciAbrufdarlehenForSite(site.name),
       targetEbitdaKvPa: site.darlehen.zielEbitdaKaufvertragPa ?? 0,
       totalPurchasePotential,
@@ -15869,6 +15875,7 @@ function christianHenriciAnnualRows(sites: DashboardSite[], importedData: Import
 
     return years
       .map((year) => {
+        if (!isPeriodOnOrAfterStart(year, 12, site.start)) return null;
         const yearKey = String(year);
         const ebitda = Math.round(ebitdaRow?.valuesByYear[yearKey] ?? 0);
         const repaidInYear = Math.abs(Math.round(tilgungRow?.valuesByYear[yearKey] ?? 0));
@@ -15995,6 +16002,7 @@ function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[];
                 {[
                   "Standort",
                   "Vertragsstart",
+                  "Status",
                   "Abrufdarlehen",
                   "Ziel-EBITDA KV p.a.",
                   "Kaufpreis inkl. Earn-Out-Potenzial",
@@ -16014,6 +16022,11 @@ function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[];
                 <tr key={row.site.id} className="border-t border-border">
                   <td className="border-r border-border p-3 font-bold">{row.site.name}</td>
                   <td className="border-r border-border p-3">{row.site.start}</td>
+                  <td className="border-r border-border p-3">
+                    <Badge tone={row.futureStart ? "yellow" : "green"}>
+                      {row.futureStart ? "Noch nicht gestartet" : "Aktiv"}
+                    </Badge>
+                  </td>
                   <td className="border-r border-border p-3 text-right font-semibold">{eur(row.abrufdarlehen)}</td>
                   <td className="border-r border-border p-3 text-right">{row.targetEbitdaKvPa ? eur(row.targetEbitdaKvPa) : "-"}</td>
                   <td className="border-r border-border p-3 text-right">{eur(row.totalPurchasePotential)}</td>
@@ -16024,7 +16037,7 @@ function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[];
                 </tr>
               ))}
               <tr className="border-t border-border bg-white/15">
-                <td className="border-r border-border p-3 font-extrabold" colSpan={2}>Gesamt</td>
+                <td className="border-r border-border p-3 font-extrabold" colSpan={3}>Gesamt</td>
                 <td className="border-r border-border p-3 text-right font-extrabold">{eur(totals.abrufdarlehen)}</td>
                 <td className="border-r border-border p-3 text-right font-semibold text-muted-foreground">-</td>
                 <td className="border-r border-border p-3 text-right font-extrabold">{eur(totals.totalPurchasePotential)}</td>
@@ -16042,7 +16055,8 @@ function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[];
         <div className="table-head p-4 text-white">
           <h2 className="font-bold">Jahresentwicklung EBITDA, Tilgung & Restschuld</h2>
           <p className="mt-1 text-sm text-white/80">
-            Je Standort und Jahr aus den vorhandenen BWA-/Darlehensdaten. Restschuld zum Jahresende = aufgenommenes Fremdkapital minus kumulierte Tilgung bis Jahresende.
+            Je Standort und Jahr aus den vorhandenen BWA-/Darlehensdaten. Künftige Standorte erscheinen hier erst ab Vertragsstart und mit echten Daten.
+            Restschuld zum Jahresende = aufgenommenes Fremdkapital minus kumulierte Tilgung bis Jahresende.
           </p>
         </div>
         <div className="overflow-x-auto">
