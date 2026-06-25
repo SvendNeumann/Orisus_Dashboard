@@ -177,6 +177,9 @@ Aktuelle wichtige Live-Ergaenzungen:
   - erwarteter Earn-Out Run-Rate
   - erwartete Wachstumszahlung Run-Rate
   - erwartete Gesamtzahlung nach Vertragsende
+- CFO-Cockpit Diagramm `Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Uebernahme`:
+  - Ist-EBITDA und Ziel-Linien laufen nur ueber aktive BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen BWA-Datenstand.
+  - Ziel-Linien duerfen nicht als gesamte Vertragsperiode oder voller Zukunftszielwert gezeigt werden.
 - PMR-Export enthaelt Seite 1 Standortleiter-PMR und Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort.
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
 - Orisus Performance hat oben KPI-Kacheln im einheitlichen App-Kachelstil mit Info-Buttons/Herleitungen.

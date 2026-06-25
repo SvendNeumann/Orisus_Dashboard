@@ -5712,7 +5712,7 @@ function Cockpit({
 
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Übernahme | seit Vertragsstart" icon={TrendingUp}>
-          <EbitdaTargetChart sites={sites} />
+          <EbitdaTargetChart sites={sites} importedData={importedData} />
         </ChartCard>
         <ChartCard title="Offene Forderungen je Standort | aktueller Stand" icon={FileBarChart}>
           <ReceivablesChart sites={sites} />
@@ -6319,6 +6319,7 @@ type EbitdaTargetChartRow = {
   abweichungPct: number;
   abweichungUebernahme: number | null;
   abweichungUebernahmePct: number | null;
+  periodLabel: string;
 };
 
 function EbitdaTargetTooltip({
@@ -6337,6 +6338,7 @@ function EbitdaTargetTooltip({
   return (
     <div className="rounded-md border border-border bg-white p-3 text-sm shadow-lg">
       <p className="mb-2 font-bold text-slate-900">{label}</p>
+      <p className="mb-2 text-xs font-semibold text-slate-500">{row.periodLabel}</p>
       <p className="text-teal-700">Ist EBITDA: {eur(row.ebitda)}</p>
       <p className="text-sky-700">Ziel-EBITDA KV: {eur(row.zielEbitdaKaufvertrag)}</p>
       {row.zielEbitdaUebernahme != null ? <p className="text-amber-700">Ziel-EBITDA Übernahme: {eur(row.zielEbitdaUebernahme)}</p> : null}
@@ -6352,7 +6354,80 @@ function EbitdaTargetTooltip({
   );
 }
 
-function EbitdaTargetChart({ sites = standorte }: { sites?: DashboardSite[] }) {
+function activeBwaMonthKeysForSite(importedData: ImportedDashboardData | null | undefined, site: DashboardSite) {
+  if (!importedData?.bwaRows?.length) return [];
+  const rows = importedData.bwaRows.filter((row) => row.siteId === site.id && (row.metricKey === "summe_umsatz" || row.metricKey === "ebitda"));
+  const monthKeys = Array.from(
+    new Set(
+      rows.flatMap((row) =>
+        Object.keys(row.hasValueByMonth).filter((monthKey) => {
+          if (!row.hasValueByMonth[monthKey]) return false;
+          const [year, month] = monthKey.split("-").map(Number);
+          return isPeriodOnOrAfterStart(year, month, site.start);
+        })
+      )
+    )
+  );
+  return monthKeys.sort((a, b) => {
+    const [yearA, monthA] = a.split("-").map(Number);
+    const [yearB, monthB] = b.split("-").map(Number);
+    return yearA === yearB ? monthA - monthB : yearA - yearB;
+  });
+}
+
+function ebitdaTargetChartRow(site: DashboardSite, importedData?: ImportedDashboardData | null): EbitdaTargetChartRow {
+  const targetRowKv = importedData?.bwaRows?.find((row) => row.siteId === site.id && row.metricKey === "ziel_ebitda_kaufvertrag");
+  const targetRowUebernahme = importedData?.bwaRows?.find((row) => row.siteId === site.id && row.metricKey === "ziel_ebitda_uebernahme");
+  const ebitdaRow = importedData?.bwaRows?.find((row) => row.siteId === site.id && row.metricKey === "ebitda");
+  const activeMonthKeys = activeBwaMonthKeysForSite(importedData, site);
+  const fallbackKvPa = site.darlehen.zielEbitdaKaufvertragPa ?? 0;
+  const fallbackKvMonthly = fallbackKvPa ? fallbackKvPa / 12 : 0;
+  const fallbackUebernahmeMonthly =
+    site.darlehen.zielEbitdaUebernahme && activeMonthKeys.length ? site.darlehen.zielEbitdaUebernahme / activeMonthKeys.length : 0;
+
+  if (activeMonthKeys.length) {
+    const ebitda = activeMonthKeys.reduce((sum, monthKey) => sum + (ebitdaRow?.valuesByMonth[monthKey] ?? 0), 0);
+    const zielEbitdaKaufvertrag = activeMonthKeys.reduce((sum, monthKey) => {
+      const importedTarget = targetRowKv?.valuesByMonth[monthKey] ?? 0;
+      return sum + (importedTarget || fallbackKvMonthly);
+    }, 0);
+    const zielEbitdaUebernahme = activeMonthKeys.reduce((sum, monthKey) => {
+      const importedTarget = targetRowUebernahme?.valuesByMonth[monthKey] ?? 0;
+      return sum + (importedTarget || fallbackUebernahmeMonthly);
+    }, 0);
+    const abweichung = ebitda - zielEbitdaKaufvertrag;
+    const abweichungUebernahme = zielEbitdaUebernahme ? ebitda - zielEbitdaUebernahme : null;
+    return {
+      name: site.name,
+      ebitda,
+      zielEbitdaKaufvertrag,
+      zielEbitdaUebernahme: zielEbitdaUebernahme || null,
+      abweichung,
+      abweichungPct: zielEbitdaKaufvertrag ? (abweichung / zielEbitdaKaufvertrag) * 100 : 0,
+      abweichungUebernahme,
+      abweichungUebernahmePct: zielEbitdaUebernahme && abweichungUebernahme != null ? (abweichungUebernahme / zielEbitdaUebernahme) * 100 : null,
+      periodLabel: `aktive BWA-Monate seit Vertragsstart: ${activeMonthKeys.length}`
+    };
+  }
+
+  const zielEbitdaKaufvertrag = site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda;
+  const zielEbitdaUebernahme = site.darlehen.zielEbitdaUebernahme || null;
+  const abweichung = site.ebitda - zielEbitdaKaufvertrag;
+  const abweichungUebernahme = zielEbitdaUebernahme != null ? site.ebitda - zielEbitdaUebernahme : null;
+  return {
+    name: site.name,
+    ebitda: site.ebitda,
+    zielEbitdaKaufvertrag,
+    zielEbitdaUebernahme,
+    abweichung,
+    abweichungPct: zielEbitdaKaufvertrag ? (abweichung / zielEbitdaKaufvertrag) * 100 : 0,
+    abweichungUebernahme,
+    abweichungUebernahmePct: zielEbitdaUebernahme ? (abweichungUebernahme! / zielEbitdaUebernahme) * 100 : null,
+    periodLabel: "Fallback: Standortwerte seit Vertragsstart"
+  };
+}
+
+function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
   const chartData = sortSitesByContractStart(sites)
     .filter((site) =>
       site.gesamtleistung > 0 ||
@@ -6360,50 +6435,40 @@ function EbitdaTargetChart({ sites = standorte }: { sites?: DashboardSite[] }) {
       (site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda) !== 0 ||
       (site.darlehen.zielEbitdaUebernahme ?? 0) !== 0
     )
-    .map((site) => {
-      const zielEbitdaKaufvertrag = site.darlehen.zielEbitdaKaufvertrag ?? site.darlehen.zielEbitda;
-      const zielEbitdaUebernahme = site.darlehen.zielEbitdaUebernahme || null;
-      const abweichung = site.ebitda - zielEbitdaKaufvertrag;
-      const abweichungUebernahme = zielEbitdaUebernahme != null ? site.ebitda - zielEbitdaUebernahme : null;
-      return {
-        name: site.name,
-        ebitda: site.ebitda,
-        zielEbitdaKaufvertrag,
-        zielEbitdaUebernahme,
-        abweichung,
-        abweichungPct: zielEbitdaKaufvertrag ? (abweichung / zielEbitdaKaufvertrag) * 100 : 0,
-        abweichungUebernahme,
-        abweichungUebernahmePct: zielEbitdaUebernahme ? (abweichungUebernahme! / zielEbitdaUebernahme) * 100 : null
-      };
-    });
+    .map((site) => ebitdaTargetChartRow(site, importedData));
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <ComposedChart data={chartData}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="name" tickLine={false} axisLine={false} />
-        <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
-        <Tooltip content={<EbitdaTargetTooltip />} />
-        <Bar dataKey="ebitda" name="Ist EBITDA seit Vertragsstart" fill="#0f766e" radius={[5, 5, 0, 0]} />
-        <Line
-          type="monotone"
-          dataKey="zielEbitdaKaufvertrag"
-          name="Ziel-EBITDA Kaufvertrag"
-          stroke="#0369a1"
-          strokeWidth={3}
-          dot={{ r: 4 }}
-        />
-        <Line
-          type="monotone"
-          dataKey="zielEbitdaUebernahme"
-          name="Ziel-EBITDA Übernahme"
-          stroke="#f59e0b"
-          strokeWidth={3}
-          strokeDasharray="7 5"
-          dot={{ r: 4 }}
-        />
-      </ComposedChart>
-    </ResponsiveContainer>
+    <div className="space-y-2">
+      <p className="text-xs leading-5 text-muted-foreground">
+        Soll-Linien kumuliert nur für aktive BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen Datenstand.
+      </p>
+      <ResponsiveContainer width="100%" height={300}>
+        <ComposedChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis dataKey="name" tickLine={false} axisLine={false} />
+          <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
+          <Tooltip content={<EbitdaTargetTooltip />} />
+          <Bar dataKey="ebitda" name="Ist EBITDA seit Vertragsstart" fill="#0f766e" radius={[5, 5, 0, 0]} />
+          <Line
+            type="monotone"
+            dataKey="zielEbitdaKaufvertrag"
+            name="Ziel-EBITDA Kaufvertrag"
+            stroke="#0369a1"
+            strokeWidth={3}
+            dot={{ r: 4 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="zielEbitdaUebernahme"
+            name="Ziel-EBITDA Übernahme"
+            stroke="#f59e0b"
+            strokeWidth={3}
+            strokeDasharray="7 5"
+            dot={{ r: 4 }}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
