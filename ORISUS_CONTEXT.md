@@ -210,6 +210,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 - PMR-Export enthaelt Seite 1 Standortleiter-PMR und Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort.
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
 - Orisus Performance hat oben KPI-Kacheln im einheitlichen App-Kachelstil mit Info-Buttons/Herleitungen.
+- Orisus Performance: Die KPI-Kacheln `Gesamtleistung`, `PVS-Umsatz` und `EBITDA-Marge` haben eigene Zeitraumfilter. Gesamtleistung und EBITDA-Marge laufen über BWA-Zeiträume; PVS-Umsatz läuft über die PVS-/Performance-Zeiträume.
 - Orisus Performance: Diagramm `Operative Entwicklung` hat Zeitraumfilter und Soll-EBITDA-Linie gemaess Uebernahme.
 - Orisus Performance: Bankbewegungen unten reagieren auf die Zeitraumwahl.
 - Cashflow-Tab enthaelt zusaetzlich einen Abweichungsmonitor Bank vs. BWA ueber die gesamte Vertragsperiode je Standort.

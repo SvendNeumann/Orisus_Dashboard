@@ -11755,12 +11755,21 @@ function OrisusPerformance({
   const [pvsPeriod, setPvsPeriod] = useState(() => defaultPeriodFromOptions(pvsPeriods));
   const [pvsMonthlyPeriod, setPvsMonthlyPeriod] = useState(() => defaultPeriodFromOptions(pvsPeriods));
   const [bankPeriod, setBankPeriod] = useState(() => defaultPeriodFromOptions(bankPeriods));
+  const [grossPerformancePeriod, setGrossPerformancePeriod] = useState(() => defaultPeriodFromOptions(bwaPeriods));
+  const [pvsKpiPeriod, setPvsKpiPeriod] = useState(() => defaultPeriodFromOptions(pvsPeriods));
+  const [ebitdaMarginPeriod, setEbitdaMarginPeriod] = useState(() => defaultPeriodFromOptions(bwaPeriods));
   useEffect(() => {
     if (!bwaPeriods.includes(chartPeriod)) {
       setChartPeriod(defaultPeriodFromOptions(bwaPeriods));
     }
     if (!bwaPeriods.includes(operationalPeriod)) {
       setOperationalPeriod(defaultPeriodFromOptions(bwaPeriods));
+    }
+    if (!bwaPeriods.includes(grossPerformancePeriod)) {
+      setGrossPerformancePeriod(defaultPeriodFromOptions(bwaPeriods));
+    }
+    if (!bwaPeriods.includes(ebitdaMarginPeriod)) {
+      setEbitdaMarginPeriod(defaultPeriodFromOptions(bwaPeriods));
     }
     if (!honorarPeriods.includes(honorarPeriod)) {
       setHonorarPeriod(defaultPeriodFromOptions(honorarPeriods));
@@ -11774,20 +11783,55 @@ function OrisusPerformance({
     if (!pvsPeriods.includes(pvsMonthlyPeriod)) {
       setPvsMonthlyPeriod(defaultPeriodFromOptions(pvsPeriods));
     }
+    if (!pvsPeriods.includes(pvsKpiPeriod)) {
+      setPvsKpiPeriod(defaultPeriodFromOptions(pvsPeriods));
+    }
     if (!bankPeriods.includes(bankPeriod)) {
       setBankPeriod(defaultPeriodFromOptions(bankPeriods));
     }
-  }, [bankPeriod, bankPeriods, bwaPeriods, chartPeriod, honorarMonthlyPeriod, honorarPeriod, honorarPeriods, operationalPeriod, pvsMonthlyPeriod, pvsPeriod, pvsPeriods]);
+  }, [bankPeriod, bankPeriods, bwaPeriods, chartPeriod, ebitdaMarginPeriod, grossPerformancePeriod, honorarMonthlyPeriod, honorarPeriod, honorarPeriods, operationalPeriod, pvsKpiPeriod, pvsMonthlyPeriod, pvsPeriod, pvsPeriods]);
   const chartData = bwaChartDataForPeriod(importedData, monthlyData, chartPeriod);
   const operationalSites = sortSitesByContractStart(importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, operationalPeriod)) : sites);
   const pvsTotal = totalForSites(sites, "pvsUmsatz");
+  const grossPerformanceBySite = sortSitesByContractStart(sites).map((site) => ({
+    site,
+    value: importedData?.bwaRows?.length
+      ? Math.round(importedBwaMetricValue(importedData.bwaRows, site.id, "summe_umsatz", grossPerformancePeriod))
+      : site.gesamtleistung
+  }));
+  const grossPerformanceTotal = grossPerformanceBySite.reduce((sum, row) => sum + row.value, 0);
+  const pvsKpiBySite = sortSitesByContractStart(sites).map((site) => {
+    const row = importedData?.pvsRevenueRows?.find((candidate) => candidate.siteId === site.id);
+    return {
+      site,
+      value: Math.round(row ? importedPeriodValue(row, pvsKpiPeriod) : site.pvsUmsatz)
+    };
+  });
+  const pvsKpiTotal = pvsKpiBySite.reduce((sum, row) => sum + row.value, 0);
+  const ebitdaMarginRevenueBySite = sortSitesByContractStart(sites).map((site) => ({
+    site,
+    value: importedData?.bwaRows?.length
+      ? Math.round(importedBwaMetricValue(importedData.bwaRows, site.id, "summe_umsatz", ebitdaMarginPeriod))
+      : site.gesamtleistung
+  }));
+  const ebitdaMarginEbitdaBySite = sortSitesByContractStart(sites).map((site) => ({
+    site,
+    value: importedData?.bwaRows?.length
+      ? Math.round(importedBwaMetricValue(importedData.bwaRows, site.id, "ebitda", ebitdaMarginPeriod))
+      : site.ebitda
+  }));
+  const ebitdaMarginRevenueTotal = ebitdaMarginRevenueBySite.reduce((sum, row) => sum + row.value, 0);
+  const ebitdaMarginEbitdaTotal = ebitdaMarginEbitdaBySite.reduce((sum, row) => sum + row.value, 0);
+  const ebitdaMarginKpi = ebitdaMarginRevenueTotal ? (ebitdaMarginEbitdaTotal / ebitdaMarginRevenueTotal) * 100 : 0;
   const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   const performanceKpiInfo = {
     grossPerformance: (
       <>
         <p className="font-semibold text-slate-950">Was ist das?</p>
-        <p>Die Gesamtleistung ist der BWA-Umsatz der Orisus-Gruppe über die aktuelle Importbasis bzw. die Standort-Vertragsperioden.</p>
-        <InfoLine label="Summe BWA-Gesamtleistung aller Standorte" value={metrics.gesamtleistung} strong />
+        <p>Die Gesamtleistung ist der BWA-Umsatz der Orisus-Gruppe im ausgewählten Zeitraum.</p>
+        <InfoTextLine label="Zeitraum" value={performancePeriodLabel(grossPerformancePeriod)} strong />
+        {grossPerformanceBySite.map((row) => <InfoLine key={row.site.id} label={row.site.name} value={row.value} />)}
+        <InfoLine label="= Summe BWA-Gesamtleistung" value={grossPerformanceTotal} strong />
         <InfoTextLine label="Quelle" value="BWA / bestätigter CFO-Import" />
       </>
     ),
@@ -11795,7 +11839,9 @@ function OrisusPerformance({
       <>
         <p className="font-semibold text-slate-950">Was ist das?</p>
         <p>Der PVS-Umsatz zeigt die standortbezogenen PVS-Gesamtumsätze. Er ist keine BWA-Gesamtleistung, sondern kommt aus den PVS-/Performance-Daten des Imports.</p>
-        <InfoLine label="Summe PVS-Umsatz aller Standorte" value={pvsTotal} strong />
+        <InfoTextLine label="Zeitraum" value={performancePeriodLabel(pvsKpiPeriod)} strong />
+        {pvsKpiBySite.map((row) => <InfoLine key={row.site.id} label={row.site.name} value={row.value} />)}
+        <InfoLine label="= Summe PVS-Umsatz" value={pvsKpiTotal} strong />
         <InfoTextLine label="Quelle" value="PVS / Performance-Export" />
       </>
     ),
@@ -11803,10 +11849,11 @@ function OrisusPerformance({
       <>
         <p className="font-semibold text-slate-950">Was ist das?</p>
         <p>Die EBITDA-Marge zeigt, welcher Anteil der Gesamtleistung als EBITDA verbleibt.</p>
-        <InfoLine label="EBITDA" value={metrics.ebitda} />
-        <InfoLine label="Gesamtleistung" value={metrics.gesamtleistung} />
+        <InfoTextLine label="Zeitraum" value={performancePeriodLabel(ebitdaMarginPeriod)} strong />
+        <InfoLine label="EBITDA" value={ebitdaMarginEbitdaTotal} />
+        <InfoLine label="Gesamtleistung" value={ebitdaMarginRevenueTotal} />
         <InfoTextLine label="Berechnung" value="EBITDA / Gesamtleistung" strong />
-        <InfoTextLine label="Ergebnis" value={pct(metrics.ebitdaMarge)} strong />
+        <InfoTextLine label="Ergebnis" value={pct(ebitdaMarginKpi)} strong />
         <InfoTextLine label="Quelle" value="BWA / bestätigter CFO-Import" />
       </>
     ),
@@ -11847,9 +11894,46 @@ function OrisusPerformance({
         ]}
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label="Gesamtleistung" value={metrics.gesamtleistung} delta="seit Vertragsstart" icon={TrendingUp} status="green" info={performanceKpiInfo.grossPerformance} />
-        <KpiCard label="PVS-Umsatz" value={pvsTotal} delta="PVS / Performance" icon={BadgeEuro} status="green" info={performanceKpiInfo.pvsRevenue} />
-        <KpiCard label="EBITDA-Marge" value={metrics.ebitdaMarge} percent delta="EBITDA / Gesamtleistung" icon={Gauge} status={statusByRule(metrics.ebitdaMarge, rules.ebitda_marge)} info={performanceKpiInfo.ebitdaMargin} />
+        <KpiCard
+          label="Gesamtleistung"
+          value={grossPerformanceTotal}
+          delta={performancePeriodLabel(grossPerformancePeriod)}
+          icon={TrendingUp}
+          status="green"
+          control={
+            <Select className="mx-auto h-9 w-full max-w-[11rem] px-2 text-xs font-semibold" value={grossPerformancePeriod} onChange={(event) => setGrossPerformancePeriod(event.target.value)}>
+              {bwaPeriods.map((option) => <option key={option} value={option}>{performancePeriodLabel(option)}</option>)}
+            </Select>
+          }
+          info={performanceKpiInfo.grossPerformance}
+        />
+        <KpiCard
+          label="PVS-Umsatz"
+          value={pvsKpiTotal}
+          delta={performancePeriodLabel(pvsKpiPeriod)}
+          icon={BadgeEuro}
+          status="green"
+          control={
+            <Select className="mx-auto h-9 w-full max-w-[11rem] px-2 text-xs font-semibold" value={pvsKpiPeriod} onChange={(event) => setPvsKpiPeriod(event.target.value)}>
+              {pvsPeriods.map((option) => <option key={option} value={option}>{performancePeriodLabel(option)}</option>)}
+            </Select>
+          }
+          info={performanceKpiInfo.pvsRevenue}
+        />
+        <KpiCard
+          label="EBITDA-Marge"
+          value={ebitdaMarginKpi}
+          percent
+          delta={performancePeriodLabel(ebitdaMarginPeriod)}
+          icon={Gauge}
+          status={statusByRule(ebitdaMarginKpi, rules.ebitda_marge)}
+          control={
+            <Select className="mx-auto h-9 w-full max-w-[11rem] px-2 text-xs font-semibold" value={ebitdaMarginPeriod} onChange={(event) => setEbitdaMarginPeriod(event.target.value)}>
+              {bwaPeriods.map((option) => <option key={option} value={option}>{performancePeriodLabel(option)}</option>)}
+            </Select>
+          }
+          info={performanceKpiInfo.ebitdaMargin}
+        />
         <KpiCard label="Cashflow gem. BWA" value={metrics.cashflow} delta="gem. BWA-Brücke" icon={Wallet} status={statusByRule(metrics.cashflow, rules.cashflow_bwa)} info={performanceKpiInfo.cashflow} />
         <KpiCard label="Offene Forderungen" value={metrics.forderungen} delta={`${pct(receivablesRatio)} der Gesamtleistung`} icon={FileBarChart} status={statusByRule(receivablesRatio, rules.offene_forderungen)} info={performanceKpiInfo.receivables} />
       </div>
