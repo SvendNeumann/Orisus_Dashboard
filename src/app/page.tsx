@@ -5894,6 +5894,9 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
   const canSeeCompensation = userRole !== "praxismanagement";
   const normalizedSearch = search.trim().toLowerCase();
   const activeEmployees = personalData.employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
+  const activeEmployeesCount = activeEmployees.length;
+  const activeFte = activeEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+  const activeEmployerCost = activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0);
   const rows = personalData.employees.filter((employee) => {
     const siteMatch = site === "Alle Standorte" || employee.site === site;
     const statusMatch = status === "Alle Status" || employee.status === status;
@@ -5981,22 +5984,59 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
       `}</style>
       <PageTitle title="Mitarbeiterübersicht" text="Stammdaten, Beschäftigungsart, Funktion und Vergütungsdaten aus Input_Mitarbeiter." />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Aktive Mitarbeiter" value={activeEmployees.length} plain delta="nur Status Aktiv" icon={Users} status="green" />
+        <KpiCard
+          label="Aktive Mitarbeiter"
+          value={activeEmployeesCount}
+          plain
+          delta="nur Status Aktiv"
+          icon={Users}
+          status="green"
+          info={
+            <>
+              <p className="font-bold text-slate-900">Herleitung</p>
+              <InfoTextLine label="Quelle" value="Personal-Upload / Input_Mitarbeiter" />
+              <InfoTextLine label="Filter" value="Status exakt Aktiv" />
+              <InfoTextLine label="Berechnung" value="Anzahl aller Mitarbeiter mit Status Aktiv, unabhängig von der aktuellen Tabellenfilterung" />
+              <InfoTextLine label="Ergebnis" value={activeEmployeesCount.toLocaleString("de-DE")} strong />
+            </>
+          }
+        />
         <KpiCard
           label="FTE aktiv"
-          value={Math.round(activeEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0) * 10) / 10}
+          value={Math.round(activeFte * 10) / 10}
           plain
           delta="Basis 40 Std./Woche"
           icon={Gauge}
           status="green"
+          info={
+            <>
+              <p className="font-bold text-slate-900">Herleitung</p>
+              <InfoTextLine label="Quelle" value="Personal-Upload / Input_Mitarbeiter" />
+              <InfoTextLine label="Filter" value="Status exakt Aktiv" />
+              <InfoTextLine label="Berechnung je Mitarbeiter" value="Wochenstunden / 40" />
+              <InfoTextLine label="Summe aktive FTE" value={(Math.round(activeFte * 10) / 10).toLocaleString("de-DE", { maximumFractionDigits: 1 })} strong />
+            </>
+          }
         />
         {canSeeCompensation && (
           <KpiCard
             label="AG-Aufwand aktiv"
-            value={activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0)}
+            value={activeEmployerCost}
             delta="monatlich laut Import"
             icon={BadgeEuro}
             status="yellow"
+            info={
+              <>
+                <p className="font-bold text-slate-900">Herleitung</p>
+                <InfoTextLine label="Quelle" value="Personal-Upload / Input_Mitarbeiter" />
+                <InfoTextLine label="Filter" value="Status exakt Aktiv" />
+                <InfoTextLine label="Berechnung" value="Summe AG_Aufwand aller aktiven Mitarbeiter" />
+                <InfoLine label="= AG-Aufwand aktiv" value={activeEmployerCost} strong />
+                <p className="text-xs text-slate-600">
+                  Diese Kachel ist für Praxismanagement ausgeblendet, weil sie Vergütungs-/Kosteninformationen enthält.
+                </p>
+              </>
+            }
           />
         )}
         <KpiCard label="Gefilterte Zeilen" value={rows.length} plain delta="aktuelle Tabellenansicht" icon={UserRound} status="green" />
@@ -7365,7 +7405,7 @@ function TopBehandlerChart({ data = [] }: { data?: TopBehandlerEntry[] }) {
   );
 }
 
-function ReceivablesChart({ sites = standorte }: { sites?: DashboardSite[] }) {
+function ReceivablesChart({ sites = standorte, showLegend = true }: { sites?: DashboardSite[]; showLegend?: boolean }) {
   const chartData = sites
     .filter((site) => site.gesamtleistung > 0 || site.forderungen > 0)
     .map((site) => ({ name: site.name, forderungen: site.forderungen }));
@@ -7383,7 +7423,7 @@ function ReceivablesChart({ sites = standorte }: { sites?: DashboardSite[] }) {
         <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
         <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
         <Tooltip formatter={(v) => eur(Number(v))} />
-        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+        {showLegend ? <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} /> : null}
         <Bar dataKey="forderungen" name="Offene Forderungen" fill="url(#receivablesGradient)" radius={[10, 10, 0, 0]} maxBarSize={68} />
       </BarChart>
     </ResponsiveContainer>
@@ -11747,14 +11787,12 @@ function OrisusPerformance({
   const bwaPeriods = bwaPeriodOptionsFor(importedData);
   const honorarPeriods = periodOptionsFromImportedRows(importedData?.behandlerTotalRows);
   const pvsPeriods = periodOptionsFromImportedRows(importedData?.pvsRevenueRows);
-  const bankPeriods = periodOptionsFromBankMovements(importedData?.bankMovementRows);
   const [chartPeriod, setChartPeriod] = useState(() => defaultPeriodFromOptions(bwaPeriods));
   const [operationalPeriod, setOperationalPeriod] = useState(() => defaultPeriodFromOptions(bwaPeriods));
   const [honorarPeriod, setHonorarPeriod] = useState(() => defaultPeriodFromOptions(honorarPeriods));
   const [honorarMonthlyPeriod, setHonorarMonthlyPeriod] = useState(() => defaultPeriodFromOptions(honorarPeriods));
   const [pvsPeriod, setPvsPeriod] = useState(() => defaultPeriodFromOptions(pvsPeriods));
   const [pvsMonthlyPeriod, setPvsMonthlyPeriod] = useState(() => defaultPeriodFromOptions(pvsPeriods));
-  const [bankPeriod, setBankPeriod] = useState(() => defaultPeriodFromOptions(bankPeriods));
   const [grossPerformancePeriod, setGrossPerformancePeriod] = useState(() => defaultPeriodFromOptions(bwaPeriods));
   const [pvsKpiPeriod, setPvsKpiPeriod] = useState(() => defaultPeriodFromOptions(pvsPeriods));
   const [ebitdaMarginPeriod, setEbitdaMarginPeriod] = useState(() => defaultPeriodFromOptions(bwaPeriods));
@@ -11786,10 +11824,7 @@ function OrisusPerformance({
     if (!pvsPeriods.includes(pvsKpiPeriod)) {
       setPvsKpiPeriod(defaultPeriodFromOptions(pvsPeriods));
     }
-    if (!bankPeriods.includes(bankPeriod)) {
-      setBankPeriod(defaultPeriodFromOptions(bankPeriods));
-    }
-  }, [bankPeriod, bankPeriods, bwaPeriods, chartPeriod, ebitdaMarginPeriod, grossPerformancePeriod, honorarMonthlyPeriod, honorarPeriod, honorarPeriods, operationalPeriod, pvsKpiPeriod, pvsMonthlyPeriod, pvsPeriod, pvsPeriods]);
+  }, [bwaPeriods, chartPeriod, ebitdaMarginPeriod, grossPerformancePeriod, honorarMonthlyPeriod, honorarPeriod, honorarPeriods, operationalPeriod, pvsKpiPeriod, pvsMonthlyPeriod, pvsPeriod, pvsPeriods]);
   const chartData = bwaChartDataForPeriod(importedData, monthlyData, chartPeriod);
   const operationalSites = sortSitesByContractStart(importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, operationalPeriod)) : sites);
   const pvsTotal = totalForSites(sites, "pvsUmsatz");
@@ -11983,7 +12018,6 @@ function OrisusPerformance({
               <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
-              <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
               <Bar dataKey="leistung" name="Gesamtleistung" fill="url(#performanceRevenueGradient)" radius={[10, 10, 0, 0]} maxBarSize={64} />
               <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#38bdf8" strokeWidth={4} dot={false} />
               <Line type="monotone" dataKey="zielEbitdaUebernahme" name="Soll-EBITDA gem. Übernahme" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={4} dot={false} />
@@ -12012,7 +12046,7 @@ function OrisusPerformance({
             </div>
           }
         >
-          <ReceivablesChart sites={sites} />
+          <ReceivablesChart sites={sites} showLegend={false} />
         </ChartCard>
       </div>
       <OperationalPerformanceTable
@@ -12059,14 +12093,6 @@ function OrisusPerformance({
           period={pvsMonthlyPeriod}
           setPeriod={setPvsMonthlyPeriod}
           availablePeriods={pvsPeriods}
-        />
-        <BankMovementsTable
-          sites={sites}
-          monthlyData={monthlyData}
-          importedData={importedData}
-          period={bankPeriod}
-          setPeriod={setBankPeriod}
-          availablePeriods={bankPeriods}
         />
       </div>
     </section>
@@ -12473,162 +12499,6 @@ function PerformanceMonthRow({ label, values }: { label: string; values: number[
       <TableCell strong summary={isSummary}>{eur(totalValue)}</TableCell>
       <TableCell strong summary={isSummary}>{eur(totalValue / activeMonths)}</TableCell>
     </tr>
-  );
-}
-
-function BankMovementsTable({
-  sites = standorte,
-  monthlyData = monthly,
-  importedData,
-  period,
-  setPeriod,
-  availablePeriods
-}: {
-  sites?: DashboardSite[];
-  monthlyData?: typeof monthly;
-  importedData?: ImportedDashboardData | null;
-  period: string;
-  setPeriod: (period: string) => void;
-  availablePeriods: string[];
-}) {
-  const visibleMonths = monthSelectionForPeriod(period);
-  const selection = selectedBwaPeriod(period);
-  const importedRows = (importedData?.bankMovementRows ?? []).filter((row) => !row.siteId || row.siteId === "konzern");
-  const selectedMonthKeys = Array.from(visibleMonths).map((month) => `${selection.year ?? ""}-${month}`);
-  const isSnapshotRow = (row: ImportedBankMovementRow) => matchesBankMovementKey(row.label, "kontostand_monatsende");
-  const monthValueFor = (row: ImportedBankMovementRow, month: number) => {
-    if (!selection.year) return null;
-    const key = `${selection.year}-${month}`;
-    return row.hasValueByMonth[key] ? row.valuesByMonth[key] ?? 0 : null;
-  };
-  const selectedTotalFor = (row: ImportedBankMovementRow) => {
-    if (!selection.year) return row.contractValue;
-    const hasSelectedValues = selectedMonthKeys.some((key) => row.hasValueByMonth[key]);
-    if (!hasSelectedValues) return row.total;
-    if (isSnapshotRow(row)) {
-      return Array.from(visibleMonths)
-        .map((month) => monthValueFor(row, month))
-        .filter((value): value is number => value != null)
-        .at(-1) ?? 0;
-    }
-    return Array.from(visibleMonths).reduce((sum, month) => sum + (monthValueFor(row, month) ?? 0), 0);
-  };
-  const selectedAverageFor = (row: ImportedBankMovementRow, totalValue: number) => {
-    if (!selection.year) return row.averageContract;
-    const activeMonthCount = selectedMonthKeys.filter((key) => row.hasValueByMonth[key]).length;
-    return activeMonthCount ? totalValue / activeMonthCount : row.averageMonth;
-  };
-  const applyPeriod = (values: number[]) => fillTwelveMonths(values).map((value, index) => (visibleMonths.has(index + 1) ? value : 0));
-  const monthlyPerformance = fillTwelveMonths(monthlyData.map((entry) => entry.leistung));
-  const monthlyEbitda = fillTwelveMonths(monthlyData.map((entry) => entry.ebitda));
-  const monthlyCashflow = fillTwelveMonths(monthlyData.map((entry) => entry.cashflow));
-  const totalTilgungZins = sites.reduce((sum, site) => sum + site.darlehen.tilgung + site.darlehen.zins, 0);
-  const tilgungZins = allocateByMonthlyStructure(totalTilgungZins, monthlyData).map((value) => -value);
-  const praxisCosts = monthlyPerformance.map((value, index) => -(value - monthlyEbitda[index]));
-  const cashAdjustments = monthlyCashflow.map((value, index) => value - monthlyEbitda[index] - tilgungZins[index]);
-  const endingKontostand = totalForSites(sites, "kontostand");
-  const cashflowAfterMonth = monthlyCashflow.map((_, index) => monthlyCashflow.slice(index + 1).reduce((sum, value) => sum + value, 0));
-  const kontostandMonths = monthlyCashflow.map((value, index) => (value || index < monthlyData.length ? endingKontostand - cashflowAfterMonth[index] : 0));
-  const rows = [
-    { label: "Geldeingang Bank gesamt", values: applyPeriod(monthlyPerformance), contract: totalForSites(sites, "gesamtleistung") },
-    { label: "davon Praxisumsatz", values: applyPeriod(monthlyPerformance), contract: totalForSites(sites, "gesamtleistung"), indent: true },
-    { label: "davon sonstiges", values: applyPeriod(monthlyPerformance.map(() => 0)), contract: 0, indent: true },
-    {
-      label: "Geldausgang Bank inkl. Kredit",
-      values: applyPeriod(praxisCosts.map((value, index) => value + tilgungZins[index] + cashAdjustments[index])),
-      contract: -Math.abs(totalForSites(sites, "gesamtleistung") - totalForSites(sites, "cashflow"))
-    },
-    { label: "davon Praxisausgaben", values: applyPeriod(praxisCosts), contract: praxisCosts.reduce((sum, value) => sum + value, 0), indent: true },
-    { label: "davon Tilgung + Zins", values: applyPeriod(tilgungZins), contract: -totalTilgungZins, indent: true },
-    { label: "davon Bank-Cashflow-Adjustments", values: applyPeriod(cashAdjustments), contract: cashAdjustments.reduce((sum, value) => sum + value, 0), indent: true },
-    { label: "Bank-Cashflow gesamt im Monat", values: applyPeriod(monthlyCashflow), contract: totalForSites(sites, "cashflow") },
-    { label: "Kontostand Monatsende", values: applyPeriod(kontostandMonths), contract: endingKontostand }
-  ];
-  const displayRows = importedRows.length
-    ? importedRows.map((row) => {
-        const values = Array.from({ length: 12 }, (_, index) => {
-          const month = index + 1;
-          return selection.year && visibleMonths.has(month) ? monthValueFor(row, month) : null;
-        });
-        const total = selectedTotalFor(row);
-        return {
-          label: row.label,
-          indent: row.indent,
-          values,
-          total,
-          average: selectedAverageFor(row, total),
-          contract: row.contractValue,
-          contractAverage: row.averageContract
-        };
-      })
-    : rows.map((row) => {
-        const values = fillTwelveMonths(row.values).map((value) => (value ? value : null));
-        const total = row.values.reduce((sum, value) => sum + value, 0);
-        const activeMonths = row.values.filter((value) => value !== 0).length || 1;
-        return {
-          label: row.label,
-          indent: Boolean(row.indent),
-          values,
-          total,
-          average: total / activeMonths,
-          contract: row.contract,
-          contractAverage: row.contract / activeMonths
-        };
-      });
-
-  return (
-    <Card className="overflow-hidden">
-      <div className="table-head flex flex-col gap-3 p-3 text-white sm:flex-row sm:items-center sm:justify-between">
-        <span className="font-bold">Bank / Geldbewegungen aus Input_Finanzen | {performancePeriodLabel(period)}</span>
-        <Select
-          className="w-full bg-white text-foreground sm:w-64"
-          value={period}
-          onChange={(event) => setPeriod(event.target.value)}
-        >
-          {availablePeriods.map((option) => (
-            <option key={option} value={option}>
-              {performancePeriodLabel(option)}
-            </option>
-          ))}
-        </Select>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="data-table border-separate border-spacing-0 text-xs">
-          <thead>
-            <tr>
-              <th className="border-b border-r border-border table-subhead p-2 text-white">Position</th>
-              {bwaMonths.map((month) => (
-                <th key={month} className="border-b border-r border-border table-subhead p-2 text-white">{month}</th>
-              ))}
-              <th className="border-b border-r border-border table-subhead p-2 text-white">Gesamt</th>
-              <th className="border-b border-r border-border table-subhead p-2 text-white">Ø Monat</th>
-              <th className="border-b border-r border-border table-subhead p-2 text-white">Gesamte Vertragsperiode</th>
-              <th className="border-b border-r border-border table-subhead p-2 text-white">Ø Vertragsperiode</th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayRows.map((row) => {
-              const totalValue = row.total;
-              const isSummary = !row.indent;
-              return (
-                <tr key={row.label} className={cn(isSummary && "summary-row")}>
-                  <TableCell strong={isSummary} summary={isSummary}>{row.indent ? `  ${row.label}` : row.label}</TableCell>
-                  {row.values.map((value, index) => (
-                    <TableCell key={`${row.label}-${index}`} summary={isSummary} tone={(value ?? 0) < 0 ? "red" : undefined}>
-                      {value == null ? "" : eur(value)}
-                    </TableCell>
-                  ))}
-                  <TableCell strong summary={isSummary} tone={totalValue < 0 ? "red" : undefined}>{eur(totalValue)}</TableCell>
-                  <TableCell strong summary={isSummary} tone={row.average < 0 ? "red" : undefined}>{eur(row.average)}</TableCell>
-                  <TableCell strong summary={isSummary} tone={row.contract < 0 ? "red" : undefined}>{eur(row.contract)}</TableCell>
-                  <TableCell strong summary={isSummary} tone={row.contractAverage < 0 ? "red" : undefined}>{eur(row.contractAverage)}</TableCell>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
   );
 }
 

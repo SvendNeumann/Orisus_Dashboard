@@ -211,8 +211,9 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
 - Orisus Performance hat oben KPI-Kacheln im einheitlichen App-Kachelstil mit Info-Buttons/Herleitungen.
 - Orisus Performance: Die KPI-Kacheln `Gesamtleistung`, `PVS-Umsatz` und `EBITDA-Marge` haben eigene Zeitraumfilter. Gesamtleistung und EBITDA-Marge laufen über BWA-Zeiträume; PVS-Umsatz läuft über die PVS-/Performance-Zeiträume.
-- Orisus Performance: Diagramm `Operative Entwicklung` hat Zeitraumfilter und Soll-EBITDA-Linie gemaess Uebernahme.
-- Orisus Performance: Bankbewegungen unten reagieren auf die Zeitraumwahl.
+- Orisus Performance: Diagramm `Operative Entwicklung` hat Zeitraumfilter und Soll-EBITDA-Linie gemaess Uebernahme. Die Recharts-Legende oben im Plot ist entfernt; die schlanke Legende unter dem Diagramm bleibt.
+- Orisus Performance: Das Forderungsdiagramm neben `Operative Entwicklung` zeigt im Plot keine eigene Legende mehr.
+- Orisus Performance: Die Bankbewegungen unten wurden entfernt, weil diese Auswertung bereits in anderen Tabs vorhanden ist.
 - Cashflow-Tab enthaelt zusaetzlich einen Abweichungsmonitor Bank vs. BWA ueber die gesamte Vertragsperiode je Standort.
 - Performance & Benchmarking enthaelt ein Fruehwarnsystem als eigenes Tab:
   - Oben kompakter Warnradar mit Jahresfilter, Gesamtstatus, Anzahl Auffaellig/Beobachten und Fokus-Standorten.
@@ -224,6 +225,8 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Personal-Cockpit:
   - Die Diagramme `Aktive Mitarbeiter je Standort` und `Krankheitstage je Standort` zeigen die Werte direkt lesbar in den Balken, damit die Zahl nicht erst per Hover/Touch-Tooltip sichtbar wird.
   - Die Übersicht `Krankheitstage Mitarbeiter` zeigt im Personal-Cockpit die Top 15 Mitarbeiter des gewählten Jahres.
+- Mitarbeiterübersicht:
+  - Die KPI-Kacheln `Aktive Mitarbeiter`, `FTE aktiv` und `AG-Aufwand aktiv` haben Info-Buttons mit Herleitung. `AG-Aufwand aktiv` bleibt fuer Praxismanagement ausgeblendet.
 - Administration:
   - CFO-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
   - Personal-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
