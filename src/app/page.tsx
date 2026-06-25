@@ -1719,7 +1719,7 @@ const navSections = [
     id: "management",
     label: "Zusammenfassung",
     items: [
-      { id: "cockpit", label: "Orisus Board", icon: Home },
+      { id: "cockpit", label: "Dashboard", icon: Home },
       { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users }
     ]
   },
@@ -1789,7 +1789,7 @@ const navSections = [
 ] as const;
 
 const mobileNav = [
-  { id: "cockpit", label: "Orisus Board", icon: Home },
+  { id: "cockpit", label: "Dashboard", icon: Home },
   { id: "personal-cockpit", label: "Personal", icon: Users },
   { id: "standorte", label: "Standorte", icon: Building2 },
   { id: "bwa", label: "BWA", icon: FileBarChart },
@@ -4687,7 +4687,7 @@ function LandingLoginCard({
         <div className="mx-auto mt-4 h-px w-10 bg-[#30d5c8]" />
         <div className="mx-auto mt-6 max-w-sm space-y-4 text-center text-sm leading-6 text-slate-300">
           <p>Interne Management-Plattform für Geschäftsführung und Controlling.</p>
-          <p>Zugriff auf Orisus Board, Standortsteuerung, Finanzierungsdaten und Personalübersicht.</p>
+          <p>Zugriff auf Dashboard, Standortsteuerung, Finanzierungsdaten und Personalübersicht.</p>
         </div>
 
         <div className="mt-8 space-y-4">
@@ -4821,7 +4821,7 @@ function LandingLoginCard({
 function LandingFeatures() {
   const features = [
     {
-      title: "Orisus Board",
+      title: "Dashboard",
       text: "Konsolidierte Kennzahlen, EBITDA, Liquidität und Performance auf einen Blick.",
       icon: TrendingUp
     },
@@ -6199,7 +6199,7 @@ function Cockpit({
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageTitle title="Orisus Steuerungsboard" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Fokusbereiche." />
+        <PageTitle title="Dashboard" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Fokusbereiche." />
         <CompactDataStatus importedData={importedData} />
       </div>
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} importedData={importedData} />

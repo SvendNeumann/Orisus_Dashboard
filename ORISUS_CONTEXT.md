@@ -43,7 +43,7 @@ Die App ist eine interne Steuerungs-/Management-Plattform fuer Orisus Zahnmedizi
 
 Kernmodule:
 
-- Orisus Board
+- Dashboard
 - Standorte mit Standortdetails
 - BWA
 - Kennzahlen / Entwicklung
@@ -130,7 +130,7 @@ Wichtig: Supabase Service Role Key muss in Vercel gesetzt sein, sonst funktionie
 Navigation wurde gruppiert:
 
 - Zusammenfassung
-  - Orisus Board
+  - Dashboard
   - Personal-Cockpit
 - Standorte & BWA
   - Standorte
@@ -250,7 +250,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 
 Mobile Bottom-Navigation, gewuenschte Reihenfolge:
 
-1. Orisus Board
+1. Dashboard
 2. Personalcockpit
 3. Standorte
 4. BWA
