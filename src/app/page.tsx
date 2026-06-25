@@ -6712,16 +6712,29 @@ function DailyCfoCockpit({
     sparkline?: { label: string; value: number }[];
     valueLabel?: string;
   }>;
+  const topKpis = kpis.slice(0, 3);
+  const bottomKpis = kpis.slice(3);
 
   return (
-    <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-5">
-      {kpis.map((kpi) => (
-        <KpiCard
-          key={kpi.label}
-          {...kpi}
-          className="h-full"
-        />
-      ))}
+    <div className="space-y-4">
+      <div className="grid auto-rows-fr items-stretch gap-4 lg:grid-cols-3">
+        {topKpis.map((kpi) => (
+          <KpiCard
+            key={kpi.label}
+            {...kpi}
+            className="h-full"
+          />
+        ))}
+      </div>
+      <div className="grid auto-rows-fr items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {bottomKpis.map((kpi) => (
+          <KpiCard
+            key={kpi.label}
+            {...kpi}
+            className="h-full"
+          />
+        ))}
+      </div>
     </div>
   );
 }
