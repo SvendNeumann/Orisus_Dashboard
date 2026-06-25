@@ -7347,10 +7347,10 @@ function InfoTextLine({ label, value, strong }: { label: string; value: string; 
   );
 }
 
-function StatusDot({ status, label }: { status: Status; label?: string }) {
+function StatusDot({ status, label, className }: { status: Status; label?: string; className?: string }) {
   return (
-    <Badge className="max-w-full whitespace-nowrap" tone={statusMap[status].tone}>
-      <span className={cn("h-2 w-2 rounded-full", statusMap[status].dot)} />
+    <Badge className={cn("max-w-full whitespace-nowrap", className)} tone={statusMap[status].tone}>
+      <span className={cn("h-2 w-2 shrink-0 rounded-full", statusMap[status].dot)} />
       {label ?? statusMap[status].label}
     </Badge>
   );
@@ -8026,12 +8026,18 @@ function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sortedSites.map((site) => (
           <Card key={site.id} className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <h2 className="text-xl font-bold">{site.name}</h2>
                 <p className="text-sm text-muted-foreground">Start in der Gruppe: {site.start}</p>
               </div>
-              <StatusDot status={site.status} label={siteStatusLabel(site)} />
+              <div className="min-w-0 max-w-full sm:max-w-[15rem]">
+                <StatusDot
+                  status={site.status}
+                  label={siteStatusLabel(site)}
+                  className="w-full justify-start whitespace-normal text-left leading-tight"
+                />
+              </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <Mini label="Gesamtleistung seit Start" value={eur(site.gesamtleistung, true)} />
