@@ -3552,7 +3552,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
   const fallbackByName = new Map(sortSitesByContractStart(standorte).map((site) => [site.name, site]));
   const consolidationRows = [...consolidationRowsFromWorkbook(workbook), ...rows];
   const managementReceivablesBySite = managementOpenReceivablesFromWorkbook(workbook);
-  const exportRows = exportRowsFromWorkbook(workbook);
+  const exportRows = workbook.Sheets[importSourceSheetName] ? exportRowsFromWorkbook(workbook) : [];
   const behandlerDetailRows = buildImportedBehandlerDetailRows(rows, exportRows, report);
   const personnelCostRows = buildImportedPersonnelCostRows(workbook);
   const periodSiteNames = report.standorte.filter((siteName) => {
@@ -3768,9 +3768,6 @@ function buildImportReport(workbook: XLSX.WorkBook, fileName: string, workbookSh
   if (missingSheets.length) warnings.push(`Nicht alle erwarteten Standort-Blätter wurden gefunden: ${missingSheets.join(", ")}.`);
   if (!usableRows.some((row) => asText(row.Datenbereich).toLowerCase().includes("bwa"))) warnings.push("Es wurden keine BWA-Daten erkannt.");
   if (!usableRows.some((row) => asText(row.Datenbereich).toLowerCase().includes("finanzen"))) warnings.push("Es wurden keine Finanzdaten erkannt.");
-  if (isStandaloneSiteWorkbook && !workbook.Sheets["Export_Konzern"] && !workbook.Sheets["Export_Konzern_Final"]) {
-    warnings.push("Kein Export_Konzern-Blatt gefunden. Die App nutzt ausschließlich die Input-Blätter als Fallback.");
-  }
   if (excludedPlanRows > 0) warnings.push(`${excludedPlanRows.toLocaleString("de-DE")} klassische Planwert-Zeilen wurden erkannt und vom App-Import ausgeschlossen.`);
 
   const standorteList = sortSiteNamesByContractStart(uniqueSortedText(usableRows.map((row) => row.Standortname)).filter((site) => site.toLowerCase() !== "konzern"));
@@ -8814,13 +8811,11 @@ function standaloneInputRowsFromWorkbook(workbook: XLSX.WorkBook) {
 }
 
 function standaloneConsolidatedRowsFromWorkbook(workbook: XLSX.WorkBook) {
-  const exportRows = exportRowsFromWorkbook(workbook);
   const inputRows = standaloneInputRowsFromWorkbook(workbook);
-  const rows = [...exportRows, ...inputRows].filter((row) => asText(row.Kennzahl) && asText(row.Standortname));
+  const rows = inputRows.filter((row) => asText(row.Kennzahl) && asText(row.Standortname));
   const seen = new Set<string>();
   return rows.filter((row) => {
     const record = row as Record<string, unknown>;
-    // Export rows come first. Input rows only fill gaps, so the same value is not counted twice.
     const signature = [
       asText(record.Standortname),
       asText(record.Datenbereich),
@@ -8924,13 +8919,28 @@ const patientExportMonthColumns = [
 ];
 
 function cfoWorkbookSheetsForImport(sheetNames: string[]) {
+  const hasLegacyConsolidation = sheetNames.includes(importSourceSheetName);
   const fixedSheets = new Set([
     ...requiredImportSheets,
     "Dashboard_Management",
     "Dashboard_Performance",
     essenPatientExportSheetName
   ]);
+  const standaloneFixedSheets = new Set([
+    ...standaloneInputCoreSheets,
+    "Dashboard_Management",
+    "Dashboard_Performance",
+    essenPatientExportSheetName
+  ]);
   return sheetNames.filter((sheetName) => {
+    if (!hasLegacyConsolidation) {
+      if (standaloneFixedSheets.has(sheetName)) return true;
+      if (/^input_/i.test(sheetName)) return true;
+      if (/^Dashboard_/i.test(sheetName) || /^Dashboar_/i.test(sheetName)) {
+        return !/helper|doku/i.test(sheetName);
+      }
+      return false;
+    }
     if (fixedSheets.has(sheetName)) return true;
     if (/^export_/i.test(sheetName) || /_export$/i.test(sheetName)) return true;
     if (/^input_/i.test(sheetName)) return true;

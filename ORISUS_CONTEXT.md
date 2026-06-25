@@ -219,9 +219,10 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Die alte konsolidierte Gesamtdatei soll nicht mehr der Standard-Upload sein.
   - Der CFO-Upload arbeitet mit festen Uploadfeldern je Standort. Ein Upload im Standortfeld ersetzt nur diesen Standort; alle anderen bereits bestaetigten Standorte bleiben erhalten.
   - Eine Datei wird gegen den im Uploadfeld erwarteten Standort geprueft. Wird z. B. eine Essen-Datei im Kirchberg-Feld hochgeladen, blockiert der Import mit Fehlermeldung.
-  - Die App liest `Export_Konzern_Final` bzw. `Export_Konzern`, falls vorhanden. Zusaetzlich bzw. als Fallback werden die Standort-Inputblaetter gelesen: `Input_Stammdaten`, `Input_Finanzen`, `Input_BWA`, `Input_Kontostand`, `Input_Behandler`, `Input_Behandler_Leistung`, `Input_Personalkosten`, `Input_Operativ`, `Input_Operativ_Maske`, `Input_EBITDA_Ziele` und `Input_ausstehende Gehaelter`.
+  - Die App liest bei Standortdateien gezielt nur die Input- und Dashboard-Blaetter. `Export_Konzern`, PowerQuery-/Temp-Blaetter wie `__bpstmp_*` und sonstige Hilfsblaetter werden fuer den schnellen Standortimport nicht geladen.
+  - Relevante Standort-Inputblaetter sind: `Input_Stammdaten`, `Input_Finanzen`, `Input_BWA`, `Input_Kontostand`, `Input_Behandler`, `Input_Behandler_Leistung`, `Input_Personalkosten`, `Input_Operativ`, `Input_Operativ_Maske`, `Input_EBITDA_Ziele` und `Input_ausstehende Gehaelter`.
   - Patientendaten liegen typischerweise in `Input_Operativ`; die Importlogik nutzt dieses Blatt und weitere Inputblaetter als Fallback, damit keine Power-Query-Konsolidierung in einer Gesamtdatei noetig ist.
-  - Wenn Export- und Inputdaten dieselbe Kennzahl/Periode enthalten, hat der Export Vorrang und Inputdaten fuellen nur Luecken. Dadurch werden gleiche Werte nicht doppelt gezaehlt.
+  - Die alte Konzern-Gesamtdatei bleibt als Legacy-Fallback technisch lesbar; neue Standortdateien sollen aber nicht mehr ueber Exportblaetter konsolidiert werden.
 - Layout-/Visualisierungsregel:
   - Bestehende Diagramme, KPI-Kacheln, Scorecards und Tabellen duerfen visuell moderner und klarer gestaltet werden, ohne fachliche Werte- oder Importlogik zu veraendern.
   - Keine zusaetzlichen grossen Diagrammbloecke nur zur Dekoration. Neue Visualisierung nur, wenn sie eine vorhandene Auswertung ersetzt, verdichtet oder direkt in einer bestehenden KPI/Kachel sinnvoll erklaert.
