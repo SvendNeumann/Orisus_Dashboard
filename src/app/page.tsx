@@ -15878,10 +15878,71 @@ function ChristianHenriciInfo({ sites }: { sites: DashboardSite[] }) {
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Abrufdarlehen" value={totals.abrufdarlehen} delta="statisch hinterlegt" icon={Banknote} status="green" />
-        <KpiCard label="Direkt bezahlt / Upfront" value={totals.directPaid} delta="Kaufpreis-Upfront gesamt" icon={BadgeEuro} status="green" />
-        <KpiCard label="Fremdkapital aufgenommen" value={totals.debt} delta={`${eur(totals.repaid, true)} getilgt`} icon={Landmark} status="yellow" />
-        <KpiCard label="Restschuld" value={totals.remaining} delta="aktueller Import-/Stammdatenstand" icon={ShieldCheck} status="yellow" />
+        <KpiCard
+          label="Abrufdarlehen"
+          value={totals.abrufdarlehen}
+          delta="statisch hinterlegt"
+          icon={Banknote}
+          status="green"
+          info={
+            <div className="space-y-3">
+              <p>Summe der fest hinterlegten Abrufdarlehen je Standort. Diese Werte werden nicht importiert.</p>
+              <div className="space-y-1">
+                {rows.map((row) => <InfoLine key={row.site.id} label={row.site.name} value={row.abrufdarlehen} />)}
+                <InfoLine label="= Abrufdarlehen gesamt" value={totals.abrufdarlehen} strong />
+              </div>
+            </div>
+          }
+        />
+        <KpiCard
+          label="Direkt bezahlt / Upfront"
+          value={totals.directPaid}
+          delta="Kaufpreis-Upfront gesamt"
+          icon={BadgeEuro}
+          status="green"
+          info={
+            <div className="space-y-3">
+              <p>Summe der direkt gezahlten Kaufpreis-Upfront-Beträge je Standort. Grundlage sind die vorhandenen Standort-/Importdaten.</p>
+              <div className="space-y-1">
+                {rows.map((row) => <InfoLine key={row.site.id} label={row.site.name} value={row.directPaid} />)}
+                <InfoLine label="= Direkt bezahlt / Upfront gesamt" value={totals.directPaid} strong />
+              </div>
+            </div>
+          }
+        />
+        <KpiCard
+          label="Fremdkapital aufgenommen"
+          value={totals.debt}
+          delta={`${eur(totals.repaid, true)} getilgt`}
+          icon={Landmark}
+          status="yellow"
+          info={
+            <div className="space-y-3">
+              <p>Summe des aufgenommenen Fremdkapitals je Standort. Der Hinweis zeigt zusätzlich, wie viel davon bereits getilgt wurde.</p>
+              <div className="space-y-1">
+                {rows.map((row) => <InfoLine key={row.site.id} label={row.site.name} value={row.debt} />)}
+                <InfoLine label="= Fremdkapital aufgenommen gesamt" value={totals.debt} strong />
+                <InfoLine label="Davon bereits getilgt" value={totals.repaid} />
+              </div>
+            </div>
+          }
+        />
+        <KpiCard
+          label="Restschuld"
+          value={totals.remaining}
+          delta="aktueller Import-/Stammdatenstand"
+          icon={ShieldCheck}
+          status="yellow"
+          info={
+            <div className="space-y-3">
+              <p>Summe der aktuell offenen Restschuld je Standort. Wenn Importdaten vorhanden sind, laufen diese Werte aus dem aktuellen Datenstand mit.</p>
+              <div className="space-y-1">
+                {rows.map((row) => <InfoLine key={row.site.id} label={row.site.name} value={row.remaining} />)}
+                <InfoLine label="= Restschuld gesamt" value={totals.remaining} strong />
+              </div>
+            </div>
+          }
+        />
       </div>
 
       <Card className="overflow-hidden">
