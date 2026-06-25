@@ -223,6 +223,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Die App liest bei Standortdateien gezielt nur die Input-Blaetter sowie `Dashboard_Management` und `Dashboard_Performance`. Ansichts-/PMR-/Helper-Dashboardblaetter, `Export_Konzern`, PowerQuery-/Temp-Blaetter wie `__bpstmp_*` und sonstige Hilfsblaetter werden fuer den schnellen Standortimport nicht geladen.
   - Relevante Standort-Inputblaetter sind: `Input_Stammdaten`, `Input_Finanzen`, `Input_BWA`, `Input_Kontostand`, `Input_Behandler`, `Input_Behandler_Leistung`, `Input_Personalkosten`, `Input_Operativ`, `Input_Operativ_Maske`, `Input_EBITDA_Ziele` und `Input_ausstehende Gehaelter`.
   - Patientendaten liegen typischerweise in `Input_Operativ`; die Importlogik nutzt dieses Blatt und weitere Inputblaetter als Fallback, damit keine Power-Query-Konsolidierung in einer Gesamtdatei noetig ist.
+  - Behandlerumsatz/Honorarumsatz plus Eigenlabor kommt aus `Input_Behandler_Leistung` mit der Struktur `Quelle | Behandler | Position | Inputrolle | Monatswerte`. Dieses Blatt hat keine `Bereich`-Spalte und darf deshalb nicht mit der Standard-Inputtabellenlogik `Quelle | Bereich | Position` gelesen werden.
   - Die alte Konzern-Gesamtdatei bleibt als Legacy-Fallback technisch lesbar; neue Standortdateien sollen aber nicht mehr ueber Exportblaetter konsolidiert werden.
 - Layout-/Visualisierungsregel:
   - Bestehende Diagramme, KPI-Kacheln, Scorecards und Tabellen duerfen visuell moderner und klarer gestaltet werden, ohne fachliche Werte- oder Importlogik zu veraendern.

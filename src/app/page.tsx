@@ -8803,7 +8803,10 @@ function standaloneInputRowsFromWorkbook(workbook: XLSX.WorkBook) {
     ...standaloneRowsFromKontostand(workbook, siteName),
     ...standaloneRowsFromBwaInput(workbook, siteName),
     ...standaloneRowsFromMonthlyInputSheet(workbook, "Input_Finanzen", siteName, "Finanzen"),
-    ...standaloneRowsFromMonthlyInputSheet(workbook, "Input_Behandler_Leistung", siteName, "Behandler", { objectColumn: 1 }),
+    ...standaloneRowsFromMonthlyInputSheet(workbook, "Input_Behandler_Leistung", siteName, "Behandler", {
+      objectColumn: 1,
+      headerSearchTerms: ["quelle", "behandler", "position"]
+    }),
     ...standaloneRowsFromVerticalInputSheet(workbook, "Input_Operativ", siteName, "Operativ"),
     ...standaloneRowsFromMonthlyInputSheet(workbook, "Input_Operativ_Maske", siteName, "Operativ"),
     ...standaloneRowsFromMonthlyInputSheet(workbook, "Input_ausstehende Gehälter", siteName, "Personal")
