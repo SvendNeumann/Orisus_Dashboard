@@ -5918,31 +5918,33 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
         </Button>
       </div>
       <Card className="overflow-hidden">
-        <ResponsiveTable>
-          <thead>
-            <tr>
-              {visibleColumns.map((column) => (
-                <th
-                  key={column.label}
-                  className="sticky top-0 z-20 table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white shadow-[0_2px_0_rgba(15,23,42,0.18)]"
-                >
-                  {column.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((employee) => (
-              <tr key={employee.id}>
-                {visibleColumns.map((column, index) => (
-                  <TableCell key={`${employee.id}-${column.label}`} strong={index === 0}>
-                    {column.render(employee)}
-                  </TableCell>
+        <div className="max-h-[70vh] overflow-auto">
+          <table className="data-table border-separate border-spacing-0 text-sm">
+            <thead>
+              <tr>
+                {visibleColumns.map((column) => (
+                  <th
+                    key={column.label}
+                    className="sticky top-0 z-20 table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white shadow-[0_2px_0_rgba(15,23,42,0.18)]"
+                  >
+                    {column.label}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </ResponsiveTable>
+            </thead>
+            <tbody>
+              {rows.map((employee) => (
+                <tr key={employee.id}>
+                  {visibleColumns.map((column, index) => (
+                    <TableCell key={`${employee.id}-${column.label}`} strong={index === 0}>
+                      {column.render(employee)}
+                    </TableCell>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
       <div id="employee-export-pdf" className="hidden">
         <h1 className="text-2xl font-bold">Orisus Mitarbeiterübersicht</h1>
