@@ -9605,21 +9605,23 @@ function KennzahlenEntwicklung({
         availablePeriods={monthlyPeriods}
         setPeriod={setStandortPeriod}
       />
-      <MonthlyEbitdaTable
-        targetBySite={targetBySite}
-        sites={activeSites}
-        monthlyData={filteredMonthlyData}
-        importedData={importedData}
-        periodLabel={monthlyPeriod}
-        availablePeriods={monthlyPeriods}
-        period={monthlyPeriod}
-        setPeriod={setMonthlyPeriod}
-      />
-      <EbitdaCauseAnalysis
-        sites={activeSites}
-        importedData={importedData}
-        period={monthlyPeriod}
-      />
+      <div className="analysis-only space-y-5">
+        <MonthlyEbitdaTable
+          targetBySite={targetBySite}
+          sites={activeSites}
+          monthlyData={filteredMonthlyData}
+          importedData={importedData}
+          periodLabel={monthlyPeriod}
+          availablePeriods={monthlyPeriods}
+          period={monthlyPeriod}
+          setPeriod={setMonthlyPeriod}
+        />
+        <EbitdaCauseAnalysis
+          sites={activeSites}
+          importedData={importedData}
+          period={monthlyPeriod}
+        />
+      </div>
     </section>
   );
 }
@@ -11334,7 +11336,7 @@ function PatientenAuswertungen({ importedData, sites = standorte }: { importedDa
         </ResponsiveTable>
       </Card>
 
-      <Card className="p-4">
+      <Card className="analysis-only p-4">
         <div className="mb-4">
           <h2 className="text-lg font-bold">Monatliche Patientenentwicklung | {yearForMonths}</h2>
           <p className="mt-1 text-sm text-muted-foreground">Behandelte Patienten je Standort. Leere Monate bleiben leer, Essen wird aus Essen_Patienten_Export ergänzt.</p>
@@ -14403,7 +14405,9 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
   return (
     <section className="space-y-5">
       <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow gem. BWA, dynamisch nach Jahren und gesamter Periode auswählbar." />
-      <BwaStatement title="Konsolidierte BWA bis Cashflow gem. BWA" importedData={importedData} />
+      <div className="analysis-only">
+        <BwaStatement title="Konsolidierte BWA bis Cashflow gem. BWA" importedData={importedData} />
+      </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <EbitdaBridge sites={sites} />
         <CashflowBridge sites={sites} />
@@ -14436,7 +14440,9 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
-        <CostRatios sites={sortSitesByContractStart(importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, chartPeriod)) : sites)} periodLabel={chartPeriod === "Gesamte Periode" ? "seit Vertragsstart" : chartPeriod} />
+        <div className="analysis-only">
+          <CostRatios sites={sortSitesByContractStart(importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, chartPeriod)) : sites)} periodLabel={chartPeriod === "Gesamte Periode" ? "seit Vertragsstart" : chartPeriod} />
+        </div>
       </div>
     </section>
   );
@@ -15543,7 +15549,7 @@ function Bankenreporting({
         </Card>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="analysis-only grid gap-5 xl:grid-cols-2">
         <ChartCard title="Kosten- und Margenqualität je Standort | gesamte Vertragsperiode" icon={BarChart3}>
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={bankKpiActiveSites.map((site) => ({ name: site.name, marge: site.ebitdaMarge, kostenquote: boardCostRatio(site), personal: site.personalquote ?? 0 }))}>
@@ -15571,7 +15577,7 @@ function Bankenreporting({
         </ChartCard>
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="analysis-only overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-bold">Standort-Risikomatrix für Banken | {performancePeriodLabel(bankTablePeriod)}</h2>
@@ -15632,7 +15638,7 @@ function Bankenreporting({
         </div>
       </Card>
 
-      <Card className="overflow-hidden">
+      <Card className="analysis-only overflow-hidden">
         <div className="border-b border-border p-4">
           <h2 className="font-bold">Personal- und Kapazitätssignale für Banken</h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -15674,7 +15680,9 @@ function Bankenreporting({
         )}
       </Card>
 
-      <BankCashflowControlTable sites={sites} importedData={importedData} />
+      <div className="analysis-only">
+        <BankCashflowControlTable sites={sites} importedData={importedData} />
+      </div>
     </section>
   );
 }
@@ -16003,7 +16011,7 @@ function BoardRiskFocusRow({ label, value, status, info }: { label: string; valu
 function AcquisitionIntegration({ sites = standorte }: { sites?: DashboardSite[] }) {
   const activeSites = sortSitesByContractStart(sites).filter((site) => site.gesamtleistung > 0);
   return (
-    <Card className="overflow-hidden">
+    <Card className="analysis-only overflow-hidden">
       <div className="border-b border-border p-4">
         <h2 className="font-bold">Akquisitionen & Integration | seit Vertragsstart</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -16371,7 +16379,7 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
         />
         <KpiCard label="Tilgung" value={tilgung} delta="Laufend bedient" icon={ShieldCheck} status="green" />
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="analysis-only grid gap-4 xl:grid-cols-2">
         {sortSitesByContractStart(sites).map((site) => {
           const dueStatus = earnOutDueStatus(site);
           const projectedEarnOut = projectedEarnOutForSite(site, earnOutPeriod);
@@ -16792,7 +16800,7 @@ function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[];
         </div>
       </Card>
 
-      <Card className="overflow-hidden">
+      <Card className="analysis-only overflow-hidden">
         <div className="table-head p-4 text-white">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
