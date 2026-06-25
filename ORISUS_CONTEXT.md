@@ -225,6 +225,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Cashflow-Tab enthaelt zusaetzlich einen Abweichungsmonitor Bank vs. BWA ueber die gesamte Vertragsperiode je Standort.
 - BWA-Tab:
   - Der obere Kurzueberblick zeigt Gesamtleistung, EBITDA und Cashflow BWA. Eine separate Datenstand-Kachel wird dort nicht angezeigt.
+  - In der Desktopansicht sollen `Gesamtleistungsentwicklung` und die rechts danebenstehenden `Kostenquoten` im Grid unten bündig abschliessen.
 - Performance & Benchmarking enthaelt ein Fruehwarnsystem als eigenes Tab:
   - Oben kompakter Warnradar mit Jahresfilter, Gesamtstatus, Anzahl Auffaellig/Beobachten und Fokus-Standorten.
   - Standardjahr fuer den Jahresfilter ist 2026, wenn 2026 im bestaetigten Import vorhanden ist.

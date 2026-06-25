@@ -7711,9 +7711,9 @@ function CostRatios({ site, sites = standorte, periodLabel = "seit Vertragsstart
     { label: "Gesamtkostenquote", value: totalCostRatio, target: rules.kostenquote.green, status: statusByRule(totalCostRatio, rules.kostenquote) }
   ];
   return (
-    <Card className="p-4">
+    <Card className="flex h-full flex-col p-4">
       <h2 className="font-bold">{site ? `Kostenquoten ${site.name} | ${periodLabel}` : `Kostenquoten | ${periodLabel}`}</h2>
-      <div className="mt-4 space-y-4">
+      <div className="mt-4 flex flex-1 flex-col justify-between gap-4">
         {rows.map((row) => (
           <div key={row.label}>
             <div className="mb-2 flex items-center justify-between text-sm">
@@ -15063,7 +15063,7 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
-        <div className="analysis-only">
+        <div className="analysis-only h-full">
           <CostRatios sites={sortSitesByContractStart(importedData ? sites.map((site) => filteredSiteForPeriod(site, importedData, chartPeriod)) : sites)} periodLabel={chartPeriod === "Gesamte Periode" ? "seit Vertragsstart" : chartPeriod} />
         </div>
       </div>
