@@ -5259,7 +5259,6 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
       return sum + teamEmployees.reduce((subtotal, employee) => subtotal + employee.hourlyWage, 0);
     }, 0)
   };
-
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -6366,16 +6365,27 @@ function aggregateMetricTrendData(importedData: ImportedDashboardData | null | u
     .slice(-limit);
 }
 
-function MiniSparkline({ data, color = "#30d5c8" }: { data: { label: string; value: number }[]; color?: string }) {
+function MiniSparkline({
+  data,
+  color = "#30d5c8",
+  height = 52,
+  format = "currency"
+}: {
+  data: { label: string; value: number }[];
+  color?: string;
+  height?: number;
+  format?: "currency" | "percent" | "plain";
+}) {
   if (data.length < 2) {
     return <div className="flex h-12 items-center justify-center rounded-lg bg-slate-950/24 text-[11px] font-semibold text-muted-foreground">n. v.</div>;
   }
+  const formatter = (value: number) => (format === "percent" ? pct(value) : format === "plain" ? value.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : eur(value));
 
   return (
-    <ResponsiveContainer width="100%" height={52}>
+    <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 8, right: 4, bottom: 2, left: 4 }}>
         <Line type="monotone" dataKey="value" stroke={color} strokeWidth={3} dot={false} isAnimationActive={false} />
-        <Tooltip formatter={(value) => eur(Number(value))} labelFormatter={(label) => String(label)} />
+        <Tooltip formatter={(value) => formatter(Number(value))} labelFormatter={(label) => String(label)} />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -6435,6 +6445,9 @@ function DailyCfoCockpit({
   const expectedEarnOutInfo = <ExpectedEarnOutInfo rows={earnOutRows} period={period} />;
   const expectedGrowthPaymentInfo = <ExpectedGrowthPaymentInfo rows={earnOutRows} period={period} />;
   const expectedObligationInfo = <ExpectedObligationInfo rows={earnOutRows} period={period} />;
+  const revenueSparkline = aggregateMetricTrendData(importedData, "summe_umsatz");
+  const ebitdaSparkline = aggregateMetricTrendData(importedData, "ebitda");
+  const cashflowSparkline = aggregateMetricTrendData(importedData, "cashflow_gesamt");
 
   const kpis = [
     {
@@ -6443,6 +6456,7 @@ function DailyCfoCockpit({
       delta: performancePeriodLabel(revenuePeriod),
       icon: TrendingUp,
       status: "green",
+      sparkline: revenueSparkline,
       control: (
         <Select className="w-full text-left" value={revenuePeriod} onChange={(event) => setRevenuePeriod(event.target.value)}>
           {revenuePeriods.map((option) => (
@@ -6511,6 +6525,7 @@ function DailyCfoCockpit({
       delta: "nach Tilgung, Investitionen, Umbuchungen",
       icon: Wallet,
       status: statusByRule(metrics.cashflow, rules.cashflow_bwa),
+      sparkline: cashflowSparkline,
       info: (
         <div className="space-y-1">
           <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
@@ -6532,6 +6547,7 @@ function DailyCfoCockpit({
       delta: `${pct(metrics.ebitdaMarge)} Marge | Run-Rate ${eur(metrics.runRateEbitda, true)}`,
       icon: Banknote,
       status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge),
+      sparkline: ebitdaSparkline,
       info: (
         <div className="space-y-1">
           <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
@@ -6614,6 +6630,7 @@ function DailyCfoCockpit({
     status: Status;
     control?: React.ReactNode;
     info?: React.ReactNode;
+    sparkline?: { label: string; value: number }[];
   }>;
 
   return (
@@ -6652,6 +6669,8 @@ function KpiCard({
   control,
   secondaryValue,
   info,
+  sparkline,
+  sparklineFormat = "currency",
   featured = false,
   className
 }: {
@@ -6665,6 +6684,8 @@ function KpiCard({
   control?: React.ReactNode;
   secondaryValue?: React.ReactNode;
   info?: React.ReactNode;
+  sparkline?: { label: string; value: number }[];
+  sparklineFormat?: "currency" | "percent" | "plain";
   featured?: boolean;
   className?: string;
 }) {
@@ -6697,6 +6718,11 @@ function KpiCard({
         {control ? <div className="mt-3 w-full max-w-[15rem]">{control}</div> : null}
         <p className={cn("mt-1 font-extrabold text-white", featured ? "text-3xl" : "text-2xl")}>{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
         {secondaryValue ? <p className="mt-1 text-sm font-bold text-slate-200">{secondaryValue}</p> : null}
+        {sparkline?.length ? (
+          <div className="mt-2 w-full max-w-[13rem]">
+            <MiniSparkline data={sparkline} color={status === "red" ? "#ff8f95" : status === "yellow" ? "#f59e0b" : "#30d5c8"} height={42} format={sparklineFormat} />
+          </div>
+        ) : null}
         <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 font-semibold", featured ? "text-sm" : "text-xs", positive ? "text-emerald-700" : "text-red-700")}>
           {positive ? <ArrowUpRight className="h-4 w-4 shrink-0" /> : <ArrowDownRight className="h-4 w-4 shrink-0" />}
           <span className="min-w-0 break-words">{delta}</span>
@@ -7441,51 +7467,63 @@ function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: D
     {
       label: "EBITDA-Marge Konzern",
       value: pct(metrics.ebitdaMarge),
+      progress: Math.min(Math.max((metrics.ebitdaMarge / Math.max(rules.ebitda_marge.green, 1)) * 100, 0), 100),
       status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge),
       rule: `grün ${kpiRuleText(rules.ebitda_marge, "green")}, gelb ${kpiRuleText(rules.ebitda_marge, "yellow")}`
     },
     {
       label: "Cashflow gem. BWA",
       value: eur(metrics.cashflow),
+      progress: metrics.cashflow >= 0 ? 100 : 28,
       status: statusByRule(metrics.cashflow, rules.cashflow_bwa),
       rule: `grün ${kpiRuleText(rules.cashflow_bwa, "green")}, rot ${kpiRuleText(rules.cashflow_bwa, "red")}`
     },
     {
       label: "Offene Forderungen",
       value: eur(metrics.forderungen),
+      progress: Math.min(Math.max((receivablesRatio / Math.max(rules.offene_forderungen.yellow, 1)) * 100, 0), 100),
       status: statusByRule(receivablesRatio, rules.offene_forderungen),
       rule: `${pct(receivablesRatio)} der Gesamtleistung | grün ${kpiRuleText(rules.offene_forderungen, "green")}`
     },
     {
       label: "Kostenquote",
       value: pct(metrics.kostenquote),
+      progress: Math.min(Math.max((metrics.kostenquote / Math.max(rules.kostenquote.yellow, 1)) * 100, 0), 100),
       status: statusByRule(metrics.kostenquote, rules.kostenquote),
       rule: `Material, Fremdlabor und sonstige Kosten | grün ${kpiRuleText(rules.kostenquote, "green")}`
     },
     {
       label: "Aktuelle Liquidität",
       value: eur(metrics.kontostand),
+      progress: Math.min(Math.max((metrics.kontostand / Math.max(rules.aktuelle_liquiditaet.green, 1)) * 100, 0), 100),
       status: statusByRule(metrics.kontostand, rules.aktuelle_liquiditaet),
       rule: `konsolidierter Kontostand | grün ${kpiRuleText(rules.aktuelle_liquiditaet, "green")}`
     },
     {
       label: "Kapitaldienstfähigkeit",
       value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
+      progress: Math.min(Math.max((metrics.kapitaldienstfaehigkeit / Math.max(rules.kapitaldienstfaehigkeit.green, 0.1)) * 100, 0), 100),
       status: statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
       rule: `EBITDA / Tilgung plus Zins | grün ${kpiRuleText(rules.kapitaldienstfaehigkeit, "green")}`
     }
-  ] satisfies Array<{ label: string; value: string; status: Status; rule: string }>;
+  ] satisfies Array<{ label: string; value: string; progress: number; status: Status; rule: string }>;
   return (
     <Card className="h-full p-4">
       <h2 className="font-bold">Status-Center | aktueller Stand</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {rows.map((row) => (
-          <div key={row.label} className="rounded-md border border-border p-3">
+          <div key={row.label} className="rounded-xl border border-white/12 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold">{row.label}</p>
               <StatusDot status={row.status} />
             </div>
             <p className="mt-2 text-lg font-bold">{row.value}</p>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950/35">
+              <div
+                className={cn("h-full rounded-full", row.status === "green" ? "bg-emerald-400" : row.status === "yellow" ? "bg-amber-400" : "bg-red-400")}
+                style={{ width: `${row.progress}%` }}
+              />
+            </div>
             <p className="mt-1 text-xs text-muted-foreground">{row.rule}</p>
           </div>
         ))}

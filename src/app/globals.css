@@ -494,9 +494,37 @@ select {
   border-color: rgba(178, 226, 229, 0.18) !important;
 }
 
+.app-shell .data-table th {
+  position: relative;
+  border-bottom-color: rgba(121, 238, 231, 0.34) !important;
+  background:
+    linear-gradient(180deg, rgba(36, 182, 191, 0.98), rgba(10, 100, 119, 0.98)) !important;
+  color: #f4ffff !important;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.app-shell .data-table tbody tr {
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.app-shell .data-table tbody tr:hover td:not(.table-total):not(.table-section):not(.table-ratio):not(.table-cashflow) {
+  background-color: rgba(48, 213, 200, 0.105) !important;
+}
+
+.app-shell .data-table tbody td {
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
 .app-shell .data-table tbody tr.table-total td,
 .app-shell .data-table tbody tr.summary-row td {
-  background-color: rgba(178, 226, 229, 0.16) !important;
+  border-top-color: rgba(121, 238, 231, 0.36) !important;
+  background:
+    linear-gradient(180deg, rgba(64, 111, 126, 0.55), rgba(40, 91, 106, 0.58)) !important;
+  color: #f4ffff !important;
+  font-weight: 900;
 }
 
 .app-shell .app-info-popover {
