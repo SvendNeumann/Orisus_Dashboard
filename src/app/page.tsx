@@ -15809,26 +15809,85 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
   );
 }
 
+const christianHenriciAbrufdarlehen = [
+  { site: "Kirchberg", value: 125000 },
+  { site: "Essen", value: 80000 },
+  { site: "Kehl", value: 150000 },
+  { site: "Ulmet", value: 230000 },
+  { site: "Hüttenberg", value: 100000 },
+  { site: "Kassel", value: 100000 }
+] as const;
+
 function ChristianHenriciAbrufdarlehen() {
+  const total = christianHenriciAbrufdarlehen.reduce((sum, row) => sum + row.value, 0);
   return (
     <section className="space-y-5">
       <PageTitle
         title="Christian Henrici"
-        text="Separater Bereich fuer Informationen und Unterlagen zum Abrufdarlehen. Zugriff nur fuer Admin- und Info-Rolle."
+        text="Statische Übersicht zum Abrufdarlehen. Diese Werte werden nicht importiert und bleiben fest hinterlegt."
       />
-      <Card className="p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Banknote className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-semibold">Abrufdarlehen</h2>
+
+      <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold uppercase text-muted-foreground">Abrufdarlehen gesamt</p>
+              <p className="mt-3 text-4xl font-extrabold tracking-tight text-primary">{eur(total)}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Summe der fest hinterlegten Abrufdarlehen je Standort. Keine Importlogik, keine dynamische Berechnung aus Excel.
+              </p>
             </div>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Dieser Tab ist als eigener, rollenbeschraenkter Bereich vorbereitet. Fachwerte, Dokumente oder Abruflogik koennen hier
-              ergaenzt werden, ohne die bestehenden Darlehen-, Earn-Out- oder BWA-Auswertungen zu veraendern.
-            </p>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-primary/10 text-primary">
+              <Banknote className="h-6 w-6" />
+            </div>
           </div>
-          <Badge tone="green">Info / Admin</Badge>
+          <Badge className="mt-5" tone="green">Statisch hinterlegt</Badge>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-xl font-bold">Abrufdarlehen je Standort</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Feste Werte nach deiner Vorgabe.</p>
+            </div>
+            <Badge tone="green">Info / Admin</Badge>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {christianHenriciAbrufdarlehen.map((row) => (
+              <div key={row.site} className="rounded-lg border border-border bg-white/70 p-3">
+                <p className="text-sm font-semibold text-muted-foreground">{row.site}</p>
+                <p className="mt-2 text-2xl font-extrabold text-slate-950">{eur(row.value)}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="bg-gradient-to-r from-[#0f8b96] to-[#176a7d] px-4 py-3">
+          <h2 className="font-bold text-white">Abrufdarlehen | Übersicht</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[34rem] text-sm">
+            <thead>
+              <tr className="bg-[#0f8b96]/90 text-left text-white">
+                <th className="border-r border-white/15 p-3">Standort</th>
+                <th className="p-3 text-right">Abrufdarlehen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {christianHenriciAbrufdarlehen.map((row) => (
+                <tr key={row.site} className="border-t border-border">
+                  <td className="border-r border-border p-3 font-semibold">{row.site}</td>
+                  <td className="p-3 text-right font-semibold">{eur(row.value)}</td>
+                </tr>
+              ))}
+              <tr className="border-t border-border bg-white/15">
+                <td className="border-r border-border p-3 font-extrabold">Gesamt</td>
+                <td className="p-3 text-right font-extrabold text-primary">{eur(total)}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </Card>
     </section>
