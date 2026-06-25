@@ -1778,7 +1778,7 @@ const navSections = [
       { id: "uploads", label: "CFO-Upload", icon: FileUp },
       { id: "personal-upload", label: "Personal-Upload", icon: FileUp },
       { id: "reports", label: "Reports", icon: FileBarChart },
-      { id: "admin", label: "Admin", icon: Lock },
+      { id: "admin", label: "Nutzerkontrolle", icon: Lock },
       { id: "kpi-regeln", label: "KPI-Regeln", icon: Gauge }
     ]
   },
@@ -15571,6 +15571,11 @@ function BankCashflowControlTable({ sites = standorte, importedData }: { sites?:
   const ausgangTotal = valueForKey("geldausgang_bank_inkl_kredit");
   const kontostandTotal = valueForKey("kontostand_monatsende", true);
   const selectedSiteLabel = siteFilter === "gesamt" ? "Konsolidiert" : sitesWithRows.find((site) => site.id === siteFilter)?.name ?? "Standort";
+  const displayedMonths = selection.year
+    ? Array.from(visibleMonths).filter((month) =>
+        bankDetailRows.some((entry) => rowsByKey(entry.key).some((row) => row.hasValueByMonth[`${selection.year}-${month}`]))
+      )
+    : Array.from({ length: 12 }, (_, index) => index + 1);
 
   return (
     <div className="space-y-5">
@@ -15613,8 +15618,8 @@ function BankCashflowControlTable({ sites = standorte, importedData }: { sites?:
           <thead>
             <tr>
               <th className="sticky left-0 z-20 min-w-64 border-b border-r border-border table-subhead p-2 text-left text-white">Position</th>
-              {bwaMonths.map((month) => (
-                <th key={month} className="min-w-28 border-b border-r border-border table-subhead p-2 text-white">{month}</th>
+              {displayedMonths.map((month) => (
+                <th key={month} className="min-w-28 border-b border-r border-border table-subhead p-2 text-white">{bwaMonths[month - 1]}</th>
               ))}
               <th className="min-w-32 border-b border-r border-border table-subhead p-2 text-white">Gesamt</th>
               <th className="min-w-32 border-b border-r border-border table-subhead p-2 text-white">Ø Monat</th>
@@ -15627,9 +15632,9 @@ function BankCashflowControlTable({ sites = standorte, importedData }: { sites?:
                 <TableCell strong={entry.emphasis} summary={entry.emphasis}>
                   <span className={cn("block text-left", entry.indent && "pl-4 font-medium text-muted-foreground")}>{entry.label}</span>
                 </TableCell>
-                {bwaMonths.map((month, index) => {
-                  const value = monthlyValueForKey(entry.key, index + 1);
-                  const visible = !selection.year || visibleMonths.has(index + 1);
+                {displayedMonths.map((month) => {
+                  const value = monthlyValueForKey(entry.key, month);
+                  const visible = !selection.year || visibleMonths.has(month);
                   return (
                     <TableCell key={`${entry.label}-${month}`} summary={entry.emphasis} tone={(value ?? 0) < 0 ? "red" : undefined}>
                       {visible && value != null ? eur(value) : ""}
@@ -21055,7 +21060,7 @@ function AdminAccessSettings() {
   return (
     <section className="space-y-5">
       <PageTitle
-        title="Admin"
+        title="Nutzerkontrolle"
         text="Interner Einstellungsbereich für App-Zugänge, Rollen und Sicherheitsprüfung."
       />
       <AccessUserManagement />

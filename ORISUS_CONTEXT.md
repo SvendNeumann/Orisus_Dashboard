@@ -58,7 +58,7 @@ Kernmodule:
 - Mitarbeiteruebersicht
 - Personalmassnahmen
 - Uploads
-- Admin
+- Nutzerkontrolle
 - KPI-Regeln
 
 Die App ist bewusst keine oeffentliche Registrierungsplattform. Zugriff wird ausschliesslich durch Admins angelegt.
@@ -159,7 +159,7 @@ Navigation wurde gruppiert:
   - CFO-Upload
   - Personal-Upload
   - Reports
-  - Admin
+  - Nutzerkontrolle
   - KPI-Regeln
 - Christian Henrici
   - Allgemeine Informationen
@@ -171,7 +171,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Tabelle `BWA-Uebersicht` mit Standort- und Zeitraumfilter: Umsatz gemaess BWA, EBITDA gemaess BWA, EBITDA-Marge und Cashflow gemaess BWA.
   - Tabelle `PVS-Gesamtumsatz` mit Standort- und Zeitraumfilter.
   - Tabelle `Honorarumsatz plus Eigenlabor` mit Standort- und Zeitraumfilter.
-  - Tabelle `Bankbewegungen` mit Standort- und Zeitraumfilter, basierend auf der bereits vorhandenen Bankbewegungslogik aus Input_Finanzen.
+  - Tabelle `Bankbewegungen` mit Standort- und Zeitraumfilter, basierend auf der bereits vorhandenen Bankbewegungslogik aus Input_Finanzen. Monate ohne echte Eingabe werden in der Monatstabelle ausgeblendet; eingetragene Nullwerte bleiben sichtbar.
   - Es wurden keine neuen Importregeln eingefuehrt; der Tab nutzt vorhandene Importdaten und bestehende Periodenlogik.
 - Standortleiter-PMR als dynamischer druckbarer Report je Standort.
 - PMR-Report mit Standortauswahl, Zeitraumfilter, Vergleichsjahr und Hoch-/Querformat.
@@ -245,7 +245,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Administration:
   - CFO-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
   - Personal-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
-  - Admin enthaelt App-Zugaenge, Rollen und Rollen-/Sicherheitspruefung.
+  - Nutzerkontrolle enthaelt App-Zugaenge, Rollen und Rollen-/Sicherheitspruefung.
   - KPI-Regeln enthaelt ein dezentes zentrales Vergleichsregelwerk `Wer darf verglichen werden?`.
   - Dieses Regelwerk ist technisch zentral im App-Code hinterlegt und soll fuer Benchmarking, Fruehwarnsystem, PMR, Kennzahlen und Standortvergleiche genutzt werden.
   - KPI-Regeln enthaelt zusaetzlich zentrale `Ziel-EBITDA-Stammdaten` je Standort:
@@ -1133,9 +1133,9 @@ Standortleiter-PMR:
 - PMR-Personalkostentabelle ist fuer Standortleiter gedacht: keine technischen Spalten wie Datenstatus anzeigen.
 - Fehlende Vorjahreswerte in PMR-BWA oder Quoten/Kennzahlen leer lassen, nicht als 0 anzeigen.
 
-## 24. Admin und KPI-Regeln
+## 24. Nutzerkontrolle und KPI-Regeln
 
-Admin-Bereich:
+Nutzerkontrolle:
 
 - App-Zugaenge anlegen, bearbeiten, loeschen.
 - Rollen aendern.
@@ -1286,8 +1286,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Mobile Sidebar muss ueber die abgedunkelte Flaeche ausserhalb des Menues geschlossen werden koennen.
   - iPad-/Tablet-Ansicht darf nicht horizontal ueberlaufen oder durch Menueleisten verdeckt werden.
   - App-Hintergrund darf beim Scrollen keine weissen Flaechen freilegen.
-- Admin und KPI-Regeln:
-  - App-Zugaenge/Rollen/Sicherheitspruefung liegen im Tab `Admin`.
+- Nutzerkontrolle und KPI-Regeln:
+  - App-Zugaenge/Rollen/Sicherheitspruefung liegen im Tab `Nutzerkontrolle`.
   - Status-Schwellenwerte, Vergleichsregelwerk, Ziel-EBITDA-Stammdaten und Oeffnungszeiten liegen im eigenen Tab `KPI-Regeln`.
   - Eingabefelder in dunklen Tabellen/Kacheln muessen helle, gut lesbare Schrift haben.
   - Das betrifft besonders Oeffnungszeiten/KPI-Regelwerte auf Mobile mit Tastatur.
