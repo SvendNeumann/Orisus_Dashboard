@@ -16373,9 +16373,12 @@ function ChristianHenriciAbrufdarlehen() {
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {christianHenriciAbrufdarlehen.map((row) => (
-              <div key={row.site} className="rounded-lg border border-border bg-white/70 p-3">
-                <p className="text-sm font-semibold text-muted-foreground">{row.site}</p>
-                <p className="mt-2 text-2xl font-extrabold text-slate-950">{eur(row.value)}</p>
+              <div
+                key={row.site}
+                className="rounded-lg border border-teal-200/25 bg-slate-950/55 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.16)]"
+              >
+                <p className="text-sm font-bold uppercase tracking-wide text-slate-200">{row.site}</p>
+                <p className="mt-2 text-3xl font-extrabold tracking-tight text-teal-100">{eur(row.value)}</p>
               </div>
             ))}
           </div>
