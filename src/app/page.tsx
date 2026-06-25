@@ -6178,28 +6178,79 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
       value: pct(metrics.ebitdaMarge),
       text: `${eur(metrics.ebitda, true)} EBITDA seit Vertragsstart`,
       status: metrics.ebitdaMarge >= 18 ? "green" : metrics.ebitdaMarge >= 10 ? "yellow" : "red",
-      icon: TrendingUp
+      icon: TrendingUp,
+      info: (
+        <>
+          <p className="font-semibold text-slate-950">Was ist das?</p>
+          <p>Die Ergebnisqualität zeigt, welcher Anteil der BWA-Gesamtleistung als EBITDA übrig bleibt.</p>
+          <InfoLine label="EBITDA seit Vertragsstart" value={metrics.ebitda} />
+          <InfoLine label="BWA-Gesamtleistung seit Vertragsstart" value={metrics.gesamtleistung} />
+          <InfoTextLine label="Berechnung" value="EBITDA / Gesamtleistung" strong />
+          <InfoTextLine label="Ergebnis" value={pct(metrics.ebitdaMarge)} strong />
+          <InfoTextLine label="Quelle" value="BWA / bestätigter CFO-Import" />
+        </>
+      )
     },
     {
       label: "Zielabweichung",
       value: `${targetDeviation >= 0 ? "+" : ""}${eur(targetDeviation, true)}`,
       text: `${targetDeviationPct >= 0 ? "+" : ""}${pct(targetDeviationPct)} ggü. Zielpfad`,
       status: targetDeviation >= 0 ? "green" : targetDeviationPct > -15 ? "yellow" : "red",
-      icon: Gauge
+      icon: Gauge,
+      info: (
+        <>
+          <p className="font-semibold text-slate-950">Was ist das?</p>
+          <p>
+            Die Zielabweichung vergleicht das Ist-EBITDA mit dem zeitanteiligen Ziel-EBITDA. Wenn vorhanden,
+            wird das Ziel-EBITDA gemäß Übernahme verwendet, sonst der Kaufvertrags-Zielpfad.
+          </p>
+          <InfoLine label="Ist-EBITDA gesamt" value={targetRows.reduce((sum, row) => sum + row.ebitda, 0)} />
+          <InfoLine label="Ziel-EBITDA gesamt" value={targetBase} />
+          <InfoLine label="= Abweichung" value={targetDeviation} strong />
+          <InfoTextLine label="Abweichung in %" value={pct(targetDeviationPct)} strong />
+          <InfoTextLine label="Quelle" value="BWA / zentrale Ziel-EBITDA-Stammdaten bzw. bestätigter CFO-Import" />
+        </>
+      )
     },
     {
       label: "Forderungen",
       value: eur(metrics.forderungen, true),
       text: highestReceivableSite ? `höchster Bestand: ${highestReceivableSite.name}` : "aktueller Stand",
       status: "yellow",
-      icon: ReceiptText
+      icon: ReceiptText,
+      info: (
+        <>
+          <p className="font-semibold text-slate-950">Was ist das?</p>
+          <p>Offene Forderungen zeigen den aktuellen Forderungsbestand über alle Standorte. Das ist ein Working-Capital- und Liquiditätsindikator.</p>
+          <InfoLine label="Forderungen gesamt" value={metrics.forderungen} strong />
+          {highestReceivableSite ? <InfoLine label={`Höchster Einzelbestand: ${highestReceivableSite.name}`} value={highestReceivableSite.forderungen} /> : null}
+          <InfoTextLine label="Berechnung" value="Summe der aktuellen Forderungsstände je Standort" />
+          <InfoTextLine label="Quelle" value="Dashboard_Management / bestätigter CFO-Import" />
+        </>
+      )
     },
     {
       label: "Cashflow-Fokus",
       value: weakestCashflowSite ? weakestCashflowSite.name : "n. v.",
       text: weakestCashflowSite ? `${eur(weakestCashflowSite.cashflow, true)} Cashflow gem. BWA` : "keine Standortdaten",
       status: weakestCashflowSite && weakestCashflowSite.cashflow < 0 ? "yellow" : "green",
-      icon: Wallet
+      icon: Wallet,
+      info: (
+        <>
+          <p className="font-semibold text-slate-950">Was ist das?</p>
+          <p>Der Cashflow-Fokus zeigt den Standort mit dem schwächsten Cashflow gem. BWA. Er hilft, die erste Prüfrichtung im Cashflow zu finden.</p>
+          {weakestCashflowSite ? (
+            <>
+              <InfoTextLine label="Fokus-Standort" value={weakestCashflowSite.name} strong />
+              <InfoLine label="Cashflow gem. BWA" value={weakestCashflowSite.cashflow} strong />
+            </>
+          ) : (
+            <InfoTextLine label="Fokus-Standort" value="keine Standortdaten" />
+          )}
+          <InfoTextLine label="Berechnung" value="Standort mit niedrigstem Cashflow gem. BWA" />
+          <InfoTextLine label="Quelle" value="BWA-Cashflow / bestätigter CFO-Import" />
+        </>
+      )
     }
   ] satisfies Array<{
     label: string;
@@ -6207,6 +6258,7 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
     text: string;
     status: Status;
     icon: React.ComponentType<{ className?: string }>;
+    info: React.ReactNode;
   }>;
 
   return (
@@ -6219,24 +6271,55 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
         <p className="text-sm text-muted-foreground">Verdichtete Lesestrecke aus den bestehenden CFO-Kennzahlen.</p>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {storyItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div key={item.label} className="rounded-lg border border-white/12 bg-slate-950/20 p-4 shadow-inner">
-              <div className="flex items-start justify-between gap-3">
-                <div className="modern-icon-tile flex h-10 w-10 items-center justify-center rounded-lg text-primary">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <StatusDot status={item.status} />
-              </div>
-              <p className="mt-4 text-sm font-semibold text-muted-foreground">{item.label}</p>
-              <p className="mt-1 break-words text-2xl font-extrabold text-white">{item.value}</p>
-              <p className="mt-2 text-sm leading-5 text-muted-foreground">{item.text}</p>
-            </div>
-          );
-        })}
+        {storyItems.map((item) => (
+          <ManagementStorylineCard key={item.label} item={item} />
+        ))}
       </div>
     </Card>
+  );
+}
+
+function ManagementStorylineCard({
+  item
+}: {
+  item: {
+    label: string;
+    value: string;
+    text: string;
+    status: Status;
+    icon: React.ComponentType<{ className?: string }>;
+    info: React.ReactNode;
+  };
+}) {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const Icon = item.icon;
+  return (
+    <div className="relative rounded-lg border border-white/12 bg-slate-950/20 p-4 shadow-inner">
+      <div className="flex items-start justify-between gap-3">
+        <button
+          type="button"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-slate-950/18 text-slate-200 transition hover:border-primary hover:text-primary"
+          aria-label={`${item.label} erklären`}
+          onClick={() => setInfoOpen(true)}
+        >
+          <Info className="h-4 w-4" />
+        </button>
+        <StatusDot status={item.status} />
+      </div>
+      <div className="mt-4 flex justify-center">
+        <div className="modern-icon-tile flex h-10 w-10 items-center justify-center rounded-lg text-primary">
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+      <p className="mt-3 text-center text-sm font-semibold text-muted-foreground">{item.label}</p>
+      <p className="mt-1 break-words text-center text-2xl font-extrabold text-white">{item.value}</p>
+      <p className="mt-2 text-center text-sm leading-5 text-muted-foreground">{item.text}</p>
+      {infoOpen ? (
+        <InfoDialog title={item.label} onClose={() => setInfoOpen(false)}>
+          {item.info}
+        </InfoDialog>
+      ) : null}
+    </div>
   );
 }
 
