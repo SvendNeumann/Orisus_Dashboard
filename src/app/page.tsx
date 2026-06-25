@@ -9727,7 +9727,44 @@ function formatPatientValue(value: number, unit: ImportedPatientMetricRow["unit"
 
 function normalizedPercent(value: number) {
   if (!Number.isFinite(value)) return 0;
-  return Math.abs(value) <= 1.5 ? value * 100 : value;
+  const percentValue = Math.abs(value) <= 1.5 ? value * 100 : value;
+  return Math.max(0, Math.min(100, percentValue));
+}
+
+function appointmentRatesPercent({
+  bookedAppointments,
+  attendedAppointments,
+  missedAppointments,
+  attendanceRateSource,
+  cancellationRateSource
+}: {
+  bookedAppointments: number | null | undefined;
+  attendedAppointments: number | null | undefined;
+  missedAppointments: number | null | undefined;
+  attendanceRateSource: number | null | undefined;
+  cancellationRateSource: number | null | undefined;
+}) {
+  const hasAppointmentBase = bookedAppointments != null && bookedAppointments > 0;
+  let cancellationRate =
+    hasAppointmentBase && missedAppointments != null
+      ? normalizedPercent(missedAppointments / bookedAppointments)
+      : cancellationRateSource != null
+        ? normalizedPercent(cancellationRateSource)
+        : null;
+  let attendanceRate =
+    hasAppointmentBase && attendedAppointments != null
+      ? normalizedPercent(attendedAppointments / bookedAppointments)
+      : attendanceRateSource != null
+        ? normalizedPercent(attendanceRateSource)
+        : null;
+
+  if (cancellationRate != null) {
+    cancellationRate = Math.max(0, Math.min(100, cancellationRate));
+    const maxAttendance = Math.max(0, 100 - cancellationRate);
+    attendanceRate = attendanceRate == null ? maxAttendance : Math.min(attendanceRate, maxAttendance);
+  }
+
+  return { attendanceRate, cancellationRate };
 }
 
 function PatientKpiCard({
@@ -9926,8 +9963,8 @@ function Fruehwarnsystem({
       const previousMissed = previousPeriodInContract ? patientMonthValue(site.id, "missedAppointments", month, year - 1) : null;
       const previousBooked = previousPeriodInContract ? patientMonthValue(site.id, "bookedAppointments", month, year - 1) : null;
       if (missed != null && booked && previousMissed != null && previousBooked) {
-        const currentCancellationRate = (missed / booked) * 100;
-        const previousCancellationRate = (previousMissed / previousBooked) * 100;
+        const currentCancellationRate = normalizedPercent(missed / booked);
+        const previousCancellationRate = normalizedPercent(previousMissed / previousBooked);
         const increase = currentCancellationRate - previousCancellationRate;
         if (increase >= 3) {
           warnings.push({
@@ -10278,8 +10315,15 @@ function PatientenAuswertungen({ importedData, sites = standorte }: { importedDa
     const attendanceRateSource = patientMetricPeriodValue(patientRows, site.id, "attendanceRate", period);
     const cancellationRateSource = patientMetricPeriodValue(patientRows, site.id, "cancellationRate", period);
     const rooms = staticTreatmentRoomsForSite(site.id);
-    const attendanceRate = booked ? attended / booked : attendanceRateSource;
-    const cancellationRate = booked ? missed / booked : cancellationRateSource;
+    const appointmentRates = appointmentRatesPercent({
+      bookedAppointments: booked || null,
+      attendedAppointments: attended,
+      missedAppointments: missed,
+      attendanceRateSource,
+      cancellationRateSource
+    });
+    const attendanceRate = appointmentRates.attendanceRate != null ? appointmentRates.attendanceRate / 100 : 0;
+    const cancellationRate = appointmentRates.cancellationRate != null ? appointmentRates.cancellationRate / 100 : 0;
     const patientsPerRoom = rooms ? treated / rooms : patientMetricPeriodValue(patientRows, site.id, "patientsPerRoom", period);
     const hasData = patientRows.some(
       (row) => row.siteId === site.id && (Math.abs(importedPeriodValue(row, period)) > 0 || Object.values(row.valuesByMonth).some((value) => Math.abs(value) > 0))
@@ -10298,8 +10342,15 @@ function PatientenAuswertungen({ importedData, sites = standorte }: { importedDa
     }),
     { treated: 0, newPatients: 0, booked: 0, attended: 0, missed: 0, rooms: 0 }
   );
-  const totalAttendanceRate = totals.booked ? totals.attended / totals.booked : 0;
-  const totalCancellationRate = totals.booked ? totals.missed / totals.booked : 0;
+  const totalAppointmentRates = appointmentRatesPercent({
+    bookedAppointments: totals.booked || null,
+    attendedAppointments: totals.attended,
+    missedAppointments: totals.missed,
+    attendanceRateSource: null,
+    cancellationRateSource: null
+  });
+  const totalAttendanceRate = totalAppointmentRates.attendanceRate != null ? totalAppointmentRates.attendanceRate / 100 : 0;
+  const totalCancellationRate = totalAppointmentRates.cancellationRate != null ? totalAppointmentRates.cancellationRate / 100 : 0;
   const totalPatientsPerRoom = totals.rooms ? totals.treated / totals.rooms : 0;
 
   return (
@@ -11714,19 +11765,13 @@ function Analysen({
     const attendanceRateSource = patientMetricPeriodOptionalValue(patientRows, row.site.id, "attendanceRate", period);
     const cancellationRateSource = patientMetricPeriodOptionalValue(patientRows, row.site.id, "cancellationRate", period);
     const importedPatientsPerRoom = patientMetricPeriodOptionalValue(patientRows, row.site.id, "patientsPerRoom", period);
-    const hasAppointmentBase = bookedAppointments != null && bookedAppointments > 0;
-    const attendanceRate =
-      hasAppointmentBase && attendedAppointments != null
-        ? (attendedAppointments / bookedAppointments) * 100
-        : attendanceRateSource != null
-          ? normalizedPercent(attendanceRateSource)
-          : null;
-    const cancellationRate =
-      hasAppointmentBase && missedAppointments != null
-        ? (missedAppointments / bookedAppointments) * 100
-        : cancellationRateSource != null
-          ? normalizedPercent(cancellationRateSource)
-          : null;
+    const { attendanceRate, cancellationRate } = appointmentRatesPercent({
+      bookedAppointments,
+      attendedAppointments,
+      missedAppointments,
+      attendanceRateSource,
+      cancellationRateSource
+    });
     const newPatientRate = treatedPatients != null && treatedPatients > 0 && newPatients != null ? (newPatients / treatedPatients) * 100 : null;
     const patientsPerRoom =
       treatedPatients != null && row.rooms
@@ -17913,18 +17958,13 @@ function buildPmrBenchmarkPage(
     const attendanceRateSource = patientMetricPeriodOptionalValue(patientRows, candidate.id, "attendanceRate", period);
     const cancellationRateSource = patientMetricPeriodOptionalValue(patientRows, candidate.id, "cancellationRate", period);
     const importedPatientsPerRoom = patientMetricPeriodOptionalValue(patientRows, candidate.id, "patientsPerRoom", period);
-    const attendanceRate =
-      bookedAppointments != null && bookedAppointments > 0 && attendedAppointments != null
-        ? (attendedAppointments / bookedAppointments) * 100
-        : attendanceRateSource != null
-          ? normalizedPercent(attendanceRateSource)
-          : null;
-    const cancellationRate =
-      bookedAppointments != null && bookedAppointments > 0 && missedAppointments != null
-        ? (missedAppointments / bookedAppointments) * 100
-        : cancellationRateSource != null
-          ? normalizedPercent(cancellationRateSource)
-          : null;
+    const { attendanceRate, cancellationRate } = appointmentRatesPercent({
+      bookedAppointments,
+      attendedAppointments,
+      missedAppointments,
+      attendanceRateSource,
+      cancellationRateSource
+    });
     const newPatientRate = treatedPatients != null && treatedPatients > 0 && newPatients != null ? (newPatients / treatedPatients) * 100 : null;
     const patientsPerRoom =
       treatedPatients != null && rooms

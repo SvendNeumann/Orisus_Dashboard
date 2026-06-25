@@ -762,6 +762,10 @@ Patientendaten:
 - App soll diesen Tab beim Import erkennen und fuer Essen-Patientendaten nutzen.
 - Wenn Patient-/Termindaten fuer einen Standort fehlen, darf nicht 100 % oder falscher Wert gerechnet werden.
 - Fehlende Basis = `n. v.` / keine Berechnung.
+- Terminwahrnehmungsquote muss logisch begrenzt werden:
+  - nie ueber 100 %
+  - wenn Terminausfallquote vorhanden ist, maximal `100 % - Terminausfallquote`
+  - Beispiel: 13,6 % Ausfall => Wahrnehmung maximal 86,4 %, nicht 123,2 %.
 - Kirchberg-Patientendaten sind in der aktuellen CFO-Arbeitsmappe vorhanden und der Parser ist vorbereitet.
 - Wenn Patientendaten in der Live-App leer bleiben, ist zuerst zu pruefen, ob nach Parser-/Schema-Aenderung ein neuer CFO-Import bestaetigt wurde.
 
