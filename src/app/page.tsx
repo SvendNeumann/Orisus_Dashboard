@@ -1721,8 +1721,8 @@ const navSections = [
     id: "management",
     label: "Zusammenfassung",
     items: [
-      { id: "cockpit", label: "Dashboard", icon: Home },
       { id: "zusammenfassung", label: "Zusammenfassung", icon: FileBarChart },
+      { id: "cockpit", label: "Orisus-Dashboard", icon: Home },
       { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users }
     ]
   },
@@ -1793,7 +1793,7 @@ const navSections = [
 ] as const;
 
 const mobileNav = [
-  { id: "cockpit", label: "Dashboard", icon: Home },
+  { id: "cockpit", label: "Orisus-Dashboard", icon: Home },
   { id: "personal-cockpit", label: "Personal", icon: Users },
   { id: "standorte", label: "Standorte", icon: Building2 },
   { id: "bwa", label: "BWA", icon: FileBarChart },
@@ -6440,7 +6440,7 @@ function Cockpit({
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageTitle title="Dashboard" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Fokusbereiche." />
+        <PageTitle title="Orisus-Dashboard" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Fokusbereiche." />
         <CompactDataStatus importedData={importedData} />
       </div>
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} importedData={importedData} />
