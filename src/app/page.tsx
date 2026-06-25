@@ -5897,6 +5897,16 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
   const activeEmployeesCount = activeEmployees.length;
   const activeFte = activeEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
   const activeEmployerCost = activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0);
+  const employeeSiteNames = sortSiteNamesByContractStart(uniqueSortedText(personalData.employees.map((employee) => employee.site)));
+  const activeEmployeeBreakdownBySite = employeeSiteNames.map((siteName) => {
+    const siteEmployees = activeEmployees.filter((employee) => employee.site === siteName);
+    return {
+      siteName,
+      count: siteEmployees.length,
+      fte: siteEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0),
+      employerCost: siteEmployees.reduce((sum, employee) => sum + employee.employerCost, 0)
+    };
+  });
   const rows = personalData.employees.filter((employee) => {
     const siteMatch = site === "Alle Standorte" || employee.site === site;
     const statusMatch = status === "Alle Status" || employee.status === status;
@@ -5993,11 +6003,13 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
           status="green"
           info={
             <>
-              <p className="font-bold text-slate-900">Herleitung</p>
-              <InfoTextLine label="Quelle" value="Personal-Upload / Input_Mitarbeiter" />
-              <InfoTextLine label="Filter" value="Status exakt Aktiv" />
-              <InfoTextLine label="Berechnung" value="Anzahl aller Mitarbeiter mit Status Aktiv, unabhängig von der aktuellen Tabellenfilterung" />
-              <InfoTextLine label="Ergebnis" value={activeEmployeesCount.toLocaleString("de-DE")} strong />
+              <p className="font-bold text-slate-900">Aktive Mitarbeiter je Standort</p>
+              <div className="space-y-1">
+                {activeEmployeeBreakdownBySite.map((row) => (
+                  <InfoTextLine key={row.siteName} label={row.siteName} value={row.count.toLocaleString("de-DE")} />
+                ))}
+              </div>
+              <InfoTextLine label="Gesamt" value={activeEmployeesCount.toLocaleString("de-DE")} strong />
             </>
           }
         />
@@ -6010,11 +6022,21 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
           status="green"
           info={
             <>
-              <p className="font-bold text-slate-900">Herleitung</p>
-              <InfoTextLine label="Quelle" value="Personal-Upload / Input_Mitarbeiter" />
-              <InfoTextLine label="Filter" value="Status exakt Aktiv" />
-              <InfoTextLine label="Berechnung je Mitarbeiter" value="Wochenstunden / 40" />
-              <InfoTextLine label="Summe aktive FTE" value={(Math.round(activeFte * 10) / 10).toLocaleString("de-DE", { maximumFractionDigits: 1 })} strong />
+              <p className="font-bold text-slate-900">Aktive FTE je Standort</p>
+              <div className="space-y-1">
+                {activeEmployeeBreakdownBySite.map((row) => (
+                  <InfoTextLine
+                    key={row.siteName}
+                    label={row.siteName}
+                    value={row.fte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  />
+                ))}
+              </div>
+              <InfoTextLine
+                label="Gesamt"
+                value={(Math.round(activeFte * 10) / 10).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                strong
+              />
             </>
           }
         />
@@ -6027,11 +6049,13 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
             status="yellow"
             info={
               <>
-                <p className="font-bold text-slate-900">Herleitung</p>
-                <InfoTextLine label="Quelle" value="Personal-Upload / Input_Mitarbeiter" />
-                <InfoTextLine label="Filter" value="Status exakt Aktiv" />
-                <InfoTextLine label="Berechnung" value="Summe AG_Aufwand aller aktiven Mitarbeiter" />
-                <InfoLine label="= AG-Aufwand aktiv" value={activeEmployerCost} strong />
+                <p className="font-bold text-slate-900">Arbeitgeberaufwand je Standort</p>
+                <div className="space-y-1">
+                  {activeEmployeeBreakdownBySite.map((row) => (
+                    <InfoTextLine key={row.siteName} label={row.siteName} value={eur(row.employerCost)} />
+                  ))}
+                </div>
+                <InfoLine label="Gesamt" value={activeEmployerCost} strong />
                 <p className="text-xs text-slate-600">
                   Diese Kachel ist für Praxismanagement ausgeblendet, weil sie Vergütungs-/Kosteninformationen enthält.
                 </p>
