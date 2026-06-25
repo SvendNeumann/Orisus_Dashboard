@@ -9739,6 +9739,14 @@ function normalizedPercent(value: number) {
   return Math.max(0, Math.min(100, percentValue));
 }
 
+function boundedAttendanceRate(attendanceRate: number | null | undefined, cancellationRate: number | null | undefined) {
+  if (attendanceRate == null && cancellationRate == null) return null;
+  const normalizedCancellation = cancellationRate == null ? null : normalizedPercent(cancellationRate);
+  const maxAttendance = normalizedCancellation == null ? 100 : Math.max(0, 100 - normalizedCancellation);
+  if (attendanceRate == null) return maxAttendance;
+  return Math.min(normalizedPercent(attendanceRate), maxAttendance);
+}
+
 function appointmentRatesPercent({
   bookedAppointments,
   attendedAppointments,
@@ -9768,8 +9776,7 @@ function appointmentRatesPercent({
 
   if (cancellationRate != null) {
     cancellationRate = Math.max(0, Math.min(100, cancellationRate));
-    const maxAttendance = Math.max(0, 100 - cancellationRate);
-    attendanceRate = attendanceRate == null ? maxAttendance : Math.min(attendanceRate, maxAttendance);
+    attendanceRate = boundedAttendanceRate(attendanceRate, cancellationRate);
   }
 
   return { attendanceRate, cancellationRate };
@@ -11898,7 +11905,8 @@ function Analysen({
       suffix: "%"
     }
   ];
-  const attendanceRateGroup = patientAverage((row) => row.attendanceRate);
+  const cancellationRateGroup = patientAverage((row) => row.cancellationRate);
+  const attendanceRateGroup = boundedAttendanceRate(patientAverage((row) => row.attendanceRate), cancellationRateGroup);
   const marginGroup = numericAverage((row) => row.ebitdaMargin) ?? 0;
   const costGroup = {
     materialquote: numericAverage((row) => row.materialquote) ?? 0,
@@ -11950,8 +11958,8 @@ function Analysen({
     ]);
     const patientScore = averageScore([
       scoreHigher(row.patientsPerRoom, patientAverage((item) => item.patientsPerRoom)),
-      scoreHigher(row.attendanceRate, patientAverage((item) => item.attendanceRate)),
-      scoreLower(row.cancellationRate, patientAverage((item) => item.cancellationRate))
+      scoreHigher(row.attendanceRate, attendanceRateGroup),
+      scoreLower(row.cancellationRate, cancellationRateGroup)
     ]);
     const dataScore = scoreValue(
       [
@@ -12145,14 +12153,14 @@ function Analysen({
     {
       label: "Terminwahrnehmungsquote",
       value: selectedPatientRow?.attendanceRate ?? null,
-      comparison: patientAverage((row) => row.attendanceRate),
+      comparison: attendanceRateGroup,
       type: "percent" as const,
       basis: "Wahrgenommene Termine / gebuchte Termine"
     },
     {
       label: "Terminausfallquote",
       value: selectedPatientRow?.cancellationRate ?? null,
-      comparison: patientAverage((row) => row.cancellationRate),
+      comparison: cancellationRateGroup,
       type: "percent" as const,
       basis: "Nicht wahrgenommene Termine / gebuchte Termine"
     }
@@ -12243,7 +12251,7 @@ function Analysen({
       group: "Patienten",
       label: "Terminwahrnehmungsquote",
       siteValue: selectedPatientRow?.attendanceRate ?? null,
-      orisusValue: patientAverage((row) => row.attendanceRate),
+      orisusValue: attendanceRateGroup,
       type: "percent" as const,
       higherIsBetter: true,
       source: "Patienten"
@@ -12252,7 +12260,7 @@ function Analysen({
       group: "Patienten",
       label: "Terminausfallquote",
       siteValue: selectedPatientRow?.cancellationRate ?? null,
-      orisusValue: patientAverage((row) => row.cancellationRate),
+      orisusValue: cancellationRateGroup,
       type: "percent" as const,
       higherIsBetter: false,
       source: "Patienten"
@@ -12492,8 +12500,8 @@ function Analysen({
           <td>${reportEscape(row.label)}</td>
           <td class="${heatClassFor(row.treatedPatients, patientAverage((item) => item.treatedPatients), true)}">${reportEscape(formatPatientBasisValue(row.treatedPatients, "count"))}</td>
           <td class="${heatClassFor(row.newPatientRate, patientAverage((item) => item.newPatientRate), true)}">${reportEscape(formatPatientBasisValue(row.newPatientRate, "percent"))}</td>
-          <td class="${heatClassFor(row.attendanceRate, patientAverage((item) => item.attendanceRate), true)}">${reportEscape(formatPatientBasisValue(row.attendanceRate, "percent"))}</td>
-          <td class="${heatClassFor(row.cancellationRate, patientAverage((item) => item.cancellationRate), false)}">${reportEscape(formatPatientBasisValue(row.cancellationRate, "percent"))}</td>
+          <td class="${heatClassFor(row.attendanceRate, attendanceRateGroup, true)}">${reportEscape(formatPatientBasisValue(row.attendanceRate, "percent"))}</td>
+          <td class="${heatClassFor(row.cancellationRate, cancellationRateGroup, false)}">${reportEscape(formatPatientBasisValue(row.cancellationRate, "percent"))}</td>
           <td class="${heatClassFor(row.patientsPerRoom, patientAverage((item) => item.patientsPerRoom), true)}">${reportEscape(formatPatientBasisValue(row.patientsPerRoom, "average"))}</td>
         </tr>`).join("")}
       </tbody>
@@ -18001,14 +18009,19 @@ function buildPmrBenchmarkPage(
   const selectedRow = rows.find((row) => row.siteId === selectedSite.id) ?? rows[0];
   const peerRows = rows.filter((row) => row.siteId !== selectedSite.id);
   const comparisonRows = peerRows.length ? peerRows : rows;
+  const averageCancellationRate = pmrBenchmarkAverage(comparisonRows.map((row) => row.cancellationRate));
+  const averageAttendanceRate = boundedAttendanceRate(
+    pmrBenchmarkAverage(comparisonRows.map((row) => row.attendanceRate)),
+    averageCancellationRate
+  );
   const averages = {
     pvsPerDentist: pmrBenchmarkAverage(comparisonRows.map((row) => row.pvsPerDentist)),
     ebitdaMargin: pmrBenchmarkAverage(comparisonRows.map((row) => row.ebitdaMargin)),
     pvsPerRoom: pmrBenchmarkAverage(comparisonRows.map((row) => row.pvsPerRoom)),
     pvsPerOpeningHour: pmrBenchmarkAverage(comparisonRows.map((row) => row.pvsPerOpeningHour)),
     patientsPerRoom: pmrBenchmarkAverage(comparisonRows.map((row) => row.patientsPerRoom)),
-    attendanceRate: pmrBenchmarkAverage(comparisonRows.map((row) => row.attendanceRate)),
-    cancellationRate: pmrBenchmarkAverage(comparisonRows.map((row) => row.cancellationRate)),
+    attendanceRate: averageAttendanceRate,
+    cancellationRate: averageCancellationRate,
     newPatientRate: pmrBenchmarkAverage(comparisonRows.map((row) => row.newPatientRate)),
     materialquote: pmrBenchmarkAverage(comparisonRows.map((row) => row.materialquote)),
     fremdlaborquote: pmrBenchmarkAverage(comparisonRows.map((row) => row.fremdlaborquote)),

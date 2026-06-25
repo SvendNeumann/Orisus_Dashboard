@@ -767,6 +767,7 @@ Patientendaten:
   - nie ueber 100 %
   - wenn Terminausfallquote vorhanden ist, maximal `100 % - Terminausfallquote`
   - Beispiel: 13,6 % Ausfall => Wahrnehmung maximal 86,4 %, nicht 123,2 %.
+  - Das gilt auch fuer `Ø Orisus ohne Standort`: Wenn Ø Ausfallquote 8,7 % ist, darf Ø Terminwahrnehmung maximal 91,3 % sein.
 - Kirchberg-Patientendaten sind in der aktuellen CFO-Arbeitsmappe vorhanden und der Parser ist vorbereitet.
 - Wenn Patientendaten in der Live-App leer bleiben, ist zuerst zu pruefen, ob nach Parser-/Schema-Aenderung ein neuer CFO-Import bestaetigt wurde.
 
