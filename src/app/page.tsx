@@ -15013,12 +15013,11 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
       <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow gem. BWA, dynamisch nach Jahren und gesamter Periode auswählbar." />
       <TabExecutiveSummary
         title="BWA auf einen Blick"
-        text="Der Einstieg zeigt die zentrale BWA-Basis: Leistung, EBITDA, Cashflow und aktueller Datenstand. Detailbrücken und Tabellen bleiben darunter vollständig verfügbar."
+        text="Der Einstieg zeigt die zentrale BWA-Basis: Leistung, EBITDA und Cashflow. Detailbrücken und Tabellen bleiben darunter vollständig verfügbar."
         items={[
           { label: "Gesamtleistung", value: eur(metrics.gesamtleistung, true), detail: "seit Vertragsstart", status: "green", icon: ReceiptText },
           { label: "EBITDA", value: eur(metrics.ebitda, true), detail: `${pct(metrics.ebitdaMarge)} Marge`, status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge), icon: TrendingUp },
-          { label: "Cashflow BWA", value: eur(metrics.cashflow, true), detail: "gem. BWA-Brücke", status: statusByRule(metrics.cashflow, rules.cashflow_bwa), icon: Wallet },
-          { label: "Datenstand", value: performancePeriodLabel(defaultBwaPeriodFor(importedData)), detail: "letzter bestätigter Import", status: importedData ? "green" : "yellow", icon: FileBarChart }
+          { label: "Cashflow BWA", value: eur(metrics.cashflow, true), detail: "gem. BWA-Brücke", status: statusByRule(metrics.cashflow, rules.cashflow_bwa), icon: Wallet }
         ]}
       />
       <div className="analysis-only">

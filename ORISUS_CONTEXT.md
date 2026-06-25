@@ -223,6 +223,8 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Orisus Performance: Das Forderungsdiagramm neben `Operative Entwicklung` zeigt im Plot keine eigene Legende mehr.
 - Orisus Performance: Die Bankbewegungen unten wurden entfernt, weil diese Auswertung bereits in anderen Tabs vorhanden ist.
 - Cashflow-Tab enthaelt zusaetzlich einen Abweichungsmonitor Bank vs. BWA ueber die gesamte Vertragsperiode je Standort.
+- BWA-Tab:
+  - Der obere Kurzueberblick zeigt Gesamtleistung, EBITDA und Cashflow BWA. Eine separate Datenstand-Kachel wird dort nicht angezeigt.
 - Performance & Benchmarking enthaelt ein Fruehwarnsystem als eigenes Tab:
   - Oben kompakter Warnradar mit Jahresfilter, Gesamtstatus, Anzahl Auffaellig/Beobachten und Fokus-Standorten.
   - Standardjahr fuer den Jahresfilter ist 2026, wenn 2026 im bestaetigten Import vorhanden ist.
