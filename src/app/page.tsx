@@ -11750,46 +11750,7 @@ function Analysen({
       suffix: "%"
     }
   ];
-  const selectedPatientsPerRoomIndex = indexFor(selectedPatientRow?.patientsPerRoom ?? null, patientAverage((row) => row.patientsPerRoom));
-  const selectedNewPatientRate = selectedPatientRow?.newPatientRate ?? null;
-  const newPatientRateGroup = patientAverage((row) => row.newPatientRate);
-  const selectedAttendanceRate = selectedPatientRow?.attendanceRate ?? null;
   const attendanceRateGroup = patientAverage((row) => row.attendanceRate);
-  const selectedCancellationRate = selectedPatientRow?.cancellationRate ?? null;
-  const cancellationRateGroup = patientAverage((row) => row.cancellationRate);
-  const patientBenchmarkItems = [
-    {
-      label: "Patienten je Behandlungszimmer",
-      selected: selectedPatientsPerRoomIndex,
-      group: 100,
-      higherIsBetter: true,
-      unavailable: selectedPatientsPerRoomIndex == null || !selectedPatientRow?.rooms
-    },
-    {
-      label: "Neupatientenquote",
-      selected: selectedNewPatientRate,
-      group: newPatientRateGroup,
-      higherIsBetter: true,
-      suffix: "%",
-      unavailable: selectedNewPatientRate == null || newPatientRateGroup == null
-    },
-    {
-      label: "Terminwahrnehmungsquote",
-      selected: selectedAttendanceRate,
-      group: attendanceRateGroup,
-      higherIsBetter: true,
-      suffix: "%",
-      unavailable: selectedAttendanceRate == null || attendanceRateGroup == null
-    },
-    {
-      label: "Terminausfallquote",
-      selected: selectedCancellationRate,
-      group: cancellationRateGroup,
-      higherIsBetter: false,
-      suffix: "%",
-      unavailable: selectedCancellationRate == null || cancellationRateGroup == null
-    }
-  ];
   const marginGroup = numericAverage((row) => row.ebitdaMargin) ?? 0;
   const costGroup = {
     materialquote: numericAverage((row) => row.materialquote) ?? 0,
@@ -12150,24 +12111,6 @@ function Analysen({
     }
   ];
 
-  const benchmarkReportValue = (value: number | null | undefined, suffix = "%", unavailable = false) => {
-    if (unavailable || value == null || !Number.isFinite(value)) return "n. v.";
-    return `${value.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`;
-  };
-
-  const benchmarkReportTone = (
-    selected: number | null | undefined,
-    group: number | null | undefined,
-    higherIsBetter = true,
-    unavailable = false
-  ): ReportTone => {
-    if (unavailable || selected == null || group == null || !Number.isFinite(selected) || !Number.isFinite(group)) return "blue";
-    const diff = selected - group;
-    if (Math.abs(diff) < 2) return "yellow";
-    const good = higherIsBetter ? diff >= 0 : diff <= 0;
-    return good ? "green" : "red";
-  };
-
   const formatBenchmarkBasisValue = (value: number | null | undefined, type: "currency" | "percent") => {
     if (value == null || !Number.isFinite(value)) return "n. v.";
     return type === "currency" ? eur(value) : pct(value);
@@ -12354,65 +12297,6 @@ function Analysen({
   </style>`;
 
   const openBenchmarkingReport = () => {
-    const financialCards = benchmarkItems.map((item) => {
-      const suffix = item.suffix ?? "%";
-      const unavailable = item.unavailable ?? false;
-      const diff = !unavailable && item.selected != null && item.group != null ? item.selected - item.group : null;
-      return {
-        label: item.label,
-        value: benchmarkReportValue(item.selected, suffix, unavailable),
-        detail: unavailable
-          ? "Berechnungsbasis fehlt"
-          : `Ø Orisus ohne Standort: ${benchmarkReportValue(item.group, suffix)} | Abw.: ${diff == null ? "n. v." : `${diff >= 0 ? "+" : ""}${diff.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${suffix}`}`,
-        tone: benchmarkReportTone(item.selected, item.group, item.higherIsBetter, unavailable)
-      };
-    });
-
-    const patientCards = patientBenchmarkItems.map((item) => {
-      const diff = item.selected != null && item.group != null ? item.selected - item.group : null;
-      return {
-        label: item.label,
-        value: benchmarkReportValue(item.selected, item.suffix ?? "%", item.unavailable),
-        detail: item.unavailable
-          ? "Patientendaten fehlen"
-          : `Ø Orisus ohne Standort: ${benchmarkReportValue(item.group, item.suffix ?? "%")} | Abw.: ${diff == null ? "n. v." : `${diff >= 0 ? "+" : ""}${diff.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${item.suffix ?? "%"}`}`,
-        tone: benchmarkReportTone(item.selected, item.group, item.higherIsBetter, item.unavailable)
-      };
-    });
-
-    const basisTable = reportTable(
-      ["Kennzahl", "Berechnungsbasis", "Eigener Wert", "Ø Orisus ohne Standort"],
-      basisRows.map((row) => [
-        row.label,
-        row.basis,
-        formatBenchmarkBasisValue(row.own, row.type),
-        formatBenchmarkBasisValue(row.comparison, row.type)
-      ]),
-      { compact: true }
-    );
-
-    const patientBasisTable = reportTable(
-      ["Kennzahl", "Berechnungsbasis", "Eigener Wert", "Ø Orisus ohne Standort"],
-      patientBasisRows.map((row) => [
-        row.label,
-        row.basis,
-        formatPatientBasisValue(row.value, row.type),
-        formatPatientBasisValue(row.comparison, row.type)
-      ]),
-      { compact: true }
-    );
-
-    const pvsRankingRows = [...siteRows]
-      .filter((row) => Number.isFinite(row.pvsPerDentist ?? NaN))
-      .sort((a, b) => (b.pvsPerDentist ?? 0) - (a.pvsPerDentist ?? 0))
-      .slice(0, 6);
-    const marginRankingRows = [...siteRows]
-      .filter((row) => Number.isFinite(row.ebitdaMargin ?? NaN))
-      .sort((a, b) => (b.ebitdaMargin ?? 0) - (a.ebitdaMargin ?? 0))
-      .slice(0, 6);
-    const pvsRankingMax = Math.max(...pvsRankingRows.map((row) => row.pvsPerDentist ?? 0), 1);
-    const marginRankingMax = Math.max(...marginRankingRows.map((row) => row.ebitdaMargin ?? 0), 1);
-
     const costHeatmap = `<table class="heatmap-table">
       <thead>
         <tr>
@@ -12473,39 +12357,23 @@ function Analysen({
       driver.value > 0 ? "über Ø Orisus" : "unter Ø Orisus"
     ]);
 
-    const rankingSections = `<div class="benchmark-two">
-      ${reportSection("Peer-Auszug Gesamtumsatz je Zahnarzt-FTE", reportBarList(pvsRankingRows.map((row) => ({
-        label: row.label,
-        value: row.pvsPerDentist ?? 0,
-        max: pvsRankingMax,
-        tone: row.site.id === selectedSite?.id ? "green" : "blue",
-        suffix: eur(row.pvsPerDentist ?? 0)
-      }))), `Anonymisierter Auszug nach normalisiertem PVS-Gesamtumsatz.`)}
-      ${reportSection("Peer-Auszug EBITDA-Marge", reportBarList(marginRankingRows.map((row) => ({
-        label: row.label,
-        value: row.ebitdaMargin ?? 0,
-        max: marginRankingMax,
-        tone: row.site.id === selectedSite?.id ? "green" : "blue",
-        suffix: pct(row.ebitdaMargin ?? 0)
-      }))), `EBITDA-Marge im anonymisierten Vergleichsauszug.`)}
-    </div>`;
-
     const body = `${benchmarkingReportStyles}
       <div class="benchmark-report-page">
-        ${reportKpiGrid([...financialCards, ...patientCards])}
+        ${reportSection(
+          `Standort vs. Ø Orisus | ${displaySiteName}`,
+          benchmarkOverviewReportTable(benchmarkOverviewRows),
+          `Direkter Vergleich für ${period}; Ø Orisus wird ohne den ausgewerteten Standort gebildet.`
+        )}
         <div class="benchmark-note">
-          <strong>Leselogik:</strong> 100 % entspricht dem Ø Orisus der anderen Standorte ohne den ausgewerteten Standort. Werte über 100 % liegen über diesem Vergleich, Werte unter 100 % darunter. Bei Kostenquoten ist niedriger besser, bei Leistungs-, EBITDA- und Patientenkennzahlen höher besser.
+          <strong>Leselogik:</strong> Kosten- und Ausfallquoten sind besser, wenn sie unter Ø Orisus liegen. Leistungs-, Ergebnis- und Patientenkennzahlen sind besser, wenn sie über Ø Orisus liegen. Die Quellen bleiben je Kennzahl sichtbar.
         </div>
         <div class="benchmark-report-wide">
-          ${rankingSections}
+          ${reportSection("EBITDA-Margen-Treiber", reportTable(["Treiber", "Abweichung", "Einordnung"], driverRows, { compact: true }), marginGap >= 0 ? "Die Marge liegt über Ø Orisus." : "Die Marge liegt unter Ø Orisus.")}
           ${reportSection("Standortleiter-Insights", `<div class="benchmark-insights">${summaryItems.map((item) => `<div class="benchmark-insight"><strong>Insight</strong>${reportEscape(item)}</div>`).join("")}</div>`, "Automatisch aus Benchmarking-Abweichungen und Patienten-/Termindaten abgeleitet.")}
         </div>
-        ${reportSection("Kostenquoten im Peer-Auszug", costHeatmap, `Statusfarben gegen Ø Orisus ohne Standort in ${period}; bei Kostenquoten ist niedriger besser.`)}
-      </div>
-      <div class="benchmark-report-page">
         <div class="benchmark-report-triple">
           ${reportSection("Patienten- und Terminindikatoren", patientHeatmap, `Patientenbasis, Neupatienten und Terminqualität für ${period}.`)}
-          ${reportSection("EBITDA-Margen-Treiber", reportTable(["Treiber", "Abweichung", "Einordnung"], driverRows, { compact: true }), marginGap >= 0 ? "Die Marge liegt über Ø Orisus." : "Die Marge liegt unter Ø Orisus.")}
+          ${reportSection("Kostenquoten im Peer-Auszug", costHeatmap, `Statusfarben gegen Ø Orisus ohne Standort in ${period}; bei Kostenquoten ist niedriger besser.`)}
           ${reportSection("Rechenbasis kompakt", reportTable(["Kennzahl", "Eigener Wert", "Ø Orisus ohne Standort"], [
             ...basisRows.slice(0, 6).map((row) => [row.label, formatBenchmarkBasisValue(row.own, row.type), formatBenchmarkBasisValue(row.comparison, row.type)]),
             ...patientBasisRows.slice(0, 4).map((row) => [row.label, formatPatientBasisValue(row.value, row.type), formatPatientBasisValue(row.comparison, row.type)])
@@ -12521,7 +12389,7 @@ function Analysen({
       `Benchmarking-Report ${displaySiteName}`,
       buildReportDocument({
         title: `Benchmarking-Report ${displaySiteName}`,
-        subtitle: `Zeitraum: ${period} | Vergleich: ${comparison} | Ansicht: ${viewMode}. Farbig aufbereiteter Report mit KPI-Übersicht, Rechenbasis, Rankings, Kosten-Heatmap, Patientenindikatoren und Handlungshinweisen.`,
+        subtitle: `Zeitraum: ${period} | Vergleich: ${comparison} | Ansicht: ${viewMode}. Kompakter Report mit Standort-vs.-Ø-Orisus-Vergleich, Quellen, Rechenbasis und ergänzenden Detailtabellen.`,
         orientation: "landscape",
         body,
         documentClass: "benchmark-document",
@@ -12925,6 +12793,55 @@ type BenchmarkOverviewRow = {
   higherIsBetter: boolean;
   source: string;
 };
+
+function benchmarkOverviewReportFormat(value: number | null, type: BenchmarkOverviewRow["type"]) {
+  if (value == null || !Number.isFinite(value)) return "n. v.";
+  if (type === "currency") return eur(value);
+  if (type === "percent") return pct(value);
+  return value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+}
+
+function benchmarkOverviewReportStatus(row: BenchmarkOverviewRow): Status | "neutral" {
+  if (row.siteValue == null || row.orisusValue == null || !Number.isFinite(row.siteValue) || !Number.isFinite(row.orisusValue)) return "neutral";
+  const diff = row.siteValue - row.orisusValue;
+  const tolerance = row.type === "currency" ? Math.max(Math.abs(row.orisusValue) * 0.03, 5000) : 0.5;
+  if (Math.abs(diff) <= tolerance) return "yellow";
+  const better = row.higherIsBetter ? diff > 0 : diff < 0;
+  return better ? "green" : "red";
+}
+
+function benchmarkOverviewReportStatusText(row: BenchmarkOverviewRow) {
+  const status = benchmarkOverviewReportStatus(row);
+  if (status === "neutral") return "n. v.";
+  if (status === "yellow") return "nahe Ø Orisus";
+  if (row.higherIsBetter) return status === "green" ? "über Ø Orisus" : "unter Ø Orisus";
+  return status === "green" ? "unter Ø Orisus" : "erhöht ggü. Ø Orisus";
+}
+
+function benchmarkOverviewReportDeviation(row: BenchmarkOverviewRow) {
+  if (row.siteValue == null || row.orisusValue == null || !Number.isFinite(row.siteValue) || !Number.isFinite(row.orisusValue)) return "n. v.";
+  const diff = row.siteValue - row.orisusValue;
+  if (row.type === "currency") return `${diff >= 0 ? "+" : ""}${eur(diff)}`;
+  return `${diff >= 0 ? "+" : ""}${diff.toLocaleString("de-DE", { maximumFractionDigits: 1 })}${row.type === "percent" ? " Pkt." : ""}`;
+}
+
+function benchmarkOverviewReportTable(rows: BenchmarkOverviewRow[]) {
+  return `<table class="report-table compact benchmark-overview-table">
+    <thead><tr><th>Bereich</th><th>Kennzahl</th><th>Standort</th><th>Ø Orisus</th><th>Abw.</th><th>Einordnung</th><th>Quelle</th></tr></thead>
+    <tbody>${rows.map((row) => {
+      const status = benchmarkOverviewReportStatus(row);
+      return `<tr>
+        <td class="label-cell">${reportEscape(row.group)}</td>
+        <td>${reportEscape(row.label)}</td>
+        <td>${reportEscape(benchmarkOverviewReportFormat(row.siteValue, row.type))}</td>
+        <td>${reportEscape(benchmarkOverviewReportFormat(row.orisusValue, row.type))}</td>
+        <td>${reportEscape(benchmarkOverviewReportDeviation(row))}</td>
+        <td>${status === "neutral" ? reportEscape("n. v.") : reportStatusDotWithLabel(status, benchmarkOverviewReportStatusText(row))}</td>
+        <td>${reportEscape(row.source)}</td>
+      </tr>`;
+    }).join("")}</tbody>
+  </table>`;
+}
 
 function BenchmarkOverviewTable({
   rows,
@@ -17833,10 +17750,6 @@ function pmrBenchmarkAverage(values: Array<number | null | undefined>) {
   return finiteValues.length ? finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length : null;
 }
 
-function pmrBenchmarkIndex(value: number | null | undefined, basis: number | null | undefined) {
-  return value != null && basis ? (value / basis) * 100 : null;
-}
-
 function pmrBenchmarkHeatClass(value: number | null | undefined, reference: number | null | undefined, higherIsBetter = false) {
   if (value == null || reference == null || !Number.isFinite(value) || !Number.isFinite(reference)) return "heat-neutral";
   const diff = value - reference;
@@ -17851,16 +17764,6 @@ function pmrBenchmarkFormat(value: number | null | undefined, type: "currency" |
   if (type === "percent") return pct(value);
   if (type === "index") return `${value.toLocaleString("de-DE", { maximumFractionDigits: 0 })} %`;
   return value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
-}
-
-function pmrBenchmarkRankingRows<T extends { label: string; value: number | null; siteId: string }>(rows: T[], selectedSiteId: string, count = 5) {
-  const sortedRows = rows
-    .filter((row) => row.value != null && Number.isFinite(row.value))
-    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-  const topRows = sortedRows.slice(0, count);
-  const selectedRow = sortedRows.find((row) => row.siteId === selectedSiteId);
-  if (selectedRow && !topRows.some((row) => row.siteId === selectedSiteId)) return [...topRows.slice(0, Math.max(0, count - 1)), selectedRow];
-  return topRows;
 }
 
 function pmrBenchmarkComparisonText(value: number | null | undefined, basis: number | null | undefined, higherIsBetter = true, type: "currency" | "percent" | "number" = "number") {
@@ -17965,94 +17868,117 @@ function buildPmrBenchmarkPage(
     sonstigeKostenquote: pmrBenchmarkAverage(comparisonRows.map((row) => row.sonstigeKostenquote)),
     gesamtkostenquote: pmrBenchmarkAverage(comparisonRows.map((row) => row.gesamtkostenquote))
   };
-  const indexCards = [
+  const overviewRows: BenchmarkOverviewRow[] = [
     {
-      label: "Umsatz je Zahnarzt-FTE",
-      value: pmrBenchmarkIndex(selectedRow?.pvsPerDentist, averages.pvsPerDentist),
-      group: 100,
-      higherIsBetter: true,
-      type: "index" as const
-    },
-    {
+      group: "Ergebnis",
       label: "EBITDA-Marge",
-      value: selectedRow?.ebitdaMargin ?? null,
-      group: averages.ebitdaMargin,
+      siteValue: selectedRow?.ebitdaMargin ?? null,
+      orisusValue: averages.ebitdaMargin,
+      type: "percent",
       higherIsBetter: true,
-      type: "percent" as const
+      source: "BWA"
     },
     {
+      group: "Kosten",
+      label: "Personalkostenquote",
+      siteValue: selectedRow?.personalquote ?? null,
+      orisusValue: averages.personalquote,
+      type: "percent",
+      higherIsBetter: false,
+      source: "BWA"
+    },
+    {
+      group: "Kosten",
+      label: "Materialquote",
+      siteValue: selectedRow?.materialquote ?? null,
+      orisusValue: averages.materialquote,
+      type: "percent",
+      higherIsBetter: false,
+      source: "BWA"
+    },
+    {
+      group: "Kosten",
+      label: "Fremdlaborquote",
+      siteValue: selectedRow?.fremdlaborquote ?? null,
+      orisusValue: averages.fremdlaborquote,
+      type: "percent",
+      higherIsBetter: false,
+      source: "BWA"
+    },
+    {
+      group: "Kosten",
       label: "Gesamtkostenquote",
-      value: selectedRow?.gesamtkostenquote ?? null,
-      group: averages.gesamtkostenquote,
+      siteValue: selectedRow?.gesamtkostenquote ?? null,
+      orisusValue: averages.gesamtkostenquote,
+      type: "percent",
       higherIsBetter: false,
-      type: "percent" as const
+      source: "BWA"
     },
     {
+      group: "Kapazität",
+      label: "Umsatz je Zahnarzt-FTE",
+      siteValue: selectedRow?.pvsPerDentist ?? null,
+      orisusValue: averages.pvsPerDentist,
+      type: "currency",
+      higherIsBetter: true,
+      source: "PVS / Personal"
+    },
+    {
+      group: "Kapazität",
       label: "Umsatz je Zimmer",
-      value: pmrBenchmarkIndex(selectedRow?.pvsPerRoom, averages.pvsPerRoom),
-      group: 100,
+      siteValue: selectedRow?.pvsPerRoom ?? null,
+      orisusValue: averages.pvsPerRoom,
+      type: "currency",
       higherIsBetter: true,
-      type: "index" as const
+      source: "PVS / Stammdaten"
     },
     {
-      label: "Patienten je Zimmer",
-      value: pmrBenchmarkIndex(selectedRow?.patientsPerRoom, averages.patientsPerRoom),
-      group: 100,
-      higherIsBetter: true,
-      type: "index" as const
-    },
-    {
+      group: "Kapazität",
       label: "Umsatz je Öffnungsstunde",
-      value: pmrBenchmarkIndex(selectedRow?.pvsPerOpeningHour, averages.pvsPerOpeningHour),
-      group: 100,
+      siteValue: selectedRow?.pvsPerOpeningHour ?? null,
+      orisusValue: averages.pvsPerOpeningHour,
+      type: "currency",
       higherIsBetter: true,
-      type: "index" as const
+      source: "PVS / Öffnungszeiten"
     },
     {
+      group: "Patienten",
+      label: "Patienten je Zimmer",
+      siteValue: selectedRow?.patientsPerRoom ?? null,
+      orisusValue: averages.patientsPerRoom,
+      type: "number",
+      higherIsBetter: true,
+      source: "Patienten"
+    },
+    {
+      group: "Patienten",
+      label: "Neupatientenquote",
+      siteValue: selectedRow?.newPatientRate ?? null,
+      orisusValue: averages.newPatientRate,
+      type: "percent",
+      higherIsBetter: true,
+      source: "Patienten"
+    },
+    {
+      group: "Patienten",
       label: "Terminwahrnehmung",
-      value: selectedRow?.attendanceRate ?? null,
-      group: averages.attendanceRate,
+      siteValue: selectedRow?.attendanceRate ?? null,
+      orisusValue: averages.attendanceRate,
+      type: "percent",
       higherIsBetter: true,
-      type: "percent" as const
+      source: "Patienten"
     },
     {
+      group: "Patienten",
       label: "Terminausfall",
-      value: selectedRow?.cancellationRate ?? null,
-      group: averages.cancellationRate,
+      siteValue: selectedRow?.cancellationRate ?? null,
+      orisusValue: averages.cancellationRate,
+      type: "percent",
       higherIsBetter: false,
-      type: "percent" as const
+      source: "Patienten"
     }
   ];
-  const benchmarkKpiCells = indexCards.map((card) => {
-    const diff = card.value != null && card.group != null ? card.value - card.group : null;
-    const tone = diff == null || !Number.isFinite(diff)
-      ? "blue"
-      : Math.abs(diff) < (card.type === "percent" ? 1 : 3)
-        ? "yellow"
-        : (card.higherIsBetter ? diff >= 0 : diff <= 0)
-        ? "green"
-        : "red";
-    const suffix = card.type === "index" ? "Index" : "Ø Orisus";
-    return {
-      label: reportEscape(card.label),
-      value: reportEscape(pmrBenchmarkFormat(card.value, card.type)),
-      detail: card.group == null ? "Ø Orisus n. v." : `${reportEscape(suffix)}: ${reportEscape(pmrBenchmarkFormat(card.group, card.type))}`,
-      tone
-    };
-  });
-  const kpiCards = `<table class="pmr-benchmark-kpi-table">
-    <thead><tr>${benchmarkKpiCells.map((card) => `<th>${card.label}</th>`).join("")}</tr></thead>
-    <tbody>
-      <tr>${benchmarkKpiCells.map((card) => `<td class="${card.tone}">${card.value}</td>`).join("")}</tr>
-      <tr>${benchmarkKpiCells.map((card) => `<td>${card.detail}</td>`).join("")}</tr>
-    </tbody>
-  </table>`;
-  const pvsRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.pvsPerDentist })), selectedSite.id);
-  const marginRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.ebitdaMargin })), selectedSite.id);
-  const roomRanking = pmrBenchmarkRankingRows(rows.map((row) => ({ siteId: row.siteId, label: row.label, value: row.pvsPerRoom })), selectedSite.id);
-  const pvsMax = Math.max(...pvsRanking.map((row) => row.value ?? 0), 1);
-  const marginMax = Math.max(...marginRanking.map((row) => row.value ?? 0), 1);
-  const roomMax = Math.max(...roomRanking.map((row) => row.value ?? 0), 1);
+  const overviewTable = benchmarkOverviewReportTable(overviewRows);
   const insightCards = [
     {
       label: "Umsatz je Öffnungsstunde",
@@ -18131,34 +18057,10 @@ function buildPmrBenchmarkPage(
   return `<div class="pmr-benchmark-page">
     <header class="pmr-benchmark-header">
       <div><img src="/orisus-logo.png" alt="Orisus Zahnmedizin" /></div>
-      <div><div class="eyebrow">Benchmarking-Report</div><h1>Benchmark ${reportEscape(selectedSite.name)}</h1><p>${reportEscape(periodLabel)} | anonymisierter Peer-Auszug | Standortleiter-Anlage</p><p class="logic">Leselogik: ${reportEscape(selectedSite.name)} bleibt sichtbar, Vergleichsstandorte anonymisiert. Index 100 % entspricht dem Ø Orisus der anderen Standorte ohne ${reportEscape(selectedSite.name)}; bei Kosten- und Ausfallquoten ist niedriger besser.</p></div>
+      <div><div class="eyebrow">Benchmarking-Report</div><h1>Benchmark ${reportEscape(selectedSite.name)}</h1><p>${reportEscape(periodLabel)} | anonymisierter Peer-Auszug | Standortleiter-Anlage</p><p class="logic">Leselogik: ${reportEscape(selectedSite.name)} bleibt sichtbar, Vergleichsstandorte anonymisiert. Ø Orisus wird ohne ${reportEscape(selectedSite.name)} gebildet; bei Kosten- und Ausfallquoten ist niedriger besser.</p></div>
       <div class="pmr-benchmark-meta"><strong>Seite 2</strong><span>PMR-Anlage</span><span>Vertraulich</span></div>
     </header>
-    ${kpiCards}
-    ${insights}
-    <div class="pmr-benchmark-grid three">
-      ${reportSection("Peer-Auszug Umsatz je Zahnarzt-FTE", reportBarList(pvsRanking.map((row) => ({
-        label: row.label,
-        value: row.value ?? 0,
-        max: pvsMax,
-        tone: row.siteId === selectedSite.id ? "green" : "blue",
-        suffix: pmrBenchmarkFormat(row.value, "currency")
-      }))), "Normalisiert nach Zahnarzt-FTE im Zeitraum.")}
-      ${reportSection("Peer-Auszug EBITDA-Marge", reportBarList(marginRanking.map((row) => ({
-        label: row.label,
-        value: row.value ?? 0,
-        max: marginMax,
-        tone: row.siteId === selectedSite.id ? "green" : "blue",
-        suffix: pmrBenchmarkFormat(row.value, "percent")
-      }))), "Ergebnisqualität im Vergleichsauszug.")}
-      ${reportSection("Peer-Auszug Umsatz je Zimmer", reportBarList(roomRanking.map((row) => ({
-        label: row.label,
-        value: row.value ?? 0,
-        max: roomMax,
-        tone: row.siteId === selectedSite.id ? "green" : "blue",
-        suffix: pmrBenchmarkFormat(row.value, "currency")
-      }))), "Normalisiert nach Behandlungszimmern.")}
-    </div>
+    ${reportSection("Standort vs. Ø Orisus", overviewTable, "Kernkennzahlen auf einen Blick: Standortwert, Ø Orisus, Abweichung, Einordnung und Datenquelle.")}
     <div class="pmr-benchmark-grid">
       ${reportSection("Kostenquoten im Benchmark", `<table class="heatmap-table">
         <thead><tr><th>Peer</th><th>Material</th><th>Fremdlabor</th><th>Personal</th><th>Sonstige</th><th>Gesamt</th></tr></thead>
@@ -18169,6 +18071,7 @@ function buildPmrBenchmarkPage(
         <tbody>${patientRowsHtml}<tr><td>Ø Orisus ohne Standort</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.patientsPerRoom, "number"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.newPatientRate, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.attendanceRate, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.cancellationRate, "percent"))}</td></tr></tbody>
       </table>`, "Patientenbasis aus dem bestätigten Import, soweit je Standort gepflegt.")}
     </div>
+    ${insights}
     ${focusPanel}
   </div>`;
 }

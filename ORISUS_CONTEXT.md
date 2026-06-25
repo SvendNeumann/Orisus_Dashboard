@@ -167,6 +167,10 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Fokus auf wesentliche Kennzahlen: EBITDA-Marge, Kostenquoten, Gesamtumsatz je Zahnarzt-FTE/Zimmer, Patienten je Zimmer, Neupatientenquote, Terminwahrnehmung, Terminausfallquote.
   - Doppelte Index-Kachelgruppen und redundante Rankingbloecke sind aus der Hauptansicht entfernt.
   - Detail-Herleitungen sind einklappbar und standardmaessig geschlossen.
+- Benchmarking-Reports und PMR-Benchmarking-Anlage laufen mit derselben verdichteten Logik:
+  - oben `Standort vs. Ø Orisus`
+  - Spalten: Standortwert, Ø Orisus, Abweichung, Einordnung, Quelle
+  - keine doppelte Index-/Ranking-Ueberladung in den Reports
 - KPI-Regeln im Admin-Bereich editierbar, mit verbessertem Kontrast der Eingabefelder.
 - Mobile Menues koennen ueber die abgedunkelte Flaeche geschlossen werden.
 - CFO-Cockpit Earn-Out-/Wachstums-KPI-Logik ist fachlich getrennt:
@@ -681,7 +685,9 @@ Ziel:
   - Querformat
   - muss auf genau eine Seite passen
   - keine uebergrossen Kacheln oder weissen Leerflaechen
-  - kompakte KPI-Kacheln, kompakte Peer-Auszug-Charts und Tabellen
+  - oben kompakte Tabelle `Standort vs. Ø Orisus`
+  - keine doppelten Index-Kacheln oder redundanten Rankingbloecke
+  - ergaenzende Kosten-, Patienten-/Termin- und Rechenbasis-Tabellen bleiben kompakt darunter
   - keine horizontal verschobenen Inhalte im Druckfenster
 
 Wichtige Kennzahlen:
@@ -1268,6 +1274,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Ausgewaehlter Standort darf im Klartext stehen.
   - Vergleichsstandorte anonymisieren als Peer-Auszug.
   - Ø-Orisus-/Vergleichswerte im PMR-Benchmarking muessen den ausgewaehlten Standort ausschliessen.
+  - Seite 2 beginnt mit `Standort vs. Ø Orisus` und zeigt Kernkennzahlen mit Standortwert, Ø Orisus, Abweichung, Einordnung und Quelle.
+  - Keine alte Index-/Ranking-Ueberladung; Details nur als kompakte Kosten- und Patienten-/Termin-Tabellen.
   - Nicht offenlegen, wie viele Standorte die Gruppe insgesamt hat.
   - Seite 2 muss komprimiert und druckfaehig sein.
 - Vergleichsregelwerk:
