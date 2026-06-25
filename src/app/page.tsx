@@ -15927,16 +15927,20 @@ function christianHenriciActiveBwaMonthsInYear(row: ImportedBwaRow | undefined, 
   return activeMonths.length || christianHenriciContractMonthsInYear(start, year);
 }
 
+function christianHenriciDefaultKpiPeriod(importedData: ImportedDashboardData, options: string[]) {
+  return options.find((option) => option === "Geschäftsjahr 2026") ?? defaultBwaPeriodFor(importedData);
+}
+
 function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[]; importedData: ImportedDashboardData }) {
   const rows = christianHenriciInfoRows(sites);
   const annualRowsAll = christianHenriciAnnualRows(sites, importedData);
   const availableAnnualYears = Array.from(new Set(annualRowsAll.map((row) => row.year))).sort((a, b) => a - b);
   const [annualYear, setAnnualYear] = useState("alle");
   const periodOptions = periodOptionsFromImportedRows(importedData.bwaRows);
-  const [revenuePeriod, setRevenuePeriod] = useState(() => defaultBwaPeriodFor(importedData));
-  const [ebitdaPeriod, setEbitdaPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const [revenuePeriod, setRevenuePeriod] = useState(() => christianHenriciDefaultKpiPeriod(importedData, periodOptions));
+  const [ebitdaPeriod, setEbitdaPeriod] = useState(() => christianHenriciDefaultKpiPeriod(importedData, periodOptions));
   useEffect(() => {
-    const fallback = defaultBwaPeriodFor(importedData);
+    const fallback = christianHenriciDefaultKpiPeriod(importedData, periodOptions);
     if (!periodOptions.includes(revenuePeriod)) setRevenuePeriod(fallback);
     if (!periodOptions.includes(ebitdaPeriod)) setEbitdaPeriod(fallback);
     if (annualYear !== "alle" && !availableAnnualYears.includes(Number(annualYear))) setAnnualYear("alle");
