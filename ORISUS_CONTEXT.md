@@ -46,7 +46,7 @@ Kernmodule:
 - Orisus-Dashboard
 - Standorte mit Standortdetails
 - BWA
-- Kennzahlen / Entwicklung
+- Entwicklungs-Analyse
 - Cashflow
 - Orisus Performance
 - Benchmarking
@@ -137,7 +137,7 @@ Navigation wurde gruppiert:
 - Standorte & BWA
   - Standorte
   - BWA
-  - Kennzahlen / Entwicklung
+  - Entwicklungs-Analyse
   - Cashflow-Analyse
 - Performance & Benchmarking
   - Orisus Performance
@@ -1348,7 +1348,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Diagramm `Operative Entwicklung` hat Zeitraumfilter.
   - Zusaetzliche Soll-EBITDA-Linie gemaess Uebernahme.
   - Bankbewegungen unten reagieren auf Zeitraumwahl.
-- Kennzahlen / Entwicklung:
+- Entwicklungs-Analyse:
   - Mittlere Standort-Performance-Tabelle hat Zeitraumwahl.
   - VJ-/QTD-/Monat-VJ-Vergleiche werden je Standort nur aus Monaten innerhalb der Vertragsperiode gebildet; Vergleichswerte vor Vertragsstart bleiben leer.
   - Unter der monatlichen EBITDA-Uebersicht gibt es eine kompakte `EBITDA-Abweichungsanalyse nach Ursache`.

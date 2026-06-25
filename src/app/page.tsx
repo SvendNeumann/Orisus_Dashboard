@@ -1732,7 +1732,7 @@ const navSections = [
     items: [
       { id: "standorte", label: "Standorte", icon: Building2 },
       { id: "bwa", label: "BWA", icon: FileBarChart },
-      { id: "kennzahlen", label: "Kennzahlen / Entwicklung", icon: BarChart3 },
+      { id: "kennzahlen", label: "Entwicklungs-Analyse", icon: BarChart3 },
       { id: "cashflow", label: "Cashflow-Analyse", icon: Wallet }
     ]
   },
@@ -10394,7 +10394,7 @@ function KennzahlenEntwicklung({
   return (
     <section className="space-y-5">
       <PageTitle
-        title="Orisus Kennzahlen/Entwicklung"
+        title="Entwicklungs-Analyse"
         text="Standort-Performance, Zielerreichung und monatliche EBITDA-Entwicklung im Format der Orisus-Auswertung."
       />
 
