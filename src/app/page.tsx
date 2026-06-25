@@ -5859,7 +5859,12 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
           <thead>
             <tr>
               {visibleColumns.map((column) => (
-                <TableHead key={column.label}>{column.label}</TableHead>
+                <th
+                  key={column.label}
+                  className="sticky top-0 z-20 table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white shadow-[0_2px_0_rgba(15,23,42,0.18)]"
+                >
+                  {column.label}
+                </th>
               ))}
             </tr>
           </thead>
