@@ -134,6 +134,7 @@ type Page =
   | "patienten-auswertungen";
 
 type AuthStep = "checking" | "welcome" | "forgot" | "set-password" | "app";
+type AppViewMode = "management" | "analyse";
 type UserRole = "admin" | "info" | "praxismanagement";
 type AccessUser = {
   email: string;
@@ -186,6 +187,7 @@ const supabaseUserRoleKey = "orisus-cfo-supabase-user-role";
 const supabaseUserNameKey = "orisus-cfo-supabase-user-name";
 const activePageStorageKey = "orisus-cfo-active-page";
 const activeSiteStorageKey = "orisus-cfo-active-site";
+const appViewModeStorageKey = "orisus-cfo-view-mode-v1";
 const kpiRulesSettingKey = "kpi_rules";
 const kpiRulesStorageKey = "orisus-cfo-kpi-rules";
 const kpiRulesChangedEventName = "orisus-cfo-kpi-rules-changed";
@@ -1875,6 +1877,12 @@ function storedPage(): Page {
 function storedSiteId() {
   if (typeof window === "undefined") return "kirchberg";
   return window.localStorage.getItem(activeSiteStorageKey) || "kirchberg";
+}
+
+function storedAppViewMode(): AppViewMode {
+  if (typeof window === "undefined") return "management";
+  const savedMode = window.localStorage.getItem(appViewModeStorageKey);
+  return savedMode === "analyse" ? "analyse" : "management";
 }
 
 function scrollAppToTop() {
@@ -3871,6 +3879,7 @@ export default function HomePage() {
   const [authProfileReady, setAuthProfileReady] = useState(false);
   const [importDataLoading, setImportDataLoading] = useState(false);
   const [personalDataLoading, setPersonalDataLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<AppViewMode>(storedAppViewMode);
 
   const setPage = (target: Page) => {
     setPageState(target);
@@ -3891,6 +3900,13 @@ export default function HomePage() {
     window.localStorage.setItem(activePageStorageKey, page);
     window.localStorage.setItem(activeSiteStorageKey, selectedSite);
     window.location.reload();
+  };
+
+  const updateViewMode = (mode: AppViewMode) => {
+    setViewMode(mode);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(appViewModeStorageKey, mode);
+    }
   };
 
   const { targetEbitdaOverrides } = useTargetEbitdaOverrides();
@@ -4142,7 +4158,7 @@ export default function HomePage() {
   const requiresPersonalImport = personalContentPages.includes(page);
 
   return (
-    <div className="app-shell min-h-screen xl:flex">
+    <div className={cn("app-shell min-h-screen xl:flex", viewMode === "management" ? "app-mode-management" : "app-mode-analyse")}>
       <aside className="app-sidebar fixed left-0 top-0 z-30 hidden h-screen w-72 flex-col border-r border-border px-5 py-6 xl:flex">
         <div className="shrink-0">
           <Brand onClick={() => go(defaultPageForRole(userRole))} />
@@ -4241,6 +4257,7 @@ export default function HomePage() {
             previousPage={previousPage}
             onBack={() => go(previousPage ?? "cockpit")}
           />
+          <AppViewModeBar mode={viewMode} onChange={updateViewMode} />
           {requiresImport && !importDataLoading && !effectiveImportedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
           {requiresPersonalImport && !personalDataLoading && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
           {effectiveImportedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
@@ -5483,7 +5500,7 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
             ))}
           </div>
         </ChartCard>
-        <Card className="overflow-hidden">
+        <Card className="analysis-only overflow-hidden">
           <div className="table-head p-4 text-white">
             <h2 className="font-bold">Top 10 Krankheitstage Mitarbeiter | {selectedYear}</h2>
           </div>
@@ -5650,7 +5667,7 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
           </ResponsiveContainer>
         </ChartCard>
       </div>
-      <Card className="overflow-hidden">
+      <Card className="analysis-only overflow-hidden">
         <div className="p-4">
           <h2 className="font-bold">Fehlzeiten je Standort | {selectedYear}</h2>
         </div>
@@ -6071,7 +6088,7 @@ function Cockpit({
         </ChartCard>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="analysis-only grid gap-5 xl:grid-cols-2">
         <ChartCard title="Standortvergleich Gesamtleistung & EBITDA | seit Vertragsstart" icon={BarChart3}>
           <SitePerformanceChart sites={sites} />
         </ChartCard>
@@ -6080,7 +6097,7 @@ function Cockpit({
         </ChartCard>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="analysis-only grid gap-5 xl:grid-cols-2">
         <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
           <CostShareDonut sites={sites} />
         </ChartCard>
@@ -6089,7 +6106,7 @@ function Cockpit({
 
       <div className="grid gap-5 xl:grid-cols-2">
         <Insights setPage={setPage} />
-        <Card className="h-full p-4">
+        <Card className="analysis-only h-full p-4">
           <h2 className="font-bold">Detailauswertungen</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Das CFO-Cockpit bleibt die verdichtete Management-Sicht. BWA, Standortdetails, Cashflow-Herleitungen,
@@ -6390,6 +6407,39 @@ function PageTitle({ title, text }: { title: string; text: string }) {
         <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{text}</p>
       </div>
     </div>
+  );
+}
+
+function AppViewModeBar({ mode, onChange }: { mode: AppViewMode; onChange: (mode: AppViewMode) => void }) {
+  return (
+    <Card className="mb-5 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-xs font-bold uppercase text-primary">Ansicht</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {mode === "management"
+            ? "Managementsicht: die wichtigsten Aussagen zuerst. Detail- und Prüftabellen bleiben im Analysemodus verfügbar."
+            : "Analysemodus: alle Detailtabellen, Herleitungen und Prüfebenen sind sichtbar."}
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-1 rounded-md border border-border bg-white/5 p-1">
+        {[
+          { id: "management" as const, label: "Management" },
+          { id: "analyse" as const, label: "Analyse" }
+        ].map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={cn(
+              "rounded px-3 py-2 text-sm font-bold transition",
+              mode === item.id ? "bg-primary text-slate-950 shadow-sm" : "text-muted-foreground hover:bg-white/10 hover:text-white"
+            )}
+            onClick={() => onChange(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -9478,12 +9528,14 @@ function StandortDetail({
           </div>
         </ChartCard>
       </div>
-      <BwaStatement title={`BWA bis Cashflow gem. BWA | ${site.name}`} siteId={site.id} importedData={importedData} />
-      <SiteMonthlyBwa site={site} importedData={importedData} />
-      <SitePvsMonthlyRevenue site={site} importedData={importedData} monthlyData={monthlyData} />
-      <SiteBehandlerMonthlyRevenue site={site} importedData={importedData} />
-      <SiteBankMovementDetail site={site} importedData={importedData} />
-      <SiteBehandlerPersonnelCosts site={site} importedData={importedData} personalData={personalData} />
+      <div className="analysis-only space-y-5">
+        <BwaStatement title={`BWA bis Cashflow gem. BWA | ${site.name}`} siteId={site.id} importedData={importedData} />
+        <SiteMonthlyBwa site={site} importedData={importedData} />
+        <SitePvsMonthlyRevenue site={site} importedData={importedData} monthlyData={monthlyData} />
+        <SiteBehandlerMonthlyRevenue site={site} importedData={importedData} />
+        <SiteBankMovementDetail site={site} importedData={importedData} />
+        <SiteBehandlerPersonnelCosts site={site} importedData={importedData} personalData={personalData} />
+      </div>
     </section>
   );
 }
@@ -10625,7 +10677,7 @@ function Fruehwarnsystem({
           )}
         </Card>
 
-        <Card className="overflow-hidden">
+        <Card className="analysis-only overflow-hidden">
           <div className="border-b border-border p-4">
             <h2 className="text-lg font-bold">Was wird geprüft?</h2>
             <p className="mt-1 text-sm text-muted-foreground">Kurzfassung der Leselogik, damit die Signale einzuordnen sind.</p>
@@ -10676,7 +10728,7 @@ function Fruehwarnsystem({
         )}
       </Card>
 
-      <Card className="overflow-hidden">
+      <Card className="analysis-only overflow-hidden">
         <div className="border-b border-border p-4">
           <h2 className="font-bold">Detailwarnungen</h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -11506,52 +11558,54 @@ function OrisusPerformance({
         setPeriod={setOperationalPeriod}
         availablePeriods={bwaPeriods}
       />
-      <PerformanceRevenueBlock
-        title="Behandlerumsatz inkl. Eigenlabor je Standort"
-        period={honorarPeriod}
-        setPeriod={setHonorarPeriod}
-        availablePeriods={honorarPeriods}
-        mode="honorar"
-        sites={sites}
-        importedData={importedData}
-      />
-      <PerformanceMonthlyTable
-        title="Behandlerumsatz inkl. Eigenlabor | Monatsübersicht aktuelles Jahr"
-        mode="honorar"
-        sites={sites}
-        monthlyData={monthlyData}
-        importedData={importedData}
-        period={honorarMonthlyPeriod}
-        setPeriod={setHonorarMonthlyPeriod}
-        availablePeriods={honorarPeriods}
-      />
-      <PerformanceRevenueBlock
-        title="PVS-Gesamtumsatz je Standort"
-        period={pvsPeriod}
-        setPeriod={setPvsPeriod}
-        availablePeriods={pvsPeriods}
-        mode="pvs"
-        sites={sites}
-        importedData={importedData}
-      />
-      <PerformanceMonthlyTable
-        title="PVS-Gesamtumsatz inkl. FL + MAT | Monatsübersicht aktuelles Jahr"
-        mode="pvs"
-        sites={sites}
-        monthlyData={monthlyData}
-        importedData={importedData}
-        period={pvsMonthlyPeriod}
-        setPeriod={setPvsMonthlyPeriod}
-        availablePeriods={pvsPeriods}
-      />
-      <BankMovementsTable
-        sites={sites}
-        monthlyData={monthlyData}
-        importedData={importedData}
-        period={bankPeriod}
-        setPeriod={setBankPeriod}
-        availablePeriods={bankPeriods}
-      />
+      <div className="analysis-only space-y-5">
+        <PerformanceRevenueBlock
+          title="Behandlerumsatz inkl. Eigenlabor je Standort"
+          period={honorarPeriod}
+          setPeriod={setHonorarPeriod}
+          availablePeriods={honorarPeriods}
+          mode="honorar"
+          sites={sites}
+          importedData={importedData}
+        />
+        <PerformanceMonthlyTable
+          title="Behandlerumsatz inkl. Eigenlabor | Monatsübersicht aktuelles Jahr"
+          mode="honorar"
+          sites={sites}
+          monthlyData={monthlyData}
+          importedData={importedData}
+          period={honorarMonthlyPeriod}
+          setPeriod={setHonorarMonthlyPeriod}
+          availablePeriods={honorarPeriods}
+        />
+        <PerformanceRevenueBlock
+          title="PVS-Gesamtumsatz je Standort"
+          period={pvsPeriod}
+          setPeriod={setPvsPeriod}
+          availablePeriods={pvsPeriods}
+          mode="pvs"
+          sites={sites}
+          importedData={importedData}
+        />
+        <PerformanceMonthlyTable
+          title="PVS-Gesamtumsatz inkl. FL + MAT | Monatsübersicht aktuelles Jahr"
+          mode="pvs"
+          sites={sites}
+          monthlyData={monthlyData}
+          importedData={importedData}
+          period={pvsMonthlyPeriod}
+          setPeriod={setPvsMonthlyPeriod}
+          availablePeriods={pvsPeriods}
+        />
+        <BankMovementsTable
+          sites={sites}
+          monthlyData={monthlyData}
+          importedData={importedData}
+          period={bankPeriod}
+          setPeriod={setBankPeriod}
+          availablePeriods={bankPeriods}
+        />
+      </div>
     </section>
   );
 }
@@ -14494,7 +14548,9 @@ function Cashflow({
     <section className="space-y-5">
       <PageTitle title="Cashflow" text="Cashflow gem. BWA sowie Bank-Cashflow aus Praxiseingängen, Kosten, Annuitäten und Umbuchungen MVZ." />
       <CashflowBlock sites={sites} />
-      <BankCashflowControlTable sites={sites} importedData={importedData} />
+      <div className="analysis-only">
+        <BankCashflowControlTable sites={sites} importedData={importedData} />
+      </div>
       <CashflowCostReconciliation sites={sites} importedData={importedData} />
     </section>
   );
@@ -17834,12 +17890,14 @@ function PersonalUpload({
       </Card>
       <UploadDataQualityCockpit kind="personal" personalData={pendingDashboardData ?? previousData} />
       {pendingDashboardData && <ImportChangeProtocolCard title="Änderungsprotokoll Personal-Import" rows={changeRows} />}
-      <UploadDataQualityCard
-        title="Datenqualität Personal-Import"
-        text="Sichtprüfung je Standort: Mitarbeiterstamm, aktive Mitarbeiter, Krankheit, Gehaltsänderungen und Personalmaßnahmen."
-        rows={qualityRows}
-        emptyText="Noch keine Personal-Datenbasis geladen. Nach Upload oder bestätigtem Personal-Import erscheint hier die Standortprüfung."
-      />
+      <div className="analysis-only">
+        <UploadDataQualityCard
+          title="Datenqualität Personal-Import"
+          text="Sichtprüfung je Standort: Mitarbeiterstamm, aktive Mitarbeiter, Krankheit, Gehaltsänderungen und Personalmaßnahmen."
+          rows={qualityRows}
+          emptyText="Noch keine Personal-Datenbasis geladen. Nach Upload oder bestätigtem Personal-Import erscheint hier die Standortprüfung."
+        />
+      </div>
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="p-4">
           <h2 className="font-bold">Uploadablauf</h2>
@@ -17891,7 +17949,7 @@ function PersonalUpload({
           </div>
         </Card>
       </div>
-      <Card className="overflow-hidden">
+      <Card className="analysis-only overflow-hidden">
         <div className="border-b border-border p-4">
           <h2 className="font-bold">Personal-Importbericht</h2>
           <p className="mt-1 text-sm text-muted-foreground">Vorschau aus der Personal-Arbeitsmappe. Nach Bestätigung nutzen die Personal-Seiten diese Datenbasis.</p>
@@ -18093,12 +18151,14 @@ function Uploads({
       </Card>
       <UploadDataQualityCockpit kind="cfo" cfoData={activeDashboardData} />
       {pendingDashboardData && <ImportChangeProtocolCard title="Änderungsprotokoll CFO-Import" rows={changeRows} />}
-      <UploadDataQualityCard
-        title="Datenqualität CFO-Import"
-        text="Sichtprüfung je Standort: BWA, PVS-Umsatz, Bankbewegungen, Behandlerumsätze, Personalkosten und Patienten-/Termindaten."
-        rows={qualityRows}
-        emptyText="Noch keine CFO-Datenbasis geladen. Nach Upload oder bestätigtem Import erscheint hier die Standortprüfung."
-      />
+      <div className="analysis-only">
+        <UploadDataQualityCard
+          title="Datenqualität CFO-Import"
+          text="Sichtprüfung je Standort: BWA, PVS-Umsatz, Bankbewegungen, Behandlerumsätze, Personalkosten und Patienten-/Termindaten."
+          rows={qualityRows}
+          emptyText="Noch keine CFO-Datenbasis geladen. Nach Upload oder bestätigtem Import erscheint hier die Standortprüfung."
+        />
+      </div>
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Card className="p-4">
           <h2 className="font-bold">Uploadablauf</h2>
@@ -18165,7 +18225,7 @@ function Uploads({
           </div>
         </Card>
       </div>
-      <Card className="overflow-hidden">
+      <Card className="analysis-only overflow-hidden">
         <div className="border-b border-border p-4">
           <h2 className="font-bold">Importbericht</h2>
           <p className="mt-1 text-sm text-muted-foreground">

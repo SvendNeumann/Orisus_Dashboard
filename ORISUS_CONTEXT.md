@@ -256,6 +256,15 @@ Oeffentliche Landing Page:
 App nach Login:
 
 - An Landing Page angelehnt, aber etwas heller und dauerhaft gut lesbar.
+- Die App hat einen globalen Ansichtsmodus:
+  - `Management`: verdichtete Sicht mit KPI-Kacheln, Kerncharts, Fokus-/Top-Erkenntnissen und wichtigsten Steuerungstabellen.
+  - `Analyse`: vollstaendige Sicht mit allen Detailtabellen, Herleitungen, Importpruefungen und Pruefebenen.
+- Wichtig: Der Ansichtsmodus ist reine UI-Ordnung. Es werden keine Informationen geloescht und keine Daten-/Importlogik veraendert.
+- Detailbereiche mit Klasse `analysis-only` sind in `Management` ausgeblendet und in `Analyse` voll sichtbar.
+- Ziel der UI-Ordnung:
+  - oben Entscheidungsebene
+  - darunter Hauptdiagramm/Haupttabelle
+  - Detail-/Pruefebene nur bei Bedarf im Analysemodus
 - Tabellen sollen einheitliche Header haben.
 - Zeitraumfilter muessen hell/lesbar sein, sowohl Desktop als auch Mobile.
 - KPI-Kacheln sollen optisch zentriert und nicht in die Ecke gedrueckt wirken.
@@ -1345,6 +1354,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Personal-Aenderungsprotokoll: Veraenderung Mitarbeiterbestand, aktive Mitarbeiter, Massnahmen, Importwarnungen und Fehler.
 - Mobile/Tabellen:
   - Neue breite Auswertungstabellen erhalten horizontales Scrollen, feste Kopfzeilen innerhalb der Tabelle und Mindestbreiten, damit Spalten auf Smartphone nicht ineinander laufen.
+  - Lange Detail-/Prueftabellen sollen bevorzugt im Analysemodus liegen, damit die mobile Managementsicht nicht ueberladen wird.
 
 Aktuell besonders sensible Pruefpunkte:
 
