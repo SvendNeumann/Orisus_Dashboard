@@ -5359,7 +5359,9 @@ function PersonalCockpit({
               <XAxis dataKey="site" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis hide />
               <Tooltip formatter={(value) => [`${value}`, "Aktive Mitarbeiter"]} />
-              <Bar dataKey="active" fill="url(#activeEmployeesGradient)" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="active" fill="url(#activeEmployeesGradient)" radius={[8, 8, 0, 0]}>
+                <LabelList dataKey="active" position="insideTop" fill="#ffffff" fontSize={12} fontWeight={800} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -5376,7 +5378,9 @@ function PersonalCockpit({
               <XAxis dataKey="site" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis hide />
               <Tooltip formatter={(value) => [`${value} Tage`, "Krankheit"]} />
-              <Bar dataKey="days" fill="url(#sicknessBySiteGradient)" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="days" fill="url(#sicknessBySiteGradient)" radius={[8, 8, 0, 0]}>
+                <LabelList dataKey="days" position="insideTop" fill="#ffffff" fontSize={12} fontWeight={800} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

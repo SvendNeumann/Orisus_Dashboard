@@ -220,6 +220,8 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Detailtabelle bleibt erhalten und nennt Signal, Standort, Zeitraum, Datenwelt, Befund, Quelle und naechsten Schritt.
 - Performance & Benchmarking enthaelt eine Standort-Scorecard als Benchmarking-Block.
 - Performance & Benchmarking enthaelt ein eigenes Tab `Personalproduktivitaet`.
+- Personal-Cockpit:
+  - Die Diagramme `Aktive Mitarbeiter je Standort` und `Krankheitstage je Standort` zeigen die Werte direkt lesbar in den Balken, damit die Zahl nicht erst per Hover/Touch-Tooltip sichtbar wird.
 - Administration:
   - CFO-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
   - Personal-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
