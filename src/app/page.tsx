@@ -6362,6 +6362,7 @@ function activeBwaMonthKeysForSite(importedData: ImportedDashboardData | null | 
       rows.flatMap((row) =>
         Object.keys(row.hasValueByMonth).filter((monthKey) => {
           if (!row.hasValueByMonth[monthKey]) return false;
+          if (Math.abs(row.valuesByMonth[monthKey] ?? 0) <= 0) return false;
           const [year, month] = monthKey.split("-").map(Number);
           return isPeriodOnOrAfterStart(year, month, site.start);
         })
@@ -6406,7 +6407,7 @@ function ebitdaTargetChartRow(site: DashboardSite, importedData?: ImportedDashbo
       abweichungPct: zielEbitdaKaufvertrag ? (abweichung / zielEbitdaKaufvertrag) * 100 : 0,
       abweichungUebernahme,
       abweichungUebernahmePct: zielEbitdaUebernahme && abweichungUebernahme != null ? (abweichungUebernahme / zielEbitdaUebernahme) * 100 : null,
-      periodLabel: `aktive BWA-Monate seit Vertragsstart: ${activeMonthKeys.length}; Übernahmeziel zeitanteilig über ${contractMonths} Vertragsmonate`
+      periodLabel: `aktive Ist-BWA-Monate seit Vertragsstart: ${activeMonthKeys.length}; Übernahmeziel zeitanteilig über ${contractMonths} Vertragsmonate`
     };
   }
 
@@ -6440,7 +6441,7 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
   return (
     <div className="space-y-2">
       <p className="text-xs leading-5 text-muted-foreground">
-        Soll-Linien kumuliert nur für aktive BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen Datenstand. Kaufvertrag p.a.-anteilig, Übernahmeziel zeitanteilig über die Vertragsperiode.
+        Soll-Linien kumuliert nur für aktive Ist-BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen Datenstand. Kaufvertrag p.a.-anteilig, Übernahmeziel zeitanteilig über die Vertragsperiode.
       </p>
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={chartData}>

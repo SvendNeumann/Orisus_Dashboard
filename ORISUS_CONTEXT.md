@@ -178,7 +178,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - erwartete Wachstumszahlung Run-Rate
   - erwartete Gesamtzahlung nach Vertragsende
 - CFO-Cockpit Diagramm `Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Uebernahme`:
-  - Ist-EBITDA und Ziel-Linien laufen nur ueber aktive BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen BWA-Datenstand.
+  - Ist-EBITDA und Ziel-Linien laufen nur ueber aktive Ist-BWA-Monate mit echtem Wert seit jeweiligem Vertragsstart bis zum aktuellen BWA-Datenstand.
   - Ziel-Linien duerfen nicht als gesamte Vertragsperiode oder voller Zukunftszielwert gezeigt werden.
   - Kaufvertrag wird p.a.-anteilig gerechnet; Uebernahmeziel wird zeitanteilig ueber die volle Vertragsperiode verteilt.
 - PMR-Export enthaelt Seite 1 Standortleiter-PMR und Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort.
