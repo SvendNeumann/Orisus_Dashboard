@@ -6395,11 +6395,19 @@ function DailyCfoCockpit({
   const metrics = cfoMetrics(sites, monthlyData, rules);
   const revenuePeriods = useMemo(() => bwaPeriodOptionsFor(importedData), [importedData]);
   const [revenuePeriod, setRevenuePeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const [cashflowPeriod, setCashflowPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const [ebitdaPeriod, setEbitdaPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   useEffect(() => {
     if (!revenuePeriods.includes(revenuePeriod)) {
       setRevenuePeriod(defaultBwaPeriodFor(importedData));
     }
-  }, [importedData, revenuePeriod, revenuePeriods]);
+    if (!revenuePeriods.includes(cashflowPeriod)) {
+      setCashflowPeriod(defaultBwaPeriodFor(importedData));
+    }
+    if (!revenuePeriods.includes(ebitdaPeriod)) {
+      setEbitdaPeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [cashflowPeriod, ebitdaPeriod, importedData, revenuePeriod, revenuePeriods]);
   const sortedSites = sortSitesByContractStart(sites);
   const revenueBySite = sortedSites.map((site) => ({
     site,
@@ -6408,15 +6416,38 @@ function DailyCfoCockpit({
       : site.gesamtleistung
   }));
   const bwaRevenue = revenueBySite.reduce((sum, row) => sum + row.value, 0);
-  const cashflowDetails = sites.reduce(
+  const periodMetricValue = (site: DashboardSite, metricKey: string, selectedPeriod: string, fallback = 0) =>
+    importedData?.bwaRows?.length ? importedBwaMetricValue(importedData.bwaRows, site.id, metricKey, selectedPeriod) : fallback;
+  const cashflowBySite = sortedSites.map((site) => ({
+    site,
+    value: Math.round(periodMetricValue(site, "cashflow_gesamt", cashflowPeriod, site.cashflow))
+  }));
+  const cashflowTotal = cashflowBySite.reduce((sum, row) => sum + row.value, 0);
+  const ebitdaBySite = sortedSites.map((site) => ({
+    site,
+    value: Math.round(periodMetricValue(site, "ebitda", ebitdaPeriod, site.ebitda))
+  }));
+  const ebitdaRevenueBySite = sortedSites.map((site) => ({
+    site,
+    value: Math.round(periodMetricValue(site, "summe_umsatz", ebitdaPeriod, site.gesamtleistung))
+  }));
+  const ebitdaTotal = ebitdaBySite.reduce((sum, row) => sum + row.value, 0);
+  const ebitdaRevenueTotal = ebitdaRevenueBySite.reduce((sum, row) => sum + row.value, 0);
+  const ebitdaMarginForPeriod = ebitdaRevenueTotal ? (ebitdaTotal / ebitdaRevenueTotal) * 100 : 0;
+  const cashflowDetails = sortedSites.reduce(
     (sum, site) => ({
-      vorlaeufigesErgebnis: sum.vorlaeufigesErgebnis + (site.cashflowDetails?.vorlaeufigesErgebnis ?? 0),
-      abschreibungen: sum.abschreibungen + (site.cashflowDetails?.abschreibungen ?? 0),
-      investitionsausgaben: sum.investitionsausgaben + (site.cashflowDetails?.investitionsausgaben ?? 0),
-      tilgung: sum.tilgung + (site.cashflowDetails?.tilgung ?? 0),
-      umbuchungZmvz: sum.umbuchungZmvz + (site.cashflowDetails?.umbuchungZmvz ?? 0),
+      vorlaeufigesErgebnis:
+        sum.vorlaeufigesErgebnis + periodMetricValue(site, "vorlaeufiges_ergebnis", cashflowPeriod, site.cashflowDetails?.vorlaeufigesErgebnis ?? 0),
+      abschreibungen:
+        sum.abschreibungen +
+        Math.abs(periodMetricValue(site, "cf_abschreibungen", cashflowPeriod, site.cashflowDetails?.abschreibungen ?? 0) || periodMetricValue(site, "abschreibungen", cashflowPeriod, site.cashflowDetails?.abschreibungen ?? 0)),
+      investitionsausgaben:
+        sum.investitionsausgaben + Math.abs(periodMetricValue(site, "investitionsausgaben", cashflowPeriod, site.cashflowDetails?.investitionsausgaben ?? 0)),
+      tilgung: sum.tilgung + Math.abs(periodMetricValue(site, "tilgung", cashflowPeriod, site.cashflowDetails?.tilgung ?? 0)),
+      umbuchungZmvz: sum.umbuchungZmvz + Math.abs(periodMetricValue(site, "umbuchung_zmvz", cashflowPeriod, site.cashflowDetails?.umbuchungZmvz ?? 0)),
       sonstigeRueckstellungenBestandsminderungen:
-        sum.sonstigeRueckstellungenBestandsminderungen + (site.cashflowDetails?.sonstigeRueckstellungenBestandsminderungen ?? 0)
+        sum.sonstigeRueckstellungenBestandsminderungen +
+        Math.abs(periodMetricValue(site, "sonstige_rueckstellungen_bestandsminderungen", cashflowPeriod, site.cashflowDetails?.sonstigeRueckstellungenBestandsminderungen ?? 0))
     }),
     {
       vorlaeufigesErgebnis: 0,
@@ -6507,48 +6538,67 @@ function DailyCfoCockpit({
       )
     },
     {
-      label: "Cashflow gem. BWA | seit Vertragsstart",
-      value: metrics.cashflow,
+      label: `Cashflow gem. BWA | ${performancePeriodLabel(cashflowPeriod)}`,
+      value: cashflowTotal,
       delta: "nach Tilgung, Investitionen, Umbuchungen",
       icon: Wallet,
-      status: statusByRule(metrics.cashflow, rules.cashflow_bwa),
+      status: statusByRule(cashflowTotal, rules.cashflow_bwa),
       sparkline: cashflowSparkline,
+      control: (
+        <Select className="w-full text-left" value={cashflowPeriod} onChange={(event) => setCashflowPeriod(event.target.value)}>
+          {revenuePeriods.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </Select>
+      ),
       info: (
         <div className="space-y-1">
-          <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
+          <p className="font-bold text-slate-900">Herleitung {performancePeriodLabel(cashflowPeriod)}</p>
+          <InfoTextLine label="Zeitraum" value={performancePeriodLabel(cashflowPeriod)} strong />
+          <div className="space-y-1">
+            {cashflowBySite.map((row) => (
+              <InfoLine key={row.site.id} label={row.site.name} value={row.value} />
+            ))}
+          </div>
+          <div className="mt-2 border-t border-border pt-2">
+            <InfoLine label="= Cashflow gem. BWA" value={cashflowTotal} strong />
+          </div>
+          <p className="pt-2 font-semibold text-slate-900">BWA-Cashflow-Brücke</p>
           <InfoLine label="Vorläufiges Ergebnis" value={cashflowDetails.vorlaeufigesErgebnis} />
           <InfoLine label="+ Abschreibungen" value={cashflowDetails.abschreibungen} />
           <InfoLine label="- Investitionsausgaben" value={-cashflowDetails.investitionsausgaben} />
           <InfoLine label="- Tilgung" value={-cashflowDetails.tilgung} />
           <InfoLine label="- Umbuchung ZMVZ" value={-cashflowDetails.umbuchungZmvz} />
           <InfoLine label="- Sonstige Rückstellungen / Bestandsminderungen" value={-cashflowDetails.sonstigeRueckstellungenBestandsminderungen} />
-          <div className="mt-2 border-t border-border pt-2">
-            <InfoLine label="= Cashflow gem. BWA" value={metrics.cashflow} strong />
-          </div>
         </div>
       )
     },
     {
-      label: "EBITDA | seit Vertragsstart",
-      value: metrics.ebitda,
-      delta: `${pct(metrics.ebitdaMarge)} Marge | Run-Rate ${eur(metrics.runRateEbitda, true)}`,
+      label: `EBITDA | ${performancePeriodLabel(ebitdaPeriod)}`,
+      value: ebitdaTotal,
+      delta: `${pct(ebitdaMarginForPeriod)} Marge`,
       icon: Banknote,
-      status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge),
+      status: statusByRule(ebitdaMarginForPeriod, rules.ebitda_marge),
       sparkline: ebitdaSparkline,
+      control: (
+        <Select className="w-full text-left" value={ebitdaPeriod} onChange={(event) => setEbitdaPeriod(event.target.value)}>
+          {revenuePeriods.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </Select>
+      ),
       info: (
         <div className="space-y-1">
-          <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
-          {sortSitesByContractStart(sites).map((site) => (
-            <InfoLine key={site.id} label={site.name} value={site.ebitda} />
+          <p className="font-bold text-slate-900">Herleitung {performancePeriodLabel(ebitdaPeriod)}</p>
+          <InfoTextLine label="Zeitraum" value={performancePeriodLabel(ebitdaPeriod)} strong />
+          {ebitdaBySite.map((row) => (
+            <InfoLine key={row.site.id} label={row.site.name} value={row.value} />
           ))}
           <div className="mt-2 border-t border-border pt-2">
-            <InfoLine label="= EBITDA gesamt" value={metrics.ebitda} strong />
-            <InfoLine label="Gesamtleistung" value={metrics.gesamtleistung} />
+            <InfoLine label="= EBITDA gesamt" value={ebitdaTotal} strong />
+            <InfoLine label="Gesamtleistung" value={ebitdaRevenueTotal} />
             <p className="mt-1 text-slate-700">
-              EBITDA-Marge: <span className="font-bold">{pct(metrics.ebitdaMarge)}</span>
-            </p>
-            <p className="text-slate-700">
-              Run-Rate: <span className="font-bold">{eur(metrics.runRateEbitda)}</span>
+              EBITDA-Marge: <span className="font-bold">{pct(ebitdaMarginForPeriod)}</span>
             </p>
           </div>
         </div>
