@@ -171,7 +171,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Tabelle `BWA-Uebersicht` mit Standort- und Zeitraumfilter: Umsatz gemaess BWA, EBITDA gemaess BWA, EBITDA-Marge und Cashflow gemaess BWA.
   - Tabelle `PVS-Gesamtumsatz` mit Standort- und Zeitraumfilter.
   - Tabelle `Honorarumsatz plus Eigenlabor` mit Standort- und Zeitraumfilter.
-  - Tabelle `Bankbewegungen` mit Standort- und Zeitraumfilter, basierend auf der bereits vorhandenen Bankbewegungslogik aus Input_Finanzen. Monate ohne echte Eingabe werden in der Monatstabelle ausgeblendet; eingetragene Nullwerte bleiben sichtbar.
+  - Tabelle `Bankbewegungen` mit Standort- und Zeitraumfilter, basierend auf der bereits vorhandenen Bankbewegungslogik aus Input_Finanzen. Die Monatsauswahl und Monatstabelle laufen nur bis zum letzten Monat mit echter Bankbewegung; reine Folge-Nullmonate aus leeren/formelhaften Importspalten werden ausgeblendet. Nullwerte innerhalb des gepflegten Zeitraums bleiben sichtbar.
   - Es wurden keine neuen Importregeln eingefuehrt; der Tab nutzt vorhandene Importdaten und bestehende Periodenlogik.
 - Standortleiter-PMR als dynamischer druckbarer Report je Standort.
 - PMR-Report mit Standortauswahl, Zeitraumfilter, Vergleichsjahr und Hoch-/Querformat.

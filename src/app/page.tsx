@@ -8968,17 +8968,30 @@ function periodOptionsFromBankMovements(rows?: ImportedBankMovementRow[]) {
     )
   ).sort((a, b) => a - b);
   const options = years.flatMap((year) => {
-    const activeMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
-      rows.some((row) => row.hasValueByMonth[`${year}-${month}`])
-    );
-    const latestMonth = activeMonths.at(-1);
+    const latestMonth = latestMeaningfulBankMovementMonth(rows, year);
+    const activeMonths = latestMonth
+      ? Array.from({ length: latestMonth }, (_, index) => index + 1).filter((month) =>
+          rows.some((row) => row.hasValueByMonth[`${year}-${month}`])
+        )
+      : [];
     return [
-      `Geschäftsjahr ${year}`,
+      ...(activeMonths.length ? [`Geschäftsjahr ${year}`] : []),
       ...(latestMonth ? [`YTD ${year} bis ${bwaMonths[latestMonth - 1]}`] : []),
       ...activeMonths.map((month) => `${bwaMonths[month - 1]} ${year}`)
     ];
   });
   return [...options, "Gesamte Periode"];
+}
+
+function latestMeaningfulBankMovementMonth(rows: ImportedBankMovementRow[], year: number) {
+  return Array.from({ length: 12 }, (_, index) => index + 1)
+    .filter((month) =>
+      rows.some((row) => {
+        const key = `${year}-${month}`;
+        return Boolean(row.hasValueByMonth[key]) && Math.abs(row.valuesByMonth[key] ?? 0) > 0;
+      })
+    )
+    .at(-1);
 }
 
 function defaultPeriodFromOptions(options: string[]) {
@@ -15571,8 +15584,10 @@ function BankCashflowControlTable({ sites = standorte, importedData }: { sites?:
   const ausgangTotal = valueForKey("geldausgang_bank_inkl_kredit");
   const kontostandTotal = valueForKey("kontostand_monatsende", true);
   const selectedSiteLabel = siteFilter === "gesamt" ? "Konsolidiert" : sitesWithRows.find((site) => site.id === siteFilter)?.name ?? "Standort";
+  const latestMeaningfulMonth = selection.year ? latestMeaningfulBankMovementMonth(selectedRows, selection.year) : undefined;
   const displayedMonths = selection.year
     ? Array.from(visibleMonths).filter((month) =>
+        (!latestMeaningfulMonth || month <= latestMeaningfulMonth) &&
         bankDetailRows.some((entry) => rowsByKey(entry.key).some((row) => row.hasValueByMonth[`${selection.year}-${month}`]))
       )
     : Array.from({ length: 12 }, (_, index) => index + 1);
