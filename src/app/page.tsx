@@ -6713,26 +6713,24 @@ function aggregateMetricTrendData(importedData: ImportedDashboardData | null | u
 function MiniSparkline({
   data,
   color = "#30d5c8",
-  height = 52,
-  format = "currency"
+  height = 52
 }: {
   data: { label: string; value: number }[];
   color?: string;
   height?: number;
-  format?: "currency" | "percent" | "plain";
 }) {
   if (data.length < 2) {
     return <div className="flex h-12 items-center justify-center rounded-lg bg-slate-950/24 text-[11px] font-semibold text-muted-foreground">n. v.</div>;
   }
-  const formatter = (value: number) => (format === "percent" ? pct(value) : format === "plain" ? value.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : eur(value));
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 8, right: 4, bottom: 2, left: 4 }}>
-        <Line type="monotone" dataKey="value" stroke={color} strokeWidth={3} dot={false} isAnimationActive={false} />
-        <Tooltip formatter={(value) => formatter(Number(value))} labelFormatter={(label) => String(label)} />
-      </LineChart>
-    </ResponsiveContainer>
+    <div className="pointer-events-none">
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={data} margin={{ top: 8, right: 4, bottom: 2, left: 4 }}>
+          <Line type="monotone" dataKey="value" stroke={color} strokeWidth={3} dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -7070,7 +7068,6 @@ function KpiCard({
   valueLabel,
   info,
   sparkline,
-  sparklineFormat = "currency",
   featured = false,
   className
 }: {
@@ -7086,7 +7083,6 @@ function KpiCard({
   valueLabel?: string;
   info?: React.ReactNode;
   sparkline?: { label: string; value: number }[];
-  sparklineFormat?: "currency" | "percent" | "plain";
   featured?: boolean;
   className?: string;
 }) {
@@ -7121,7 +7117,7 @@ function KpiCard({
         {secondaryValue ? <p className="mt-1 text-sm font-bold text-slate-200">{secondaryValue}</p> : null}
         {sparkline?.length ? (
           <div className="mt-2 w-full max-w-[13rem]">
-            <MiniSparkline data={sparkline} color={status === "red" ? "#ff8f95" : status === "yellow" ? "#f59e0b" : "#30d5c8"} height={42} format={sparklineFormat} />
+            <MiniSparkline data={sparkline} color={status === "red" ? "#ff8f95" : status === "yellow" ? "#f59e0b" : "#30d5c8"} height={42} />
           </div>
         ) : null}
         <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 font-semibold", featured ? "text-sm" : "text-xs", positive ? "text-emerald-700" : "text-red-700")}>

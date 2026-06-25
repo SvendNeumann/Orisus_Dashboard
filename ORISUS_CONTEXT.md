@@ -213,6 +213,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Bestehende Diagramme, KPI-Kacheln, Scorecards und Tabellen duerfen visuell moderner und klarer gestaltet werden, ohne fachliche Werte- oder Importlogik zu veraendern.
   - Keine zusaetzlichen grossen Diagrammbloecke nur zur Dekoration. Neue Visualisierung nur, wenn sie eine vorhandene Auswertung ersetzt, verdichtet oder direkt in einer bestehenden KPI/Kachel sinnvoll erklaert.
   - Sparklines sind nur gezielt in vorhandenen Haupt-KPIs einzusetzen, wenn ein echter Zeitverlauf fachlich hilft. Statische Werte wie Abrufdarlehen, Stammdaten oder einmalige Vertragswerte bekommen keine Sparklines.
+  - KPI-Sparklines sind rein visuelle Verlaufslinien. Sie duerfen beim Hover/Slide keine Tooltip-Werte anzeigen und sollen keine interaktive Chartflaeche wirken.
   - Tabellen sollen appweit kompakter, mit klarer Kopfzeile, ruhiger Zeilenstruktur und deutlicher Summenzeile dargestellt werden; Inhalte und Reihenfolge bleiben fachlich erhalten.
 - PMR-Export enthaelt Seite 1 Standortleiter-PMR und Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort.
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
