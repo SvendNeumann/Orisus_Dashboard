@@ -2241,10 +2241,12 @@ const providerNameAliasesBySite: Record<string, Record<string, string>> = {
   kirchberg: {
     pzr_pomsel_plus: "S. Pomsel",
     pzr_pomsel: "S. Pomsel",
+    pzr_pomsil: "S. Pomsel",
     pzr_bomsel_plus: "S. Pomsel",
     pzr_bomsel: "S. Pomsel",
     samira_pomsel: "S. Pomsel",
     s_pomsel: "S. Pomsel",
+    s_pomsil: "S. Pomsel",
     s_bomsel: "S. Pomsel",
     f_patsch: "F. Patsch",
     f_paatsch: "F. Patsch",
@@ -2267,7 +2269,9 @@ const providerNameAliasesBySite: Record<string, Record<string, string>> = {
     zahnarztin_nicole_orsos: "N. Orsós",
     zahnarztin_nicole: "N. Orsós",
     pzr_dietrich: "S. Dietrich",
-    s_dietrich: "S. Dietrich"
+    pzr_dittrich: "S. Dietrich",
+    s_dietrich: "S. Dietrich",
+    s_dittrich: "S. Dietrich"
   }
 };
 
@@ -13247,7 +13251,7 @@ function benchmarkOverviewReportDeviation(row: BenchmarkOverviewRow) {
 
 function benchmarkOverviewReportTable(rows: BenchmarkOverviewRow[]) {
   return `<table class="report-table compact benchmark-overview-table">
-    <thead><tr><th>Bereich</th><th>Kennzahl</th><th>Standort</th><th>Ø Orisus</th><th>Abw.</th><th>Einordnung</th><th>Quelle</th></tr></thead>
+    <thead><tr><th>Bereich</th><th>Kennzahl</th><th>Standort</th><th>Ø Orisus</th><th>Abw.</th><th>Einordnung</th></tr></thead>
     <tbody>${rows.map((row) => {
       const status = benchmarkOverviewReportStatus(row);
       return `<tr>
@@ -13257,7 +13261,6 @@ function benchmarkOverviewReportTable(rows: BenchmarkOverviewRow[]) {
         <td>${reportEscape(benchmarkOverviewReportFormat(row.orisusValue, row.type))}</td>
         <td>${reportEscape(benchmarkOverviewReportDeviation(row))}</td>
         <td>${status === "neutral" ? reportEscape("n. v.") : reportStatusDotWithLabel(status, benchmarkOverviewReportStatusText(row))}</td>
-        <td>${reportEscape(row.source)}</td>
       </tr>`;
     }).join("")}</tbody>
   </table>`;
@@ -18409,11 +18412,19 @@ const pmrPersonnelCostExclusionsBySite: Record<string, Set<string>> = {
   kirchberg: new Set([
     "samira_pomsel",
     "s_pomsel",
+    "s_pomsil",
+    "pzr_pomsel",
+    "pzr_pomsil",
+    "pzr_bomsel",
     "prophylaxe_unregelmassige_behandler",
     "prophylaxe_unregelmaessige_behandler",
     "prophylaxe_unregelm_behandler",
+    "prophylaxe_unregelmassig",
+    "prophylaxe_unregelmaessig",
     "pzr_dietrich",
-    "s_dietrich"
+    "pzr_dittrich",
+    "s_dietrich",
+    "s_dittrich"
   ])
 };
 
@@ -18495,7 +18506,18 @@ function isExcludedFromPmrPersonnelCostReport(siteId: string, row: PersonnelCost
   const excludedNames = pmrPersonnelCostExclusionsBySite[siteId];
   if (isExcludedFromPersonnelCostAggregation(row.name)) return true;
   if (!excludedNames) return false;
-  return excludedNames.has(normalizeMetric(row.name));
+  const normalizedName = normalizeMetric(row.name);
+  const canonicalName = normalizeMetric(canonicalProviderName(siteId, row.name));
+  return excludedNames.has(normalizedName) || excludedNames.has(canonicalName);
+}
+
+function isExcludedFromPmrProviderRevenueReport(siteId: string, name: string) {
+  const excludedNames = pmrPersonnelCostExclusionsBySite[siteId];
+  if (isExcludedFromPersonnelCostAggregation(name)) return true;
+  if (!excludedNames) return false;
+  const normalizedName = normalizeMetric(name);
+  const canonicalName = normalizeMetric(canonicalProviderName(siteId, name));
+  return excludedNames.has(normalizedName) || excludedNames.has(canonicalName);
 }
 
 function personnelCostComparisonRows(importedData: ImportedDashboardData | null | undefined, siteId: string): PersonnelCostComparisonRow[] {
@@ -18594,6 +18616,7 @@ function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, pe
   const grouped = new Map<string, { name: string; honorar: number; eigenlabor: number; total: number; previousTotal: number; hasPrevious: boolean }>();
   groupedProviderDetailRows((importedData.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId), siteId)
     .filter((row) => !isExcludedFromPersonnelCostAggregation(row.name))
+    .filter((row) => !isExcludedFromPmrProviderRevenueReport(siteId, row.name))
     .forEach((row) => {
       const name = row.name;
       const key = canonicalProviderKey(siteId, row.name);
@@ -18985,6 +19008,13 @@ function buildPmrBenchmarkPage(
     <td class="${pmrBenchmarkHeatClass(row.attendanceRate, averages.attendanceRate, true)}">${reportEscape(pmrBenchmarkFormat(row.attendanceRate, "percent"))}</td>
     <td class="${pmrBenchmarkHeatClass(row.cancellationRate, averages.cancellationRate, false)}">${reportEscape(pmrBenchmarkFormat(row.cancellationRate, "percent"))}</td>
   </tr>`).join("");
+  const productivityRowsHtml = rows.map((row) => `<tr>
+    <td>${reportEscape(row.label)}</td>
+    <td class="${pmrBenchmarkHeatClass(row.pvsPerDentist, averages.pvsPerDentist, true)}">${reportEscape(pmrBenchmarkFormat(row.pvsPerDentist, "currency"))}</td>
+    <td class="${pmrBenchmarkHeatClass(row.pvsPerRoom, averages.pvsPerRoom, true)}">${reportEscape(pmrBenchmarkFormat(row.pvsPerRoom, "currency"))}</td>
+    <td class="${pmrBenchmarkHeatClass(row.pvsPerOpeningHour, averages.pvsPerOpeningHour, true)}">${reportEscape(pmrBenchmarkFormat(row.pvsPerOpeningHour, "currency"))}</td>
+    <td class="${pmrBenchmarkHeatClass(row.ebitdaMargin, averages.ebitdaMargin, true)}">${reportEscape(pmrBenchmarkFormat(row.ebitdaMargin, "percent"))}</td>
+  </tr>`).join("");
 
   return `<div class="pmr-benchmark-page">
     <header class="pmr-benchmark-header">
@@ -18992,7 +19022,7 @@ function buildPmrBenchmarkPage(
       <div><div class="eyebrow">Benchmarking-Report</div><h1>Benchmark ${reportEscape(selectedSite.name)}</h1><p>${reportEscape(periodLabel)} | anonymisierter Peer-Auszug | Standortleiter-Anlage</p><p class="logic">Leselogik: ${reportEscape(selectedSite.name)} bleibt sichtbar, Vergleichsstandorte anonymisiert. Ø Orisus wird ohne ${reportEscape(selectedSite.name)} gebildet; Kapazitätswerte werden als Monatsdurchschnitt je FTE/Zimmer/Stunde berechnet; bei Kosten- und Ausfallquoten ist niedriger besser.</p></div>
       <div class="pmr-benchmark-meta"><strong>Seite 2</strong><span>PMR-Anlage</span><span>Vertraulich</span></div>
     </header>
-    ${reportSection("Standort vs. Ø Orisus", overviewTable, "Kernkennzahlen auf einen Blick: Standortwert, Ø Orisus, Abweichung, Einordnung und Datenquelle.")}
+    ${reportSection("Standort vs. Ø Orisus", overviewTable, "Kernkennzahlen auf einen Blick: Standortwert, Ø Orisus, Abweichung und Einordnung.")}
     <div class="pmr-benchmark-grid">
       ${reportSection("Kostenquoten im Benchmark", `<table class="heatmap-table">
         <thead><tr><th>Peer</th><th>Material</th><th>Fremdlabor</th><th>Personal</th><th>Sonstige</th><th>Gesamt</th></tr></thead>
@@ -19005,6 +19035,10 @@ function buildPmrBenchmarkPage(
     </div>
     ${insights}
     ${focusPanel}
+    ${reportSection("Produktivität & Ergebnis im Peer-Vergleich", `<table class="heatmap-table">
+      <thead><tr><th>Peer</th><th>Ø mtl. Umsatz/Zahnarzt-FTE</th><th>Ø mtl. Umsatz/Zimmer</th><th>Umsatz/Öffnungsstunde</th><th>EBITDA-Marge</th></tr></thead>
+      <tbody>${productivityRowsHtml}<tr><td>Ø Orisus ohne Standort</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.pvsPerDentist, "currency"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.pvsPerRoom, "currency"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.pvsPerOpeningHour, "currency"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.ebitdaMargin, "percent"))}</td></tr></tbody>
+    </table>`, "Kapazitätswerte sind auf Monatsdurchschnitt normalisiert; bei Leistung und Marge ist höher besser.")}
   </div>`;
 }
 

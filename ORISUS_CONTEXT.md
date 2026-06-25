@@ -174,7 +174,8 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Detail-Herleitungen sind einklappbar und standardmaessig geschlossen.
 - Benchmarking-Reports und PMR-Benchmarking-Anlage laufen mit derselben verdichteten Logik:
   - oben `Standort vs. Ø Orisus`
-  - Spalten: Standortwert, Ø Orisus, Abweichung, Einordnung, Quelle
+  - Spalten: Standortwert, Ø Orisus, Abweichung, Einordnung; keine technische Quellen-Spalte im Report
+  - Seite 2 nutzt freie Flaeche mit kompakten Kosten-, Patienten-/Termin- sowie Produktivitaets-/Ergebnis-Benchmarkwerten
   - keine doppelte Index-/Ranking-Ueberladung in den Reports
 - KPI-Regeln im Admin-Bereich editierbar, mit verbessertem Kontrast der Eingabefelder.
 - Mobile Menues koennen ueber die abgedunkelte Flaeche geschlossen werden.
@@ -647,11 +648,12 @@ Wichtig:
 - Die Personalkosten-/Honorarquote in Standortdetails muss dieselbe dynamische Datenbasis wie der PMR-Report nutzen, keine Fantasiewerte.
 - Bei Kirchberg gab es doppelte Behandlerbezeichnungen aus Import-/Exporttabs, z. B. `PZR Pomsel`/`S. Pomsel`, `F. Paaatsch`/`PZR Paaatsch`, `P. Heinz`/`Assi Patrizia Heinz`, `S. Gräfe`/`PZR Gräfe`, `N. Orsós`/`ZA Nicole Orsós`, `S. Dietrich`/`PZR Dietrich`.
 - Wichtig: Deduplizierung darf echte doppelte Importzeilen nicht einfach addieren, wenn es fachlich dieselbe Leistung/Person doppelt im Export ist. Honorar- und Eigenlaborumsaetze muessen aus den korrekten Umsatzquellen gezogen und je fachlicher Person eindeutig ausgewiesen werden.
-- Fuer PMR Kirchberg sollen aus der Personalkosten-/Honorar-Gegenueberstellung nicht relevante Eintraege ausgeblendet werden:
+- Fuer PMR Kirchberg sollen aus der Personalkosten-/Honorar-Gegenueberstellung und aus dem Behandler-Umsatzboard nicht relevante Eintraege ausgeblendet werden:
   - Samira Pomsel
   - Prophylaxe / unregelmaessige Behandler
   - PZR Dietrich
   - S. Dietrich
+  - Schreibvarianten wie `S. Pomsel`/`S. Pomsil` und `S. Dietrich`/`S. Dittrich` mit beruecksichtigen
 
 ## 16. Orisus Performance
 
@@ -1318,8 +1320,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Ausgewaehlter Standort darf im Klartext stehen.
   - Vergleichsstandorte anonymisieren als Peer-Auszug.
   - Ø-Orisus-/Vergleichswerte im PMR-Benchmarking muessen den ausgewaehlten Standort ausschliessen.
-  - Seite 2 beginnt mit `Standort vs. Ø Orisus` und zeigt Kernkennzahlen mit Standortwert, Ø Orisus, Abweichung, Einordnung und Quelle.
-  - Keine alte Index-/Ranking-Ueberladung; Details nur als kompakte Kosten- und Patienten-/Termin-Tabellen.
+  - Seite 2 beginnt mit `Standort vs. Ø Orisus` und zeigt Kernkennzahlen mit Standortwert, Ø Orisus, Abweichung und Einordnung; keine Quellen-Spalte im Report.
+  - Keine alte Index-/Ranking-Ueberladung; Details als kompakte Kosten-, Patienten-/Termin- und Produktivitaets-/Ergebnis-Tabellen.
   - Nicht offenlegen, wie viele Standorte die Gruppe insgesamt hat.
   - Seite 2 muss komprimiert und druckfaehig sein.
 - Vergleichsregelwerk:
