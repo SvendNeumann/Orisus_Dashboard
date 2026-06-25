@@ -2985,7 +2985,7 @@ function kontostandEntriesFromInputSheet(workbook: XLSX.WorkBook, siteName: stri
   const siteKey = normalizeSiteId(siteName);
   const sheetName = workbook.SheetNames.find((name) => {
     const key = normalizeSiteId(name.replace(/^Input_Kontostand_?/i, ""));
-    return normalizeSiteId(name).startsWith("input_kontostand") && key === siteKey;
+    return normalizeSiteId(name).startsWith("input_kontostand") && (!key || key === siteKey);
   });
   if (!sheetName) return [];
 
@@ -3457,7 +3457,7 @@ function isPureBehandlerHonorarRow(row: Record<string, unknown>) {
       .map(asText)
       .join(" ")
   );
-  if (["eigenlabor", "labor", "material", "pvs", "gesamtumsatz", "gesamtleistung", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return false;
+  if (["eigenlabor", "labor", "material", "gesamtumsatz", "gesamtleistung", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return false;
   return true;
 }
 
@@ -3478,7 +3478,7 @@ function isPureBehandlerEigenlaborRow(row: Record<string, unknown>) {
       .map(asText)
       .join(" ")
   );
-  if (["pvs", "gesamtumsatz", "gesamtleistung", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return false;
+  if (["gesamtumsatz", "gesamtleistung", "behandlerumsatz_inkl"].some((term) => combinedKey.includes(term))) return false;
   return true;
 }
 
