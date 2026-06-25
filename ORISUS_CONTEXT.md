@@ -271,6 +271,12 @@ App nach Login:
   - Geaendert wurden nur Layout, Kartenoptik, Tabellenrahmen, Chart-Flaechen, Badges, Buttons und visuelle Hierarchie.
   - Keine Wertebezuege, Importlogiken, Ziel-EBITDA-Logiken, Rollenrechte oder Reportberechnungen wurden fachlich veraendert.
   - Desktop-Ansichten sollen durch staerkere Container, bessere Chart-Flaechen und einheitlichere Tabellenkoepfe ruhiger wirken; mobile Ansichten bleiben kompakt.
+  - Nachschaerfung fuer sichtbaren Dashboard-Effekt:
+    - Haupt-KPIs im Orisus Board werden groesser und Neben-KPIs kompakter dargestellt.
+    - Desktop-Inhalt nutzt eine breitere Flaeche (`max-w-[96rem]`) und zentrale Dashboard-Charts verwenden asymmetrische Spalten statt reiner 50/50-Aufteilung.
+    - Chart-Flaechen, Recharts-Linien, Balken, Legenden und Tooltips wurden app-weit kraeftiger gestaltet.
+    - Zentrale Finanz-/Performance-/BWA-/Banking-/Produktivitaetsdiagramme haben groessere Diagrammhoehen, staerkere Balken und klarere Legenden.
+    - Tabellen wurden app-weit kompakter gemacht; Kopfbereiche und Summenzeilen sind staerker hervorgehoben.
 - Ziel der UI-Ordnung:
   - oben Entscheidungsebene
   - darunter Hauptdiagramm/Haupttabelle

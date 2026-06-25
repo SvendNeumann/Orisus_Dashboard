@@ -97,6 +97,10 @@ body {
   padding-bottom: 1rem;
 }
 
+.page-title h1 {
+  line-height: 1.05;
+}
+
 .modern-kpi-card {
   overflow: hidden;
   border-color: rgba(178, 226, 229, 0.26) !important;
@@ -105,6 +109,12 @@ body {
     rgba(12, 34, 49, 0.92) !important;
   box-shadow: 0 22px 72px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
   transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.modern-kpi-card:nth-child(n + 4) {
+  background:
+    linear-gradient(150deg, rgba(18, 58, 76, 0.9), rgba(6, 25, 38, 0.92)),
+    rgba(12, 34, 49, 0.9) !important;
 }
 
 .modern-kpi-card::before {
@@ -161,7 +171,7 @@ body {
 }
 
 .chart-surface {
-  min-height: 18rem;
+  min-height: 20rem;
   border-radius: 0.95rem;
   border: 1px solid rgba(178, 226, 229, 0.16);
   background:
@@ -169,7 +179,11 @@ body {
     linear-gradient(180deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
     linear-gradient(180deg, rgba(4, 21, 33, 0.32), rgba(4, 21, 33, 0.12));
   background-size: 56px 56px, 56px 56px, auto;
-  padding: 0.9rem 0.35rem 0.25rem;
+  padding: 1rem 0.45rem 0.35rem;
+}
+
+.chart-surface .recharts-responsive-container {
+  min-height: 18rem;
 }
 
 button,
@@ -284,7 +298,7 @@ select {
 }
 
 .table-head {
-  background: linear-gradient(135deg, #1aa1ad, #0f7484 58%, #0d5d70);
+  background: linear-gradient(135deg, #24b6bf, #0f7d8f 56%, #0b5265);
   color: hsl(var(--primary-foreground));
   letter-spacing: 0.02em;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -306,12 +320,12 @@ select {
 }
 
 .table-total {
-  background: rgba(178, 226, 229, 0.14);
+  background: rgba(178, 226, 229, 0.2);
 }
 
 .summary-row > td {
-  background: rgba(178, 226, 229, 0.16) !important;
-  font-weight: 700;
+  background: rgba(178, 226, 229, 0.22) !important;
+  font-weight: 800;
 }
 
 .summary-row > td:first-child {
@@ -413,13 +427,13 @@ select {
 }
 
 .app-shell .recharts-cartesian-grid line {
-  stroke: rgba(178, 226, 229, 0.17);
-  stroke-dasharray: 4 6;
+  stroke: rgba(178, 226, 229, 0.12);
+  stroke-dasharray: 5 8;
 }
 
 .app-shell .recharts-text {
-  fill: #b5cbd1;
-  font-weight: 600;
+  fill: #c7dde2;
+  font-weight: 700;
 }
 
 .app-shell .recharts-tooltip-wrapper {
@@ -441,11 +455,25 @@ select {
 
 .app-shell .recharts-legend-item-text {
   color: #c8dde2 !important;
+  font-weight: 700 !important;
+}
+
+.app-shell .recharts-legend-wrapper {
+  padding-top: 0.25rem;
 }
 
 .app-shell .recharts-tooltip-cursor {
   fill: rgba(121, 238, 231, 0.08);
   stroke: rgba(121, 238, 231, 0.22);
+}
+
+.app-shell .recharts-bar-rectangle path,
+.app-shell .recharts-rectangle {
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.18));
+}
+
+.app-shell .recharts-line path {
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.2));
 }
 
 .app-shell select option {
@@ -529,6 +557,7 @@ select {
   min-width: 100%;
   table-layout: auto;
   border-radius: 0.95rem;
+  font-size: 0.83rem;
 }
 
 .data-table th,
@@ -543,11 +572,36 @@ select {
   z-index: 12;
 }
 
+.app-shell .data-table th {
+  padding: 0.58rem 0.72rem !important;
+  font-size: 0.72rem;
+  line-height: 1.15;
+}
+
+.app-shell .data-table td {
+  padding: 0.48rem 0.68rem !important;
+  line-height: 1.25;
+}
+
 .table-scroll-frame {
   border-radius: 0.95rem;
   border: 1px solid rgba(178, 226, 229, 0.16);
   background: rgba(5, 24, 38, 0.18);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  scrollbar-color: rgba(121, 238, 231, 0.45) rgba(3, 16, 26, 0.3);
+}
+
+.table-scroll-frame::-webkit-scrollbar {
+  height: 10px;
+}
+
+.table-scroll-frame::-webkit-scrollbar-track {
+  background: rgba(3, 16, 26, 0.35);
+}
+
+.table-scroll-frame::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, rgba(121, 238, 231, 0.55), rgba(15, 139, 150, 0.55));
+  border-radius: 999px;
 }
 
 .app-shell .data-table tbody tr {

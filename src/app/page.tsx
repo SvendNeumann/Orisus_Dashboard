@@ -11,6 +11,7 @@ import {
   Cell,
   ComposedChart,
   LabelList,
+  Legend,
   Line,
   Pie,
   PieChart,
@@ -4235,7 +4236,7 @@ export default function HomePage() {
       )}
 
       <main className="app-main min-w-0 w-full overflow-x-hidden px-4 pb-28 pt-24 sm:px-6 xl:ml-72 xl:w-[calc(100%-18rem)] xl:px-8 xl:pb-10 xl:pt-5">
-        <div className="mx-auto min-w-0 max-w-7xl">
+        <div className="mx-auto min-w-0 max-w-[96rem]">
           <NavigationControls
             page={page}
             previousPage={previousPage}
@@ -6087,7 +6088,7 @@ function Cockpit({
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} importedData={importedData} />
       <ManagementStoryline sites={sites} importedData={importedData} />
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(22rem,0.75fr)]">
         <ChartCard title="Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Übernahme | seit Vertragsstart" icon={TrendingUp}>
           <EbitdaTargetChart sites={sites} importedData={importedData} />
         </ChartCard>
@@ -6096,7 +6097,7 @@ function Cockpit({
         </ChartCard>
       </div>
 
-      <div className="analysis-only grid gap-5 xl:grid-cols-2">
+      <div className="analysis-only grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(24rem,0.9fr)]">
         <ChartCard title="Standortvergleich Gesamtleistung & EBITDA | seit Vertragsstart" icon={BarChart3}>
           <SitePerformanceChart sites={sites} />
         </ChartCard>
@@ -6105,7 +6106,7 @@ function Cockpit({
         </ChartCard>
       </div>
 
-      <div className="analysis-only grid gap-5 xl:grid-cols-2">
+      <div className="analysis-only grid gap-5 xl:grid-cols-[minmax(24rem,0.75fr)_minmax(0,1.25fr)]">
         <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
           <CostShareDonut sites={sites} />
         </ChartCard>
@@ -6559,9 +6560,14 @@ function DailyCfoCockpit({
   }>;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {kpis.map((kpi) => (
-        <KpiCard key={kpi.label} {...kpi} />
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+      {kpis.map((kpi, index) => (
+        <KpiCard
+          key={kpi.label}
+          {...kpi}
+          featured={index < 3}
+          className={index < 3 ? "xl:col-span-2" : "xl:col-span-1"}
+        />
       ))}
     </div>
   );
@@ -6588,7 +6594,9 @@ function KpiCard({
   status,
   control,
   secondaryValue,
-  info
+  info,
+  featured = false,
+  className
 }: {
   label: string;
   value: number;
@@ -6600,11 +6608,13 @@ function KpiCard({
   control?: React.ReactNode;
   secondaryValue?: React.ReactNode;
   info?: React.ReactNode;
+  featured?: boolean;
+  className?: string;
 }) {
   const positive = !delta.startsWith("-");
   const [infoOpen, setInfoOpen] = useState(false);
   return (
-    <Card className="modern-kpi-card relative flex min-h-[13rem] flex-col p-5 text-center">
+    <Card className={cn("modern-kpi-card relative flex flex-col text-center", featured ? "min-h-[14rem] p-5" : "min-h-[10.75rem] p-4", className)}>
       <div className="mb-3 flex min-h-8 items-start justify-between gap-3">
         <div className="w-8 shrink-0">
           {info && (
@@ -6623,14 +6633,14 @@ function KpiCard({
         </div>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="modern-icon-tile flex h-12 w-12 items-center justify-center rounded-xl text-primary">
-          <Icon className="h-5 w-5" />
+        <div className={cn("modern-icon-tile flex items-center justify-center rounded-xl text-primary", featured ? "h-12 w-12" : "h-10 w-10")}>
+          <Icon className={featured ? "h-5 w-5" : "h-4 w-4"} />
         </div>
-        <p className="mt-4 max-w-full text-sm font-semibold text-muted-foreground">{label}</p>
+        <p className={cn("max-w-full font-semibold text-muted-foreground", featured ? "mt-4 text-sm" : "mt-3 text-xs")}>{label}</p>
         {control ? <div className="mt-3 w-full max-w-[15rem]">{control}</div> : null}
-        <p className="mt-1 text-3xl font-extrabold text-white">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
+        <p className={cn("mt-1 font-extrabold text-white", featured ? "text-3xl" : "text-2xl")}>{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
         {secondaryValue ? <p className="mt-1 text-sm font-bold text-slate-200">{secondaryValue}</p> : null}
-        <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 text-sm font-semibold", positive ? "text-emerald-700" : "text-red-700")}>
+        <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 font-semibold", featured ? "text-sm" : "text-xs", positive ? "text-emerald-700" : "text-red-700")}>
           {positive ? <ArrowUpRight className="h-4 w-4 shrink-0" /> : <ArrowDownRight className="h-4 w-4 shrink-0" />}
           <span className="min-w-0 break-words">{delta}</span>
         </div>
@@ -6639,7 +6649,7 @@ function KpiCard({
             {info}
           </InfoDialog>
         ) : null}
-        <p className="mt-2 text-xs text-muted-foreground">Status nach Orisus-Regeln.</p>
+        <p className={cn("mt-2 text-muted-foreground", featured ? "text-xs" : "text-[11px]")}>Status nach Orisus-Regeln.</p>
       </div>
     </Card>
   );
@@ -6823,12 +6833,12 @@ function ChartCard({
 
   return (
     <Card className="chart-card relative h-full p-4 sm:p-5">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-3 border-b border-white/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <div className="modern-icon-tile flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary">
             <Icon className="h-4 w-4" />
           </div>
-          <h2 className="text-base font-extrabold text-white">{title}</h2>
+          <h2 className="text-base font-extrabold leading-tight text-white">{title}</h2>
           {info ? (
             <button
               type="button"
@@ -7002,9 +7012,7 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
 
   return (
     <div className="space-y-2">
-      <p className="text-xs leading-5 text-muted-foreground">
-        Soll-Linien kumuliert nur für aktive Ist-BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen Datenstand. Admin-gepflegte Ziel-EBITDA-Stammdaten überschreiben Importwerte app-weit.
-      </p>
+      <p className="text-xs leading-5 text-muted-foreground">Kumuliert bis aktuellem BWA-Datenstand; Zielwerte zeitanteilig.</p>
       <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-300">
         <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/7 px-2.5 py-1">
           <span className="h-2 w-4 rounded-sm bg-[#30d5c8]" />
@@ -7019,8 +7027,8 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
           Ziel Übernahme
         </span>
       </div>
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={chartData}>
+      <ResponsiveContainer width="100%" height={360}>
+        <ComposedChart data={chartData} barCategoryGap="28%">
           <defs>
             <linearGradient id="ebitdaBarGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.92} />
@@ -7031,23 +7039,24 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
           <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
           <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
           <Tooltip content={<EbitdaTargetTooltip />} />
-          <Bar dataKey="ebitda" name="Ist-EBITDA kumuliert" fill="url(#ebitdaBarGradient)" radius={[8, 8, 0, 0]} />
+          <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+          <Bar dataKey="ebitda" name="Ist-EBITDA kumuliert" fill="url(#ebitdaBarGradient)" radius={[10, 10, 0, 0]} maxBarSize={72} />
           <Line
             type="monotone"
             dataKey="zielEbitdaKaufvertrag"
             name="Ziel Kaufvertrag"
             stroke="#38bdf8"
-            strokeWidth={3}
-            dot={{ r: 4, fill: "#38bdf8", stroke: "#082f49", strokeWidth: 2 }}
+            strokeWidth={4}
+            dot={{ r: 4.5, fill: "#38bdf8", stroke: "#082f49", strokeWidth: 2 }}
           />
           <Line
             type="monotone"
             dataKey="zielEbitdaUebernahme"
             name="Ziel Übernahme"
             stroke="#f59e0b"
-            strokeWidth={3}
+            strokeWidth={4}
             strokeDasharray="7 5"
-            dot={{ r: 4, fill: "#f59e0b", stroke: "#422006", strokeWidth: 2 }}
+            dot={{ r: 4.5, fill: "#f59e0b", stroke: "#422006", strokeWidth: 2 }}
           />
         </ComposedChart>
       </ResponsiveContainer>
@@ -7104,8 +7113,8 @@ function CostShareDonut({ sites = standorte }: { sites?: DashboardSite[] }) {
 
 function SitePerformanceChart({ sites = standorte }: { sites?: DashboardSite[] }) {
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={sites}>
+    <ResponsiveContainer width="100%" height={330}>
+      <BarChart data={sites} barCategoryGap="24%" barGap={8}>
         <defs>
           <linearGradient id="sitePerformanceRevenueGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.92} />
@@ -7120,8 +7129,9 @@ function SitePerformanceChart({ sites = standorte }: { sites?: DashboardSite[] }
         <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
         <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
         <Tooltip formatter={(v) => eur(Number(v))} />
-        <Bar dataKey="gesamtleistung" name="Gesamtleistung" fill="url(#sitePerformanceRevenueGradient)" radius={[8, 8, 0, 0]} />
-        <Bar dataKey="ebitda" name="EBITDA" fill="url(#sitePerformanceEbitdaGradient)" radius={[8, 8, 0, 0]} />
+        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+        <Bar dataKey="gesamtleistung" name="Gesamtleistung" fill="url(#sitePerformanceRevenueGradient)" radius={[10, 10, 0, 0]} maxBarSize={58} />
+        <Bar dataKey="ebitda" name="EBITDA" fill="url(#sitePerformanceEbitdaGradient)" radius={[10, 10, 0, 0]} maxBarSize={58} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -7137,8 +7147,8 @@ function TopBehandlerChart({ data = [] }: { data?: TopBehandlerEntry[] }) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} layout="vertical" margin={{ left: 4, right: 12 }}>
+    <ResponsiveContainer width="100%" height={330}>
+      <BarChart data={data} layout="vertical" margin={{ left: 4, right: 18 }} barCategoryGap="22%">
         <defs>
           <linearGradient id="topBehandlerGradient" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#0f766e" stopOpacity={0.76} />
@@ -7157,7 +7167,7 @@ function TopBehandlerChart({ data = [] }: { data?: TopBehandlerEntry[] }) {
           tickFormatter={(value) => String(value).length > 16 ? `${String(value).slice(0, 15)}…` : String(value)}
         />
         <Tooltip formatter={(v) => eur(Number(v))} labelFormatter={(label) => `${label} Honorarumsatz`} />
-        <Bar dataKey="honorar" name="Honorarumsatz" fill="url(#topBehandlerGradient)" radius={[0, 8, 8, 0]}>
+        <Bar dataKey="honorar" name="Honorarumsatz" fill="url(#topBehandlerGradient)" radius={[0, 10, 10, 0]} maxBarSize={30}>
           <LabelList
             dataKey="honorar"
             position="insideRight"
@@ -7178,8 +7188,8 @@ function ReceivablesChart({ sites = standorte }: { sites?: DashboardSite[] }) {
     .map((site) => ({ name: site.name, forderungen: site.forderungen }));
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={chartData}>
+    <ResponsiveContainer width="100%" height={330}>
+      <BarChart data={chartData} barCategoryGap="30%">
         <defs>
           <linearGradient id="receivablesGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#5eead4" stopOpacity={0.92} />
@@ -7190,7 +7200,8 @@ function ReceivablesChart({ sites = standorte }: { sites?: DashboardSite[] }) {
         <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
         <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
         <Tooltip formatter={(v) => eur(Number(v))} />
-        <Bar dataKey="forderungen" name="Offene Forderungen" fill="url(#receivablesGradient)" radius={[8, 8, 0, 0]} />
+        <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+        <Bar dataKey="forderungen" name="Offene Forderungen" fill="url(#receivablesGradient)" radius={[10, 10, 0, 0]} maxBarSize={68} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -10358,13 +10369,13 @@ function EbitdaCauseAnalysis({
 function ResponsiveTable({ children }: { children: React.ReactNode }) {
   return (
     <div className="table-scroll-frame overflow-x-auto">
-      <table className="data-table border-separate border-spacing-0 text-sm">{children}</table>
+      <table className="data-table border-separate border-spacing-0">{children}</table>
     </div>
   );
 }
 
 function TableHead({ children }: { children: React.ReactNode }) {
-  return <th className="table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white">{children}</th>;
+  return <th className="table-head border-b border-r border-border text-right uppercase text-white">{children}</th>;
 }
 
 function TableCell({
@@ -10381,7 +10392,7 @@ function TableCell({
   return (
     <td
       className={cn(
-        "table-number-col border-b border-r border-border bg-white p-2 text-right tabular-nums",
+        "table-number-col border-b border-r border-border bg-white text-right tabular-nums",
         strong && "font-bold",
         summary && "table-total font-bold",
         tone === "green" && "text-emerald-700",
@@ -11754,8 +11765,8 @@ function OrisusPerformance({
             </Select>
           }
         >
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={chartData}>
+          <ResponsiveContainer width="100%" height={340}>
+            <ComposedChart data={chartData} barCategoryGap="26%">
               <defs>
                 <linearGradient id="performanceRevenueGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
@@ -11766,10 +11777,11 @@ function OrisusPerformance({
               <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
-              <Bar dataKey="leistung" name="Gesamtleistung" fill="url(#performanceRevenueGradient)" radius={[8, 8, 0, 0]} />
-              <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#38bdf8" strokeWidth={3} dot={false} />
-              <Line type="monotone" dataKey="zielEbitdaUebernahme" name="Soll-EBITDA gem. Übernahme" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={3} dot={false} />
-              <Line type="monotone" dataKey="cashflow" name="Cashflow gem. BWA" stroke="#94a3b8" strokeWidth={3} dot={false} />
+              <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+              <Bar dataKey="leistung" name="Gesamtleistung" fill="url(#performanceRevenueGradient)" radius={[10, 10, 0, 0]} maxBarSize={64} />
+              <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#38bdf8" strokeWidth={4} dot={false} />
+              <Line type="monotone" dataKey="zielEbitdaUebernahme" name="Soll-EBITDA gem. Übernahme" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={4} dot={false} />
+              <Line type="monotone" dataKey="cashflow" name="Cashflow gem. BWA" stroke="#94a3b8" strokeWidth={4} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
           <div className="mt-3 flex flex-wrap gap-4 text-xs font-semibold text-muted-foreground">
@@ -14692,8 +14704,8 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
               ))}
             </Select>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={chartData}>
+          <ResponsiveContainer width="100%" height={340}>
+            <ComposedChart data={chartData} barCategoryGap="26%">
               <defs>
                 <linearGradient id="bwaRevenueGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
@@ -14704,15 +14716,16 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
               <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
-              <Bar dataKey="leistung" name="Gesamtleistung" fill="url(#bwaRevenueGradient)" radius={[8, 8, 0, 0]} />
-              <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#38bdf8" strokeWidth={3} />
+              <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+              <Bar dataKey="leistung" name="Gesamtleistung" fill="url(#bwaRevenueGradient)" radius={[10, 10, 0, 0]} maxBarSize={64} />
+              <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#38bdf8" strokeWidth={4} />
               <Line
                 type="monotone"
                 dataKey="zielEbitdaUebernahme"
                 name="Soll-EBITDA gem. Übernahme"
                 stroke="#f59e0b"
                 strokeDasharray="7 5"
-                strokeWidth={3}
+                strokeWidth={4}
                 dot={false}
               />
             </ComposedChart>
@@ -15815,8 +15828,8 @@ function Bankenreporting({
             </Select>
           }
         >
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={bankChartData}>
+          <ResponsiveContainer width="100%" height={340}>
+            <ComposedChart data={bankChartData} barCategoryGap="26%">
               <defs>
                 <linearGradient id="bankRevenueGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
@@ -15827,10 +15840,11 @@ function Bankenreporting({
               <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
-              <Bar dataKey="leistung" name="Gesamtleistung" fill="url(#bankRevenueGradient)" radius={[8, 8, 0, 0]} />
-              <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#38bdf8" strokeWidth={3} />
-              <Line type="monotone" dataKey="zielEbitdaKaufvertrag" name="Soll-EBITDA gem. Kaufvertrag" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={3} dot={false} />
-              <Line type="monotone" dataKey="cashflow" name="Cashflow gem. BWA" stroke="#94a3b8" strokeWidth={3} />
+              <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+              <Bar dataKey="leistung" name="Gesamtleistung" fill="url(#bankRevenueGradient)" radius={[10, 10, 0, 0]} maxBarSize={64} />
+              <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#38bdf8" strokeWidth={4} />
+              <Line type="monotone" dataKey="zielEbitdaKaufvertrag" name="Soll-EBITDA gem. Kaufvertrag" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={4} dot={false} />
+              <Line type="monotone" dataKey="cashflow" name="Cashflow gem. BWA" stroke="#94a3b8" strokeWidth={4} />
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -17967,8 +17981,8 @@ function PersonalProduktivitaet({
 
       <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
         <ChartCard title={`Personalproduktivität je Standort | ${performancePeriodLabel(period)}`} icon={Users}>
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={comparisonRows}>
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={comparisonRows} barCategoryGap="24%" barGap={8}>
               <defs>
                 <linearGradient id="productivityRevenueGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
@@ -17983,8 +17997,9 @@ function PersonalProduktivitaet({
               <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(value, name) => name === "pkQuote" ? pct(Number(value)) : eur(Number(value))} />
-              <Bar dataKey="umsatzFte" name="Gesamtleistung je FTE" fill="url(#productivityRevenueGradient)" radius={[8, 8, 0, 0]} />
-              <Bar dataKey="ebitdaFte" name="EBITDA je FTE" fill="url(#productivityEbitdaGradient)" radius={[8, 8, 0, 0]} />
+              <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+              <Bar dataKey="umsatzFte" name="Gesamtleistung je FTE" fill="url(#productivityRevenueGradient)" radius={[10, 10, 0, 0]} maxBarSize={58} />
+              <Bar dataKey="ebitdaFte" name="EBITDA je FTE" fill="url(#productivityEbitdaGradient)" radius={[10, 10, 0, 0]} maxBarSize={58} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
