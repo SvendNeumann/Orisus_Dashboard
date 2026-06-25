@@ -6394,6 +6394,7 @@ function KpiCard({
   icon: Icon,
   status,
   control,
+  secondaryValue,
   info
 }: {
   label: string;
@@ -6404,6 +6405,7 @@ function KpiCard({
   icon: React.ComponentType<{ className?: string }>;
   status: Status;
   control?: React.ReactNode;
+  secondaryValue?: React.ReactNode;
   info?: React.ReactNode;
 }) {
   const positive = !delta.startsWith("-");
@@ -6434,6 +6436,7 @@ function KpiCard({
         <p className="mt-4 max-w-full text-sm font-semibold text-muted-foreground">{label}</p>
         {control ? <div className="mt-3 w-full max-w-[15rem]">{control}</div> : null}
         <p className="mt-1 text-2xl font-bold tracking-tight">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
+        {secondaryValue ? <p className="mt-1 text-sm font-bold text-slate-200">{secondaryValue}</p> : null}
         <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 text-sm font-semibold", positive ? "text-emerald-700" : "text-red-700")}>
           {positive ? <ArrowUpRight className="h-4 w-4 shrink-0" /> : <ArrowDownRight className="h-4 w-4 shrink-0" />}
           <span className="min-w-0 break-words">{delta}</span>
@@ -16014,6 +16017,10 @@ function christianHenriciBwaBreakdown(sites: DashboardSite[], importedData: Impo
   });
 }
 
+function christianHenriciTargetEbitdaUebernahmeBreakdown(sites: DashboardSite[], importedData: ImportedDashboardData, period: string) {
+  return christianHenriciBwaBreakdown(sites, importedData, "ziel_ebitda_uebernahme", period);
+}
+
 function christianHenriciContractMonthsInYear(start: string, year: number) {
   const parts = germanDateParts(start);
   if (!parts || year < parts.year) return 0;
@@ -16050,8 +16057,11 @@ function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[];
   const annualRows = annualYear === "alle" ? annualRowsAll : annualRowsAll.filter((row) => row.year === Number(annualYear));
   const revenueBreakdown = christianHenriciBwaBreakdown(sites, importedData, "summe_umsatz", revenuePeriod);
   const ebitdaBreakdown = christianHenriciBwaBreakdown(sites, importedData, "ebitda", ebitdaPeriod);
+  const ebitdaTargetBreakdown = christianHenriciTargetEbitdaUebernahmeBreakdown(sites, importedData, ebitdaPeriod);
   const revenueTotal = revenueBreakdown.reduce((sum, row) => sum + row.value, 0);
   const ebitdaTotal = ebitdaBreakdown.reduce((sum, row) => sum + row.value, 0);
+  const ebitdaTargetTotal = ebitdaTargetBreakdown.reduce((sum, row) => sum + row.value, 0);
+  const ebitdaDeviationToTarget = ebitdaTotal - ebitdaTargetTotal;
   const totals = rows.reduce(
     (sum, row) => ({
       abrufdarlehen: sum.abrufdarlehen + row.abrufdarlehen,
@@ -16100,24 +16110,37 @@ function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[];
         <KpiCard
           label="Kumuliertes EBITDA"
           value={ebitdaTotal}
-          delta={performancePeriodLabel(ebitdaPeriod)}
+          delta={
+            ebitdaTargetTotal
+              ? `${ebitdaDeviationToTarget >= 0 ? "+" : ""}${eur(ebitdaDeviationToTarget, true)} ggü. Ziel Übernahme`
+              : performancePeriodLabel(ebitdaPeriod)
+          }
           icon={TrendingUp}
-          status={ebitdaTotal >= 0 ? "green" : "red"}
+          status={ebitdaTargetTotal ? (ebitdaDeviationToTarget >= 0 ? "green" : "red") : ebitdaTotal >= 0 ? "green" : "red"}
           control={
             <Select value={ebitdaPeriod} onChange={(event) => setEbitdaPeriod(event.target.value)}>
               {periodOptions.map((option) => <option key={option} value={option}>{performancePeriodLabel(option)}</option>)}
             </Select>
           }
+          secondaryValue={
+            ebitdaTargetTotal
+              ? `/ Ziel-EBITDA Übernahme ${eur(ebitdaTargetTotal, true)}`
+              : "Ziel-EBITDA Übernahme n. v."
+          }
           info={
             <div className="space-y-3">
               <p>
                 Summe des EBITDA aus der BWA im ausgewählten Zeitraum.
-                Die Werte werden je Standort nur innerhalb der jeweiligen Vertragsperiode berücksichtigt.
+                Die Werte werden je Standort nur innerhalb der jeweiligen Vertragsperiode berücksichtigt. Das Ziel-EBITDA gemäß Übernahme wird periodengleich aus der BWA-Zielzeile summiert.
               </p>
               <InfoTextLine label="Zeitraum" value={performancePeriodLabel(ebitdaPeriod)} strong />
               <div className="space-y-1">
                 {ebitdaBreakdown.map((row) => <InfoLine key={row.site.id} label={row.site.name} value={row.value} />)}
                 <InfoLine label="= Kumuliertes EBITDA" value={ebitdaTotal} strong />
+                <div className="my-2 border-t border-slate-200" />
+                {ebitdaTargetBreakdown.map((row) => <InfoLine key={`target-${row.site.id}`} label={`Ziel Übernahme ${row.site.name}`} value={row.value} />)}
+                <InfoLine label="= Ziel-EBITDA Übernahme" value={ebitdaTargetTotal} strong />
+                <InfoLine label="= Abweichung Ist zu Ziel" value={ebitdaDeviationToTarget} strong />
               </div>
             </div>
           }
