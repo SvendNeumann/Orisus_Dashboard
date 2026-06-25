@@ -1910,6 +1910,15 @@ function eur(value: number, compact = false) {
   }).format(value);
 }
 
+function eurTwo(value: number) {
+  return new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
 function pct(value: number) {
   return `${value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
 }
@@ -5222,7 +5231,7 @@ function PersonalCockpit({
   const fluctuationStatus: Status = highestFluctuationRow.fluctuation <= 10 ? "green" : highestFluctuationRow.fluctuation <= 20 ? "yellow" : "red";
   const personnelCostRows = operationalRows
     .filter((row) => row.personnelCosts > 0)
-    .map((row) => ({ name: row.site, value: Math.round(row.personnelCosts) }));
+    .map((row) => ({ name: row.site, value: row.personnelCosts }));
   const personnelCostTotal = personnelCostRows.reduce((sum, row) => sum + row.value, 0);
   const personnelCostColors = ["#0f766e", "#0891b2", "#0369a1", "#14b8a6", "#f59e0b", "#64748b"];
   const daysInSelectedYear = new Date(selectedYear, 1, 29).getMonth() === 1 ? 366 : 365;
@@ -5329,7 +5338,14 @@ function PersonalCockpit({
           status={fluctuationStatus}
         />
         <KpiCard label="Wochenstunden aktiv" value={active.reduce((sum, employee) => sum + employee.weeklyHours, 0)} plain delta="Kapazität laut aktiven Verträgen" icon={Gauge} status="green" />
-        <KpiCard label="AG-Aufwand aktiv" value={active.reduce((sum, employee) => sum + employee.employerCost, 0)} delta="monatlich laut Import" icon={BadgeEuro} status="yellow" />
+        <KpiCard
+          label="AG-Aufwand aktiv"
+          value={active.reduce((sum, employee) => sum + employee.employerCost, 0)}
+          valueLabel={eurTwo(active.reduce((sum, employee) => sum + employee.employerCost, 0))}
+          delta="monatlich laut Import"
+          icon={BadgeEuro}
+          status="yellow"
+        />
         <KpiCard label={`Krankheitstage ${selectedYear}`} value={sicknessBySite.reduce((sum, row) => sum + row.days, 0)} plain delta={`${sicknessDays.toLocaleString("de-DE")} Tage gesamt im Import`} icon={Stethoscope} status="yellow" />
         <KpiCard
           label="Ø Gesamtleistung je FTE"
@@ -5419,7 +5435,7 @@ function PersonalCockpit({
                 <TableCell>{row.employees}</TableCell>
                 <TableCell>{row.hours.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
                 <TableCell>{row.dentists}</TableCell>
-                <TableCell>{eur(row.employerCost)}</TableCell>
+                <TableCell>{eurTwo(row.employerCost)}</TableCell>
               </tr>
             ))}
             <tr className="table-total font-bold">
@@ -5429,7 +5445,7 @@ function PersonalCockpit({
               <TableCell>{siteRows.reduce((sum, row) => sum + row.employees, 0)}</TableCell>
               <TableCell>{siteRows.reduce((sum, row) => sum + row.hours, 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
               <TableCell>{siteRows.reduce((sum, row) => sum + row.dentists, 0)}</TableCell>
-              <TableCell>{eur(siteRows.reduce((sum, row) => sum + row.employerCost, 0))}</TableCell>
+              <TableCell>{eurTwo(siteRows.reduce((sum, row) => sum + row.employerCost, 0))}</TableCell>
             </tr>
           </tbody>
         </ResponsiveTable>
@@ -5458,11 +5474,11 @@ function PersonalCockpit({
                 <TableCell strong>{row.site}</TableCell>
                 <TableCell>{row.active}</TableCell>
                 <TableCell>{row.team}</TableCell>
-                <TableCell>{eur(row.employerCost)}</TableCell>
-                <TableCell>{row.averagePerEmployee ? eur(row.averagePerEmployee) : ""}</TableCell>
-                <TableCell>{eur(row.teamCost)}</TableCell>
-                <TableCell>{row.averagePerTeam ? eur(row.averagePerTeam) : ""}</TableCell>
-                <TableCell>{row.averageHourlyWage ? eur(row.averageHourlyWage) : ""}</TableCell>
+                <TableCell>{eurTwo(row.employerCost)}</TableCell>
+                <TableCell>{row.averagePerEmployee ? eurTwo(row.averagePerEmployee) : ""}</TableCell>
+                <TableCell>{eurTwo(row.teamCost)}</TableCell>
+                <TableCell>{row.averagePerTeam ? eurTwo(row.averagePerTeam) : ""}</TableCell>
+                <TableCell>{row.averageHourlyWage ? eurTwo(row.averageHourlyWage) : ""}</TableCell>
                 <TableCell>{pct(row.teamShare)}</TableCell>
               </tr>
             ))}
@@ -5470,11 +5486,11 @@ function PersonalCockpit({
               <TableCell strong summary>Gesamt</TableCell>
               <TableCell strong summary>{costOverviewTotals.active}</TableCell>
               <TableCell strong summary>{costOverviewTotals.team}</TableCell>
-              <TableCell strong summary>{eur(costOverviewTotals.employerCost)}</TableCell>
-              <TableCell strong summary>{costOverviewTotals.active ? eur(costOverviewTotals.employerCost / costOverviewTotals.active) : ""}</TableCell>
-              <TableCell strong summary>{eur(costOverviewTotals.teamCost)}</TableCell>
-              <TableCell strong summary>{costOverviewTotals.team ? eur(costOverviewTotals.teamCost / costOverviewTotals.team) : ""}</TableCell>
-              <TableCell strong summary>{costOverviewTotals.team ? eur(costOverviewTotals.hourlyWageSum / costOverviewTotals.team) : ""}</TableCell>
+              <TableCell strong summary>{eurTwo(costOverviewTotals.employerCost)}</TableCell>
+              <TableCell strong summary>{costOverviewTotals.active ? eurTwo(costOverviewTotals.employerCost / costOverviewTotals.active) : ""}</TableCell>
+              <TableCell strong summary>{eurTwo(costOverviewTotals.teamCost)}</TableCell>
+              <TableCell strong summary>{costOverviewTotals.team ? eurTwo(costOverviewTotals.teamCost / costOverviewTotals.team) : ""}</TableCell>
+              <TableCell strong summary>{costOverviewTotals.team ? eurTwo(costOverviewTotals.hourlyWageSum / costOverviewTotals.team) : ""}</TableCell>
               <TableCell strong summary>{costOverviewTotals.employerCost ? pct((costOverviewTotals.teamCost / costOverviewTotals.employerCost) * 100) : "0 %"}</TableCell>
             </tr>
           </tbody>
@@ -5500,14 +5516,14 @@ function PersonalCockpit({
             {operationalRows.map((row) => (
               <tr key={row.site}>
                 <TableCell strong>{row.site}</TableCell>
-                <TableCell>{eur(row.personnelCosts)}</TableCell>
+                <TableCell>{eurTwo(row.personnelCosts)}</TableCell>
                 <TableCell>{row.sicknessDays.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
                 <TableCell>{pct(row.fluctuation)}</TableCell>
               </tr>
             ))}
             <tr className="summary-row">
               <TableCell strong summary>Gesamt</TableCell>
-              <TableCell strong summary>{eur(operationalRows.reduce((sum, row) => sum + row.personnelCosts, 0))}</TableCell>
+              <TableCell strong summary>{eurTwo(operationalRows.reduce((sum, row) => sum + row.personnelCosts, 0))}</TableCell>
               <TableCell strong summary>{operationalRows.reduce((sum, row) => sum + row.sicknessDays, 0).toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
               <TableCell strong summary>
                 {pct(
@@ -5537,7 +5553,7 @@ function PersonalCockpit({
                   <Cell key={index} fill={personnelCostColors[index % personnelCostColors.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value, name) => [eur(Number(value)), name]} />
+              <Tooltip formatter={(value, name) => [eurTwo(Number(value)), name]} />
             </PieChart>
           </ResponsiveContainer>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -5548,7 +5564,7 @@ function PersonalCockpit({
                   <span className="text-sm font-semibold">{row.name}</span>
                 </div>
                 <p className="mt-1 text-lg font-bold">
-                  {eur(row.value)}{" "}
+                  {eurTwo(row.value)}{" "}
                   <span className="text-xs font-semibold text-muted-foreground">
                     ({personnelCostTotal ? pct((row.value / personnelCostTotal) * 100) : "0 %"})
                   </span>
@@ -5932,9 +5948,9 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
     { label: "Bereich", render: (employee) => employee.area },
     { label: "Eintritt", render: (employee) => employee.entryDate },
     { label: "Wochenstunden", render: (employee) => employee.weeklyHours.toLocaleString("de-DE", { maximumFractionDigits: 1 }) },
-    { label: "Fixgehalt", sensitive: true, render: (employee) => (employee.fixedSalary ? eur(employee.fixedSalary) : "") },
-    { label: "Stundenlohn Fixgehalt", sensitive: true, render: (employee) => (employee.hourlyWage ? eur(employee.hourlyWage) : "") },
-    { label: "AG-Aufwand", sensitive: true, render: (employee) => (employee.employerCost ? eur(employee.employerCost) : "") },
+    { label: "Fixgehalt", sensitive: true, render: (employee) => (employee.fixedSalary ? eurTwo(employee.fixedSalary) : "") },
+    { label: "Stundenlohn Fixgehalt", sensitive: true, render: (employee) => (employee.hourlyWage ? eurTwo(employee.hourlyWage) : "") },
+    { label: "AG-Aufwand", sensitive: true, render: (employee) => (employee.employerCost ? eurTwo(employee.employerCost) : "") },
     { label: "Bemerkungen", render: (employee) => employee.note }
   ];
   const visibleColumns = employeeColumns.filter((column) => canSeeCompensation || !column.sensitive);
@@ -6052,6 +6068,7 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
           <KpiCard
             label="AG-Aufwand aktiv"
             value={activeEmployerCost}
+            valueLabel={eurTwo(activeEmployerCost)}
             delta="monatlich laut Import"
             icon={BadgeEuro}
             status="yellow"
@@ -6060,10 +6077,10 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
                 <p className="font-bold text-slate-900">Arbeitgeberaufwand je Standort</p>
                 <div className="space-y-1">
                   {activeEmployeeBreakdownBySite.map((row) => (
-                    <InfoTextLine key={row.siteName} label={row.siteName} value={eur(row.employerCost)} />
+                    <InfoTextLine key={row.siteName} label={row.siteName} value={eurTwo(row.employerCost)} />
                   ))}
                 </div>
-                <InfoLine label="Gesamt" value={activeEmployerCost} strong />
+                <InfoTextLine label="Gesamt" value={eurTwo(activeEmployerCost)} strong />
                 <p className="text-xs text-slate-600">
                   Diese Kachel ist für Praxismanagement ausgeblendet, weil sie Vergütungs-/Kosteninformationen enthält.
                 </p>

@@ -242,10 +242,12 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Personal-Cockpit:
   - Die Diagramme `Aktive Mitarbeiter je Standort` und `Krankheitstage je Standort` zeigen die Werte direkt lesbar in den Balken, damit die Zahl nicht erst per Hover/Touch-Tooltip sichtbar wird.
   - Die Übersicht `Krankheitstage Mitarbeiter` zeigt im Personal-Cockpit die Top 15 Mitarbeiter des gewählten Jahres.
+  - Sichtbare Verguetungs-/Kostenwerte wie AG-Aufwand, AG-Kosten und durchschnittlicher Stundenlohn werden mit zwei Nachkommastellen angezeigt. Die Berechnungs- und Importlogik bleibt unveraendert.
 - Krankheit / Fehlzeiten:
   - Die Tabelle `Top kranke Mitarbeiter` zeigt die Top 15 Mitarbeiter des gewaehlten Jahres.
 - Mitarbeiterübersicht:
   - Die KPI-Kacheln `Aktive Mitarbeiter`, `FTE aktiv` und `AG-Aufwand aktiv` haben Info-Buttons mit Standort-Aufschluesselung. Das `i` zeigt je Standort die aktiven Mitarbeiter, aktive FTE bzw. den aktiven Arbeitgeberaufwand plus Gesamtsumme. `AG-Aufwand aktiv` bleibt fuer Praxismanagement ausgeblendet.
+  - Gehaltsfelder wie `Fixgehalt`, `Stundenlohn Fixgehalt` und `AG-Aufwand` werden in der Tabelle und in den Info-Herleitungen mit zwei Nachkommastellen formatiert.
 - Administration:
   - CFO-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
   - Personal-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
