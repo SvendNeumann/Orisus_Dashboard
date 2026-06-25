@@ -6442,8 +6442,6 @@ function DailyCfoCockpit({
   const expectedEarnOut = earnOutRows.reduce((sum, row) => sum + row.projection.projectedEarnOut, 0);
   const expectedGrowthPayment = earnOutRows.reduce((sum, row) => sum + row.projection.projectedGrowthPayment, 0);
   const expectedTotalPayment = expectedEarnOut + expectedGrowthPayment;
-  const expectedEarnOutInfo = <ExpectedEarnOutInfo rows={earnOutRows} period={period} />;
-  const expectedGrowthPaymentInfo = <ExpectedGrowthPaymentInfo rows={earnOutRows} period={period} />;
   const expectedObligationInfo = <ExpectedObligationInfo rows={earnOutRows} period={period} />;
   const revenueSparkline = aggregateMetricTrendData(importedData, "summe_umsatz");
   const ebitdaSparkline = aggregateMetricTrendData(importedData, "ebitda");
@@ -6566,52 +6564,6 @@ function DailyCfoCockpit({
           </div>
         </div>
       )
-    },
-    {
-      label: "Fremdkapital | seit Vertragsstart",
-      value: Math.max(0, metrics.aufgenommen - metrics.tilgung),
-      delta: `${eur(metrics.aufgenommen, true)} aufgenommen | ${eur(metrics.tilgung, true)} getilgt`,
-      icon: Landmark,
-      status: statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
-      info: (
-        <div className="space-y-2">
-          <p className="font-bold text-slate-900">Herleitung seit Vertragsstart</p>
-          <div className="space-y-1">
-            {sortSitesByContractStart(sites).map((site) => (
-              <div key={site.id} className="rounded border border-border bg-white/70 p-2 text-left">
-                <p className="font-semibold text-slate-900">{site.name}</p>
-                <InfoLine label="Aufgenommen" value={site.darlehen.darlehen} />
-                <InfoLine label="- Tilgung" value={-site.darlehen.tilgung} />
-                <InfoLine label="= Restschuld" value={site.darlehen.restschuld} strong />
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 border-t border-border pt-2">
-            <InfoLine label="Aufgenommen gesamt" value={metrics.aufgenommen} />
-            <InfoLine label="- Getilgt gesamt" value={-metrics.tilgung} />
-            <InfoLine label="= Offenes Fremdkapital" value={Math.max(0, metrics.aufgenommen - metrics.tilgung)} strong />
-            <p className="mt-1 text-slate-700">
-              Kapitaldienstfähigkeit: <span className="font-bold">{metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x</span>
-            </p>
-          </div>
-        </div>
-      )
-    },
-    {
-      label: "Erwarteter Earn-Out | Run-Rate",
-      value: expectedEarnOut,
-      delta: "Fälligkeit nach Vertragsperiode",
-      icon: BadgeEuro,
-      status: expectedEarnOut > 0 ? "yellow" : "green",
-      info: expectedEarnOutInfo
-    },
-    {
-      label: "Erwartete Wachstumszahlung | Run-Rate",
-      value: expectedGrowthPayment,
-      delta: "nur Mehr-EBITDA-Vertragslogik",
-      icon: TrendingUp,
-      status: expectedGrowthPayment > 0 ? "yellow" : "green",
-      info: expectedGrowthPaymentInfo
     },
     {
       label: "Erwartete Gesamtzahlung | nach Vertragsende",
