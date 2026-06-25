@@ -6665,13 +6665,12 @@ function DailyCfoCockpit({
   }>;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-      {kpis.map((kpi, index) => (
+    <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {kpis.map((kpi) => (
         <KpiCard
           key={kpi.label}
           {...kpi}
-          featured={index < 3}
-          className={index < 3 ? "xl:col-span-2" : "xl:col-span-1"}
+          className="h-full"
         />
       ))}
     </div>
