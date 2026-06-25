@@ -265,6 +265,7 @@ App nach Login:
   - KPI-Karten mit ruhiger Premium-Optik, klareren Icons und besserer Wert-Hierarchie.
   - Chart-Karten mit eigener Chart-Flaeche, dezenter Tiefe und modernisierten Recharts-Farbverlaeufen.
   - CFO-Cockpit zusaetzlich mit `Management-Fokus` als kurzer Lesestrecke fuer Ergebnisqualitaet, Zielabweichung, Forderungen und Cashflow-Fokus.
+  - Modernisierte Chart-Optik ist auf zentrale Dashboard-Charts ausgeweitet: CFO Cockpit, Standortdetails, BWA, Orisus Performance, Bankenreporting und Personal-/Produktivitaetsdiagramme.
 - Ziel der UI-Ordnung:
   - oben Entscheidungsebene
   - darunter Hauptdiagramm/Haupttabelle

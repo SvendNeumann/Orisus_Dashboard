@@ -5316,22 +5316,34 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
         <ChartCard title="Aktive Mitarbeiter je Standort | aktueller Stand" icon={Building2}>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={siteRows}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="site" tickLine={false} axisLine={false} />
+              <defs>
+                <linearGradient id="activeEmployeesGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0f766e" stopOpacity={0.68} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="site" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis hide />
               <Tooltip formatter={(value) => [`${value}`, "Aktive Mitarbeiter"]} />
-              <Bar dataKey="active" fill="#0f766e" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="active" fill="url(#activeEmployeesGradient)" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title={`Krankheitstage je Standort | ${selectedYear}`} icon={Stethoscope}>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={sicknessBySite}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="site" tickLine={false} axisLine={false} />
+              <defs>
+                <linearGradient id="sicknessBySiteGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0369a1" stopOpacity={0.68} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="site" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis hide />
               <Tooltip formatter={(value) => [`${value} Tage`, "Krankheit"]} />
-              <Bar dataKey="days" fill="#0891b2" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="days" fill="url(#sicknessBySiteGradient)" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -5647,22 +5659,34 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
         <ChartCard title={`Krankheitstage je Monat | ${selectedYear}`} icon={Stethoscope}>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={monthRows}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="month" tickLine={false} axisLine={false} />
+              <defs>
+                <linearGradient id="sicknessByMonthGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0f766e" stopOpacity={0.68} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis hide />
               <Tooltip formatter={(value) => [`${value} Tage`, "Krankheit"]} />
-              <Bar dataKey="days" fill="#0f766e" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="days" fill="url(#sicknessByMonthGradient)" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title={`Krankheitstage je Standort | ${selectedYear}`} icon={Building2}>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={siteRows}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="site" tickLine={false} axisLine={false} />
+              <defs>
+                <linearGradient id="sicknessDetailSiteGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0369a1" stopOpacity={0.68} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="site" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis hide />
               <Tooltip formatter={(value) => [`${value} Tage`, "Krankheit"]} />
-              <Bar dataKey="days" fill="#0891b2" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="days" fill="url(#sicknessDetailSiteGradient)" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -9618,13 +9642,19 @@ function StandortDetail({
           </p>
           <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={siteDevelopmentData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="month" tickLine={false} axisLine={false} />
+              <defs>
+                <linearGradient id={`siteDevelopmentGradient-${site.id}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.38} />
+                  <stop offset="100%" stopColor="#30d5c8" stopOpacity={0.04} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v, name) => [eur(Number(v)), String(name)]} />
-              <Area dataKey="leistung" name="Gesamtleistung BWA" stroke="#0f766e" fill="#ccfbf1" strokeWidth={3} />
-              <Line dataKey="ebitda" name="EBITDA BWA" stroke="#0369a1" strokeWidth={3} dot={false} />
-              <Line dataKey="cashflow" name="Cashflow gem. BWA" stroke="#64748b" strokeWidth={3} dot={false} />
+              <Area type="monotone" dataKey="leistung" name="Gesamtleistung BWA" stroke="#30d5c8" fill={`url(#siteDevelopmentGradient-${site.id})`} strokeWidth={3} />
+              <Line type="monotone" dataKey="ebitda" name="EBITDA BWA" stroke="#38bdf8" strokeWidth={3} dot={false} />
+              <Line type="monotone" dataKey="cashflow" name="Cashflow gem. BWA" stroke="#94a3b8" strokeWidth={3} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-muted-foreground">
@@ -11625,14 +11655,20 @@ function OrisusPerformance({
         >
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="month" />
+              <defs>
+                <linearGradient id="performanceRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0f766e" stopOpacity={0.68} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
-              <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
-              <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
-              <Line dataKey="zielEbitdaUebernahme" name="Soll-EBITDA gem. Übernahme" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={3} dot={false} />
-              <Line dataKey="cashflow" name="Cashflow gem. BWA" stroke="#64748b" strokeWidth={3} />
+              <Bar dataKey="leistung" name="Gesamtleistung" fill="url(#performanceRevenueGradient)" radius={[8, 8, 0, 0]} />
+              <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#38bdf8" strokeWidth={3} dot={false} />
+              <Line type="monotone" dataKey="zielEbitdaUebernahme" name="Soll-EBITDA gem. Übernahme" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={3} dot={false} />
+              <Line type="monotone" dataKey="cashflow" name="Cashflow gem. BWA" stroke="#94a3b8" strokeWidth={3} dot={false} />
             </ComposedChart>
           </ResponsiveContainer>
           <div className="mt-3 flex flex-wrap gap-4 text-xs font-semibold text-muted-foreground">
@@ -14529,13 +14565,20 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="month" />
+              <defs>
+                <linearGradient id="bwaRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0f766e" stopOpacity={0.68} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
-              <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
-              <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
+              <Bar dataKey="leistung" name="Gesamtleistung" fill="url(#bwaRevenueGradient)" radius={[8, 8, 0, 0]} />
+              <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#38bdf8" strokeWidth={3} />
               <Line
+                type="monotone"
                 dataKey="zielEbitdaUebernahme"
                 name="Soll-EBITDA gem. Übernahme"
                 stroke="#f59e0b"
@@ -15622,14 +15665,20 @@ function Bankenreporting({
         >
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={bankChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="month" />
+              <defs>
+                <linearGradient id="bankRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0f766e" stopOpacity={0.68} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(v) => eur(Number(v))} />
-              <Bar dataKey="leistung" name="Gesamtleistung" fill="#0f766e" radius={[5, 5, 0, 0]} />
-              <Line dataKey="ebitda" name="EBITDA" stroke="#0369a1" strokeWidth={3} />
-              <Line dataKey="zielEbitdaKaufvertrag" name="Soll-EBITDA gem. Kaufvertrag" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={3} dot={false} />
-              <Line dataKey="cashflow" name="Cashflow gem. BWA" stroke="#64748b" strokeWidth={3} />
+              <Bar dataKey="leistung" name="Gesamtleistung" fill="url(#bankRevenueGradient)" radius={[8, 8, 0, 0]} />
+              <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="#38bdf8" strokeWidth={3} />
+              <Line type="monotone" dataKey="zielEbitdaKaufvertrag" name="Soll-EBITDA gem. Kaufvertrag" stroke="#f59e0b" strokeDasharray="7 5" strokeWidth={3} dot={false} />
+              <Line type="monotone" dataKey="cashflow" name="Cashflow gem. BWA" stroke="#94a3b8" strokeWidth={3} />
             </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -15659,25 +15708,25 @@ function Bankenreporting({
         <ChartCard title="Kosten- und Margenqualität je Standort | gesamte Vertragsperiode" icon={BarChart3}>
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={bankKpiActiveSites.map((site) => ({ name: site.name, marge: site.ebitdaMarge, kostenquote: boardCostRatio(site), personal: site.personalquote ?? 0 }))}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" tickLine={false} axisLine={false} />
-              <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${value}%`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
+              <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${value}%`} tick={{ fill: "#c8e5e7", fontSize: 11 }} />
               <Tooltip formatter={(value) => pct(Number(value))} />
-              <Bar dataKey="marge" name="EBITDA-Marge" fill="#0f766e" radius={[5, 5, 0, 0]} />
-              <Bar dataKey="kostenquote" name="Gesamtkostenquote" fill="#0891b2" radius={[5, 5, 0, 0]} />
-              <Bar dataKey="personal" name="Personalkostenquote" fill="#f59e0b" radius={[5, 5, 0, 0]} />
+              <Bar dataKey="marge" name="EBITDA-Marge" fill="#30d5c8" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="kostenquote" name="Gesamtkostenquote" fill="#38bdf8" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="personal" name="Personalkostenquote" fill="#f59e0b" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Forderungen und Restschuld je Standort | gesamte Vertragsperiode" icon={FileBarChart}>
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={bankKpiActiveSites.map((site) => ({ name: site.name, forderungen: site.forderungen, restschuld: site.darlehen.restschuld }))} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis type="number" tickFormatter={(value) => eur(Number(value), true)} />
-              <YAxis type="category" dataKey="name" width={88} tickLine={false} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+              <XAxis type="number" tickFormatter={(value) => eur(Number(value), true)} tick={{ fill: "#c8e5e7", fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" width={88} tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <Tooltip formatter={(value) => eur(Number(value))} />
-              <Bar dataKey="forderungen" name="Forderungen" fill="#0f766e" radius={[0, 5, 5, 0]} />
-              <Bar dataKey="restschuld" name="Restschuld" fill="#64748b" radius={[0, 5, 5, 0]} />
+              <Bar dataKey="forderungen" name="Forderungen" fill="#30d5c8" radius={[0, 8, 8, 0]} />
+              <Bar dataKey="restschuld" name="Restschuld" fill="#94a3b8" radius={[0, 8, 8, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -17758,12 +17807,22 @@ function PersonalProduktivitaet({
         <ChartCard title={`Personalproduktivität je Standort | ${performancePeriodLabel(period)}`} icon={Users}>
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={comparisonRows}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" tickLine={false} axisLine={false} />
+              <defs>
+                <linearGradient id="productivityRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0f766e" stopOpacity={0.68} />
+                </linearGradient>
+                <linearGradient id="productivityEbitdaGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0369a1" stopOpacity={0.68} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
               <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
               <Tooltip formatter={(value, name) => name === "pkQuote" ? pct(Number(value)) : eur(Number(value))} />
-              <Bar dataKey="umsatzFte" name="Gesamtleistung je FTE" fill="#0f766e" radius={[5, 5, 0, 0]} />
-              <Bar dataKey="ebitdaFte" name="EBITDA je FTE" fill="#0369a1" radius={[5, 5, 0, 0]} />
+              <Bar dataKey="umsatzFte" name="Gesamtleistung je FTE" fill="url(#productivityRevenueGradient)" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="ebitdaFte" name="EBITDA je FTE" fill="url(#productivityEbitdaGradient)" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
