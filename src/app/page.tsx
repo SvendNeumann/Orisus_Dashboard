@@ -5682,7 +5682,7 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
       .values()
   )
     .sort((a, b) => b.days - a.days)
-    .slice(0, 10);
+    .slice(0, 15);
 
   return (
     <section className="space-y-5">
@@ -5757,7 +5757,7 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
       </Card>
       <Card className="overflow-hidden">
         <div className="table-head p-4 text-white">
-          <h2 className="font-bold">Top 10 kranke Mitarbeiter | {selectedYear}</h2>
+          <h2 className="font-bold">Top 15 kranke Mitarbeiter | {selectedYear}</h2>
         </div>
         <ResponsiveTable>
           <thead>
