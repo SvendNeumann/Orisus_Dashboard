@@ -1262,6 +1262,12 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - BWA-Vorjahresspalten beruecksichtigen den Vertragsstart; Monate vor Vertragsstart werden nicht als Vorjahr/0 gewertet.
   - Personalkostentabelle blendet `MVZ` und `Unbekannt` aus.
   - Inaktive Mitarbeiter sollen mit Hinweis/Austrittsdatum sichtbar sein.
+- Offene Forderungen:
+  - Primaere Quelle ist der Management-Block in `Dashboard_Management`: Spalte `Offene Forderungen seit Start` plus direkte Wertspalte daneben.
+  - Diese Werte werden beim CFO-Import als `receivablesBySite` gespeichert und beim Laden wieder auf die Standort-Kacheln angewendet.
+  - Dadurch haben Dashboard, CFO Cockpit, Standortdetails, Boardpack und Reports denselben Forderungsbestand.
+  - Neue Referenz aus Importdatei vom 25.06.2026: Essen `Dashboard_Management!EB39` = 99.818,6158 EUR, gerundet 99.819 EUR.
+  - Wenn diese Logik angepasst wird, muss nach Deploy ein CFO-Reimport erfolgen, weil alte bestaetigte Payloads bereits berechnete Standortwerte enthalten koennen.
 - Performance & Benchmarking:
   - Fruehwarnsystem als eigenes Tab.
   - Standort-Scorecard im Benchmarking-Bereich.

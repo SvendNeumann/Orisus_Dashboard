@@ -165,7 +165,7 @@ const importPersistenceDbName = "orisus-cfo-dashboard";
 const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
-const importDashboardSchemaVersion = "2026-06-23-bwa-praxiskosten-v16";
+const importDashboardSchemaVersion = "2026-06-25-receivables-management-v17";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const personalImportPersistenceReportKey = "personal-report";
 const personalImportPersistenceDashboardKey = "personal-dashboard";
@@ -346,6 +346,7 @@ type ImportedDashboardData = {
   monthly: typeof monthly;
   topBehandler: TopBehandlerEntry[];
   topBehandlerPeriod?: string;
+  receivablesBySite?: Record<string, number>;
   bwaRows: ImportedBwaRow[];
   pvsRevenueRows?: ImportedPeriodValueRow[];
   behandlerHonorarRows?: ImportedPeriodValueRow[];
@@ -2865,6 +2866,10 @@ function managementOpenReceivablesFromWorkbook(workbook: XLSX.WorkBook) {
   return valuesBySite;
 }
 
+function managementOpenReceivablesRecord(valuesBySite: Map<string, number>) {
+  return Object.fromEntries([...valuesBySite.entries()].filter(([, value]) => value > 0));
+}
+
 function monthNumberFromHeader(value: unknown) {
   const key = normalizeMetric(value);
   const months: Record<string, number> = {
@@ -3011,9 +3016,10 @@ function openReceivablesSinceStart(
   allSiteRows: Record<string, unknown>[],
   managementReceivables?: number
 ) {
+  if (managementReceivables) return managementReceivables;
+
   const currentReceivables = preferredCurrentOpenReceivablesValue(allSiteRows) || preferredCurrentOpenReceivablesValue(siteRows);
   if (currentReceivables) return currentReceivables;
-  if (managementReceivables) return managementReceivables;
 
   if (normalizeSiteId(siteName) === "ulmet") {
     const ulmetReceivables = preferredRowsValue(allSiteRows, [["offene_forderungen_gesamt"]], ["dashboard", "bwa_dashboard"]);
@@ -3647,6 +3653,7 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
     monthly: monthlyData,
     topBehandler: topBehandlerFromDetailRows(behandlerDetailRows, latestYear, latestBehandlerMonth),
     topBehandlerPeriod: behandlerHonorarPeriodLabelFromDetailRows(behandlerDetailRows, latestYear),
+    receivablesBySite: managementOpenReceivablesRecord(managementReceivablesBySite),
     bwaRows: buildImportedBwaRows(rows, report),
     pvsRevenueRows: buildImportedPvsRevenueRows(workbook, rows, exportRows, report, latestYear),
     behandlerHonorarRows: buildImportedBehandlerHonorarRows(behandlerDetailRows, report),
@@ -8548,6 +8555,7 @@ function repairImportedCashflowData(importedData: ImportedDashboardData): Import
   });
 
   const sites = sortSitesByContractStart(importedData.sites).map((site) => {
+    const importedReceivables = asNumber(importedData.receivablesBySite?.[site.id]);
     const details = {
       vorlaeufigesErgebnis: Math.round(rowFor(site.id, "vorlaeufiges_ergebnis")?.contractValue ?? site.cashflowDetails?.vorlaeufigesErgebnis ?? 0),
       abschreibungen: Math.abs(
@@ -8577,7 +8585,7 @@ function repairImportedCashflowData(importedData: ImportedDashboardData): Import
         details.umbuchungZmvz -
         details.sonstigeRueckstellungenBestandsminderungen
     );
-    return { ...site, cashflow, cashflowDetails: details };
+    return { ...site, forderungen: Math.round(importedReceivables ?? site.forderungen), cashflow, cashflowDetails: details };
   });
 
   return { ...importedData, sites, bwaRows };
