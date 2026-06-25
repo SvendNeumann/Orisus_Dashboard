@@ -296,19 +296,19 @@ const acquisitionTermsBySiteId: Record<string, AcquisitionTerms> = {
 };
 
 type TargetEbitdaOverride = {
-  kaufvertragPa: number | null;
+  kaufvertragMonthly: number | null;
   uebernahmeMonthly: number | null;
 };
 
 const emptyTargetEbitdaOverride: TargetEbitdaOverride = {
-  kaufvertragPa: null,
+  kaufvertragMonthly: null,
   uebernahmeMonthly: null
 };
 
 const defaultTargetEbitdaOverridesBySiteId: Record<string, TargetEbitdaOverride> = {
   kirchberg: { ...emptyTargetEbitdaOverride },
   essen: { ...emptyTargetEbitdaOverride },
-  kehl: { kaufvertragPa: null, uebernahmeMonthly: 20901 },
+  kehl: { kaufvertragMonthly: null, uebernahmeMonthly: 20901 },
   ulmet: { ...emptyTargetEbitdaOverride },
   huettenberg: { ...emptyTargetEbitdaOverride }
 };
@@ -782,10 +782,11 @@ function normalizeTargetEbitdaOverrides(input: Record<string, unknown> | null | 
   Object.entries(input ?? {}).forEach(([rawSiteId, rawValue]) => {
     const siteId = siteIdForName(rawSiteId);
     const value = rawValue && typeof rawValue === "object" ? (rawValue as Record<string, unknown>) : {};
-    const kaufvertragPa = asNumber(value.kaufvertragPa);
+    const legacyKaufvertragPa = asNumber(value.kaufvertragPa);
+    const kaufvertragMonthly = asNumber(value.kaufvertragMonthly) ?? (legacyKaufvertragPa != null ? legacyKaufvertragPa / 12 : null);
     const uebernahmeMonthly = asNumber(value.uebernahmeMonthly);
     normalized[siteId] = {
-      kaufvertragPa: kaufvertragPa != null && kaufvertragPa > 0 ? kaufvertragPa : null,
+      kaufvertragMonthly: kaufvertragMonthly != null && kaufvertragMonthly > 0 ? kaufvertragMonthly : null,
       uebernahmeMonthly: uebernahmeMonthly != null && uebernahmeMonthly > 0 ? uebernahmeMonthly : null
     };
   });
@@ -843,7 +844,7 @@ function useTargetEbitdaOverrides() {
 function targetOverrideMonthlyValue(siteId: string, metricKey: string, overrides: Record<string, TargetEbitdaOverride>) {
   const override = overrides[siteId];
   if (!override) return null;
-  if (metricKey === "ziel_ebitda_kaufvertrag") return override.kaufvertragPa ? override.kaufvertragPa / 12 : null;
+  if (metricKey === "ziel_ebitda_kaufvertrag") return override.kaufvertragMonthly ?? null;
   if (metricKey === "ziel_ebitda_uebernahme") return override.uebernahmeMonthly ?? null;
   return null;
 }
@@ -868,7 +869,7 @@ function applyTargetEbitdaOverrides(
   overrides: Record<string, TargetEbitdaOverride>
 ): ImportedDashboardData | null {
   if (!importedData?.bwaRows?.length) return importedData;
-  const hasOverrides = Object.values(overrides).some((override) => override.kaufvertragPa || override.uebernahmeMonthly);
+  const hasOverrides = Object.values(overrides).some((override) => override.kaufvertragMonthly || override.uebernahmeMonthly);
   if (!hasOverrides) return importedData;
 
   const targetRows = new Map<string, ImportedBwaRow>();
@@ -947,7 +948,7 @@ function applyTargetEbitdaOverrides(
 
   const patchedSites = importedData.sites.map((site) => {
     const override = overrides[site.id];
-    const hasKv = Boolean(override?.kaufvertragPa);
+    const hasKv = Boolean(override?.kaufvertragMonthly);
     const hasUe = Boolean(override?.uebernahmeMonthly);
     if (!hasKv && !hasUe) return site;
     const activeMonths = activeBwaMonthKeysForSite({ ...importedData, bwaRows: patchedRows }, site).length;
@@ -955,9 +956,9 @@ function applyTargetEbitdaOverrides(
       ...site,
       darlehen: {
         ...site.darlehen,
-        zielEbitdaKaufvertragPa: hasKv ? override!.kaufvertragPa! : site.darlehen.zielEbitdaKaufvertragPa,
-        zielEbitdaKaufvertrag: hasKv ? Math.round((override!.kaufvertragPa! / 12) * activeMonths) : site.darlehen.zielEbitdaKaufvertrag,
-        zielEbitda: hasKv ? Math.round((override!.kaufvertragPa! / 12) * activeMonths) : site.darlehen.zielEbitda,
+        zielEbitdaKaufvertragPa: hasKv ? override!.kaufvertragMonthly! * 12 : site.darlehen.zielEbitdaKaufvertragPa,
+        zielEbitdaKaufvertrag: hasKv ? Math.round(override!.kaufvertragMonthly! * activeMonths) : site.darlehen.zielEbitdaKaufvertrag,
+        zielEbitda: hasKv ? Math.round(override!.kaufvertragMonthly! * activeMonths) : site.darlehen.zielEbitda,
         zielEbitdaUebernahme: hasUe ? Math.round(override!.uebernahmeMonthly! * activeMonths) : site.darlehen.zielEbitdaUebernahme
       }
     };
@@ -19108,7 +19109,7 @@ function TargetEbitdaSettings() {
             <tr>
               <th className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">Standort</th>
               <th className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">Praxisstart</th>
-              <th className="table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white">Kaufvertrag p.a.</th>
+              <th className="table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white">Kaufvertrag monatlich</th>
               <th className="table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white">Übernahme monatlich</th>
               <th className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">Wirkung</th>
             </tr>
@@ -19116,7 +19117,7 @@ function TargetEbitdaSettings() {
           <tbody>
             {sortedSites.map((site) => {
               const override = draft[site.id] ?? emptyTargetEbitdaOverride;
-              const hasKv = Boolean(override.kaufvertragPa);
+              const hasKv = Boolean(override.kaufvertragMonthly);
               const hasUe = Boolean(override.uebernahmeMonthly);
               return (
                 <tr key={site.id}>
@@ -19129,8 +19130,8 @@ function TargetEbitdaSettings() {
                       min={0}
                       step={1}
                       placeholder="Import"
-                      value={override.kaufvertragPa ?? ""}
-                      onChange={(event) => update(site.id, "kaufvertragPa", event.target.value)}
+                      value={override.kaufvertragMonthly ?? ""}
+                      onChange={(event) => update(site.id, "kaufvertragMonthly", event.target.value)}
                     />
                   </td>
                   <td className="border-b border-r border-border bg-white p-3 text-right">
@@ -19161,7 +19162,7 @@ function TargetEbitdaSettings() {
       </div>
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          Wichtig: Übernahme monatlich ist der Monatswert. Kehl ist standardmäßig mit 20.901 € hinterlegt.
+          Wichtig: Beide Zielwerte werden monatlich gepflegt. Kaufvertrag wird daraus bei Bedarf p.a. hochgerechnet. Kehl Übernahme ist standardmäßig mit 20.901 € monatlich hinterlegt.
         </p>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => void reset()}>Standardwerte</Button>

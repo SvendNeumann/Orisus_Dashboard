@@ -205,8 +205,9 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Admin / KPI-Regeln enthaelt ein dezentes zentrales Vergleichsregelwerk `Wer darf verglichen werden?`.
   - Dieses Regelwerk ist technisch zentral im App-Code hinterlegt und soll fuer Benchmarking, Fruehwarnsystem, PMR, Kennzahlen und Standortvergleiche genutzt werden.
   - Admin / KPI-Regeln enthaelt zusaetzlich zentrale `Ziel-EBITDA-Stammdaten` je Standort:
-    - Kaufvertrag p.a.
+    - Kaufvertrag monatlich
     - Uebernahme monatlich
+    - Beide Zielwerte werden im Admin einheitlich monatlich gepflegt. Die App rechnet daraus bei Bedarf p.a.-Werte oder zeitanteilige Periodenwerte.
     - Leere Felder verwenden weiterhin den Importwert.
     - Gepflegte Werte ueberschreiben den Import app-weit fuer BWA, CFO Cockpit, Standortdetails, Kennzahlen, Darlehen/Earn-Out, Board/Bankenreporting und Reports.
     - Kehl ist standardmaessig mit Ziel-EBITDA Uebernahme 20.901 EUR pro Monat hinterlegt.
