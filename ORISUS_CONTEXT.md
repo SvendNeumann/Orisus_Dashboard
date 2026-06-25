@@ -131,6 +131,7 @@ Navigation wurde gruppiert:
 
 - Zusammenfassung
   - Dashboard
+  - Zusammenfassung
   - Personal-Cockpit
 - Standorte & BWA
   - Standorte
@@ -164,6 +165,12 @@ Navigation wurde gruppiert:
 
 Aktuelle wichtige Live-Ergaenzungen:
 
+- Unter `Zusammenfassung` gibt es zusaetzlich einen Tab `Zusammenfassung`:
+  - Tabelle `BWA-Uebersicht` mit Standort- und Zeitraumfilter: Umsatz gemaess BWA, EBITDA gemaess BWA, EBITDA-Marge und Cashflow gemaess BWA.
+  - Tabelle `PVS-Gesamtumsatz` mit Standort- und Zeitraumfilter.
+  - Tabelle `Honorarumsatz plus Eigenlabor` mit Standort- und Zeitraumfilter.
+  - Tabelle `Bankbewegungen` mit Standort- und Zeitraumfilter, basierend auf der bereits vorhandenen Bankbewegungslogik aus Input_Finanzen.
+  - Es wurden keine neuen Importregeln eingefuehrt; der Tab nutzt vorhandene Importdaten und bestehende Periodenlogik.
 - Standortleiter-PMR als dynamischer druckbarer Report je Standort.
 - PMR-Report mit Standortauswahl, Zeitraumfilter, Vergleichsjahr und Hoch-/Querformat.
 - Personalkosten-/Honorar-Gegenueberstellung je Behandler in PMR und Standortdetails.

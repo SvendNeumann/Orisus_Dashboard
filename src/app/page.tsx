@@ -109,6 +109,7 @@ type ImportedPatientMetricRow = {
 
 type Page =
   | "cockpit"
+  | "zusammenfassung"
   | "kennzahlen"
   | "performance"
   | "fruehwarnsystem"
@@ -1720,6 +1721,7 @@ const navSections = [
     label: "Zusammenfassung",
     items: [
       { id: "cockpit", label: "Dashboard", icon: Home },
+      { id: "zusammenfassung", label: "Zusammenfassung", icon: FileBarChart },
       { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users }
     ]
   },
@@ -1798,6 +1800,7 @@ const mobileNav = [
 
 const appPageIds: Page[] = [
   "cockpit",
+  "zusammenfassung",
   "kennzahlen",
   "performance",
   "fruehwarnsystem",
@@ -4246,6 +4249,7 @@ export default function HomePage() {
           {requiresImport && !importDataLoading && !effectiveImportedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
           {requiresPersonalImport && !personalDataLoading && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
           {effectiveImportedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "zusammenfassung" && <ZusammenfassungTab sites={dashboardSites} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "fruehwarnsystem" && <Fruehwarnsystem sites={dashboardSites} importedData={effectiveImportedData} />}
@@ -6180,6 +6184,239 @@ function PersonalActions({ personalData }: { personalData: PersonalDashboardData
         )}
       </Card>
     </section>
+  );
+}
+
+function ZusammenfassungTab({ sites, importedData }: { sites: DashboardSite[]; importedData: ImportedDashboardData }) {
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Zusammenfassung"
+        text="Kompakte Tabellenansicht für BWA-Umsatz, EBITDA, Cashflow, PVS-Umsatz, Behandlerumsatz inklusive Eigenlabor und Bankbewegungen."
+      />
+      <SummaryBwaOverviewTable sites={sites} importedData={importedData} />
+      <div className="grid gap-5 xl:grid-cols-2">
+        <SummaryPeriodValueTable
+          title="PVS-Gesamtumsatz"
+          metricLabel="PVS-Gesamtumsatz"
+          rows={importedData.pvsRevenueRows ?? []}
+          sites={sites}
+          fallbackForSite={(site) => site.pvsUmsatz}
+        />
+        <SummaryPeriodValueTable
+          title="Honorarumsatz plus Eigenlabor"
+          metricLabel="Honorarumsatz + Eigenlabor"
+          rows={importedData.behandlerTotalRows ?? []}
+          sites={sites}
+          fallbackForSite={(site) => site.honorar + site.eigenlabor}
+        />
+      </div>
+      <BankCashflowControlTable sites={sites} importedData={importedData} />
+    </section>
+  );
+}
+
+function filteredSummarySites(
+  sites: DashboardSite[],
+  siteFilter: string,
+  hasData: (site: DashboardSite) => boolean
+) {
+  const sorted = sortSitesByContractStart(sites).filter(hasData);
+  return siteFilter === "gesamt" ? sorted : sorted.filter((site) => site.id === siteFilter);
+}
+
+function SummaryFilterHeader({
+  title,
+  period,
+  setPeriod,
+  availablePeriods,
+  siteFilter,
+  setSiteFilter,
+  siteOptions,
+  description
+}: {
+  title: string;
+  period: string;
+  setPeriod: (period: string) => void;
+  availablePeriods: string[];
+  siteFilter: string;
+  setSiteFilter: (site: string) => void;
+  siteOptions: DashboardSite[];
+  description?: string;
+}) {
+  return (
+    <div className="table-head space-y-3 p-4 text-white">
+      <div>
+        <h2 className="text-lg font-bold">{title} | {performancePeriodLabel(period)}</h2>
+        {description ? <p className="mt-1 text-sm text-white/75">{description}</p> : null}
+      </div>
+      <div className="grid gap-3 md:grid-cols-[minmax(220px,320px)_minmax(220px,320px)]">
+        <Select value={siteFilter} onChange={(event) => setSiteFilter(event.target.value)}>
+          <option value="gesamt">Alle Standorte</option>
+          {siteOptions.map((site) => (
+            <option key={site.id} value={site.id}>
+              {site.name}
+            </option>
+          ))}
+        </Select>
+        <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>
+              {performancePeriodLabel(option)}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+function SummaryBwaOverviewTable({ sites, importedData }: { sites: DashboardSite[]; importedData: ImportedDashboardData }) {
+  const siteOptions = sortSitesByContractStart(
+    sites.filter((site) => importedData.bwaRows.some((row) => row.siteId === site.id))
+  );
+  const availablePeriods = bwaPeriodOptionsFor(importedData);
+  const [siteFilter, setSiteFilter] = useState("gesamt");
+  const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
+
+  useEffect(() => {
+    if (siteFilter !== "gesamt" && !siteOptions.some((site) => site.id === siteFilter)) setSiteFilter("gesamt");
+  }, [siteFilter, siteOptions]);
+
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) setPeriod(defaultPeriodFromOptions(availablePeriods));
+  }, [availablePeriods, period]);
+
+  const rows = filteredSummarySites(sites, siteFilter, (site) => siteOptions.some((option) => option.id === site.id)).map((site) => {
+    const revenue = importedBwaMetricValue(importedData.bwaRows, site.id, "summe_umsatz", period);
+    const ebitda = importedBwaMetricValue(importedData.bwaRows, site.id, "ebitda", period);
+    const cashflow = importedBwaMetricValue(importedData.bwaRows, site.id, "cashflow_gesamt", period);
+    return { site, revenue, ebitda, cashflow };
+  });
+  const totals = rows.reduce(
+    (sum, row) => ({
+      revenue: sum.revenue + row.revenue,
+      ebitda: sum.ebitda + row.ebitda,
+      cashflow: sum.cashflow + row.cashflow
+    }),
+    { revenue: 0, ebitda: 0, cashflow: 0 }
+  );
+  const ebitdaMargin = totals.revenue ? (totals.ebitda / totals.revenue) * 100 : 0;
+
+  return (
+    <Card className="overflow-hidden">
+      <SummaryFilterHeader
+        title="BWA-Übersicht"
+        description="Umsatz, EBITDA und Cashflow gemäß BWA aus dem bestätigten CFO-Import."
+        period={period}
+        setPeriod={setPeriod}
+        availablePeriods={availablePeriods}
+        siteFilter={siteFilter}
+        setSiteFilter={setSiteFilter}
+        siteOptions={siteOptions}
+      />
+      <ResponsiveTable>
+        <thead>
+          <tr>
+            <TableHead>Standort</TableHead>
+            <TableHead>Umsatz gem. BWA</TableHead>
+            <TableHead>EBITDA gem. BWA</TableHead>
+            <TableHead>EBITDA-Marge</TableHead>
+            <TableHead>Cashflow gem. BWA</TableHead>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.site.id}>
+              <TableCell strong>{row.site.name}</TableCell>
+              <TableCell>{eur(row.revenue)}</TableCell>
+              <TableCell tone={row.ebitda < 0 ? "red" : undefined}>{eur(row.ebitda)}</TableCell>
+              <TableCell tone={row.ebitda < 0 ? "red" : undefined}>{row.revenue ? pct((row.ebitda / row.revenue) * 100) : "n. v."}</TableCell>
+              <TableCell tone={row.cashflow < 0 ? "red" : undefined}>{eur(row.cashflow)}</TableCell>
+            </tr>
+          ))}
+          <tr className="summary-row">
+            <TableCell strong summary>Gesamt</TableCell>
+            <TableCell strong summary>{eur(totals.revenue)}</TableCell>
+            <TableCell strong summary tone={totals.ebitda < 0 ? "red" : undefined}>{eur(totals.ebitda)}</TableCell>
+            <TableCell strong summary tone={totals.ebitda < 0 ? "red" : undefined}>{totals.revenue ? pct(ebitdaMargin) : "n. v."}</TableCell>
+            <TableCell strong summary tone={totals.cashflow < 0 ? "red" : undefined}>{eur(totals.cashflow)}</TableCell>
+          </tr>
+        </tbody>
+      </ResponsiveTable>
+    </Card>
+  );
+}
+
+function SummaryPeriodValueTable({
+  title,
+  metricLabel,
+  rows,
+  sites,
+  fallbackForSite
+}: {
+  title: string;
+  metricLabel: string;
+  rows: ImportedPeriodValueRow[];
+  sites: DashboardSite[];
+  fallbackForSite: (site: DashboardSite) => number;
+}) {
+  const rowBySite = new Map(rows.map((row) => [row.siteId, row]));
+  const siteOptions = sortSitesByContractStart(sites.filter((site) => rowBySite.has(site.id) || fallbackForSite(site) > 0));
+  const availablePeriods = periodOptionsFromImportedRows(rows);
+  const [siteFilter, setSiteFilter] = useState("gesamt");
+  const [period, setPeriod] = useState(() => defaultPeriodFromOptions(availablePeriods));
+
+  useEffect(() => {
+    if (siteFilter !== "gesamt" && !siteOptions.some((site) => site.id === siteFilter)) setSiteFilter("gesamt");
+  }, [siteFilter, siteOptions]);
+
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) setPeriod(defaultPeriodFromOptions(availablePeriods));
+  }, [availablePeriods, period]);
+
+  const visibleSites = filteredSummarySites(sites, siteFilter, (site) => siteOptions.some((option) => option.id === site.id));
+  const tableRows = visibleSites.map((site) => {
+    const importedRow = rowBySite.get(site.id);
+    const importedValue = importedPeriodValueWithinContract(importedRow, period, site.start);
+    const value = importedValue == null ? fallbackForSite(site) : importedValue;
+    return { site, value };
+  });
+  const total = tableRows.reduce((sum, row) => sum + row.value, 0);
+
+  return (
+    <Card className="overflow-hidden">
+      <SummaryFilterHeader
+        title={title}
+        description={`${metricLabel} nach Standort und Zeitraum aus dem bestätigten Import.`}
+        period={period}
+        setPeriod={setPeriod}
+        availablePeriods={availablePeriods}
+        siteFilter={siteFilter}
+        setSiteFilter={setSiteFilter}
+        siteOptions={siteOptions}
+      />
+      <ResponsiveTable>
+        <thead>
+          <tr>
+            <TableHead>Standort</TableHead>
+            <TableHead>{metricLabel}</TableHead>
+          </tr>
+        </thead>
+        <tbody>
+          {tableRows.map((row) => (
+            <tr key={row.site.id}>
+              <TableCell strong>{row.site.name}</TableCell>
+              <TableCell>{eur(row.value)}</TableCell>
+            </tr>
+          ))}
+          <tr className="summary-row">
+            <TableCell strong summary>Gesamt</TableCell>
+            <TableCell strong summary>{eur(total)}</TableCell>
+          </tr>
+        </tbody>
+      </ResponsiveTable>
+    </Card>
   );
 }
 
