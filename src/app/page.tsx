@@ -7414,7 +7414,6 @@ function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
 function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
   const rules = useKpiRules();
   const metrics = cfoMetrics(sites, monthlyData, rules);
-  const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   const rows = [
     {
       label: "EBITDA-Marge Konzern",
@@ -7424,32 +7423,11 @@ function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: D
       rule: `grün ${kpiRuleText(rules.ebitda_marge, "green")}, gelb ${kpiRuleText(rules.ebitda_marge, "yellow")}`
     },
     {
-      label: "Cashflow gem. BWA",
-      value: eur(metrics.cashflow),
-      progress: metrics.cashflow >= 0 ? 100 : 28,
-      status: statusByRule(metrics.cashflow, rules.cashflow_bwa),
-      rule: `grün ${kpiRuleText(rules.cashflow_bwa, "green")}, rot ${kpiRuleText(rules.cashflow_bwa, "red")}`
-    },
-    {
-      label: "Offene Forderungen",
-      value: eur(metrics.forderungen),
-      progress: Math.min(Math.max((receivablesRatio / Math.max(rules.offene_forderungen.yellow, 1)) * 100, 0), 100),
-      status: statusByRule(receivablesRatio, rules.offene_forderungen),
-      rule: `${pct(receivablesRatio)} der Gesamtleistung | grün ${kpiRuleText(rules.offene_forderungen, "green")}`
-    },
-    {
       label: "Kostenquote",
       value: pct(metrics.kostenquote),
       progress: Math.min(Math.max((metrics.kostenquote / Math.max(rules.kostenquote.yellow, 1)) * 100, 0), 100),
       status: statusByRule(metrics.kostenquote, rules.kostenquote),
       rule: `Material, Fremdlabor und sonstige Kosten | grün ${kpiRuleText(rules.kostenquote, "green")}`
-    },
-    {
-      label: "Aktuelle Liquidität",
-      value: eur(metrics.kontostand),
-      progress: Math.min(Math.max((metrics.kontostand / Math.max(rules.aktuelle_liquiditaet.green, 1)) * 100, 0), 100),
-      status: statusByRule(metrics.kontostand, rules.aktuelle_liquiditaet),
-      rule: `konsolidierter Kontostand | grün ${kpiRuleText(rules.aktuelle_liquiditaet, "green")}`
     },
     {
       label: "Kapitaldienstfähigkeit",
