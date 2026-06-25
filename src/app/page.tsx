@@ -1717,7 +1717,7 @@ const navSections = [
     id: "management",
     label: "Zusammenfassung",
     items: [
-      { id: "cockpit", label: "CFO Cockpit", icon: Home },
+      { id: "cockpit", label: "Orisus Board", icon: Home },
       { id: "personal-cockpit", label: "Personal-Cockpit", icon: Users }
     ]
   },
@@ -1787,7 +1787,7 @@ const navSections = [
 ] as const;
 
 const mobileNav = [
-  { id: "cockpit", label: "CFO Cockpit", icon: Home },
+  { id: "cockpit", label: "Orisus Board", icon: Home },
   { id: "personal-cockpit", label: "Personal", icon: Users },
   { id: "standorte", label: "Standorte", icon: Building2 },
   { id: "bwa", label: "BWA", icon: FileBarChart },
@@ -4449,7 +4449,7 @@ function AuthFlow({
         publicKey: {
           challenge: randomChallenge(),
           rp: {
-            name: "Orisus CFO Dashboard"
+            name: "Orisus Steuerungsboard"
           },
           user: {
             id: new TextEncoder().encode("svend.neumann@orisus.de"),
@@ -4557,7 +4557,7 @@ function AuthFlow({
     setStep("app");
   };
 
-  const resetMailHref = `mailto:sven.neumann@resos.de?subject=${encodeURIComponent("Orisus CFO Dashboard - Passwort zurücksetzen")}&body=${encodeURIComponent(
+  const resetMailHref = `mailto:sven.neumann@resos.de?subject=${encodeURIComponent("Orisus Steuerungsboard - Passwort zurücksetzen")}&body=${encodeURIComponent(
     `Bitte Passwort-Zugang zurücksetzen für Login: ${email.trim() || "svend.neumann"}`
   )}`;
 
@@ -4681,11 +4681,11 @@ function LandingLoginCard({
           <Lock className="h-7 w-7" />
         </div>
         <p className="mt-7 text-center text-xs font-bold uppercase tracking-[0.22em] text-[#30d5c8]">Geschützter Zugang</p>
-        <h2 className="mt-4 text-center text-2xl font-bold tracking-tight text-white sm:text-3xl">Orisus CFO Dashboard</h2>
+        <h2 className="mt-4 text-center text-2xl font-bold tracking-tight text-white sm:text-3xl">Orisus Steuerungsboard</h2>
         <div className="mx-auto mt-4 h-px w-10 bg-[#30d5c8]" />
         <div className="mx-auto mt-6 max-w-sm space-y-4 text-center text-sm leading-6 text-slate-300">
           <p>Interne Management-Plattform für Geschäftsführung und Controlling.</p>
-          <p>Zugriff auf CFO-Cockpit, Standortsteuerung, Finanzierungsdaten und Personalübersicht.</p>
+          <p>Zugriff auf Orisus Board, Standortsteuerung, Finanzierungsdaten und Personalübersicht.</p>
         </div>
 
         <div className="mt-8 space-y-4">
@@ -4819,7 +4819,7 @@ function LandingLoginCard({
 function LandingFeatures() {
   const features = [
     {
-      title: "CFO Cockpit",
+      title: "Orisus Board",
       text: "Konsolidierte Kennzahlen, EBITDA, Liquidität und Performance auf einen Blick.",
       icon: TrendingUp
     },
@@ -4954,7 +4954,7 @@ function Brand({ compact = false, onClick }: { compact?: boolean; onClick?: () =
         alt="Orisus Zahnmedizin"
         className={cn("h-auto object-contain", compact ? "w-32" : "w-44")}
       />
-      {!compact && <span className="sr-only">Orisus CFO Dashboard</span>}
+      {!compact && <span className="sr-only">Orisus Steuerungsboard</span>}
     </>
   );
 
@@ -6081,7 +6081,7 @@ function Cockpit({
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageTitle title="Daily CFO Cockpit" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Fokusbereiche." />
+        <PageTitle title="Orisus Steuerungsboard" text="Konsolidierte Steuerung der Orisus-Gruppe: Liquidität, Ergebnis, Forderungen, Fremdkapital und Fokusbereiche." />
         <CompactDataStatus importedData={importedData} />
       </div>
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} importedData={importedData} />
@@ -6117,7 +6117,7 @@ function Cockpit({
         <Card className="analysis-only h-full p-4">
           <h2 className="font-bold">Detailauswertungen</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Das CFO-Cockpit bleibt die verdichtete Management-Sicht. BWA, Standortdetails, Cashflow-Herleitungen,
+            Das Orisus Board bleibt die verdichtete Steuerungssicht. BWA, Standortdetails, Cashflow-Herleitungen,
             Darlehen, Earn-Outs und Benchmarking liegen in den jeweiligen Fachreitern.
           </p>
         </Card>
@@ -6268,7 +6268,7 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
           <p className="text-xs font-bold uppercase text-primary">Management-Fokus</p>
           <h2 className="mt-1 text-xl font-extrabold tracking-tight text-white">Was gerade steuerungsrelevant ist</h2>
         </div>
-        <p className="text-sm text-muted-foreground">Verdichtete Lesestrecke aus den bestehenden CFO-Kennzahlen.</p>
+        <p className="text-sm text-muted-foreground">Verdichtete Lesestrecke aus den bestehenden Orisus-Kennzahlen.</p>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {storyItems.map((item) => (
@@ -6639,7 +6639,7 @@ function KpiCard({
             {info}
           </InfoDialog>
         ) : null}
-        <p className="mt-2 text-xs text-muted-foreground">Status nach CFO-Regeln.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Status nach Orisus-Regeln.</p>
       </div>
     </Card>
   );
@@ -7426,7 +7426,7 @@ function Insights({ setPage }: { setPage: (page: Page) => void }) {
   return (
     <Card className="h-full p-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-bold">CFO Insights | aktueller Stand</h2>
+        <h2 className="font-bold">Orisus Insights | aktueller Stand</h2>
         <Badge tone="blue">Regelbereit</Badge>
       </div>
       <div className="mt-4 space-y-3">
@@ -9793,7 +9793,7 @@ function KennzahlenEntwicklung({
     <section className="space-y-5">
       <PageTitle
         title="Orisus Kennzahlen/Entwicklung"
-        text="Standort-Performance, Zielerreichung und monatliche EBITDA-Entwicklung im Format der CFO-Auswertung."
+        text="Standort-Performance, Zielerreichung und monatliche EBITDA-Entwicklung im Format der Orisus-Auswertung."
       />
 
       <Card className="overflow-hidden">
@@ -15490,7 +15490,7 @@ function BankKpiTile({
           <DetailIcon className="h-4 w-4 shrink-0" />
           <span className="min-w-0 break-words">{detail}</span>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Status nach CFO-Regeln.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Status nach Orisus-Regeln.</p>
       </div>
       {infoOpen ? (
         <InfoDialog title={label} onClose={() => setInfoOpen(false)}>
@@ -16071,7 +16071,7 @@ function BoardManagementAnalysis({ sites, metrics, rules }: { sites: DashboardSi
     <Card className="p-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 className="font-bold">Executive Summary | CFO- und Investorensicht</h2>
+          <h2 className="font-bold">Executive Summary | Orisus- und Investorensicht</h2>
           <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
             Management-Lesart der aktuellen Kennzahlen: Was fällt auf, was bedeutet es für Ergebnisqualität, Liquidität und
             Finanzierungsfähigkeit, und welche Gegenmaßnahmen sind sinnvoll.
@@ -20360,7 +20360,7 @@ function buildManagementReport(
       { label: "Kapitaldienstfähigkeit", value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "EBITDA / Zins + Tilgung", tone: statusMap[statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit)].tone }
     ]),
     `<div class="two-col">${reportSection(
-      "Standortvergleich CFO-Kennzahlen",
+      "Standortvergleich Orisus-Kennzahlen",
       reportTable(
         ["Standort", "Start", "Gesamtleistung", "PVS-Umsatz", "EBITDA", "Marge", "Cashflow gem. BWA", "Forderungen", "Kontostand"],
         siteFinancialReportRows(sites),
@@ -20575,7 +20575,7 @@ function Reports({
     <section className="space-y-5">
       <PageTitle
         title="Reports"
-        text="Druckfertige farbige CFO- und Standortleiter-Reports. Die Ausgabe öffnet als eigenes Drucklayout und kann direkt als PDF gespeichert oder gedruckt werden."
+        text="Druckfertige farbige Orisus- und Standortleiter-Reports. Die Ausgabe öffnet als eigenes Drucklayout und kann direkt als PDF gespeichert oder gedruckt werden."
       />
       <TabExecutiveSummary
         title="Report-Center"

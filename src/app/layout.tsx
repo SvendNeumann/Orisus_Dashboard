@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Orisus CFO Dashboard",
-  description: "Interner CFO-Dashboard-Prototyp fuer die Orisus-Gruppe",
+  title: "Orisus Steuerungsboard",
+  description: "Internes Steuerungsboard fuer die Orisus-Gruppe",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "Orisus CFO",
+    title: "Orisus Board",
     statusBarStyle: "default"
   }
 };

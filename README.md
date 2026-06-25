@@ -1,6 +1,6 @@
-# Orisus CFO Dashboard
+# Orisus Steuerungsboard
 
-Interne CFO-Dashboard-App fuer die Orisus Zahnmedizin MVZ GmbH.
+Interne Steuerungsboard-App fuer die Orisus Zahnmedizin MVZ GmbH.
 
 Die App liest den bestaetigten Excel-Import aus der Orisus-Arbeitsmappe und kann den bestaetigten Import lokal oder zentral ueber Supabase speichern. CFO-/BWA-Import und Personal-Import werden getrennt gespeichert.
 
@@ -8,7 +8,7 @@ Die App liest den bestaetigten Excel-Import aus der Orisus-Arbeitsmappe und kann
 - shadcn/ui-inspirierte lokale Komponenten
 - Recharts Visualisierungen
 - Login per E-Mail/Passwort, mobiler Face-ID-Komfortzugang
-- CFO Cockpit, Standorte, Standortdetail, Analysen, BWA, Cashflow, Darlehen & Earn-Out, Personalmodul, Uploads und Reports
+- Orisus Board, Standorte, Standortdetail, Analysen, BWA, Cashflow, Darlehen & Earn-Out, Personalmodul, Uploads und Reports
 - Excel-Import mit Plausibilitaetspruefung und zentraler Supabase-Vorbereitung
 
 ## Supabase Live-Speicherung

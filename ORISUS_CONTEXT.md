@@ -1,4 +1,4 @@
-# Orisus CFO Dashboard - Projektuebergabe
+# Orisus Steuerungsboard - Projektuebergabe
 
 Stand: 24.06.2026, fortlaufend aktualisiert im aktuellen `main`-Stand
 
@@ -39,11 +39,11 @@ Wichtige Dateien:
 
 ## 3. Grundprinzip der App
 
-Die App ist eine interne CFO-/Management-Plattform fuer Orisus Zahnmedizin MVZ GmbH. Ziel ist eine zentrale Steuerung einer wachsenden Healthcare-/MVZ-Gruppe mit mehreren Standorten.
+Die App ist eine interne Steuerungs-/Management-Plattform fuer Orisus Zahnmedizin MVZ GmbH. Ziel ist eine zentrale Steuerung einer wachsenden Healthcare-/MVZ-Gruppe mit mehreren Standorten.
 
 Kernmodule:
 
-- CFO Cockpit
+- Orisus Board
 - Standorte mit Standortdetails
 - BWA
 - Kennzahlen / Entwicklung
@@ -130,7 +130,7 @@ Wichtig: Supabase Service Role Key muss in Vercel gesetzt sein, sonst funktionie
 Navigation wurde gruppiert:
 
 - Zusammenfassung
-  - CFO Cockpit
+  - Orisus Board
   - Personal-Cockpit
 - Standorte & BWA
   - Standorte
@@ -183,16 +183,16 @@ Aktuelle wichtige Live-Ergaenzungen:
   - keine doppelte Index-/Ranking-Ueberladung in den Reports
 - KPI-Regeln im Admin-Bereich editierbar, mit verbessertem Kontrast der Eingabefelder.
 - Mobile Menues koennen ueber die abgedunkelte Flaeche geschlossen werden.
-- CFO-Cockpit Earn-Out-/Wachstums-KPI-Logik ist fachlich getrennt:
+- Orisus Board Earn-Out-/Wachstums-KPI-Logik ist fachlich getrennt:
   - erwarteter Earn-Out Run-Rate
   - erwartete Wachstumszahlung Run-Rate
   - erwartete Gesamtzahlung nach Vertragsende
-- CFO-Cockpit Diagramm `Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Uebernahme`:
+- Orisus Board Diagramm `Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Uebernahme`:
   - Ist-EBITDA und Ziel-Linien laufen nur ueber aktive Ist-BWA-Monate mit echtem Wert seit jeweiligem Vertragsstart bis zum aktuellen BWA-Datenstand.
   - Ziel-Linien duerfen nicht als gesamte Vertragsperiode oder voller Zukunftszielwert gezeigt werden.
   - Kaufvertrag und Uebernahmeziel werden beide als p.a.-Ziele behandelt und zeitanteilig ueber die aktiven Ist-BWA-Monate gerechnet.
   - Uebernahmeziel nicht ueber die volle Earn-Out-/Vertragsperiode verteilen, sonst wird die gestrichelte Linie zu niedrig dargestellt.
-  - Fuer das Uebernahmeziel im CFO-Cockpit hat der importierte BWA-Monatswert `ziel_ebitda_uebernahme` Vorrang vor statischen Standort-/Fallbackwerten. Beispiel Kehl: Monatsziel 20.901 EUR; anteilige Linie = 20.901 EUR mal aktive Ist-BWA-Monate.
+  - Fuer das Uebernahmeziel im Orisus Board hat der importierte BWA-Monatswert `ziel_ebitda_uebernahme` Vorrang vor statischen Standort-/Fallbackwerten. Beispiel Kehl: Monatsziel 20.901 EUR; anteilige Linie = 20.901 EUR mal aktive Ist-BWA-Monate.
   - Tooltip/Erklaerung muss zwischen `Ziel-EBITDA Uebernahme p.a.` und `Ziel-EBITDA Uebernahme anteilig bis Datenstand` unterscheiden. Beispiel Essen: Basis p.a. 245.268 EUR; bei 16 aktiven Ist-BWA-Monaten anteilig ca. 327.024 EUR.
 - PMR-Export enthaelt Seite 1 Standortleiter-PMR und Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort.
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
@@ -217,7 +217,7 @@ Aktuelle wichtige Live-Ergaenzungen:
     - Uebernahme monatlich
     - Beide Zielwerte werden im Admin einheitlich monatlich gepflegt. Die App rechnet daraus bei Bedarf p.a.-Werte oder zeitanteilige Periodenwerte.
     - Leere Felder verwenden weiterhin den Importwert.
-    - Gepflegte Werte ueberschreiben den Import app-weit fuer BWA, CFO Cockpit, Standortdetails, Kennzahlen, Darlehen/Earn-Out, Board/Bankenreporting und Reports.
+    - Gepflegte Werte ueberschreiben den Import app-weit fuer BWA, Orisus Board, Standortdetails, Kennzahlen, Darlehen/Earn-Out, Board/Bankenreporting und Reports.
     - Kehl ist standardmaessig mit Ziel-EBITDA Uebernahme 20.901 EUR pro Monat hinterlegt.
 - Statussprache wurde vereinheitlicht:
   - Sichtbare Labels: `Stabil`, `Beobachten`, `Auffaellig`.
@@ -228,7 +228,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 
 Mobile Bottom-Navigation, gewuenschte Reihenfolge:
 
-1. CFO Cockpit
+1. Orisus Board
 2. Personalcockpit
 3. Standorte
 4. BWA
@@ -261,8 +261,8 @@ App nach Login:
 - Die Modernisierung erfolgt ueber zentrale UI-Bausteine, damit die App konsistent wirkt:
   - KPI-Karten mit ruhiger Premium-Optik, klareren Icons und besserer Wert-Hierarchie.
   - Chart-Karten mit eigener Chart-Flaeche, dezenter Tiefe und modernisierten Recharts-Farbverlaeufen.
-  - CFO-Cockpit zusaetzlich mit `Management-Fokus` als kurzer Lesestrecke fuer Ergebnisqualitaet, Zielabweichung, Forderungen und Cashflow-Fokus.
-  - Modernisierte Chart-Optik ist auf zentrale Dashboard-Charts ausgeweitet: CFO Cockpit, Standortdetails, BWA, Orisus Performance, Bankenreporting und Personal-/Produktivitaetsdiagramme.
+  - Orisus Board zusaetzlich mit `Management-Fokus` als kurzer Lesestrecke fuer Ergebnisqualitaet, Zielabweichung, Forderungen und Cashflow-Fokus.
+  - Modernisierte Chart-Optik ist auf zentrale Dashboard-Charts ausgeweitet: Orisus Board, Standortdetails, BWA, Orisus Performance, Bankenreporting und Personal-/Produktivitaetsdiagramme.
   - Zentrale Tabs erhalten einen kurzen `Startueberblick` oberhalb der Detailbereiche. Dieser zeigt 3-4 wesentliche Steuerungswerte; Detailtabellen bleiben darunter unveraendert erhalten.
   - Ausnahme: Bereich `Christian Henrici` bleibt in seiner bestehenden Detailstruktur unangetastet, damit alle Investorinformationen wie bisher voll sichtbar bleiben.
 - Ziel der UI-Ordnung:
@@ -297,7 +297,7 @@ App nach Login:
   - Keine sichtbare Bezeichnung `Handlungsbedarf` verwenden.
   - Bei Quoten-/Vorjahresvergleichen lieber konkret formulieren, z. B. `erhoeht ggü. Vorjahr`, `unter Vergleich`, `unter Soll`, statt pauschal streng zu wirken.
   - Interne technische Typen duerfen weiter `green/yellow/red` heissen, sichtbare Texte muessen aber fachlich weich bleiben.
-- Top-Behandler-Saeulendiagramm im CFO Cockpit:
+- Top-Behandler-Saeulendiagramm im Orisus Board:
   - X-Achsenbeschriftung unten ausblenden.
   - Werte dezent innerhalb der Balken anzeigen.
   - Swipe-Modus auf Mobile trotzdem behalten.
@@ -547,7 +547,7 @@ Earn-Out-Logik:
 Wachstumszahlung:
 
 - Auch potenzielle Wachstumszahlung ist erwartete Verpflichtung.
-- Muss in Darlehen & Earn-Out und CFO Cockpit ausgewiesen werden.
+- Muss in Darlehen & Earn-Out und Orisus Board ausgewiesen werden.
 - Logik:
   - durchschnittliches EBITDA seit Vertragsstart
   - hochrechnen auf komplette Vertragslaufzeit
@@ -567,7 +567,7 @@ Faelligkeitsdaten:
 - Ulmet endet z. B. 31.12.2030
 - Exakte Werte im Export/Stammdaten suchen.
 
-## 14. CFO Cockpit
+## 14. Orisus Board
 
 Gewuenschte KPI-Kachelanordnung:
 
@@ -596,11 +596,11 @@ Zusaetzlich gewuenscht:
 
 Fokus-Standorte Logik:
 
-- Standort im Fokus, wenn Bank-/BWA-Cashflow negativ oder eine relevante CFO-Regel auffaellig ist, je nach Kachelkontext klar beschriften.
+- Standort im Fokus, wenn Bank-/BWA-Cashflow negativ oder eine relevante Orisus-Regel auffaellig ist, je nach Kachelkontext klar beschriften.
 - Zusaetzlich im Fokus, wenn Standort in durchschnittlicher Vertragslaufzeit beim Ziel-EBITDA gemaess Kaufvertrag mehr als 15 % unter Ziel liegt.
 - Unterjaehrige Vertragsstarts muessen anteilig beruecksichtigt werden.
 
-Entfernte/zu entfernende Doppelungen im CFO Cockpit:
+Entfernte/zu entfernende Doppelungen im Orisus Board:
 
 - Kontostaende-Auflistung als separates Element raus, weil in Info-Button enthalten.
 - Kostenquoten-Kachel/Block raus, wenn Donut vorhanden.
@@ -608,7 +608,7 @@ Entfernte/zu entfernende Doppelungen im CFO Cockpit:
 
 Diagramme:
 
-- CFO Cockpit Diagramm `Ist EBITDA vs. Ziel-EBITDA` zeigt:
+- Orisus Board Diagramm `Ist EBITDA vs. Ziel-EBITDA` zeigt:
   - Ist-EBITDA seit Vertragsstart als Balken
   - Ziel-EBITDA gemaess Kaufvertrag als Linie
   - Ziel-EBITDA gemaess Uebernahme als gestrichelte Linie
@@ -1012,7 +1012,7 @@ Reports sollen:
 - Hoch-/Querformat je Report sinnvoll waehlen.
 - Nutzer kann je Report Hochformat oder Querformat auswaehlen.
 - Drucklayout muss sich an das Format anpassen, ohne Ueberschneidungen oder unbuendige Tabellen.
-- Report-Header duerfen keine internen Arbeitstitel wie `Orisus CFO Dashboard` verwenden.
+- Report-Header duerfen keine internen Arbeitstitel wie `Orisus Steuerungsboard` verwenden.
 - Stattdessen klare externe Titel verwenden, z. B. `Monatsreport`, `Management-Report`, `Standortleiter-PMR`, inkl. Zeitraum/Standort.
 - PDF-Reports duerfen nicht wie die App wirken, sondern sollen druckfertig und professionell fuer Empfaenger sein.
 - PMR-/Benchmarking-Reports sollen optisch an die modernisierte App angelehnt sein, aber als professionelle Management-Unterlage wirken: klarer Kopfbereich, ruhige KPI-Karten, strukturierte Abschnittskoepfe, weniger Tabellenblatt-Anmutung.
@@ -1105,7 +1105,7 @@ Bekannte Themen:
 - Rollenwechsel auf `praxismanagement` braucht Supabase Constraint-Anpassung.
 - Nutzeranlage hatte zeitweise `Unexpected end of JSON input`, meist wenn API keinen sauberen JSON-Body zurueckgibt oder Service Role fehlt.
 - `email rate limit exceeded` kam bei Supabase-Einladungen. Da E-Mail-Einladungsflow nicht final gewuenscht ist, soll Login-Name/Erstpasswort-Flow bevorzugt werden.
-- `Neu laden` im Admin-Bereich darf nicht auf CFO Cockpit springen, sondern aktuelle Seite/Tab refreshen.
+- `Neu laden` im Admin-Bereich darf nicht auf Orisus Board springen, sondern aktuelle Seite/Tab refreshen.
 
 ## 25. Sicherheit / Datenschutz
 
@@ -1304,7 +1304,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
 - Offene Forderungen:
   - Primaere Quelle ist der Management-Block in `Dashboard_Management`: Spalte `Offene Forderungen seit Start` plus direkte Wertspalte daneben.
   - Diese Werte werden beim CFO-Import als `receivablesBySite` gespeichert und beim Laden wieder auf die Standort-Kacheln angewendet.
-  - Dadurch haben Dashboard, CFO Cockpit, Standortdetails, Boardpack und Reports denselben Forderungsbestand.
+  - Dadurch haben Dashboard, Orisus Board, Standortdetails, Boardpack und Reports denselben Forderungsbestand.
   - Neue Referenz aus Importdatei vom 25.06.2026: Essen `Dashboard_Management!EB39` = 99.818,6158 EUR, gerundet 99.819 EUR.
   - Wenn diese Logik angepasst wird, muss nach Deploy ein CFO-Reimport erfolgen, weil alte bestaetigte Payloads bereits berechnete Standortwerte enthalten koennen.
 - Performance & Benchmarking:
@@ -1373,4 +1373,4 @@ Aktuell besonders sensible Pruefpunkte:
 
 Wenn ein neuer Codex-Chat gestartet wird, diesen Text verwenden:
 
-> Wir arbeiten an der Orisus CFO Dashboard App im Repo `/Users/svendneumann/Documents/Orisus CFO App`. Bitte lies zuerst `ORISUS_CONTEXT.md`, dann pruefe `src/app/page.tsx`, `src/app/api/access-users/route.ts` und `src/app/globals.css`. Die App ist live ueber Vercel und nutzt Supabase. Bitte keine Datenlogik aendern, ohne vorher die bestehende Importlogik und fachliche Definitionen in `ORISUS_CONTEXT.md` zu beachten.
+> Wir arbeiten an der Orisus Steuerungsboard App im Repo `/Users/svendneumann/Documents/Orisus CFO App`. Bitte lies zuerst `ORISUS_CONTEXT.md`, dann pruefe `src/app/page.tsx`, `src/app/api/access-users/route.ts` und `src/app/globals.css`. Die App ist live ueber Vercel und nutzt Supabase. Bitte keine Datenlogik aendern, ohne vorher die bestehende Importlogik und fachliche Definitionen in `ORISUS_CONTEXT.md` zu beachten.

@@ -1,6 +1,6 @@
 {
-  "name": "Orisus CFO Dashboard",
-  "short_name": "Orisus CFO",
+  "name": "Orisus Steuerungsboard",
+  "short_name": "Orisus Board",
   "description": "Interne Steuerungsplattform der Orisus-Gruppe",
   "start_url": "/",
   "display": "standalone",
