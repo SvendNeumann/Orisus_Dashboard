@@ -58,7 +58,8 @@ Kernmodule:
 - Mitarbeiteruebersicht
 - Personalmassnahmen
 - Uploads
-- Admin / KPI-Regeln
+- Admin
+- KPI-Regeln
 
 Die App ist bewusst keine oeffentliche Registrierungsplattform. Zugriff wird ausschliesslich durch Admins angelegt.
 
@@ -158,7 +159,8 @@ Navigation wurde gruppiert:
   - CFO-Upload
   - Personal-Upload
   - Reports
-  - Admin / KPI-Regeln
+  - Admin
+  - KPI-Regeln
 - Christian Henrici
   - Allgemeine Informationen
   - Abrufdarlehen
@@ -188,7 +190,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Spalten: Standortwert, Orisus-Durchschnitt, Abweichung, Einordnung; keine technische Quellen-Spalte im Report
   - Seite 2 nutzt freie Flaeche mit kompakten Kosten-, Patienten-/Termin- sowie Produktivitaets-/Ergebnis-Benchmarkwerten
   - keine doppelte Index-/Ranking-Ueberladung in den Reports
-- KPI-Regeln im Admin-Bereich editierbar, mit verbessertem Kontrast der Eingabefelder.
+- KPI-Regeln sind als eigener Administration-Tab editierbar, mit verbessertem Kontrast der Eingabefelder.
 - Mobile Menues koennen ueber die abgedunkelte Flaeche geschlossen werden.
 - Orisus Board Earn-Out-/Wachstums-KPI-Logik ist fachlich getrennt:
   - erwarteter Earn-Out Run-Rate
@@ -243,9 +245,10 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Administration:
   - CFO-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
   - Personal-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
-  - Admin / KPI-Regeln enthaelt ein dezentes zentrales Vergleichsregelwerk `Wer darf verglichen werden?`.
+  - Admin enthaelt App-Zugaenge, Rollen und Rollen-/Sicherheitspruefung.
+  - KPI-Regeln enthaelt ein dezentes zentrales Vergleichsregelwerk `Wer darf verglichen werden?`.
   - Dieses Regelwerk ist technisch zentral im App-Code hinterlegt und soll fuer Benchmarking, Fruehwarnsystem, PMR, Kennzahlen und Standortvergleiche genutzt werden.
-  - Admin / KPI-Regeln enthaelt zusaetzlich zentrale `Ziel-EBITDA-Stammdaten` je Standort:
+  - KPI-Regeln enthaelt zusaetzlich zentrale `Ziel-EBITDA-Stammdaten` je Standort:
     - Kaufvertrag monatlich
     - Uebernahme monatlich
     - Beide Zielwerte werden im Admin einheitlich monatlich gepflegt. Die App rechnet daraus bei Bedarf p.a.-Werte oder zeitanteilige Periodenwerte.
@@ -1130,7 +1133,7 @@ Standortleiter-PMR:
 - PMR-Personalkostentabelle ist fuer Standortleiter gedacht: keine technischen Spalten wie Datenstatus anzeigen.
 - Fehlende Vorjahreswerte in PMR-BWA oder Quoten/Kennzahlen leer lassen, nicht als 0 anzeigen.
 
-## 24. Admin / KPI-Regeln
+## 24. Admin und KPI-Regeln
 
 Admin-Bereich:
 
@@ -1139,6 +1142,10 @@ Admin-Bereich:
 - Letzter Login je Nutzer anzeigen.
 - Fester Admin nicht loeschbar.
 - Nutzer koennen komplett geloescht werden, nicht nur deaktiviert.
+- Rollen- und Sicherheitspruefung sichtbar.
+
+KPI-Regeln:
+
 - KPI-Regeln / Statuslogik administrierbar.
 - Praxisoeffnungszeiten je Standort editierbar.
 - Behandlungszimmer optional editierbar, auch wenn aktuell statisch hinterlegt.
@@ -1279,7 +1286,9 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Mobile Sidebar muss ueber die abgedunkelte Flaeche ausserhalb des Menues geschlossen werden koennen.
   - iPad-/Tablet-Ansicht darf nicht horizontal ueberlaufen oder durch Menueleisten verdeckt werden.
   - App-Hintergrund darf beim Scrollen keine weissen Flaechen freilegen.
-- Admin / KPI-Regeln:
+- Admin und KPI-Regeln:
+  - App-Zugaenge/Rollen/Sicherheitspruefung liegen im Tab `Admin`.
+  - Status-Schwellenwerte, Vergleichsregelwerk, Ziel-EBITDA-Stammdaten und Oeffnungszeiten liegen im eigenen Tab `KPI-Regeln`.
   - Eingabefelder in dunklen Tabellen/Kacheln muessen helle, gut lesbare Schrift haben.
   - Das betrifft besonders Oeffnungszeiten/KPI-Regelwerte auf Mobile mit Tastatur.
   - Status-Schwellenwerte steuern Cockpit, Standortdetails, Bankenreporting und Board-Pack.

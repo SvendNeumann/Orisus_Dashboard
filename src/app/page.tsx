@@ -129,6 +129,7 @@ type Page =
   | "uploads"
   | "reports"
   | "admin"
+  | "kpi-regeln"
   | "personal-cockpit"
   | "personal-krankheit"
   | "personal-mitarbeiter"
@@ -1777,7 +1778,8 @@ const navSections = [
       { id: "uploads", label: "CFO-Upload", icon: FileUp },
       { id: "personal-upload", label: "Personal-Upload", icon: FileUp },
       { id: "reports", label: "Reports", icon: FileBarChart },
-      { id: "admin", label: "Admin / KPI-Regeln", icon: Lock }
+      { id: "admin", label: "Admin", icon: Lock },
+      { id: "kpi-regeln", label: "KPI-Regeln", icon: Gauge }
     ]
   },
   {
@@ -1820,6 +1822,7 @@ const appPageIds: Page[] = [
   "uploads",
   "reports",
   "admin",
+  "kpi-regeln",
   "personal-cockpit",
   "personal-krankheit",
   "personal-mitarbeiter",
@@ -1834,7 +1837,7 @@ const christianHenriciPages: Page[] = ["christian-henrici-info", "christian-henr
 function pagesForRole(role: UserRole): Page[] {
   if (role === "admin") return appPageIds;
   if (role === "praxismanagement") return praxisManagementPages;
-  return appPageIds.filter((page) => !["uploads", "admin", "personal-upload"].includes(page) || christianHenriciPages.includes(page));
+  return appPageIds.filter((page) => !["uploads", "admin", "kpi-regeln", "personal-upload"].includes(page) || christianHenriciPages.includes(page));
 }
 
 function navSectionsForRole(role: UserRole) {
@@ -4306,7 +4309,8 @@ export default function HomePage() {
             />
           )}
           {page === "reports" && <Reports sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} />}
-          {page === "admin" && isAdmin && <AdminKpiRules />}
+          {page === "admin" && isAdmin && <AdminAccessSettings />}
+          {page === "kpi-regeln" && isAdmin && <AdminKpiRules />}
         </div>
       </main>
 
@@ -21047,6 +21051,19 @@ function Reports({
   );
 }
 
+function AdminAccessSettings() {
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Admin"
+        text="Interner Einstellungsbereich für App-Zugänge, Rollen und Sicherheitsprüfung."
+      />
+      <AccessUserManagement />
+      <RoleSecurityCheck />
+    </section>
+  );
+}
+
 function AdminKpiRules() {
   const persistedRules = useKpiRules();
   const [draft, setDraft] = useState<KpiRules>(() => persistedRules);
@@ -21089,11 +21106,9 @@ function AdminKpiRules() {
   return (
     <section className="space-y-5">
       <PageTitle
-        title="Admin / KPI-Regeln"
-        text="Interner Einstellungsbereich für App-Zugänge, Rollen, Status-Schwellenwerte und Zielerreichungslogik."
+        title="KPI-Regeln"
+        text="Interner Einstellungsbereich für Status-Schwellenwerte, Zielerreichungslogik, Vergleichsregeln und zentrale Stammdaten."
       />
-      <AccessUserManagement />
-      <RoleSecurityCheck />
       <ComparisonRulebookAdmin />
       <TargetEbitdaSettings />
       <PracticeOpeningHoursSettings />
