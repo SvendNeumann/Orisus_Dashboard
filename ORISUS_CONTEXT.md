@@ -508,6 +508,11 @@ Statische Kaufpreise und Earn-Outs:
 - Huettenberg:
   - Kaufpreis Upfront: 552.500 EUR
   - Earn-Out max.: 297.500 EUR
+- Kassel:
+  - Kaufpreis Upfront: 1.575.000 EUR
+  - Earn-Out max.: 675.000 EUR
+  - Gesamtkaufpreis inkl. Earn-Out-Potenzial: 2.250.000 EUR
+  - Aufgenommenes Fremdkapital: 1.851.400 EUR
 
 Earn-Out-Logik:
 
