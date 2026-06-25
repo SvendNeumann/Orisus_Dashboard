@@ -117,6 +117,7 @@ type Page =
   | "bwa"
   | "cashflow"
   | "darlehen"
+  | "christian-henrici-info"
   | "christian-henrici-abrufdarlehen"
   | "banken"
   | "board"
@@ -1722,11 +1723,6 @@ const navSections = [
     ]
   },
   {
-    id: "christian-henrici",
-    label: "Christian Henrici",
-    items: [{ id: "christian-henrici-abrufdarlehen", label: "Abrufdarlehen", icon: Banknote }]
-  },
-  {
     id: "patients",
     label: "Patienten",
     items: [{ id: "patienten-auswertungen", label: "Auswertungen", icon: Stethoscope }]
@@ -1748,6 +1744,14 @@ const navSections = [
       { id: "personal-upload", label: "Personal-Upload", icon: FileUp },
       { id: "reports", label: "Reports", icon: FileBarChart },
       { id: "admin", label: "Admin / KPI-Regeln", icon: Lock }
+    ]
+  },
+  {
+    id: "christian-henrici",
+    label: "Christian Henrici",
+    items: [
+      { id: "christian-henrici-info", label: "Allgemeine Informationen", icon: Info },
+      { id: "christian-henrici-abrufdarlehen", label: "Abrufdarlehen", icon: Banknote }
     ]
   }
 ] as const;
@@ -1772,6 +1776,7 @@ const appPageIds: Page[] = [
   "bwa",
   "cashflow",
   "darlehen",
+  "christian-henrici-info",
   "christian-henrici-abrufdarlehen",
   "banken",
   "board",
@@ -1787,7 +1792,7 @@ const appPageIds: Page[] = [
 ];
 
 const praxisManagementPages: Page[] = ["personal-krankheit", "personal-mitarbeiter", "personal-massnahmen"];
-const christianHenriciPages: Page[] = ["christian-henrici-abrufdarlehen"];
+const christianHenriciPages: Page[] = ["christian-henrici-info", "christian-henrici-abrufdarlehen"];
 
 function pagesForRole(role: UserRole): Page[] {
   if (role === "admin") return appPageIds;
@@ -4185,6 +4190,7 @@ export default function HomePage() {
           {effectiveImportedData && page === "bwa" && <Bwa importedData={effectiveImportedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
           {effectiveImportedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "darlehen" && <Darlehen sites={dashboardSites} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "christian-henrici-info" && <ChristianHenriciInfo sites={dashboardSites} />}
           {effectiveImportedData && page === "christian-henrici-abrufdarlehen" && <ChristianHenriciAbrufdarlehen />}
           {effectiveImportedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} />}
           {effectiveImportedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
@@ -15818,6 +15824,126 @@ const christianHenriciAbrufdarlehen = [
   { site: "Kassel", value: 100000 }
 ] as const;
 
+function christianHenriciAbrufdarlehenForSite(siteName: string) {
+  return christianHenriciAbrufdarlehen.find((row) => siteIdForName(row.site) === siteIdForName(siteName))?.value ?? 0;
+}
+
+function christianHenriciInfoRows(sites: DashboardSite[]) {
+  const bySiteId = new Map<string, DashboardSite>();
+  [...standorte, ...sites].forEach((site) => bySiteId.set(site.id, site));
+  christianHenriciAbrufdarlehen.forEach((row) => {
+    const siteId = siteIdForName(row.site);
+    if (!bySiteId.has(siteId)) {
+      const fallback = standorte.find((site) => site.id === siteId);
+      if (fallback) bySiteId.set(siteId, fallback);
+    }
+  });
+
+  return sortSitesByContractStart(Array.from(bySiteId.values())).map((site) => {
+    const directPaid = site.darlehen.kaufpreis;
+    const earnOutPotential = site.darlehen.earnOutGesamt;
+    const totalPurchasePotential = directPaid + earnOutPotential;
+    return {
+      site,
+      abrufdarlehen: christianHenriciAbrufdarlehenForSite(site.name),
+      targetEbitdaKvPa: site.darlehen.zielEbitdaKaufvertragPa ?? 0,
+      totalPurchasePotential,
+      directPaid,
+      debt: site.darlehen.darlehen,
+      repaid: site.darlehen.tilgung,
+      remaining: site.darlehen.restschuld
+    };
+  });
+}
+
+function ChristianHenriciInfo({ sites }: { sites: DashboardSite[] }) {
+  const rows = christianHenriciInfoRows(sites);
+  const totals = rows.reduce(
+    (sum, row) => ({
+      abrufdarlehen: sum.abrufdarlehen + row.abrufdarlehen,
+      totalPurchasePotential: sum.totalPurchasePotential + row.totalPurchasePotential,
+      directPaid: sum.directPaid + row.directPaid,
+      debt: sum.debt + row.debt,
+      repaid: sum.repaid + row.repaid,
+      remaining: sum.remaining + row.remaining
+    }),
+    { abrufdarlehen: 0, totalPurchasePotential: 0, directPaid: 0, debt: 0, repaid: 0, remaining: 0 }
+  );
+
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Christian Henrici"
+        text="Allgemeine Investorübersicht je Standort. Abrufdarlehen sind statisch hinterlegt; Kaufpreise, Fremdkapital, Tilgung und Restschuld laufen aus den vorhandenen Standort-/Importdaten mit."
+      />
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Abrufdarlehen" value={totals.abrufdarlehen} delta="statisch hinterlegt" icon={Banknote} status="green" />
+        <KpiCard label="Direkt bezahlt / Upfront" value={totals.directPaid} delta="Kaufpreis-Upfront gesamt" icon={BadgeEuro} status="green" />
+        <KpiCard label="Fremdkapital aufgenommen" value={totals.debt} delta={`${eur(totals.repaid, true)} getilgt`} icon={Landmark} status="yellow" />
+        <KpiCard label="Restschuld" value={totals.remaining} delta="aktueller Import-/Stammdatenstand" icon={ShieldCheck} status="yellow" />
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Allgemeine Informationen | Christian Henrici</h2>
+          <p className="mt-1 text-sm text-white/80">
+            Sortiert nach Vertragsstart. Ziel-EBITDA Kaufvertrag wird als p.a.-Stammdatenwert gezeigt.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[78rem] text-sm">
+            <thead>
+              <tr className="bg-[#0f8b96]/90 text-left text-white">
+                {[
+                  "Standort",
+                  "Vertragsstart",
+                  "Abrufdarlehen",
+                  "Ziel-EBITDA KV p.a.",
+                  "Kaufpreis inkl. Earn-Out-Potenzial",
+                  "Direkt bezahlt / Upfront",
+                  "Fremdkapital aufgenommen",
+                  "Bereits getilgt",
+                  "Restschuld"
+                ].map((head) => (
+                  <th key={head} className="border-r border-white/15 p-3 text-xs font-bold uppercase last:border-r-0">
+                    {head}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.site.id} className="border-t border-border">
+                  <td className="border-r border-border p-3 font-bold">{row.site.name}</td>
+                  <td className="border-r border-border p-3">{row.site.start}</td>
+                  <td className="border-r border-border p-3 text-right font-semibold">{eur(row.abrufdarlehen)}</td>
+                  <td className="border-r border-border p-3 text-right">{row.targetEbitdaKvPa ? eur(row.targetEbitdaKvPa) : "-"}</td>
+                  <td className="border-r border-border p-3 text-right">{eur(row.totalPurchasePotential)}</td>
+                  <td className="border-r border-border p-3 text-right font-semibold">{eur(row.directPaid)}</td>
+                  <td className="border-r border-border p-3 text-right">{eur(row.debt)}</td>
+                  <td className="border-r border-border p-3 text-right text-emerald-700">{eur(row.repaid)}</td>
+                  <td className="p-3 text-right font-semibold">{eur(row.remaining)}</td>
+                </tr>
+              ))}
+              <tr className="border-t border-border bg-white/15">
+                <td className="border-r border-border p-3 font-extrabold" colSpan={2}>Gesamt</td>
+                <td className="border-r border-border p-3 text-right font-extrabold">{eur(totals.abrufdarlehen)}</td>
+                <td className="border-r border-border p-3 text-right font-semibold text-muted-foreground">-</td>
+                <td className="border-r border-border p-3 text-right font-extrabold">{eur(totals.totalPurchasePotential)}</td>
+                <td className="border-r border-border p-3 text-right font-extrabold">{eur(totals.directPaid)}</td>
+                <td className="border-r border-border p-3 text-right font-extrabold">{eur(totals.debt)}</td>
+                <td className="border-r border-border p-3 text-right font-extrabold text-emerald-700">{eur(totals.repaid)}</td>
+                <td className="p-3 text-right font-extrabold text-primary">{eur(totals.remaining)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </section>
+  );
+}
+
 function ChristianHenriciAbrufdarlehen() {
   const total = christianHenriciAbrufdarlehen.reduce((sum, row) => sum + row.value, 0);
   return (
@@ -18007,7 +18133,8 @@ function isExcludedFromPersonnelCostAggregation(name: string) {
 }
 
 function isInactivePersonnelCostStatus(status: string) {
-  return normalizeMetric(status).includes("inaktiv");
+  const normalized = normalizeMetric(status);
+  return ["inaktiv", "ausgetreten", "gekuendigt", "gekundigt"].some((term) => normalized.includes(term));
 }
 
 function personnelCostExitDate(activePeriod: string | undefined) {

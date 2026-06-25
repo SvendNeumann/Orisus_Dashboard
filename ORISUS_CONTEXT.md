@@ -155,6 +155,9 @@ Navigation wurde gruppiert:
   - Personal-Upload
   - Reports
   - Admin / KPI-Regeln
+- Christian Henrici
+  - Allgemeine Informationen
+  - Abrufdarlehen
 
 Aktuelle wichtige Live-Ergaenzungen:
 
@@ -1221,7 +1224,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Admin-Bereich enthaelt einen kompakten Rollen- und Sicherheitscheck.
   - Admin-API prueft aktive Admin-Rolle serverseitig, nutzt Service Role nur serverseitig und hat Same-Origin-/Rate-Limit-Schutz.
   - Praxismanagement bekommt nur Personalbereiche und keine CFO-/Finanzimportdaten in den App-State.
-  - Menuebereich `Christian Henrici` mit Tab `Abrufdarlehen` ist nur fuer Rollen `Admin` und `Info` vorgesehen; Praxismanagement darf diesen Bereich nicht sehen.
+  - Menuebereich `Christian Henrici` steht als letzter Hauptbereich unter Administration und ist nur fuer Rollen `Admin` und `Info` vorgesehen; Praxismanagement darf diesen Bereich nicht sehen.
+  - Untertab `Allgemeine Informationen` zeigt je Standort Vertragsstart, statisches Abrufdarlehen, Ziel-EBITDA Kaufvertrag p.a., Kaufpreis inkl. Earn-Out-Potenzial, direkt bezahlten Upfront-Kaufpreis, aufgenommenes Fremdkapital, Tilgung und Restschuld.
   - Abrufdarlehen Christian Henrici sind statisch im Code hinterlegt, nicht importiert: Kirchberg 125.000 EUR, Essen 80.000 EUR, Kehl 150.000 EUR, Ulmet 230.000 EUR, Huettenberg 100.000 EUR, Kassel 100.000 EUR; Gesamt 785.000 EUR.
   - Supabase-RLS/Policies bleiben als separate Datenbank-Pruefung relevant und duerfen nicht durch reine UI-Sichtbarkeit ersetzt werden.
 - Statusueberarbeitung:
