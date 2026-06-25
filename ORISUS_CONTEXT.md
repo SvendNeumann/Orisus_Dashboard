@@ -187,6 +187,10 @@ Aktuelle wichtige Live-Ergaenzungen:
   - erwarteter Earn-Out Run-Rate
   - erwartete Wachstumszahlung Run-Rate
   - erwartete Gesamtzahlung nach Vertragsende
+- Orisus Board Aufraeumung:
+  - Das fruehere `Status-Center | aktueller Stand` ist entfernt.
+  - Kostenquote und Kapitaldienstfaehigkeit werden als normale KPI-Kacheln oben im Orisus Board angezeigt.
+  - Orisus Insights stehen im unteren Analysebereich neben dem Kostenquoten-Donut.
 - Orisus Board Diagramm `Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Uebernahme`:
   - Ist-EBITDA und Ziel-Linien laufen nur ueber aktive Ist-BWA-Monate mit echtem Wert seit jeweiligem Vertragsstart bis zum aktuellen BWA-Datenstand.
   - Ziel-Linien duerfen nicht als gesamte Vertragsperiode oder voller Zukunftszielwert gezeigt werden.
@@ -229,7 +233,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Sichtbare Labels: `Stabil`, `Beobachten`, `Auffaellig`.
   - `Handlungsbedarf` soll nicht mehr verwendet werden.
   - `Kritische Standorte` heissen sichtbar `Fokus-Standorte`.
-  - Fruehere farbliche Steuerungslogik heisst sichtbar `Status-Center`.
+  - Das fruehere `Status-Center` im Orisus Board wurde entfernt; Statussignale bleiben in KPI-Kacheln und Fachreitern sichtbar.
   - In Reports wird von `Status` bzw. `Statusfarben` gesprochen.
 
 Mobile Bottom-Navigation, gewuenschte Reihenfolge:

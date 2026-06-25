@@ -6110,10 +6110,8 @@ function Cockpit({
         <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
           <CostShareDonut sites={sites} />
         </ChartCard>
-        <TrafficLights sites={sites} monthlyData={monthlyData} />
+        <Insights setPage={setPage} />
       </div>
-
-      <Insights setPage={setPage} />
     </section>
   );
 }
@@ -6557,6 +6555,44 @@ function DailyCfoCockpit({
       )
     },
     {
+      label: "Kostenquote | seit Vertragsstart",
+      value: metrics.kostenquote,
+      percent: true,
+      delta: "Material, Fremdlabor und sonstige Kosten",
+      icon: PieIcon,
+      status: statusByRule(metrics.kostenquote, rules.kostenquote),
+      info: (
+        <div className="space-y-2">
+          <p className="font-bold text-slate-900">Herleitung Kostenquote</p>
+          <p>
+            Die Kostenquote zeigt den Anteil der operativen Kostenblöcke am Umsatz. Niedriger ist besser.
+          </p>
+          <InfoTextLine label="Kostenquote" value={pct(metrics.kostenquote)} strong />
+          <InfoTextLine label="Statusregel" value={`grün ${kpiRuleText(rules.kostenquote, "green")}`} />
+        </div>
+      )
+    },
+    {
+      label: "Kapitaldienstfähigkeit | seit Vertragsstart",
+      value: metrics.kapitaldienstfaehigkeit,
+      plain: true,
+      valueLabel: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
+      delta: "EBITDA / Tilgung plus Zins",
+      icon: Gauge,
+      status: statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
+      info: (
+        <div className="space-y-2">
+          <p className="font-bold text-slate-900">Herleitung Kapitaldienstfähigkeit</p>
+          <p>
+            Die Kennzahl zeigt, wie oft der Kapitaldienst aus Tilgung plus Zins durch das EBITDA gedeckt ist.
+          </p>
+          <InfoTextLine label="Kapitaldienstfähigkeit" value={`${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`} strong />
+          <InfoTextLine label="Berechnung" value="EBITDA / Tilgung plus Zins" />
+          <InfoTextLine label="Statusregel" value={`grün ${kpiRuleText(rules.kapitaldienstfaehigkeit, "green")}`} />
+        </div>
+      )
+    },
+    {
       label: "Erwartete Gesamtzahlung | nach Vertragsende",
       value: expectedTotalPayment,
       delta: "Earn-Out plus Wachstumszahlung",
@@ -6570,10 +6606,12 @@ function DailyCfoCockpit({
     delta: string;
     icon: React.ComponentType<{ className?: string }>;
     plain?: boolean;
+    percent?: boolean;
     status: Status;
     control?: React.ReactNode;
     info?: React.ReactNode;
     sparkline?: { label: string; value: number }[];
+    valueLabel?: string;
   }>;
 
   return (
@@ -6611,6 +6649,7 @@ function KpiCard({
   status,
   control,
   secondaryValue,
+  valueLabel,
   info,
   sparkline,
   sparklineFormat = "currency",
@@ -6626,6 +6665,7 @@ function KpiCard({
   status: Status;
   control?: React.ReactNode;
   secondaryValue?: React.ReactNode;
+  valueLabel?: string;
   info?: React.ReactNode;
   sparkline?: { label: string; value: number }[];
   sparklineFormat?: "currency" | "percent" | "plain";
@@ -6659,7 +6699,7 @@ function KpiCard({
         </div>
         <p className={cn("max-w-full font-semibold text-muted-foreground", featured ? "mt-4 text-sm" : "mt-3 text-xs")}>{label}</p>
         {control ? <div className="mt-3 w-full max-w-[15rem]">{control}</div> : null}
-        <p className={cn("mt-1 font-extrabold text-white", featured ? "text-3xl" : "text-2xl")}>{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
+        <p className={cn("mt-1 font-extrabold text-white", featured ? "text-3xl" : "text-2xl")}>{valueLabel ?? (plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true))}</p>
         {secondaryValue ? <p className="mt-1 text-sm font-bold text-slate-200">{secondaryValue}</p> : null}
         {sparkline?.length ? (
           <div className="mt-2 w-full max-w-[13rem]">
@@ -7397,57 +7437,6 @@ function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
             </div>
           );
         })}
-      </div>
-    </Card>
-  );
-}
-
-function TrafficLights({ sites = standorte, monthlyData = monthly }: { sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
-  const rules = useKpiRules();
-  const metrics = cfoMetrics(sites, monthlyData, rules);
-  const rows = [
-    {
-      label: "EBITDA-Marge Konzern",
-      value: pct(metrics.ebitdaMarge),
-      progress: Math.min(Math.max((metrics.ebitdaMarge / Math.max(rules.ebitda_marge.green, 1)) * 100, 0), 100),
-      status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge),
-      rule: `grün ${kpiRuleText(rules.ebitda_marge, "green")}, gelb ${kpiRuleText(rules.ebitda_marge, "yellow")}`
-    },
-    {
-      label: "Kostenquote",
-      value: pct(metrics.kostenquote),
-      progress: Math.min(Math.max((metrics.kostenquote / Math.max(rules.kostenquote.yellow, 1)) * 100, 0), 100),
-      status: statusByRule(metrics.kostenquote, rules.kostenquote),
-      rule: `Material, Fremdlabor und sonstige Kosten | grün ${kpiRuleText(rules.kostenquote, "green")}`
-    },
-    {
-      label: "Kapitaldienstfähigkeit",
-      value: `${metrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
-      progress: Math.min(Math.max((metrics.kapitaldienstfaehigkeit / Math.max(rules.kapitaldienstfaehigkeit.green, 0.1)) * 100, 0), 100),
-      status: statusByRule(metrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
-      rule: `EBITDA / Tilgung plus Zins | grün ${kpiRuleText(rules.kapitaldienstfaehigkeit, "green")}`
-    }
-  ] satisfies Array<{ label: string; value: string; progress: number; status: Status; rule: string }>;
-  return (
-    <Card className="h-full p-4">
-      <h2 className="font-bold">Status-Center | aktueller Stand</h2>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {rows.map((row) => (
-          <div key={row.label} className="rounded-xl border border-white/12 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold">{row.label}</p>
-              <StatusDot status={row.status} />
-            </div>
-            <p className="mt-2 text-lg font-bold">{row.value}</p>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950/35">
-              <div
-                className={cn("h-full rounded-full", row.status === "green" ? "bg-emerald-400" : row.status === "yellow" ? "bg-amber-400" : "bg-red-400")}
-                style={{ width: `${row.progress}%` }}
-              />
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">{row.rule}</p>
-          </div>
-        ))}
       </div>
     </Card>
   );
