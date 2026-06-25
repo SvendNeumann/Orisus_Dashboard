@@ -266,6 +266,8 @@ App nach Login:
   - Chart-Karten mit eigener Chart-Flaeche, dezenter Tiefe und modernisierten Recharts-Farbverlaeufen.
   - CFO-Cockpit zusaetzlich mit `Management-Fokus` als kurzer Lesestrecke fuer Ergebnisqualitaet, Zielabweichung, Forderungen und Cashflow-Fokus.
   - Modernisierte Chart-Optik ist auf zentrale Dashboard-Charts ausgeweitet: CFO Cockpit, Standortdetails, BWA, Orisus Performance, Bankenreporting und Personal-/Produktivitaetsdiagramme.
+  - Zentrale Tabs erhalten einen kurzen `Startueberblick` oberhalb der Detailbereiche. Dieser ist in `Management` und `Analyse` sichtbar und zeigt 3-4 wesentliche Steuerungswerte; Detailtabellen bleiben darunter unveraendert und werden nur ueber `analysis-only` gesteuert.
+  - Ausnahme: Bereich `Christian Henrici` bleibt in seiner bestehenden Detailstruktur unangetastet, damit alle Investorinformationen im Analysemodus wie bisher voll sichtbar bleiben.
 - Ziel der UI-Ordnung:
   - oben Entscheidungsebene
   - darunter Hauptdiagramm/Haupttabelle
@@ -289,6 +291,7 @@ App nach Login:
   - Fachliche Erklaerungen zu Diagrammen sollen nicht in die Chartflaeche gelegt werden, sondern dezent per klickbarem `!` in der Diagramm-Kopfzeile erscheinen.
 - Desktop-Layouts muessen rahmen- und kachelbuendig sein. Diagrammkarten sollen in der Breite konsistent wirken.
 - Mobile Layouts muessen mit App-Abstaenden arbeiten; keine nahtlosen Uebergaenge zwischen Kachel- und Tabellenbereichen.
+- Mobile KPI-/Chart-Kacheln muessen kompakter skalieren, lange Werte umbrechen duerfen, Status-Badges nicht ueberlappen und Chartflaechen muessen ohne horizontales Layoutchaos stabil bleiben.
 - Status-Badges in KPI-Kacheln duerfen nicht ins Logo/Icon oder in den Kachelrand laufen.
 - Statussprache:
   - Gruen = `Stabil`
@@ -1015,6 +1018,7 @@ Reports sollen:
 - Report-Header duerfen keine internen Arbeitstitel wie `Orisus CFO Dashboard` verwenden.
 - Stattdessen klare externe Titel verwenden, z. B. `Monatsreport`, `Management-Report`, `Standortleiter-PMR`, inkl. Zeitraum/Standort.
 - PDF-Reports duerfen nicht wie die App wirken, sondern sollen druckfertig und professionell fuer Empfaenger sein.
+- PMR-/Benchmarking-Reports sollen optisch an die modernisierte App angelehnt sein, aber als professionelle Management-Unterlage wirken: klarer Kopfbereich, ruhige KPI-Karten, strukturierte Abschnittskoepfe, weniger Tabellenblatt-Anmutung.
 
 Aktuell sichtbare Report-Auswahl:
 

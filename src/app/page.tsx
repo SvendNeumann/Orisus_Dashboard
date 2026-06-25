@@ -7447,13 +7447,13 @@ function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void
 function Mini({ label, value, info }: { label: string; value: string; info?: React.ReactNode }) {
   const [infoOpen, setInfoOpen] = useState(false);
   return (
-    <div className="relative flex min-h-24 flex-col items-center justify-center rounded-md bg-slate-50 p-4 text-center">
+    <div className="relative flex min-h-24 flex-col items-center justify-center rounded-lg border border-white/12 bg-slate-950/35 p-4 text-center shadow-inner">
       <div className="flex items-center justify-center gap-2">
-        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+        <p className="text-xs font-semibold text-slate-300">{label}</p>
         {info ? (
           <button
             type="button"
-            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border bg-white text-cyan-800 shadow-sm transition hover:bg-cyan-50"
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/8 text-cyan-100 shadow-sm transition hover:bg-white/14"
             aria-label={`${label} erklären`}
             onClick={() => setInfoOpen((open) => !open)}
           >
@@ -7461,13 +7461,59 @@ function Mini({ label, value, info }: { label: string; value: string; info?: Rea
           </button>
         ) : null}
       </div>
-      <p className="mt-2 break-words font-bold">{value}</p>
+      <p className="mt-2 break-words font-bold text-white">{value}</p>
       {infoOpen && info ? (
         <InfoDialog title={label} onClose={() => setInfoOpen(false)}>
           {info}
         </InfoDialog>
       ) : null}
     </div>
+  );
+}
+
+function TabExecutiveSummary({
+  title,
+  text,
+  items
+}: {
+  title: string;
+  text: string;
+  items: Array<{
+    label: string;
+    value: string;
+    detail: string;
+    status?: Status;
+    icon?: React.ComponentType<{ className?: string }>;
+  }>;
+}) {
+  return (
+    <Card className="tab-start-card overflow-hidden p-4">
+      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.55fr]">
+        <div className="rounded-xl border border-white/12 bg-slate-950/28 p-4">
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#55e6dd]">Startüberblick</p>
+          <h2 className="mt-2 text-xl font-extrabold text-white">{title}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
+        </div>
+        <div className="tab-start-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {items.map((item) => {
+            const Icon = item.icon ?? Gauge;
+            return (
+              <div key={item.label} className="rounded-xl border border-white/12 bg-white/6 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#30d5c8]/25 bg-[#30d5c8]/12 text-[#73f2e8]">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  {item.status ? <StatusDot status={item.status} /> : null}
+                </div>
+                <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+                <p className="mt-1 text-2xl font-extrabold tracking-tight text-white">{item.value}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-300">{item.detail}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -11612,6 +11658,16 @@ function OrisusPerformance({
         title="Orisus Performance"
         text="Operative Performance der Gruppe: Umsatzentwicklung, Standortleistung, PVS, Forderungen und Cashflow gem. BWA."
       />
+      <TabExecutiveSummary
+        title="Operative Steuerung"
+        text="Management sieht zuerst die wichtigsten Ergebnis- und Liquiditätstreiber. Im Analysemodus bleiben die Detailtabellen zu PVS, Behandlerumsatz und Bankbewegungen darunter erhalten."
+        items={[
+          { label: "Gesamtleistung", value: eur(metrics.gesamtleistung, true), detail: "BWA / Vertragsperioden", status: "green", icon: TrendingUp },
+          { label: "PVS-Umsatz", value: eur(pvsTotal, true), detail: "Performance-Export", status: "green", icon: BadgeEuro },
+          { label: "EBITDA-Marge", value: pct(metrics.ebitdaMarge), detail: "EBITDA / Leistung", status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge), icon: Gauge },
+          { label: "Forderungen", value: eur(metrics.forderungen, true), detail: `${pct(receivablesRatio)} der Leistung`, status: statusByRule(receivablesRatio, rules.offene_forderungen), icon: FileBarChart }
+        ]}
+      />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <KpiCard label="Gesamtleistung" value={metrics.gesamtleistung} delta="seit Vertragsstart" icon={TrendingUp} status="green" info={performanceKpiInfo.grossPerformance} />
         <KpiCard label="PVS-Umsatz" value={pvsTotal} delta="PVS / Performance" icon={BadgeEuro} status="green" info={performanceKpiInfo.pvsRevenue} />
@@ -13276,6 +13332,11 @@ function Analysen({
       source: "Patienten"
     }
   ];
+  const benchmarkSummaryStatus = (label: string): Status => {
+    const row = benchmarkOverviewRows.find((item) => item.label === label);
+    const status = row ? benchmarkOverviewReportStatus(row) : "neutral";
+    return status === "neutral" ? "yellow" : status;
+  };
 
   const formatBenchmarkBasisValue = (value: number | null | undefined, type: "currency" | "percent") => {
     if (value == null || !Number.isFinite(value)) return "n. v.";
@@ -13764,6 +13825,17 @@ function Analysen({
           </Select>
         </FilterShell>
       </div>
+
+      <TabExecutiveSummary
+        title="Benchmarking-Fokus"
+        text="Oben steht der Standort gegen den Orisus-Durchschnitt. Normalisierte Kennzahlen werden monatlich vergleichbar gemacht; Detailtreiber, Scorecard und Basiswerte bleiben darunter erhalten."
+        items={[
+          { label: "Standort", value: displaySiteName, detail: period, status: "green", icon: Building2 },
+          { label: "EBITDA-Marge", value: pct(selectedRow?.ebitdaMargin ?? 0), detail: `Ø Orisus ${pct(marginGroup)}`, status: benchmarkSummaryStatus("EBITDA-Marge"), icon: TrendingUp },
+          { label: "Kostenquote", value: pct(selectedRow?.gesamtkostenquote ?? 0), detail: `Ø Orisus ${pct(costGroup.gesamtkostenquote)}`, status: benchmarkSummaryStatus("Gesamtkostenquote"), icon: PieIcon },
+          { label: "Vergleich", value: "Ø Orisus", detail: "ohne Doppelungen", status: "green", icon: BarChart3 }
+        ]}
+      />
 
       <BenchmarkOverviewTable
         rows={benchmarkOverviewRows}
@@ -14535,6 +14607,8 @@ function DriverLine({ label, value }: { label: string; value: number }) {
 }
 
 function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { importedData?: ImportedDashboardData | null; sites?: DashboardSite[]; monthlyData?: typeof monthly }) {
+  const rules = useKpiRules();
+  const metrics = cfoMetrics(sites);
   const chartPeriods = bwaPeriodOptionsFor(importedData);
   const [chartPeriod, setChartPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   useEffect(() => {
@@ -14547,6 +14621,16 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
   return (
     <section className="space-y-5">
       <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow gem. BWA, dynamisch nach Jahren und gesamter Periode auswählbar." />
+      <TabExecutiveSummary
+        title="BWA auf einen Blick"
+        text="Der Einstieg zeigt die zentrale BWA-Basis: Leistung, EBITDA, Cashflow und aktueller Datenstand. Detailbrücken und Tabellen bleiben darunter vollständig verfügbar."
+        items={[
+          { label: "Gesamtleistung", value: eur(metrics.gesamtleistung, true), detail: "seit Vertragsstart", status: "green", icon: ReceiptText },
+          { label: "EBITDA", value: eur(metrics.ebitda, true), detail: `${pct(metrics.ebitdaMarge)} Marge`, status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge), icon: TrendingUp },
+          { label: "Cashflow BWA", value: eur(metrics.cashflow, true), detail: "gem. BWA-Brücke", status: statusByRule(metrics.cashflow, rules.cashflow_bwa), icon: Wallet },
+          { label: "Datenstand", value: performancePeriodLabel(defaultBwaPeriodFor(importedData)), detail: "letzter bestätigter Import", status: importedData ? "green" : "yellow", icon: FileBarChart }
+        ]}
+      />
       <div className="analysis-only">
         <BwaStatement title="Konsolidierte BWA bis Cashflow gem. BWA" importedData={importedData} />
       </div>
@@ -14699,9 +14783,22 @@ function Cashflow({
   monthlyData?: typeof monthly;
   importedData?: ImportedDashboardData | null;
 }) {
+  const rules = useKpiRules();
+  const metrics = cfoMetrics(sites);
+  const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   return (
     <section className="space-y-5">
       <PageTitle title="Cashflow" text="Cashflow gem. BWA sowie Bank-Cashflow aus Praxiseingängen, Kosten, Annuitäten und Umbuchungen MVZ." />
+      <TabExecutiveSummary
+        title="Cashflow-Abgleich kompakt"
+        text="Der Start trennt BWA-Cashflow, Bankbestand und Forderungen. Der detaillierte Bank/BWA-Abgleich bleibt darunter mit Zeitraumlogik und Sondernotizen erhalten."
+        items={[
+          { label: "Cashflow gem. BWA", value: eur(metrics.cashflow, true), detail: "operativer BWA-Cashflow", status: statusByRule(metrics.cashflow, rules.cashflow_bwa), icon: Wallet },
+          { label: "Kontostand", value: eur(metrics.kontostand, true), detail: "aktueller Bankstand", status: metrics.kontostand >= 0 ? "green" : "red", icon: Landmark },
+          { label: "Offene Forderungen", value: eur(metrics.forderungen, true), detail: `${pct(receivablesRatio)} der Leistung`, status: statusByRule(receivablesRatio, rules.offene_forderungen), icon: ReceiptText },
+          { label: "Abgleich", value: "Bank vs. BWA", detail: "nur gleiche BWA-Zeiträume", status: "green", icon: BarChart3 }
+        ]}
+      />
       <CashflowBlock sites={sites} />
       <div className="analysis-only">
         <BankCashflowControlTable sites={sites} importedData={importedData} />
@@ -15606,6 +15703,16 @@ function Bankenreporting({
       <PageTitle
         title="Bankenreporting"
         text="Kreditgeber-Sicht auf Rückzahlungsfähigkeit, Cashflow-Qualität, Working Capital, Margen, Standortstreuung und operative Stabilität."
+      />
+      <TabExecutiveSummary
+        title="Bankensicht kompakt"
+        text="Die Kreditgeber-Perspektive beginnt mit Tragfähigkeit, Verschuldung, Cashflow-Qualität und Working Capital. Die Risikomatrix und Detailcharts bleiben darunter verfügbar."
+        items={[
+          { label: "Kapitaldienst", value: `${bankKpiMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "EBITDA / Tilgung + Zins", status: statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit), icon: Gauge },
+          { label: "Net Debt / EBITDA", value: `${bankKpiLeverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "Restschuld / Run-Rate", status: statusForLower(bankKpiLeverageRunRate, 2.5, 3.5), icon: Landmark },
+          { label: "Cashflow-Konversion", value: pct(bankKpiCashflowConversion), detail: "Cashflow / EBITDA", status: statusForHigher(bankKpiCashflowConversion, 50, 25), icon: Wallet },
+          { label: "Forderungsquote", value: pct(bankKpiReceivablesRatio), detail: "Working Capital", status: statusByRule(bankKpiReceivablesRatio, rules.offene_forderungen), icon: ReceiptText }
+        ]}
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {bankKpis.map((kpi) => (
@@ -16519,6 +16626,16 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
   return (
     <section className="space-y-5">
       <PageTitle title="Darlehen & Earn-Out" text="Kaufpreise, Restschulden, Zins, Tilgung und Earn-Out-Fortschritt je Standort." />
+      <TabExecutiveSummary
+        title="Finanzierungsstatus"
+        text="Die Kachel trennt Restschuld, offene Earn-Outs und erwartete Verpflichtung. Die Vertragsperioden-Details bleiben im Analysebereich darunter."
+        items={[
+          { label: "Restschuld", value: eur(restschuld, true), detail: "konsolidiert", status: "yellow", icon: Landmark },
+          { label: "Earn-Out offen", value: eur(earnOut, true), detail: `${eur(earnOutDueNow, true)} aktuell fällig`, status: earnOutDueNow > 0 ? "yellow" : "green", icon: BadgeEuro },
+          { label: "Erwartet", value: eur(expectedObligation, true), detail: "Earn-Out + Wachstum", status: expectedObligation > 0 ? "yellow" : "green", icon: TrendingUp },
+          { label: "Tilgung", value: eur(tilgung, true), detail: "laufend bedient", status: "green", icon: ShieldCheck }
+        ]}
+      />
       <DebtCapitalBlock sites={sites} />
       <EarnOutSummary sites={sites} period={earnOutPeriod} />
       <div className="grid gap-4 lg:grid-cols-4">
@@ -18611,19 +18728,22 @@ function buildReportDocument({
         body {
           margin: 0;
           color: #12212f;
-          background: #eef5f6;
+          background:
+            radial-gradient(circle at 18% 0%, rgba(20, 184, 166, .14), transparent 30%),
+            linear-gradient(180deg, #edf7f8 0%, #f8fbfc 42%, #edf4f6 100%);
           font-family: Inter, Arial, Helvetica, sans-serif;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
         .report-page { min-height: calc(100vh - 22mm); display: flex; flex-direction: column; gap: 12px; }
         .hero {
-          border-radius: 18px;
-          padding: 18px 22px;
+          border-radius: 20px;
+          padding: 19px 23px;
           color: white;
-          background: radial-gradient(circle at 18% 0%, rgba(34, 211, 197, .22), transparent 34%),
-            linear-gradient(135deg, #061622 0%, #0b2d3a 48%, #0f6670 100%);
-          border: 1px solid rgba(255,255,255,.18);
+          background: radial-gradient(circle at 20% 0%, rgba(61, 220, 205, .28), transparent 36%),
+            linear-gradient(135deg, #05131f 0%, #082b38 45%, #0f7580 100%);
+          border: 1px solid rgba(255,255,255,.2);
+          box-shadow: 0 18px 44px rgba(8, 35, 45, .18);
         }
         .eyebrow { color: #4de3d6; font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
         h1 { margin: 8px 0 6px; font-size: ${orientation === "landscape" ? "25px" : "22px"}; line-height: 1.1; }
@@ -18633,11 +18753,21 @@ function buildReportDocument({
         .kpi-grid { display: grid; grid-template-columns: repeat(${orientation === "landscape" ? 6 : 3}, 1fr); gap: 8px; }
         .kpi-card {
           min-height: 72px;
-          border-radius: 13px;
+          border-radius: 14px;
           padding: 10px 12px;
-          background: #ffffff;
-          border: 1px solid #d5e0e5;
-          box-shadow: 0 8px 22px rgba(9, 36, 47, .07);
+          background: linear-gradient(180deg, #ffffff 0%, #f4fafb 100%);
+          border: 1px solid #cfe0e6;
+          box-shadow: 0 10px 26px rgba(9, 36, 47, .08);
+          position: relative;
+          overflow: hidden;
+        }
+        .kpi-card:before {
+          content: "";
+          position: absolute;
+          inset: 0 0 auto 0;
+          height: 3px;
+          background: linear-gradient(90deg, #14b8a6, #0f8794);
+          opacity: .78;
         }
         .kpi-card.green { border-left: 4px solid #13b981; }
         .kpi-card.yellow { border-left: 4px solid #f59e0b; }
@@ -18649,14 +18779,14 @@ function buildReportDocument({
         .report-section {
           border-radius: 16px;
           overflow: hidden;
-          background: white;
-          border: 1px solid #d5e0e5;
-          box-shadow: 0 8px 22px rgba(9, 36, 47, .06);
+          background: rgba(255,255,255,.98);
+          border: 1px solid #cddfe6;
+          box-shadow: 0 10px 28px rgba(9, 36, 47, .07);
           break-inside: avoid;
         }
         .section-head {
-          padding: 10px 13px;
-          background: linear-gradient(135deg, #0e4e5e, #107685);
+          padding: 11px 14px;
+          background: linear-gradient(135deg, #083342, #0f8290);
           color: white;
         }
         .section-head h2 { margin: 0; font-size: 14px; }
@@ -18702,11 +18832,13 @@ function buildReportDocument({
           grid-template-columns: 190px 1fr 150px;
           gap: 14px;
           align-items: center;
-          border-radius: 16px;
+          border-radius: 18px;
           padding: 12px 16px;
           color: white;
-          background: linear-gradient(135deg, #05254a 0%, #0b3556 52%, #0f6670 100%);
+          background: radial-gradient(circle at 16% 0%, rgba(61, 220, 205, .22), transparent 36%),
+            linear-gradient(135deg, #04182a 0%, #0a3550 52%, #0f7480 100%);
           border: 1px solid rgba(255,255,255,.18);
+          box-shadow: 0 14px 34px rgba(5, 28, 42, .14);
         }
         .pmr-logo img { width: 165px; max-height: 54px; object-fit: contain; filter: brightness(0) invert(1); }
         .pmr-header h1 { margin: 3px 0 3px; font-size: ${orientation === "landscape" ? "22px" : "19px"}; }
@@ -18721,14 +18853,15 @@ function buildReportDocument({
           overflow: hidden;
           border-radius: 14px;
           border: 1px solid #cbdce4;
-          background: white;
+          background: #ffffff;
+          box-shadow: 0 7px 18px rgba(8, 35, 45, .055);
           break-inside: avoid;
         }
         .pmr-section h2 {
           margin: 0;
           padding: 7px 9px;
           color: white;
-          background: linear-gradient(135deg, #073e63, #0c7481);
+          background: linear-gradient(135deg, #07364f, #0d7d88);
           font-size: 11.5px;
         }
         .pmr-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: ${orientation === "landscape" ? "8.1px" : "7.1px"}; }
@@ -18865,7 +18998,8 @@ function buildReportDocument({
           border-radius: 10px;
           padding: 7px 10px;
           color: white;
-          background: linear-gradient(135deg, #05254a 0%, #0b3556 52%, #0f6670 100%);
+          background: radial-gradient(circle at 16% 0%, rgba(61, 220, 205, .2), transparent 36%),
+            linear-gradient(135deg, #04182a 0%, #0a3550 52%, #0f7480 100%);
           border: 1px solid rgba(255,255,255,.18);
         }
         .pmr-benchmark-header img { width: 130px; max-height: 39px; object-fit: contain; filter: brightness(0) invert(1); }
@@ -20409,6 +20543,16 @@ function Reports({
       <PageTitle
         title="Reports"
         text="Druckfertige farbige CFO- und Standortleiter-Reports. Die Ausgabe öffnet als eigenes Drucklayout und kann direkt als PDF gespeichert oder gedruckt werden."
+      />
+      <TabExecutiveSummary
+        title="Report-Center"
+        text="Der PMR-Report bleibt vollständig, wird aber stärker als Management-Dokument geführt: klare Kopfleiste, kompakter Kennzahlenblock und Benchmarking-Anlage."
+        items={[
+          { label: "Datenbasis", value: importedData ? "Import aktiv" : "Noch offen", detail: "bestätigter CFO-Import", status: importedData ? "green" : "yellow", icon: FileUp },
+          { label: "Standorte", value: String(activeReportSites.length), detail: "nach Vertragsstart", status: "green", icon: Building2 },
+          { label: "PMR", value: "A4 quer", detail: "Standortleiter-Report", status: "green", icon: FileBarChart },
+          { label: "Ausgabe", value: "PDF", detail: "Drucklayout", status: "green", icon: ReceiptText }
+        ]}
       />
       <Card className="p-4">
         <div className="grid gap-3 md:grid-cols-4">

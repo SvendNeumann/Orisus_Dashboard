@@ -488,6 +488,19 @@ select {
   vertical-align: middle;
 }
 
+.tab-start-card {
+  background:
+    radial-gradient(circle at 15% 0%, rgba(48, 213, 200, 0.14), transparent 34%),
+    linear-gradient(135deg, rgba(7, 28, 42, 0.92), rgba(10, 50, 62, 0.82)) !important;
+}
+
+.tab-start-grid > div,
+.modern-kpi-card,
+.chart-card,
+.app-shell .card {
+  overflow-wrap: anywhere;
+}
+
 .table-label-col {
   min-width: clamp(13rem, 24vw, 20rem);
   max-width: clamp(14rem, 30vw, 24rem);
@@ -503,6 +516,77 @@ select {
 }
 
 @media (max-width: 640px) {
+  .app-main {
+    padding-bottom: calc(5.75rem + env(safe-area-inset-bottom));
+  }
+
+  .tab-start-card {
+    padding: 0.9rem !important;
+  }
+
+  .tab-start-card h2 {
+    font-size: 1.08rem;
+    line-height: 1.25;
+  }
+
+  .tab-start-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .tab-start-grid > div {
+    min-height: 7.25rem;
+    padding: 0.9rem !important;
+  }
+
+  .modern-kpi-card {
+    min-height: 10rem;
+    padding: 1rem !important;
+  }
+
+  .modern-kpi-card p {
+    max-width: 100%;
+  }
+
+  .modern-kpi-card .text-3xl {
+    font-size: 1.55rem !important;
+    line-height: 1.12 !important;
+  }
+
+  .modern-kpi-card .text-4xl {
+    font-size: 1.8rem !important;
+    line-height: 1.08 !important;
+  }
+
+  .modern-kpi-card select,
+  .chart-card select {
+    max-width: 100%;
+    font-size: 0.9rem;
+  }
+
+  .chart-card {
+    border-radius: 0.85rem !important;
+  }
+
+  .chart-card .recharts-responsive-container {
+    min-height: 240px;
+  }
+
+  .chart-surface {
+    min-height: 245px;
+    overflow-x: auto;
+    padding-left: 0.25rem !important;
+    padding-right: 0.25rem !important;
+  }
+
+  .chart-surface .recharts-wrapper {
+    min-width: 100%;
+  }
+
+  .app-shell .inline-flex.rounded-full {
+    max-width: 100%;
+    white-space: normal;
+  }
+
   .data-table {
     font-size: 0.78rem;
   }
