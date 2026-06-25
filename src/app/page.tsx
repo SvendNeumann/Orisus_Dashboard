@@ -183,6 +183,9 @@ const activeSiteStorageKey = "orisus-cfo-active-site";
 const kpiRulesSettingKey = "kpi_rules";
 const kpiRulesStorageKey = "orisus-cfo-kpi-rules";
 const kpiRulesChangedEventName = "orisus-cfo-kpi-rules-changed";
+const targetEbitdaSettingKey = "target_ebitda_overrides";
+const targetEbitdaStorageKey = "orisus-target-ebitda-overrides-v1";
+const targetEbitdaChangedEvent = "orisus-target-ebitda-overrides-changed";
 const permanentAdminEmail = "svend.neumann@orisus.de";
 const adminEmails = [
   permanentAdminEmail,
@@ -290,6 +293,24 @@ const acquisitionTermsBySiteId: Record<string, AcquisitionTerms> = {
     wachstumsfaktor: 0.3,
     zielEbitdaKaufvertragPa: 190000
   }
+};
+
+type TargetEbitdaOverride = {
+  kaufvertragPa: number | null;
+  uebernahmeMonthly: number | null;
+};
+
+const emptyTargetEbitdaOverride: TargetEbitdaOverride = {
+  kaufvertragPa: null,
+  uebernahmeMonthly: null
+};
+
+const defaultTargetEbitdaOverridesBySiteId: Record<string, TargetEbitdaOverride> = {
+  kirchberg: { ...emptyTargetEbitdaOverride },
+  essen: { ...emptyTargetEbitdaOverride },
+  kehl: { kaufvertragPa: null, uebernahmeMonthly: 20901 },
+  ulmet: { ...emptyTargetEbitdaOverride },
+  huettenberg: { ...emptyTargetEbitdaOverride }
 };
 
 const additionalDebtBySiteId: Record<string, number> = {
@@ -751,6 +772,202 @@ async function saveKpiRules(nextRules: KpiRules) {
     window.dispatchEvent(new Event(kpiRulesChangedEventName));
   }
   return saveSupabaseAppSetting(kpiRulesSettingKey, normalized);
+}
+
+function normalizeTargetEbitdaOverrides(input: Record<string, unknown> | null | undefined) {
+  const normalized = Object.fromEntries(
+    Object.entries(defaultTargetEbitdaOverridesBySiteId).map(([siteId, value]) => [siteId, { ...value }])
+  ) as Record<string, TargetEbitdaOverride>;
+
+  Object.entries(input ?? {}).forEach(([rawSiteId, rawValue]) => {
+    const siteId = siteIdForName(rawSiteId);
+    const value = rawValue && typeof rawValue === "object" ? (rawValue as Record<string, unknown>) : {};
+    const kaufvertragPa = asNumber(value.kaufvertragPa);
+    const uebernahmeMonthly = asNumber(value.uebernahmeMonthly);
+    normalized[siteId] = {
+      kaufvertragPa: kaufvertragPa != null && kaufvertragPa > 0 ? kaufvertragPa : null,
+      uebernahmeMonthly: uebernahmeMonthly != null && uebernahmeMonthly > 0 ? uebernahmeMonthly : null
+    };
+  });
+
+  return normalized;
+}
+
+function readTargetEbitdaOverrides() {
+  if (typeof window === "undefined") return normalizeTargetEbitdaOverrides(null);
+  try {
+    return normalizeTargetEbitdaOverrides(JSON.parse(window.localStorage.getItem(targetEbitdaStorageKey) ?? "{}"));
+  } catch {
+    return normalizeTargetEbitdaOverrides(null);
+  }
+}
+
+function useTargetEbitdaOverrides() {
+  const [targetEbitdaOverrides, setTargetEbitdaOverridesState] = useState<Record<string, TargetEbitdaOverride>>(() => readTargetEbitdaOverrides());
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      const cached = readTargetEbitdaOverrides();
+      setTargetEbitdaOverridesState(cached);
+      void loadSupabaseAppSetting<Record<string, unknown>>(targetEbitdaSettingKey).then((setting) => {
+        if (cancelled || !setting) return;
+        const normalized = normalizeTargetEbitdaOverrides(setting);
+        setTargetEbitdaOverridesState(normalized);
+        window.localStorage.setItem(targetEbitdaStorageKey, JSON.stringify(normalized));
+      });
+    };
+    load();
+    window.addEventListener("storage", load);
+    window.addEventListener(targetEbitdaChangedEvent, load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("storage", load);
+      window.removeEventListener(targetEbitdaChangedEvent, load);
+    };
+  }, []);
+
+  const setTargetEbitdaOverrides = (next: Record<string, TargetEbitdaOverride>) => {
+    const cleaned = normalizeTargetEbitdaOverrides(next);
+    setTargetEbitdaOverridesState(cleaned);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(targetEbitdaStorageKey, JSON.stringify(cleaned));
+      window.dispatchEvent(new Event(targetEbitdaChangedEvent));
+    }
+    return cleaned;
+  };
+
+  return { targetEbitdaOverrides, setTargetEbitdaOverrides };
+}
+
+function targetOverrideMonthlyValue(siteId: string, metricKey: string, overrides: Record<string, TargetEbitdaOverride>) {
+  const override = overrides[siteId];
+  if (!override) return null;
+  if (metricKey === "ziel_ebitda_kaufvertrag") return override.kaufvertragPa ? override.kaufvertragPa / 12 : null;
+  if (metricKey === "ziel_ebitda_uebernahme") return override.uebernahmeMonthly ?? null;
+  return null;
+}
+
+function retotalBwaRow(row: ImportedBwaRow): ImportedBwaRow {
+  const valuesByYear = Object.fromEntries(
+    Object.keys(row.hasDataByYear).map((yearKey) => {
+      const year = Number(yearKey);
+      const total = Array.from({ length: 12 }, (_, index) => index + 1).reduce(
+        (sum, month) => sum + (row.valuesByMonth[`${year}-${month}`] ?? 0),
+        0
+      );
+      return [yearKey, total];
+    })
+  );
+  const contractValue = Object.values(valuesByYear).reduce((sum, value) => sum + value, 0);
+  return { ...row, valuesByYear, contractValue };
+}
+
+function applyTargetEbitdaOverrides(
+  importedData: ImportedDashboardData | null,
+  overrides: Record<string, TargetEbitdaOverride>
+): ImportedDashboardData | null {
+  if (!importedData?.bwaRows?.length) return importedData;
+  const hasOverrides = Object.values(overrides).some((override) => override.kaufvertragPa || override.uebernahmeMonthly);
+  if (!hasOverrides) return importedData;
+
+  const targetRows = new Map<string, ImportedBwaRow>();
+  importedData.bwaRows.forEach((row) => {
+    if (row.metricKey !== "ziel_ebitda_kaufvertrag" && row.metricKey !== "ziel_ebitda_uebernahme") return;
+    const monthlyOverride = targetOverrideMonthlyValue(row.siteId, row.metricKey, overrides);
+    if (!monthlyOverride) return;
+    const valuesByMonth = Object.fromEntries(
+      Object.entries(row.valuesByMonth).map(([monthKey, value]) => [
+        monthKey,
+        row.hasDataByMonth[monthKey] ? monthlyOverride : value
+      ])
+    );
+    const hasValueByMonth = Object.fromEntries(
+      Object.entries(row.hasValueByMonth).map(([monthKey, hasValue]) => [
+        monthKey,
+        row.hasDataByMonth[monthKey] ? true : hasValue
+      ])
+    );
+    targetRows.set(`${row.siteId}:${row.metricKey}`, retotalBwaRow({ ...row, valuesByMonth, hasValueByMonth }));
+  });
+
+  const rowBySiteMetric = new Map<string, ImportedBwaRow>();
+  importedData.bwaRows.forEach((row) => rowBySiteMetric.set(`${row.siteId}:${row.metricKey}`, targetRows.get(`${row.siteId}:${row.metricKey}`) ?? row));
+
+  const patchedRows = importedData.bwaRows.map((row) => {
+    const patchedTarget = targetRows.get(`${row.siteId}:${row.metricKey}`);
+    if (patchedTarget) return patchedTarget;
+
+    const isKvAbs = row.metricKey === "abweichung_ziel_ebitda_kaufvertrag_abs";
+    const isUeAbs = row.metricKey === "abweichung_ziel_ebitda_uebernahme_abs";
+    const isKvPct = row.metricKey === "abweichung_ziel_ebitda_kaufvertrag_pct";
+    const isUePct = row.metricKey === "abweichung_ziel_ebitda_uebernahme_pct";
+    if (!isKvAbs && !isUeAbs && !isKvPct && !isUePct) return row;
+
+    const targetKey = isKvAbs || isKvPct ? "ziel_ebitda_kaufvertrag" : "ziel_ebitda_uebernahme";
+    const targetRow = rowBySiteMetric.get(`${row.siteId}:${targetKey}`);
+    const ebitdaRow = rowBySiteMetric.get(`${row.siteId}:ebitda`);
+    if (!targetRow || !ebitdaRow || !targetOverrideMonthlyValue(row.siteId, targetKey, overrides)) return row;
+
+    const valuesByMonth = Object.fromEntries(
+      Object.keys(row.valuesByMonth).map((monthKey) => {
+        const target = targetRow.valuesByMonth[monthKey] ?? 0;
+        const ebitda = ebitdaRow.valuesByMonth[monthKey] ?? 0;
+        const deviation = ebitda - target;
+        const value = isKvPct || isUePct ? ratio(deviation, target) : deviation;
+        return [monthKey, value];
+      })
+    );
+    const hasValueByMonth = Object.fromEntries(
+      Object.keys(row.hasValueByMonth).map((monthKey) => [
+        monthKey,
+        Boolean(targetRow.hasValueByMonth[monthKey] || ebitdaRow.hasValueByMonth[monthKey])
+      ])
+    );
+    if (isKvPct || isUePct) {
+      const valuesByYear = Object.fromEntries(
+        Object.keys(row.hasDataByYear).map((yearKey) => {
+          const target = targetRow.valuesByYear[yearKey] ?? 0;
+          const ebitda = ebitdaRow.valuesByYear[yearKey] ?? 0;
+          return [yearKey, ratio(ebitda - target, target)];
+        })
+      );
+      const totalTarget = targetRow.contractValue ?? 0;
+      const totalEbitda = ebitdaRow.contractValue ?? 0;
+      return {
+        ...row,
+        valuesByMonth,
+        hasValueByMonth,
+        valuesByYear,
+        contractValue: ratio(totalEbitda - totalTarget, totalTarget)
+      };
+    }
+    return retotalBwaRow({ ...row, valuesByMonth, hasValueByMonth });
+  });
+
+  const patchedSites = importedData.sites.map((site) => {
+    const override = overrides[site.id];
+    const hasKv = Boolean(override?.kaufvertragPa);
+    const hasUe = Boolean(override?.uebernahmeMonthly);
+    if (!hasKv && !hasUe) return site;
+    const activeMonths = activeBwaMonthKeysForSite({ ...importedData, bwaRows: patchedRows }, site).length;
+    return {
+      ...site,
+      darlehen: {
+        ...site.darlehen,
+        zielEbitdaKaufvertragPa: hasKv ? override!.kaufvertragPa! : site.darlehen.zielEbitdaKaufvertragPa,
+        zielEbitdaKaufvertrag: hasKv ? Math.round((override!.kaufvertragPa! / 12) * activeMonths) : site.darlehen.zielEbitdaKaufvertrag,
+        zielEbitda: hasKv ? Math.round((override!.kaufvertragPa! / 12) * activeMonths) : site.darlehen.zielEbitda,
+        zielEbitdaUebernahme: hasUe ? Math.round(override!.uebernahmeMonthly! * activeMonths) : site.darlehen.zielEbitdaUebernahme
+      }
+    };
+  });
+
+  return {
+    ...importedData,
+    sites: patchedSites,
+    bwaRows: patchedRows
+  };
 }
 
 function currentUserEmail() {
@@ -3619,8 +3836,13 @@ export default function HomePage() {
     window.location.reload();
   };
 
-  const dashboardSites = useMemo(() => sortSitesByContractStart(importedData?.sites ?? []), [importedData?.sites]);
-  const dashboardMonthly = importedData?.monthly ?? [];
+  const { targetEbitdaOverrides } = useTargetEbitdaOverrides();
+  const effectiveImportedData = useMemo(
+    () => applyTargetEbitdaOverrides(importedData, targetEbitdaOverrides),
+    [importedData, targetEbitdaOverrides]
+  );
+  const dashboardSites = useMemo(() => sortSitesByContractStart(effectiveImportedData?.sites ?? []), [effectiveImportedData?.sites]);
+  const dashboardMonthly = effectiveImportedData?.monthly ?? [];
   const isAdmin = userRole === "admin";
   const allowedPages = useMemo(() => pagesForRole(userRole), [userRole]);
   const personalPages: Page[] = ["personal-cockpit", "personal-krankheit", "personal-mitarbeiter", "personal-massnahmen", "personal-upload"];
@@ -3924,14 +4146,14 @@ export default function HomePage() {
             previousPage={previousPage}
             onBack={() => go(previousPage ?? "cockpit")}
           />
-          {requiresImport && !importDataLoading && !importedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
+          {requiresImport && !importDataLoading && !effectiveImportedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
           {requiresPersonalImport && !personalDataLoading && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
-          {importedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {importedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {importedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {importedData && page === "fruehwarnsystem" && <Fruehwarnsystem sites={dashboardSites} importedData={importedData} />}
-          {importedData && page === "personal-produktivitaet" && <PersonalProduktivitaet sites={dashboardSites} importedData={importedData} personalData={personalData} />}
-          {importedData && page === "standorte" && (
+          {effectiveImportedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "fruehwarnsystem" && <Fruehwarnsystem sites={dashboardSites} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "personal-produktivitaet" && <PersonalProduktivitaet sites={dashboardSites} importedData={effectiveImportedData} personalData={personalData} />}
+          {effectiveImportedData && page === "standorte" && (
             <Standorte
               sites={dashboardSites}
               onOpen={(id) => {
@@ -3940,14 +4162,14 @@ export default function HomePage() {
               }}
             />
           )}
-          {importedData && page === "standort-detail" && <StandortDetail site={selected} importedData={importedData} monthlyData={dashboardMonthly} personalData={personalData} />}
-          {importedData && page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} personalData={personalData} />}
-          {importedData && page === "patienten-auswertungen" && <PatientenAuswertungen sites={dashboardSites} importedData={importedData} />}
-          {importedData && page === "bwa" && <Bwa importedData={importedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
-          {importedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
-          {importedData && page === "darlehen" && <Darlehen sites={dashboardSites} importedData={importedData} />}
-          {importedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} personalData={personalData} />}
-          {importedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} />}
+          {effectiveImportedData && page === "standort-detail" && <StandortDetail site={selected} importedData={effectiveImportedData} monthlyData={dashboardMonthly} personalData={personalData} />}
+          {effectiveImportedData && page === "analysen" && <Analysen sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} />}
+          {effectiveImportedData && page === "patienten-auswertungen" && <PatientenAuswertungen sites={dashboardSites} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "bwa" && <Bwa importedData={effectiveImportedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
+          {effectiveImportedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "darlehen" && <Darlehen sites={dashboardSites} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} />}
+          {effectiveImportedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
           {page === "uploads" && isAdmin && (
             <Uploads
               userRole={userRole}
@@ -3978,7 +4200,7 @@ export default function HomePage() {
               }}
             />
           )}
-          {page === "reports" && <Reports sites={dashboardSites} monthlyData={dashboardMonthly} importedData={importedData} personalData={personalData} />}
+          {page === "reports" && <Reports sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} />}
           {page === "admin" && isAdmin && <AdminKpiRules />}
         </div>
       </main>
@@ -18733,6 +18955,7 @@ function AdminKpiRules() {
       <AccessUserManagement />
       <RoleSecurityCheck />
       <ComparisonRulebookAdmin />
+      <TargetEbitdaSettings />
       <PracticeOpeningHoursSettings />
       <Card className="p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -18817,6 +19040,135 @@ function AdminKpiRules() {
         </Card>
       </div>
     </section>
+  );
+}
+
+function TargetEbitdaSettings() {
+  const { targetEbitdaOverrides, setTargetEbitdaOverrides } = useTargetEbitdaOverrides();
+  const [draft, setDraft] = useState<Record<string, TargetEbitdaOverride>>(() => readTargetEbitdaOverrides());
+  const [message, setMessage] = useState("");
+  const sortedSites = sortSitesByContractStart(standorte);
+
+  useEffect(() => {
+    setDraft(targetEbitdaOverrides);
+  }, [targetEbitdaOverrides]);
+
+  const update = (siteId: string, field: keyof TargetEbitdaOverride, value: string) => {
+    const numericValue = Number(value);
+    setDraft((current) => ({
+      ...current,
+      [siteId]: {
+        ...(current[siteId] ?? emptyTargetEbitdaOverride),
+        [field]: value.trim() === "" || !Number.isFinite(numericValue) || numericValue <= 0 ? null : numericValue
+      }
+    }));
+  };
+
+  const save = async () => {
+    const cleaned = setTargetEbitdaOverrides(draft);
+    try {
+      const saved = await saveSupabaseAppSetting(targetEbitdaSettingKey, cleaned);
+      setMessage(
+        saved
+          ? "Ziel-EBITDA-Stammdaten zentral gespeichert. BWA, Cockpit, Standortdetails, Reports und Auswertungen nutzen diese Werte."
+          : "Ziel-EBITDA-Stammdaten lokal gespeichert. Zentrale Speicherung ist erst mit aktiver Admin-Sitzung verfügbar."
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Ziel-EBITDA-Stammdaten konnten nicht zentral gespeichert werden.");
+    }
+  };
+
+  const reset = async () => {
+    const defaults = normalizeTargetEbitdaOverrides(null);
+    setDraft(defaults);
+    const cleaned = setTargetEbitdaOverrides(defaults);
+    try {
+      const saved = await saveSupabaseAppSetting(targetEbitdaSettingKey, cleaned);
+      setMessage(saved ? "Ziel-EBITDA-Stammdaten auf Standardwerte zurückgesetzt." : "Ziel-EBITDA-Stammdaten lokal auf Standardwerte zurückgesetzt.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Standardwerte konnten nicht zentral gespeichert werden.");
+    }
+  };
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="font-bold">Ziel-EBITDA-Stammdaten</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Zentrale Übersteuerung für Ziel-EBITDA je Standort. Leere Felder verwenden weiter den Importwert; gepflegte Werte überschreiben den Import app-weit.
+          </p>
+        </div>
+        <Badge tone="green">Admin-pflegbar</Badge>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="data-table border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              <th className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">Standort</th>
+              <th className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">Praxisstart</th>
+              <th className="table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white">Kaufvertrag p.a.</th>
+              <th className="table-head border-b border-r border-border p-3 text-right text-xs uppercase text-white">Übernahme monatlich</th>
+              <th className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">Wirkung</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedSites.map((site) => {
+              const override = draft[site.id] ?? emptyTargetEbitdaOverride;
+              const hasKv = Boolean(override.kaufvertragPa);
+              const hasUe = Boolean(override.uebernahmeMonthly);
+              return (
+                <tr key={site.id}>
+                  <td className="border-b border-r border-border bg-white p-3 font-bold">{site.name}</td>
+                  <td className="border-b border-r border-border bg-white p-3">{site.start}</td>
+                  <td className="border-b border-r border-border bg-white p-3 text-right">
+                    <Input
+                      className="kpi-rule-input ml-auto w-36 text-right"
+                      type="number"
+                      min={0}
+                      step={1}
+                      placeholder="Import"
+                      value={override.kaufvertragPa ?? ""}
+                      onChange={(event) => update(site.id, "kaufvertragPa", event.target.value)}
+                    />
+                  </td>
+                  <td className="border-b border-r border-border bg-white p-3 text-right">
+                    <Input
+                      className="kpi-rule-input ml-auto w-36 text-right"
+                      type="number"
+                      min={0}
+                      step={1}
+                      placeholder="Import"
+                      value={override.uebernahmeMonthly ?? ""}
+                      onChange={(event) => update(site.id, "uebernahmeMonthly", event.target.value)}
+                    />
+                  </td>
+                  <td className="border-b border-r border-border bg-white p-3 text-sm text-muted-foreground">
+                    {hasKv || hasUe ? (
+                      <span className="font-semibold text-emerald-700">
+                        Überschreibt {hasKv ? "Kaufvertrag" : ""}{hasKv && hasUe ? " und " : ""}{hasUe ? "Übernahme" : ""} in BWA, Cockpit und Reports.
+                      </span>
+                    ) : (
+                      "Importwert bleibt maßgeblich."
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          Wichtig: Übernahme monatlich ist der Monatswert. Kehl ist standardmäßig mit 20.901 € hinterlegt.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => void reset()}>Standardwerte</Button>
+          <Button onClick={() => void save()}>Zielwerte speichern</Button>
+        </div>
+      </div>
+      {message ? <div className="border-t border-border bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</div> : null}
+    </Card>
   );
 }
 

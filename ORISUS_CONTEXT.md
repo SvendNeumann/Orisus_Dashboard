@@ -204,6 +204,12 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Personal-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
   - Admin / KPI-Regeln enthaelt ein dezentes zentrales Vergleichsregelwerk `Wer darf verglichen werden?`.
   - Dieses Regelwerk ist technisch zentral im App-Code hinterlegt und soll fuer Benchmarking, Fruehwarnsystem, PMR, Kennzahlen und Standortvergleiche genutzt werden.
+  - Admin / KPI-Regeln enthaelt zusaetzlich zentrale `Ziel-EBITDA-Stammdaten` je Standort:
+    - Kaufvertrag p.a.
+    - Uebernahme monatlich
+    - Leere Felder verwenden weiterhin den Importwert.
+    - Gepflegte Werte ueberschreiben den Import app-weit fuer BWA, CFO Cockpit, Standortdetails, Kennzahlen, Darlehen/Earn-Out, Board/Bankenreporting und Reports.
+    - Kehl ist standardmaessig mit Ziel-EBITDA Uebernahme 20.901 EUR pro Monat hinterlegt.
 - Statussprache wurde vereinheitlicht:
   - Sichtbare Labels: `Stabil`, `Beobachten`, `Auffaellig`.
   - `Handlungsbedarf` soll nicht mehr verwendet werden.
