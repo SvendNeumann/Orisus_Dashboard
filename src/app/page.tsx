@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import {
@@ -5802,6 +5802,9 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
   const [site, setSite] = useState("Alle Standorte");
   const [status, setStatus] = useState("Alle Status");
   const [search, setSearch] = useState("");
+  const [employeeTableScrollWidth, setEmployeeTableScrollWidth] = useState(0);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const canSeeCompensation = userRole !== "praxismanagement";
   const normalizedSearch = search.trim().toLowerCase();
   const activeEmployees = personalData.employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
@@ -5832,6 +5835,20 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
   const exportDescription = `Export der aktuell gefilterten Ansicht. Zeilen: ${rows.length}. Rolle: ${roleLabel(userRole)}.`;
   const printEmployeeList = () => {
     window.setTimeout(() => window.print(), 50);
+  };
+  useEffect(() => {
+    const updateScrollWidth = () => {
+      setEmployeeTableScrollWidth(tableScrollRef.current?.scrollWidth ?? 0);
+    };
+    updateScrollWidth();
+    window.addEventListener("resize", updateScrollWidth);
+    return () => window.removeEventListener("resize", updateScrollWidth);
+  }, [rows.length, visibleColumns.length, canSeeCompensation]);
+  const syncEmployeeScroll = (source: "top" | "table") => {
+    const from = source === "top" ? topScrollRef.current : tableScrollRef.current;
+    const to = source === "top" ? tableScrollRef.current : topScrollRef.current;
+    if (!from || !to || to.scrollLeft === from.scrollLeft) return;
+    to.scrollLeft = from.scrollLeft;
   };
 
   return (
@@ -5918,8 +5935,15 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
         </Button>
       </div>
       <Card className="overflow-hidden">
-        <div className="max-h-[70vh] overflow-auto">
-          <table className="data-table border-separate border-spacing-0 text-sm">
+        <div
+          ref={topScrollRef}
+          className="h-4 overflow-x-auto overflow-y-hidden border-b border-border bg-white/5"
+          onScroll={() => syncEmployeeScroll("top")}
+        >
+          <div style={{ width: Math.max(employeeTableScrollWidth, 1), height: 1 }} />
+        </div>
+        <div ref={tableScrollRef} className="max-h-[70vh] overflow-auto" onScroll={() => syncEmployeeScroll("table")}>
+          <table className="data-table min-w-max border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
                 {visibleColumns.map((column) => (
