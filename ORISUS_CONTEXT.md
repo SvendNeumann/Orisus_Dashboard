@@ -1278,6 +1278,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Unter der monatlichen EBITDA-Uebersicht gibt es eine kompakte `EBITDA-Abweichungsanalyse nach Ursache`.
   - Diese Analyse ueberlagert keine Charts, sondern zeigt je Standort in einer Tabelle die EBITDA-Abweichung zum Ziel-EBITDA und den wichtigsten Treiber.
   - Ursachenlogik: Kostenquote des Standorts minus `Orisus-Durchschnitt` mal Gesamtleistung des Standorts. Datenbasis sind BWA-Umsatz, EBITDA, Ziel-EBITDA, Material, Fremdlabor, Personal und Sachkosten.
+  - Ergaenzt ist eine Treiber-Matrix je Kostenblock: Material, Fremdlabor, Personal, Sachkosten, Restkosten und Netto-Kosteneffekt. Positive Werte belasten EBITDA, negative Werte entlasten.
   - Die `!`-Erklaerung nutzt das zentrale Vergleichsregelwerk.
 - Standortdetails:
   - KPI-Kacheln sollen Info-Buttons mit Herleitung und Datenquelle haben.
@@ -1293,6 +1294,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Wenn diese Logik angepasst wird, muss nach Deploy ein CFO-Reimport erfolgen, weil alte bestaetigte Payloads bereits berechnete Standortwerte enthalten koennen.
 - Performance & Benchmarking:
   - Fruehwarnsystem als eigenes Tab.
+  - `Maßnahmen` als eigenes Tab: automatische Arbeitsliste aus Auffaelligkeiten des Fruehwarnsystems. Status-Vorschlaege sind aus der Ampel abgeleitet, keine separate manuelle Schattenliste.
+  - `Standort-Ranking` als eigenes Tab: Score 0-100 aus EBITDA-Marge, Kostenquote, Cashflow-Marge, Forderungen/PVS sowie monatlich normalisierten Produktivitaetswerten. Umsatz-/Produktivitaetswerte werden auf Ø Monat gerechnet; Quoten bleiben Quoten.
   - Standort-Scorecard im Benchmarking-Bereich.
   - Personalproduktivitaet als eigenes Tab.
   - Personalproduktivitaet vergleicht je Standort Gesamtleistung, PVS, EBITDA und BWA-Personalkosten je FTE/Zahnarzt-FTE.
@@ -1333,6 +1336,15 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Die App fuehrt eine zentrale Regeldefinition fuer `Wer darf verglichen werden?`.
   - Sichtbar dezent im Admin-Bereich und erklaerbar per `!` in Auswertungen.
   - Fachliche Regeln: Vertragsstart, Datenwelt, Peer ohne Zielstandort, gesamte Vertragsperiode je Standort, Vorjahr nur innerhalb Vertragsperiode, fehlende Werte nicht als 0.
+- Uploads:
+  - CFO-Upload und Personal-Upload enthalten ein Datenqualitaets-Cockpit je Standort.
+  - CFO-Datenqualitaet zeigt letzten Stand fuer BWA, Bank, PVS-Umsatz und Patienten/Termine.
+  - Personal-Datenqualitaet zeigt Mitarbeiterstamm, aktive/inaktive Mitarbeiter und Massnahmen je Standort.
+  - Wenn ein neuer Import geladen, aber noch nicht bestaetigt ist, zeigt ein Aenderungsprotokoll die wesentlichen Unterschiede gegenueber dem letzten bestaetigten Stand.
+  - CFO-Aenderungsprotokoll: neue BWA-Monate, wesentliche Umsatz-/EBITDA-Deltas, Importwarnungen und Fehler.
+  - Personal-Aenderungsprotokoll: Veraenderung Mitarbeiterbestand, aktive Mitarbeiter, Massnahmen, Importwarnungen und Fehler.
+- Mobile/Tabellen:
+  - Neue breite Auswertungstabellen erhalten horizontales Scrollen, feste Kopfzeilen innerhalb der Tabelle und Mindestbreiten, damit Spalten auf Smartphone nicht ineinander laufen.
 
 Aktuell besonders sensible Pruefpunkte:
 
