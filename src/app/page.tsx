@@ -58,8 +58,7 @@ import { cn } from "@/lib/utils";
 import {
   monthly,
   standorte,
-  Status,
-  uploadTypes
+  Status
 } from "@/data/dashboard";
 
 type DashboardSite = (typeof standorte)[number] & { treatmentRooms?: number; openingHours?: number };
@@ -1603,6 +1602,21 @@ const requiredConsolidationColumns = [
   "Wert",
   "Einheit",
   "Werttyp"
+];
+
+const standaloneExportSheetNames = ["Export_Konzern_Final", "Export_Konzern"];
+const standaloneInputCoreSheets = [
+  "Input_Stammdaten",
+  "Input_Finanzen",
+  "Input_BWA",
+  "Input_Kontostand",
+  "Input_Behandler",
+  "Input_Behandler_Leistung",
+  "Input_Personalkosten",
+  "Input_Operativ",
+  "Input_Operativ_Maske",
+  "Input_EBITDA_Ziele",
+  "Input_ausstehende Gehälter"
 ];
 
 const bwaMetricDefinitions = [
@@ -3532,16 +3546,11 @@ function topBehandlerFromDetailRows(rows: ImportedBehandlerDetailRow[], latestYe
 }
 
 function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, report: ImportReport): ImportedDashboardData {
-  const rows = XLSX.utils
-    .sheet_to_json<Record<string, unknown>>(workbook.Sheets[importSourceSheetName], {
-      defval: null,
-      raw: true
-    })
-    .filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
+  const rows = cfoImportRowsFromWorkbook(workbook);
   const latestYear = latestActiveBwaYear(rows, report.standorte) ?? report.jahre.filter((year) => year > 1900).at(-1) ?? new Date().getFullYear();
   const activeRows = rows.filter((row) => (rowYear(row) ?? latestYear) === latestYear);
   const fallbackByName = new Map(sortSitesByContractStart(standorte).map((site) => [site.name, site]));
-  const consolidationRows = consolidationRowsFromWorkbook(workbook);
+  const consolidationRows = [...consolidationRowsFromWorkbook(workbook), ...rows];
   const managementReceivablesBySite = managementOpenReceivablesFromWorkbook(workbook);
   const exportRows = exportRowsFromWorkbook(workbook);
   const behandlerDetailRows = buildImportedBehandlerDetailRows(rows, exportRows, report);
@@ -3734,45 +3743,34 @@ function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, r
 
 function buildImportReport(workbook: XLSX.WorkBook, fileName: string, workbookSheetNames = workbook.SheetNames): ImportReport {
   const sheetNames = workbookSheetNames;
-  const presentSheets = requiredImportSheets.filter((sheet) => sheetNames.includes(sheet));
-  const missingSheets = requiredImportSheets.filter((sheet) => !sheetNames.includes(sheet));
+  const isStandaloneSiteWorkbook = !workbook.Sheets[importSourceSheetName] && Boolean(standaloneSiteNameFromWorkbook(workbook));
+  const relevantRequiredSheets = isStandaloneSiteWorkbook ? standaloneInputCoreSheets.filter((sheet) => sheet !== "Input_ausstehende Gehälter") : requiredImportSheets;
+  const presentSheets = relevantRequiredSheets.filter((sheet) => sheetNames.includes(sheet));
+  const missingSheets = relevantRequiredSheets.filter((sheet) => !sheetNames.includes(sheet));
   const errors: string[] = [];
   const warnings: string[] = [];
-
-  const sourceSheet = workbook.Sheets[importSourceSheetName];
-  if (!sourceSheet) {
-    errors.push("Das Pflichtblatt Konzern_Konsolidierung_STD fehlt. Ohne dieses Blatt kann die App die Excel-Datei nicht importieren.");
-    return {
-      ...emptyImportReport,
-      status: "error",
-      fileName,
-      importedAt: new Date().toISOString(),
-      sheetCount: sheetNames.length,
-      missingSheets,
-      presentSheets,
-      errors
-    };
-  }
-
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sourceSheet, {
-    defval: null,
-    raw: true
-  });
-  const headerRows = XLSX.utils.sheet_to_json<unknown[]>(sourceSheet, {
-    header: 1,
-    blankrows: false,
-    defval: null
-  });
-  const headers = (headerRows[0] ?? []).map(asText);
-  const missingColumns = requiredConsolidationColumns.filter((column) => !headers.includes(column));
+  const rows = cfoImportRowsFromWorkbook(workbook);
+  const hasStandardSheet = Boolean(workbook.Sheets[importSourceSheetName]);
+  const headers = hasStandardSheet
+    ? (XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[importSourceSheetName], {
+        header: 1,
+        blankrows: false,
+        defval: null
+      })[0] ?? []).map(asText)
+    : requiredConsolidationColumns;
+  const missingColumns = hasStandardSheet ? requiredConsolidationColumns.filter((column) => !headers.includes(column)) : [];
   const usableRows = rows.filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
   const excludedPlanRows = rows.filter(isExcludedPlanRow).length;
 
-  if (!rows.length) errors.push("Konzern_Konsolidierung_STD enthält keine Datenzeilen.");
+  if (!hasStandardSheet && !isStandaloneSiteWorkbook) errors.push("Es wurde keine gültige Standort-Arbeitsmappe erkannt. Erwartet werden Input_Stammdaten und die Input-Blätter je Standort.");
+  if (!rows.length) errors.push(isStandaloneSiteWorkbook ? "Aus der Standort-Arbeitsmappe konnten keine Importzeilen gelesen werden." : "Konzern_Konsolidierung_STD enthält keine Datenzeilen.");
   if (missingColumns.length) errors.push(`In Konzern_Konsolidierung_STD fehlen Spalten: ${missingColumns.join(", ")}.`);
-  if (missingSheets.length) warnings.push(`Nicht alle ergänzenden Prüfblätter wurden gefunden: ${missingSheets.join(", ")}.`);
-  if (!usableRows.some((row) => asText(row.Datenbereich).toLowerCase().includes("bwa"))) warnings.push("Es wurden keine BWA-Daten im Konsolidierungsblatt erkannt.");
-  if (!usableRows.some((row) => asText(row.Datenbereich).toLowerCase().includes("finanzen"))) warnings.push("Es wurden keine Finanzdaten im Konsolidierungsblatt erkannt.");
+  if (missingSheets.length) warnings.push(`Nicht alle erwarteten Standort-Blätter wurden gefunden: ${missingSheets.join(", ")}.`);
+  if (!usableRows.some((row) => asText(row.Datenbereich).toLowerCase().includes("bwa"))) warnings.push("Es wurden keine BWA-Daten erkannt.");
+  if (!usableRows.some((row) => asText(row.Datenbereich).toLowerCase().includes("finanzen"))) warnings.push("Es wurden keine Finanzdaten erkannt.");
+  if (isStandaloneSiteWorkbook && !workbook.Sheets["Export_Konzern"] && !workbook.Sheets["Export_Konzern_Final"]) {
+    warnings.push("Kein Export_Konzern-Blatt gefunden. Die App nutzt ausschließlich die Input-Blätter als Fallback.");
+  }
   if (excludedPlanRows > 0) warnings.push(`${excludedPlanRows.toLocaleString("de-DE")} klassische Planwert-Zeilen wurden erkannt und vom App-Import ausgeschlossen.`);
 
   const standorteList = sortSiteNamesByContractStart(uniqueSortedText(usableRows.map((row) => row.Standortname)).filter((site) => site.toLowerCase() !== "konzern"));
@@ -3814,6 +3812,175 @@ function buildImportReport(workbook: XLSX.WorkBook, fileName: string, workbookSh
     warnings,
     errors
   };
+}
+
+function yearsFromImportedData(data: ImportedDashboardData) {
+  return uniqueSortedNumbers([
+    ...data.report.jahre,
+    ...data.bwaRows.flatMap((row) => [...Object.keys(row.valuesByYear), ...Object.keys(row.hasDataByYear)]),
+    ...(data.bankMovementRows ?? []).flatMap((row) => Object.keys(row.valuesByMonth).map((key) => key.split("-")[0]))
+  ]).filter((year) => year >= 1900);
+}
+
+function monthsFromImportedData(data: ImportedDashboardData) {
+  return uniqueSortedNumbers([
+    ...data.report.monate,
+    ...data.bwaRows.flatMap((row) => Object.keys(row.valuesByMonth).map((key) => key.split("-")[1])),
+    ...(data.bankMovementRows ?? []).flatMap((row) => Object.keys(row.valuesByMonth).map((key) => key.split("-")[1]))
+  ]).filter((month) => month >= 1 && month <= 12);
+}
+
+function aggregateBankMovementRows(rows: ImportedBankMovementRow[]) {
+  const siteRows = rows.filter((row) => row.siteId && row.siteId !== "konzern");
+  const labels = Array.from(new Set(siteRows.map((row) => row.label)));
+  const consolidatedRows = labels.map((label) => {
+    const matchingRows = siteRows.filter((row) => row.label === label);
+    const isSnapshot = normalizeMetric(label) === "kontostand_monatsende";
+    const valuesByMonth: Record<string, number> = {};
+    const hasValueByMonth: Record<string, boolean> = {};
+    matchingRows.forEach((row) => {
+      Object.entries(row.valuesByMonth).forEach(([period, value]) => {
+        if (!row.hasValueByMonth[period]) return;
+        valuesByMonth[period] = (valuesByMonth[period] ?? 0) + value;
+        hasValueByMonth[period] = true;
+      });
+    });
+    const activeValues = Object.entries(valuesByMonth).filter(([period]) => hasValueByMonth[period]);
+    const latestValue = activeValues
+      .sort(([a], [b]) => {
+        const [yearA, monthA] = a.split("-").map(Number);
+        const [yearB, monthB] = b.split("-").map(Number);
+        return yearA - yearB || monthA - monthB;
+      })
+      .at(-1)?.[1] ?? 0;
+    const contractValue = isSnapshot ? latestValue : activeValues.reduce((sum, [, value]) => sum + value, 0);
+    const activeMonthCount = Math.max(activeValues.length, 1);
+    return {
+      siteId: "konzern",
+      siteName: "Konzern",
+      label,
+      indent: normalizeMetric(label).startsWith("davon_"),
+      valuesByMonth,
+      hasValueByMonth,
+      total: 0,
+      averageMonth: contractValue / activeMonthCount,
+      contractValue,
+      averageContract: contractValue / activeMonthCount
+    } satisfies ImportedBankMovementRow;
+  });
+
+  return [...consolidatedRows, ...siteRows].sort((a, b) => {
+    const siteA = a.siteName ?? "";
+    const siteB = b.siteName ?? "";
+    if (siteA === "Konzern" && siteB !== "Konzern") return -1;
+    if (siteA !== "Konzern" && siteB === "Konzern") return 1;
+    return compareSiteNamesByContractStart(siteA, siteB) || a.label.localeCompare(b.label, "de");
+  });
+}
+
+function monthlyDataFromBwaRows(bwaRows: ImportedBwaRow[], report: ImportReport) {
+  const latestYear = report.jahre.findLast((year) =>
+    bwaRows.some((row) => Object.entries(row.hasDataByMonth).some(([period, hasData]) => hasData && Number(period.split("-")[0]) === year))
+  ) ?? report.jahre.at(-1) ?? new Date().getFullYear();
+  const activeMonths = Array.from({ length: 12 }, (_, index) => index + 1).filter((month) =>
+    bwaRows.some((row) => row.hasDataByMonth[`${latestYear}-${month}`])
+  );
+  return activeMonths.map((monthNumber) => {
+    const leistung = Math.round(
+      bwaRows.filter((row) => row.metricKey === "summe_umsatz").reduce((sum, row) => sum + (row.valuesByMonth[`${latestYear}-${monthNumber}`] ?? 0), 0)
+    );
+    const ebitda = Math.round(
+      bwaRows.filter((row) => row.metricKey === "ebitda").reduce((sum, row) => sum + (row.valuesByMonth[`${latestYear}-${monthNumber}`] ?? 0), 0)
+    );
+    const cashflow = Math.round(
+      bwaRows.filter((row) => row.metricKey === "cashflow_gesamt").reduce((sum, row) => sum + (row.valuesByMonth[`${latestYear}-${monthNumber}`] ?? 0), 0)
+    );
+    return {
+      month: new Date(latestYear, monthNumber - 1, 1).toLocaleString("de-DE", { month: "short" }).replace(".", ""),
+      leistung,
+      ebitda,
+      marge: leistung ? (ebitda / leistung) * 100 : 0,
+      cashflow
+    };
+  });
+}
+
+function combineImportReports(fileName: string, dataParts: ImportedDashboardData[]): ImportReport {
+  const standorteList = sortSiteNamesByContractStart(uniqueSortedText(dataParts.flatMap((part) => part.sites.map((site) => site.name))));
+  const jahre = uniqueSortedNumbers(dataParts.flatMap(yearsFromImportedData)).filter((year) => year >= 1900);
+  const monate = uniqueSortedNumbers(dataParts.flatMap(monthsFromImportedData)).filter((month) => month >= 1 && month <= 12);
+  const warnings = dataParts.flatMap((part) => part.report.warnings.map((warning) => `${part.fileName}: ${warning}`));
+  const errors = dataParts.flatMap((part) => part.report.errors.map((error) => `${part.fileName}: ${error}`));
+  return {
+    status: errors.length ? "error" : warnings.length ? "warning" : "ready",
+    fileName,
+    importedAt: new Date().toISOString(),
+    totalRows: dataParts.reduce((sum, part) => sum + part.report.totalRows, 0),
+    usableRows: dataParts.reduce((sum, part) => sum + part.report.usableRows, 0),
+    excludedPlanRows: dataParts.reduce((sum, part) => sum + part.report.excludedPlanRows, 0),
+    sheetCount: dataParts.reduce((sum, part) => sum + part.report.sheetCount, 0),
+    missingSheets: uniqueSortedText(dataParts.flatMap((part) => part.report.missingSheets)),
+    presentSheets: uniqueSortedText(dataParts.flatMap((part) => part.report.presentSheets)),
+    standorte: standorteList,
+    jahre,
+    monate,
+    datenbereiche: uniqueSortedText(dataParts.flatMap((part) => part.report.datenbereiche)),
+    werttypen: uniqueSortedText(dataParts.flatMap((part) => part.report.werttypen)),
+    warnings,
+    errors
+  };
+}
+
+function mergeImportedDashboardData(previous: ImportedDashboardData | null | undefined, updates: ImportedDashboardData[]) {
+  const validUpdates = updates.filter((update) => update.report.status !== "error" && update.sites.length);
+  if (!previous && validUpdates.length === 1) return validUpdates[0];
+  const updateSiteIds = new Set(validUpdates.flatMap((update) => update.sites.map((site) => site.id)));
+  const keepSite = (siteId?: string) => Boolean(siteId && !updateSiteIds.has(siteId));
+  const parts = [
+    ...(previous ? [{
+      ...previous,
+      sites: previous.sites.filter((site) => keepSite(site.id)),
+      bwaRows: previous.bwaRows.filter((row) => keepSite(row.siteId)),
+      pvsRevenueRows: (previous.pvsRevenueRows ?? []).filter((row) => keepSite(row.siteId)),
+      behandlerHonorarRows: (previous.behandlerHonorarRows ?? []).filter((row) => keepSite(row.siteId)),
+      behandlerTotalRows: (previous.behandlerTotalRows ?? []).filter((row) => keepSite(row.siteId)),
+      behandlerDetailRows: (previous.behandlerDetailRows ?? []).filter((row) => keepSite(row.siteId)),
+      personnelCostRows: (previous.personnelCostRows ?? []).filter((row) => keepSite(row.siteId)),
+      patientRows: (previous.patientRows ?? []).filter((row) => keepSite(row.siteId)),
+      bankMovementRows: (previous.bankMovementRows ?? []).filter((row) => row.siteId !== "konzern" && keepSite(row.siteId))
+    }] : []),
+    ...validUpdates
+  ].filter((part) => part.sites.length);
+
+  if (!parts.length) return null;
+
+  const report = combineImportReports(parts.map((part) => part.fileName).join(" + "), parts);
+  const sites = sortSitesByContractStart(parts.flatMap((part) => part.sites));
+  const bwaRows = parts.flatMap((part) => part.bwaRows);
+  const behandlerDetailRows = parts.flatMap((part) => part.behandlerDetailRows ?? []);
+  const latestYear = report.jahre.at(-1) ?? new Date().getFullYear();
+  const latestBehandlerMonth = latestBehandlerHonorarMonthFromDetailRows(behandlerDetailRows, latestYear) || 12;
+  const bankMovementRows = aggregateBankMovementRows(parts.flatMap((part) => part.bankMovementRows ?? []));
+
+  return {
+    schemaVersion: importDashboardSchemaVersion,
+    importedAt: new Date().toISOString(),
+    fileName: report.fileName,
+    sites,
+    monthly: monthlyDataFromBwaRows(bwaRows, report),
+    topBehandler: topBehandlerFromDetailRows(behandlerDetailRows, latestYear, latestBehandlerMonth),
+    topBehandlerPeriod: behandlerHonorarPeriodLabelFromDetailRows(behandlerDetailRows, latestYear),
+    receivablesBySite: Object.fromEntries(sites.map((site) => [site.id, site.forderungen])),
+    bwaRows,
+    pvsRevenueRows: parts.flatMap((part) => part.pvsRevenueRows ?? []),
+    behandlerHonorarRows: parts.flatMap((part) => part.behandlerHonorarRows ?? []),
+    behandlerTotalRows: parts.flatMap((part) => part.behandlerTotalRows ?? []),
+    behandlerDetailRows,
+    personnelCostRows: parts.flatMap((part) => part.personnelCostRows ?? []),
+    patientRows: parts.flatMap((part) => part.patientRows ?? []),
+    bankMovementRows,
+    report
+  } satisfies ImportedDashboardData;
 }
 
 function kvEbitdaAchievement(site: DashboardSite) {
@@ -8305,6 +8472,386 @@ function exportRowsFromWorkbook(workbook: XLSX.WorkBook) {
   return records;
 }
 
+function workbookSheetRows(workbook: XLSX.WorkBook, sheetName: string) {
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet) return [];
+  return XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: null,
+    raw: true,
+    blankrows: false
+  });
+}
+
+function standaloneSiteNameFromWorkbook(workbook: XLSX.WorkBook) {
+  const stammdatenRows = workbookSheetRows(workbook, "Input_Stammdaten");
+  const siteRow = stammdatenRows.find((row) => normalizeMetric(row[1]) === "standortname" && asText(row[2]));
+  if (siteRow) return asText(siteRow[2]);
+
+  for (const sheetName of standaloneExportSheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      defval: null,
+      raw: true
+    });
+    const siteName = rows.map((row) => asText(row.Standortname)).find(Boolean);
+    if (siteName) return siteName;
+  }
+
+  return "";
+}
+
+function standaloneInputDateParts(value: unknown) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return { year: value.getFullYear(), month: value.getMonth() + 1 };
+  }
+  const numericValue = asNumber(value);
+  if (numericValue && numericValue > 20000) {
+    const date = XLSX.SSF.parse_date_code(numericValue);
+    if (date?.y && date?.m) return { year: date.y, month: date.m };
+  }
+  const text = asText(value);
+  const monthYearMatch = text.match(/(jan|feb|mrz|mär|maerz|apr|mai|jun|jul|aug|sep|okt|nov|dez)[a-zäöü]*\.?\s*(\d{2,4})/i);
+  if (monthYearMatch) {
+    const month = monthNumberFromHeader(monthYearMatch[1]);
+    const rawYear = Number(monthYearMatch[2]);
+    const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+    if (month && year >= 1900) return { year, month };
+  }
+  const periodMatch = text.match(/^(\d{4})(\d{2})$/);
+  if (periodMatch) {
+    const year = Number(periodMatch[1]);
+    const month = Number(periodMatch[2]);
+    if (year >= 1900 && month >= 1 && month <= 12) return { year, month };
+  }
+  return null;
+}
+
+function standaloneRowsFromMonthlyInputSheet(
+  workbook: XLSX.WorkBook,
+  sheetName: string,
+  siteName: string,
+  domain: string,
+  options: { valueType?: string; objectColumn?: number; headerSearchTerms?: string[] } = {}
+) {
+  const rows = workbookSheetRows(workbook, sheetName);
+  const records: Record<string, unknown>[] = [];
+  const headerTerms = options.headerSearchTerms ?? ["quelle", "bereich", "position"];
+
+  rows.forEach((row, rowIndex) => {
+    const normalizedRow = row.map(normalizeMetric);
+    const isHeader = headerTerms.every((term) => normalizedRow.includes(normalizeMetric(term)));
+    if (!isHeader) return;
+
+    const sourceIndex = normalizedRow.indexOf("quelle");
+    const categoryIndex = normalizedRow.indexOf("bereich");
+    const metricIndex = normalizedRow.indexOf("position");
+    const roleIndex = normalizedRow.indexOf("inputrolle");
+    const monthColumns = row
+      .map((cell, column) => ({ column, period: standaloneInputDateParts(cell) }))
+      .filter((entry): entry is { column: number; period: { year: number; month: number } } => entry.period != null);
+    const nextHeaderIndex = rows.findIndex((candidate, candidateIndex) => {
+      if (candidateIndex <= rowIndex) return false;
+      const normalizedCandidate = candidate.map(normalizeMetric);
+      return headerTerms.every((term) => normalizedCandidate.includes(normalizeMetric(term)));
+    });
+    const endIndex = nextHeaderIndex > rowIndex ? nextHeaderIndex : rows.length;
+
+    for (let dataRowIndex = rowIndex + 1; dataRowIndex < endIndex; dataRowIndex += 1) {
+      const dataRow = rows[dataRowIndex] ?? [];
+      const metric = asText(dataRow[metricIndex]);
+      const category = asText(dataRow[categoryIndex]);
+      if (!metric || normalizeMetric(dataRow[0]) === "section") continue;
+      const objectName = options.objectColumn != null ? asText(dataRow[options.objectColumn]) : "";
+
+      monthColumns.forEach(({ column, period }) => {
+        const rawValue = dataRow[column];
+        const value = asNumber(rawValue);
+        if (value == null || rawValue === "") return;
+        records.push({
+          Standort_ID: siteIdForName(siteName),
+          Standortname: siteName,
+          Gesellschaft: siteName,
+          Datenquelle: "Standort-Arbeitsmappe",
+          Quellblatt: sheetName,
+          Quellzeile: dataRowIndex + 1,
+          Quellspalte: column + 1,
+          Datenbereich: domain,
+          Kategorie: category || domain,
+          Unterkategorie: asText(dataRow[sourceIndex]) || asText(dataRow[roleIndex]),
+          Kennzahl: metric,
+          Detailbezeichnung: metric,
+          Objekt_Typ: objectName ? "Behandler" : "",
+          Objekt_Name: objectName,
+          Jahr: period.year,
+          Monat: period.month,
+          Wert: value,
+          Einheit: "EUR",
+          Werttyp: options.valueType ?? asText(dataRow[roleIndex]) ?? "Input",
+          Aktivstatus_Monat: "aktiv",
+          Quelle_Zelle: `${sheetName}!${dataRowIndex + 1}:${column + 1}`,
+          Datenebene: "Input"
+        });
+      });
+    }
+  });
+
+  return records;
+}
+
+function standaloneRowsFromBwaInput(workbook: XLSX.WorkBook, siteName: string) {
+  const rows = workbookSheetRows(workbook, "Input_BWA");
+  const records: Record<string, unknown>[] = [];
+  rows.forEach((row, rowIndex) => {
+    if (!normalizeMetric(row[0]).startsWith("bwa_input")) return;
+    const titleYear = asNumber(asText(row[0]).match(/20\d{2}/)?.[0]);
+    const headerIndex = rows.findIndex((candidate, candidateIndex) => candidateIndex > rowIndex && normalizeMetric(candidate[0]) === "typ");
+    if (headerIndex < 0) return;
+    const headerRow = rows[headerIndex] ?? [];
+    const monthColumns = headerRow
+      .map((cell, column) => ({ column, month: monthNumberFromHeader(cell) }))
+      .filter((entry): entry is { column: number; month: number } => entry.month != null);
+    const nextBlockIndex = rows.findIndex((candidate, candidateIndex) => candidateIndex > headerIndex && normalizeMetric(candidate[0]).startsWith("bwa_input"));
+    const endIndex = nextBlockIndex > headerIndex ? nextBlockIndex : rows.length;
+
+    for (let dataRowIndex = headerIndex + 1; dataRowIndex < endIndex; dataRowIndex += 1) {
+      const dataRow = rows[dataRowIndex] ?? [];
+      const type = normalizeMetric(dataRow[0]);
+      if (!type || type === "section") continue;
+      const metric = asText(dataRow[2]) || asText(dataRow[3]);
+      if (!metric) continue;
+      monthColumns.forEach(({ column, month }) => {
+        const rawValue = dataRow[column];
+        const value = asNumber(rawValue);
+        if (value == null || rawValue === "") return;
+        records.push({
+          Standort_ID: siteIdForName(siteName),
+          Standortname: siteName,
+          Gesellschaft: siteName,
+          Datenquelle: "Standort-Arbeitsmappe",
+          Quellblatt: "Input_BWA",
+          Quellzeile: dataRowIndex + 1,
+          Quellspalte: column + 1,
+          Datenbereich: "BWA",
+          Kategorie: asText(dataRow[1]),
+          Unterkategorie: asText(dataRow[3]),
+          Kennzahl: metric,
+          Detailbezeichnung: asText(dataRow[3]) || metric,
+          Jahr: titleYear,
+          Monat: month,
+          Wert: value,
+          Einheit: "EUR",
+          Werttyp: asText(dataRow[5]) || "Input",
+          Aktivstatus_Monat: "aktiv",
+          Quelle_Zelle: `Input_BWA!${dataRowIndex + 1}:${column + 1}`,
+          Datenebene: "Input"
+        });
+      });
+    }
+  });
+  return records.filter((row) => Boolean(row.Jahr));
+}
+
+function standaloneRowsFromStammdaten(workbook: XLSX.WorkBook, siteName: string) {
+  return workbookSheetRows(workbook, "Input_Stammdaten").flatMap((row, rowIndex) => {
+    const parameter = asText(row[1]);
+    if (!parameter || normalizeMetric(parameter) === "parameter") return [];
+    const value = row[2];
+    if (value == null || value === "") return [];
+    return [{
+      Standort_ID: siteIdForName(siteName),
+      Standortname: siteName,
+      Gesellschaft: siteName,
+      Datenquelle: "Standort-Arbeitsmappe",
+      Quellblatt: "Input_Stammdaten",
+      Quellzeile: rowIndex + 1,
+      Quellspalte: 3,
+      Datenbereich: "Stammdaten",
+      Kategorie: asText(row[0]) || "Stammdaten",
+      Kennzahl: parameter,
+      Detailbezeichnung: parameter,
+      Wert: value,
+      Einheit: asText(row[3]),
+      Werttyp: "STAMMDATUM",
+      Aktivstatus_Monat: "nicht zeitbezogen",
+      Quelle_Zelle: `Input_Stammdaten!C${rowIndex + 1}`,
+      Datenebene: "Stammdatum"
+    }];
+  });
+}
+
+function standaloneRowsFromEbitdaTargets(workbook: XLSX.WorkBook, siteName: string) {
+  const rows = workbookSheetRows(workbook, "Input_EBITDA_Ziele");
+  const records: Record<string, unknown>[] = [];
+  rows.forEach((row, rowIndex) => {
+    const year = asNumber(row[0]);
+    const rowSiteName = asText(row[1]);
+    if (!year || year < 1900 || normalizeMetric(rowSiteName) !== normalizeMetric(siteName)) return;
+    [
+      { column: 2, metric: "Ziel EBITDA Kaufvertrag p.a." },
+      { column: 3, metric: "Ziel EBITDA Übernahme p.a." }
+    ].forEach(({ column, metric }) => {
+      const value = asNumber(row[column]);
+      if (value == null) return;
+      records.push({
+        Standort_ID: siteIdForName(siteName),
+        Standortname: siteName,
+        Gesellschaft: siteName,
+        Datenquelle: "Standort-Arbeitsmappe",
+        Quellblatt: "Input_EBITDA_Ziele",
+        Quellzeile: rowIndex + 1,
+        Quellspalte: column + 1,
+        Datenbereich: "Stammdaten",
+        Kategorie: "EBITDA-Ziele",
+        Kennzahl: metric,
+        Detailbezeichnung: metric,
+        Jahr: year,
+        Wert: value,
+        Einheit: "EUR",
+        Werttyp: "Ziel",
+        Aktivstatus_Monat: "aktiv",
+        Quelle_Zelle: `Input_EBITDA_Ziele!${rowIndex + 1}:${column + 1}`,
+        Datenebene: "Stammdatum"
+      });
+    });
+  });
+  return records;
+}
+
+function standaloneRowsFromKontostand(workbook: XLSX.WorkBook, siteName: string) {
+  return kontostandEntriesFromWorkbook(workbook, siteName).map((entry) => ({
+    Standort_ID: siteIdForName(siteName),
+    Standortname: siteName,
+    Gesellschaft: siteName,
+    Datenquelle: "Standort-Arbeitsmappe",
+    Quellblatt: "Input_Kontostand",
+    Datenbereich: "Kontostand",
+    Kategorie: "Bank",
+    Unterkategorie: "Kontostände Monatsende",
+    Kennzahl: "Kontostand Monatsende",
+    Detailbezeichnung: "Kontostand Monatsende",
+    Objekt_Typ: "Bankkonto",
+    Objekt_Name: siteName,
+    Jahr: entry.year,
+    Monat: entry.month,
+    Wert: entry.value,
+    Einheit: "EUR",
+    Werttyp: "Input",
+    Aktivstatus_Monat: "aktiv",
+    Datenebene: "Input"
+  }));
+}
+
+function standaloneRowsFromVerticalInputSheet(
+  workbook: XLSX.WorkBook,
+  sheetName: string,
+  siteName: string,
+  domain: string
+) {
+  const rows = workbookSheetRows(workbook, sheetName);
+  const headerIndex = rows.findIndex((row) => row.map(normalizeMetric).includes("kennzahl_input") && row.map(normalizeMetric).includes("wert"));
+  if (headerIndex < 0) return [];
+  const headers = rows[headerIndex] ?? [];
+  const normalizedHeaders = headers.map(normalizeMetric);
+  const indexOf = (key: string) => normalizedHeaders.indexOf(normalizeMetric(key));
+  const categoryIndex = indexOf("bereich");
+  const metricIndex = indexOf("kennzahl_input");
+  const objectIndex = indexOf("behandler");
+  const dateIndex = indexOf("monat");
+  const valueIndex = indexOf("wert");
+  const unitIndex = indexOf("einheit");
+  const sourceIndex = indexOf("quelle");
+  const valueTypeIndex = indexOf("input_typ");
+  if (metricIndex < 0 || dateIndex < 0 || valueIndex < 0) return [];
+
+  return rows.slice(headerIndex + 1).flatMap((row, offset) => {
+    const value = asNumber(row[valueIndex]);
+    const period = standaloneInputDateParts(row[dateIndex]);
+    const metric = asText(row[metricIndex]);
+    if (value == null || !period || !metric) return [];
+    return [{
+      Standort_ID: siteIdForName(siteName),
+      Standortname: siteName,
+      Gesellschaft: siteName,
+      Datenquelle: "Standort-Arbeitsmappe",
+      Quellblatt: sheetName,
+      Quellzeile: headerIndex + offset + 2,
+      Quellspalte: valueIndex + 1,
+      Datenbereich: domain,
+      Kategorie: categoryIndex >= 0 ? asText(row[categoryIndex]) : domain,
+      Unterkategorie: sourceIndex >= 0 ? asText(row[sourceIndex]) : "",
+      Kennzahl: metric,
+      Detailbezeichnung: metric,
+      Objekt_Typ: objectIndex >= 0 && asText(row[objectIndex]) ? "Behandler" : "",
+      Objekt_Name: objectIndex >= 0 ? asText(row[objectIndex]) : "",
+      Jahr: period.year,
+      Monat: period.month,
+      Wert: value,
+      Einheit: unitIndex >= 0 ? asText(row[unitIndex]) : "",
+      Werttyp: valueTypeIndex >= 0 ? asText(row[valueTypeIndex]) : "Input",
+      Aktivstatus_Monat: "aktiv",
+      Quelle_Zelle: `${sheetName}!${headerIndex + offset + 2}:${valueIndex + 1}`,
+      Datenebene: "Input"
+    }];
+  });
+}
+
+function standaloneInputRowsFromWorkbook(workbook: XLSX.WorkBook) {
+  const siteName = standaloneSiteNameFromWorkbook(workbook);
+  if (!siteName) return [];
+  return [
+    ...standaloneRowsFromStammdaten(workbook, siteName),
+    ...standaloneRowsFromEbitdaTargets(workbook, siteName),
+    ...standaloneRowsFromKontostand(workbook, siteName),
+    ...standaloneRowsFromBwaInput(workbook, siteName),
+    ...standaloneRowsFromMonthlyInputSheet(workbook, "Input_Finanzen", siteName, "Finanzen"),
+    ...standaloneRowsFromMonthlyInputSheet(workbook, "Input_Behandler_Leistung", siteName, "Behandler", { objectColumn: 1 }),
+    ...standaloneRowsFromVerticalInputSheet(workbook, "Input_Operativ", siteName, "Operativ"),
+    ...standaloneRowsFromMonthlyInputSheet(workbook, "Input_Operativ_Maske", siteName, "Operativ"),
+    ...standaloneRowsFromMonthlyInputSheet(workbook, "Input_ausstehende Gehälter", siteName, "Personal")
+  ];
+}
+
+function standaloneConsolidatedRowsFromWorkbook(workbook: XLSX.WorkBook) {
+  const exportRows = exportRowsFromWorkbook(workbook);
+  const inputRows = standaloneInputRowsFromWorkbook(workbook);
+  const rows = [...exportRows, ...inputRows].filter((row) => asText(row.Kennzahl) && asText(row.Standortname));
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const record = row as Record<string, unknown>;
+    // Export rows come first. Input rows only fill gaps, so the same value is not counted twice.
+    const signature = [
+      asText(record.Standortname),
+      asText(record.Datenbereich),
+      asText(record.Kategorie),
+      asText(record.Kennzahl),
+      asText(record.Objekt_Name),
+      asText(record.Jahr),
+      asText(record.Monat),
+      asText(record.Wert)
+    ].join("||");
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+}
+
+function cfoImportRowsFromWorkbook(workbook: XLSX.WorkBook) {
+  const sourceSheet = workbook.Sheets[importSourceSheetName];
+  if (sourceSheet) {
+    return XLSX.utils
+      .sheet_to_json<Record<string, unknown>>(sourceSheet, {
+        defval: null,
+        raw: true
+      })
+      .filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
+  }
+  return standaloneConsolidatedRowsFromWorkbook(workbook)
+    .map((row) => row as Record<string, unknown>)
+    .filter((row) => !isExcludedPlanRow(row) && asText(row.Kennzahl) && asText(row.Standortname));
+}
+
 function buildImportedBehandlerHonorarRows(detailRows: ImportedBehandlerDetailRow[], report: ImportReport): ImportedPeriodValueRow[] {
   const validYears = report.jahre.filter((year) => year > 1900);
   return sortSiteNamesByContractStart(report.standorte).map((siteName) => {
@@ -8386,6 +8933,7 @@ function cfoWorkbookSheetsForImport(sheetNames: string[]) {
   return sheetNames.filter((sheetName) => {
     if (fixedSheets.has(sheetName)) return true;
     if (/^export_/i.test(sheetName) || /_export$/i.test(sheetName)) return true;
+    if (/^input_/i.test(sheetName)) return true;
     if (/^Input_Kontostand/i.test(sheetName)) return true;
     if (/personalkosten/i.test(sheetName)) return true;
     return false;
@@ -8695,8 +9243,9 @@ function buildImportedPersonnelCostRows(workbook: XLSX.WorkBook): ImportedPerson
     const activePeriodIndex = indexOf("Aktiv-Zeitraum");
     const monthIndexes = monthHeaders.map((month) => indexOf(month));
     const sheetSiteName = sheetName.replace(/_?Personalkosten_Expor?t?$/i, "");
-    const siteId = siteIdForName(sheetSiteName);
-    const siteName = siteById.get(siteId) ?? sheetSiteName;
+    const workbookSiteName = standaloneSiteNameFromWorkbook(workbook);
+    const siteId = siteIdForName(siteById.has(siteIdForName(sheetSiteName)) ? sheetSiteName : workbookSiteName || sheetSiteName);
+    const siteName = siteById.get(siteId) ?? workbookSiteName ?? sheetSiteName;
 
     rawRows.slice(headerIndex + 1).forEach((row) => {
       const year = Number(row[yearIndex]);
@@ -18845,6 +19394,7 @@ function Uploads({
   const [confirmedReport, setConfirmedReport] = useState<ImportReport | null>(null);
   const [pendingDashboardData, setPendingDashboardData] = useState<ImportedDashboardData | null>(null);
   const [confirmedDashboardData, setConfirmedDashboardData] = useState<ImportedDashboardData | null>(null);
+  const [siteUploads, setSiteUploads] = useState<Record<string, { fileName: string; report: ImportReport; data: ImportedDashboardData | null }>>({});
   const [importHistory, setImportHistory] = useState<ImportHistoryEntry[]>([]);
   const [isConfirming, setIsConfirming] = useState(false);
   const [successNotice, setSuccessNotice] = useState<{ title: string; text: string } | null>(null);
@@ -18878,7 +19428,7 @@ function Uploads({
     refreshImportHistory();
   }, []);
 
-  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handleSiteFileUpload(site: DashboardSite, event: React.ChangeEvent<HTMLInputElement>) {
     if (!canEdit) return;
     const file = event.target.files?.[0];
     if (!file) return;
@@ -18888,15 +19438,39 @@ function Uploads({
     try {
       await waitForBrowserPaint();
       const workbook = await readCfoWorkbookFromFile(file);
+      const detectedSiteName = standaloneSiteNameFromWorkbook(workbook);
       const nextReport = buildImportReport(workbook, file.name);
-      setReport(nextReport);
-      if (nextReport.status === "ready" || nextReport.status === "warning") {
-        setPendingDashboardData(buildImportedDashboardData(workbook, file.name, nextReport));
-      } else {
-        setPendingDashboardData(null);
-      }
+      const detectedSiteId = detectedSiteName ? siteIdForName(detectedSiteName) : "";
+      const checkedReport: ImportReport =
+        detectedSiteId && detectedSiteId !== site.id
+          ? {
+              ...nextReport,
+              status: "error",
+              errors: [
+                ...nextReport.errors,
+                `Diese Datei gehört zu ${detectedSiteName}, wurde aber im Upload-Feld ${site.name} ausgewählt. Bitte im richtigen Standort-Feld hochladen.`
+              ]
+            }
+          : nextReport;
+      const nextData =
+        checkedReport.status === "ready" || checkedReport.status === "warning"
+          ? buildImportedDashboardData(workbook, file.name, checkedReport)
+          : null;
+      const nextSiteUploads = {
+        ...siteUploads,
+        [site.id]: { fileName: file.name, report: checkedReport, data: nextData }
+      };
+      setSiteUploads(nextSiteUploads);
+      const nextCombinedData = mergeImportedDashboardData(
+        confirmedDashboardData,
+        Object.values(nextSiteUploads)
+          .map((entry) => entry.data)
+          .filter((entry): entry is ImportedDashboardData => entry != null)
+      );
+      setPendingDashboardData(nextCombinedData);
+      setReport(nextCombinedData?.report ?? checkedReport);
     } catch (error) {
-      setReport({
+      const errorReport = {
         ...emptyImportReport,
         status: "error",
         fileName: file.name,
@@ -18906,8 +19480,12 @@ function Uploads({
             ? `Die Datei konnte nicht gelesen werden: ${error.message}. Falls das auf iPhone/iPad passiert, bitte die Excel-Datei einmal vollständig speichern und erneut hochladen.`
             : "Die Datei konnte nicht gelesen werden. Falls das auf iPhone/iPad passiert, bitte die Excel-Datei einmal vollständig speichern und erneut hochladen."
         ]
-      });
-      setPendingDashboardData(null);
+      } satisfies ImportReport;
+      setReport(errorReport);
+      setSiteUploads((current) => ({
+        ...current,
+        [site.id]: { fileName: file.name, report: errorReport, data: null }
+      }));
     } finally {
       event.target.value = "";
     }
@@ -18926,8 +19504,9 @@ function Uploads({
       onImportConfirmed?.(repairedDashboardData);
       setSuccessNotice({
         title: "CFO-Import bestätigt",
-        text: `${report.fileName || "Die CFO-Arbeitsmappe"} wurde eingelesen und als aktive Datenbasis freigegeben.`
+        text: `${report.fileName || "Die Standort-Arbeitsmappen"} wurden eingelesen und als aktive Datenbasis freigegeben.`
       });
+      setSiteUploads({});
     } finally {
       setIsConfirming(false);
     }
@@ -18940,6 +19519,7 @@ function Uploads({
     setConfirmedReport(null);
     setPendingDashboardData(null);
     setConfirmedDashboardData(null);
+    setSiteUploads({});
     refreshImportHistory();
     onImportReset?.();
   }
@@ -18958,10 +19538,10 @@ function Uploads({
             : "Noch kein Import";
 
   const importSteps = [
-    { label: "Arbeitsmappe auswählen", done: report.status !== "idle" || Boolean(confirmedReport) },
-    { label: "Pflichtblätter erkennen", done: Boolean(activeReport?.presentSheets.length) },
-    { label: "Konzern_Konsolidierung_STD auslesen", done: Boolean(activeReport?.totalRows) },
-    { label: "Planwerte filtern", done: Boolean(activeReport && activeReport.status !== "error") },
+    { label: "Standortdatei auswählen", done: report.status !== "idle" || Boolean(confirmedReport) },
+    { label: "Input-Blätter je Standort erkennen", done: Boolean(activeReport?.presentSheets.length) },
+    { label: "Export/Input-Daten je Standort auslesen", done: Boolean(activeReport?.totalRows) },
+    { label: "Einzelupdate mit bestehenden Standorten zusammenführen", done: Boolean(pendingDashboardData || confirmedDashboardData) },
     { label: "Standorte, Jahre und Monate prüfen", done: Boolean(activeReport?.standorte.length && activeReport?.jahre.length) },
     { label: "Importbericht freigeben", done: Boolean(confirmedReport) }
   ];
@@ -18978,7 +19558,7 @@ function Uploads({
           onClose={() => setSuccessNotice(null)}
         />
       )}
-      <PageTitle title="Uploads & Datenstand" text="Zentraler Excel-Import aus der konsolidierten Orisus-Arbeitsmappe mit Blatt-, Zeitraum-, Standort- und Plausibilitätsprüfung." />
+      <PageTitle title="Uploads & Datenstand" text="Standortweiser CFO-Import: Lade je Standort die jeweilige Controlling-Arbeitsmappe hoch. Einzelne Standortupdates ersetzen nur diesen Standort; alle anderen bestätigten Standorte bleiben bestehen." />
       {!canEdit && (
         <Card className="border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
           Info-Rolle: Du kannst Importstatus und Historie lesen, aber keine Dateien hochladen, bestätigen oder zurücksetzen.
@@ -19030,30 +19610,60 @@ function Uploads({
         <Card className="p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="font-bold">Konsolidierte Orisus-Arbeitsmappe</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Lade die komplette Excel-Datei nach Power-Query-Refresh und Speichern hoch.</p>
+              <h2 className="font-bold">Standortdateien hochladen</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Pro Standort eine eigene Controlling-Datei. Ein einzelner Upload aktualisiert nur diesen Standort und wird mit dem bestätigten Datenstand der übrigen Standorte kombiniert.
+              </p>
             </div>
             <Badge tone={statusTone}>{statusLabel}</Badge>
           </div>
-          <Select className="mt-4 w-full">
-            {uploadTypes.map((type) => (
-              <option key={type}>{type}</option>
-            ))}
-          </Select>
-          <label
-            className={cn(
-              "mt-4 block rounded-lg border-2 border-dashed border-border bg-slate-50 p-8 text-center transition",
-              canEdit ? "cursor-pointer hover:border-primary hover:bg-cyan-50/60" : "cursor-not-allowed opacity-60"
-            )}
-          >
-            <FileUp className="mx-auto h-10 w-10 text-primary" />
-            <p className="mt-3 font-bold">{report.status === "reading" ? "Datei wird gelesen ..." : "Excel-Datei auswählen"}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Empfohlen: +BWA_Controlling_Orisus_Dashboard+.xlsx</p>
-            <input className="sr-only" type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} disabled={!canEdit} />
-          </label>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {sortSitesByContractStart(standorte).map((site) => {
+              const entry = siteUploads[site.id];
+              const entryTone = entry?.report.status === "ready" ? "green" : entry?.report.status === "warning" ? "yellow" : entry?.report.status === "error" ? "red" : "neutral";
+              const latestSiteMonth = latestBwaMonthLabelForSite(activeDashboardData, site.id);
+              return (
+                <label
+                  key={site.id}
+                  className={cn(
+                    "block rounded-xl border border-border bg-slate-50 p-4 transition",
+                    canEdit ? "cursor-pointer hover:border-primary hover:bg-cyan-50/60" : "cursor-not-allowed opacity-60"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-extrabold">{site.name}</p>
+                      <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                        {entry?.fileName ?? `Aktueller Stand: ${latestSiteMonth}`}
+                      </p>
+                    </div>
+                    <Badge tone={entryTone}>
+                      {entry?.report.status === "ready"
+                        ? "Bereit"
+                        : entry?.report.status === "warning"
+                          ? "Warnung"
+                          : entry?.report.status === "error"
+                            ? "Fehler"
+                            : "Upload"}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 text-sm font-bold text-primary">
+                    <FileUp className="h-4 w-4" />
+                    Datei für {site.name} auswählen
+                  </div>
+                  {entry?.report.errors.length ? (
+                    <p className="mt-2 text-xs font-semibold text-red-700">{entry.report.errors[0]}</p>
+                  ) : entry?.report.warnings.length ? (
+                    <p className="mt-2 text-xs font-semibold text-amber-700">{entry.report.warnings[0]}</p>
+                  ) : null}
+                  <input className="sr-only" type="file" accept=".xlsx,.xls" onChange={(event) => handleSiteFileUpload(site, event)} disabled={!canEdit} />
+                </label>
+              );
+            })}
+          </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {[
-              ["Pflichtblätter", activeReport ? `${activeReport.presentSheets.length}/${requiredImportSheets.length} erkannt` : "Noch offen"],
+              ["Erkannte Blätter", activeReport ? `${activeReport.presentSheets.length} erkannt` : "Noch offen"],
               ["Datenzeilen", activeReport ? activeReport.totalRows.toLocaleString("de-DE") : "Noch offen"],
               ["Importfähige Zeilen", activeReport ? activeReport.usableRows.toLocaleString("de-DE") : "Noch offen"],
               ["Ausgeschlossene Planwerte", activeReport ? activeReport.excludedPlanRows.toLocaleString("de-DE") : "Noch offen"]
@@ -19078,7 +19688,7 @@ function Uploads({
         <div className="border-b border-border p-4">
           <h2 className="font-bold">Importbericht</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Vorschau aus der hochgeladenen Arbeitsmappe. Nach Bestätigung nutzen Cockpit, BWA und Standortansichten diese Importdaten.
+            Vorschau aus den hochgeladenen Standortdateien. Nach Bestätigung nutzen Dashboard, BWA, Standortansichten, Reports und Benchmarking diese zusammengeführte Datenbasis.
           </p>
         </div>
         <div className="grid gap-px table-grid-bg md:grid-cols-2 xl:grid-cols-4">

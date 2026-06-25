@@ -215,6 +215,13 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Fuer das Uebernahmeziel im Orisus Board hat der importierte BWA-Monatswert `ziel_ebitda_uebernahme` Vorrang vor statischen Standort-/Fallbackwerten. Beispiel Kehl: Monatsziel 20.901 EUR; anteilige Linie = 20.901 EUR mal aktive Ist-BWA-Monate.
   - Tooltip/Erklaerung muss zwischen `Ziel-EBITDA Uebernahme p.a.` und `Ziel-EBITDA Uebernahme anteilig bis Datenstand` unterscheiden. Beispiel Essen: Basis p.a. 245.268 EUR; bei 16 aktiven Ist-BWA-Monaten anteilig ca. 327.024 EUR.
   - Sichtbare Chart-Beschriftung/Tooltip soll schlank bleiben: Balken = Ist-EBITDA kumuliert, blaue Linie = Ziel Kaufvertrag, gelbe gestrichelte Linie = Ziel Uebernahme. Monats-/p.a.-Hilfswerte gehoeren nicht prominent in den Tooltip.
+- CFO-Upload / Standortdateien:
+  - Die alte konsolidierte Gesamtdatei soll nicht mehr der Standard-Upload sein.
+  - Der CFO-Upload arbeitet mit festen Uploadfeldern je Standort. Ein Upload im Standortfeld ersetzt nur diesen Standort; alle anderen bereits bestaetigten Standorte bleiben erhalten.
+  - Eine Datei wird gegen den im Uploadfeld erwarteten Standort geprueft. Wird z. B. eine Essen-Datei im Kirchberg-Feld hochgeladen, blockiert der Import mit Fehlermeldung.
+  - Die App liest `Export_Konzern_Final` bzw. `Export_Konzern`, falls vorhanden. Zusaetzlich bzw. als Fallback werden die Standort-Inputblaetter gelesen: `Input_Stammdaten`, `Input_Finanzen`, `Input_BWA`, `Input_Kontostand`, `Input_Behandler`, `Input_Behandler_Leistung`, `Input_Personalkosten`, `Input_Operativ`, `Input_Operativ_Maske`, `Input_EBITDA_Ziele` und `Input_ausstehende Gehaelter`.
+  - Patientendaten liegen typischerweise in `Input_Operativ`; die Importlogik nutzt dieses Blatt und weitere Inputblaetter als Fallback, damit keine Power-Query-Konsolidierung in einer Gesamtdatei noetig ist.
+  - Wenn Export- und Inputdaten dieselbe Kennzahl/Periode enthalten, hat der Export Vorrang und Inputdaten fuellen nur Luecken. Dadurch werden gleiche Werte nicht doppelt gezaehlt.
 - Layout-/Visualisierungsregel:
   - Bestehende Diagramme, KPI-Kacheln, Scorecards und Tabellen duerfen visuell moderner und klarer gestaltet werden, ohne fachliche Werte- oder Importlogik zu veraendern.
   - Keine zusaetzlichen grossen Diagrammbloecke nur zur Dekoration. Neue Visualisierung nur, wenn sie eine vorhandene Auswertung ersetzt, verdichtet oder direkt in einer bestehenden KPI/Kachel sinnvoll erklaert.
