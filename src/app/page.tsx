@@ -6979,16 +6979,24 @@ function ManagementStorylineCard({
   );
 }
 
-function aggregateMetricTrendData(importedData: ImportedDashboardData | null | undefined, metricKey: string, limit = 8) {
+function aggregateMetricTrendData(importedData: ImportedDashboardData | null | undefined, metricKey: string, period?: string, limit = 8) {
   if (!importedData?.bwaRows?.length) return [];
-  const monthKeys = Array.from(
+  const selection = period ? selectedBwaPeriod(period) : { year: null, months: null };
+  const allMonthKeys = Array.from(
     new Set(
       importedData.bwaRows
         .filter((row) => row.metricKey === metricKey)
         .flatMap((row) => Object.keys(row.valuesByMonth).filter((monthKey) => row.hasValueByMonth[monthKey]))
     )
   );
-  return monthKeys
+  const monthKeys = allMonthKeys
+    .filter((monthKey) => {
+      if (!selection.year) return true;
+      const [year, month] = monthKey.split("-").map(Number);
+      if (year !== selection.year) return false;
+      if (selection.months?.length) return selection.months.includes(month);
+      return true;
+    })
     .map((monthKey) => {
       const [year, month] = monthKey.split("-").map(Number);
       const value = importedData.bwaRows
@@ -7002,8 +7010,8 @@ function aggregateMetricTrendData(importedData: ImportedDashboardData | null | u
       };
     })
     .filter((entry) => Number.isFinite(entry.value))
-    .sort((a, b) => a.sort - b.sort)
-    .slice(-limit);
+    .sort((a, b) => a.sort - b.sort);
+  return selection.year ? monthKeys : monthKeys.slice(-limit);
 }
 
 function MiniSparkline({
@@ -7113,9 +7121,9 @@ function DailyCfoCockpit({
   const expectedGrowthPayment = earnOutRows.reduce((sum, row) => sum + row.projection.projectedGrowthPayment, 0);
   const expectedTotalPayment = expectedEarnOut + expectedGrowthPayment;
   const expectedObligationInfo = <ExpectedObligationInfo rows={earnOutRows} period={period} />;
-  const revenueSparkline = aggregateMetricTrendData(importedData, "summe_umsatz");
-  const ebitdaSparkline = aggregateMetricTrendData(importedData, "ebitda");
-  const cashflowSparkline = aggregateMetricTrendData(importedData, "cashflow_gesamt");
+  const revenueSparkline = aggregateMetricTrendData(importedData, "summe_umsatz", revenuePeriod);
+  const ebitdaSparkline = aggregateMetricTrendData(importedData, "ebitda", ebitdaPeriod);
+  const cashflowSparkline = aggregateMetricTrendData(importedData, "cashflow_gesamt", cashflowPeriod);
 
   const kpis = [
     {

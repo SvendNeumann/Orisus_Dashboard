@@ -1432,6 +1432,9 @@ Zuletzt umgesetzte / festgelegte Punkte:
 - Mobile/Tabellen:
   - Neue breite Auswertungstabellen erhalten horizontales Scrollen, feste Kopfzeilen innerhalb der Tabelle und Mindestbreiten, damit Spalten auf Smartphone nicht ineinander laufen.
   - Lange Detail-/Prueftabellen sollen optisch ruhig und mit Scroll-/Sticky-Hilfen lesbar bleiben, da sie standardmaessig sichtbar sind.
+- KPI-Sparklines:
+  - Sparklines in KPI-Kacheln mit eigener Zeitraumauswahl muessen denselben Zeitraum wie die Kachel zeigen.
+  - Kacheln ohne eigene Zeitraumauswahl duerfen weiterhin den aktuellen Importtrend zeigen.
 
 Aktuell besonders sensible Pruefpunkte:
 
