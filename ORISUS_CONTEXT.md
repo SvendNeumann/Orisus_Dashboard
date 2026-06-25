@@ -184,6 +184,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Ziel-Linien duerfen nicht als gesamte Vertragsperiode oder voller Zukunftszielwert gezeigt werden.
   - Kaufvertrag und Uebernahmeziel werden beide als p.a.-Ziele behandelt und zeitanteilig ueber die aktiven Ist-BWA-Monate gerechnet.
   - Uebernahmeziel nicht ueber die volle Earn-Out-/Vertragsperiode verteilen, sonst wird die gestrichelte Linie zu niedrig dargestellt.
+  - Fuer das Uebernahmeziel im CFO-Cockpit hat der importierte BWA-Monatswert `ziel_ebitda_uebernahme` Vorrang vor statischen Standort-/Fallbackwerten. Beispiel Kehl: Monatsziel 20.901 EUR; anteilige Linie = 20.901 EUR mal aktive Ist-BWA-Monate.
   - Tooltip/Erklaerung muss zwischen `Ziel-EBITDA Uebernahme p.a.` und `Ziel-EBITDA Uebernahme anteilig bis Datenstand` unterscheiden. Beispiel Essen: Basis p.a. 245.268 EUR; bei 16 aktiven Ist-BWA-Monaten anteilig ca. 327.024 EUR.
 - PMR-Export enthaelt Seite 1 Standortleiter-PMR und Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort.
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
