@@ -137,7 +137,7 @@ Navigation wurde gruppiert:
   - Standorte
   - BWA
   - Kennzahlen / Entwicklung
-  - Cashflow
+  - Cashflow-Analyse
 - Performance & Benchmarking
   - Orisus Performance
   - Fruehwarnsystem
@@ -222,7 +222,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Orisus Performance: Diagramm `Operative Entwicklung` hat Zeitraumfilter und Soll-EBITDA-Linie gemaess Uebernahme. Die Recharts-Legende oben im Plot ist entfernt; die schlanke Legende unter dem Diagramm bleibt.
 - Orisus Performance: Das Forderungsdiagramm neben `Operative Entwicklung` zeigt im Plot keine eigene Legende mehr.
 - Orisus Performance: Die Bankbewegungen unten wurden entfernt, weil diese Auswertung bereits in anderen Tabs vorhanden ist.
-- Cashflow-Tab enthaelt zusaetzlich einen Abweichungsmonitor Bank vs. BWA ueber die gesamte Vertragsperiode je Standort.
+- Cashflow-Analyse enthaelt zusaetzlich einen Abweichungsmonitor Bank vs. BWA ueber die gesamte Vertragsperiode je Standort.
 - BWA-Tab:
   - Der obere Kurzueberblick zeigt Gesamtleistung, EBITDA und Cashflow BWA. Eine separate Datenstand-Kachel wird dort nicht angezeigt.
   - In der Desktopansicht sollen `Gesamtleistungsentwicklung` und die rechts danebenstehenden `Kostenquoten` im Grid unten bündig abschliessen.

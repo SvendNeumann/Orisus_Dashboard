@@ -1732,7 +1732,7 @@ const navSections = [
       { id: "standorte", label: "Standorte", icon: Building2 },
       { id: "bwa", label: "BWA", icon: FileBarChart },
       { id: "kennzahlen", label: "Kennzahlen / Entwicklung", icon: BarChart3 },
-      { id: "cashflow", label: "Cashflow", icon: Wallet }
+      { id: "cashflow", label: "Cashflow-Analyse", icon: Wallet }
     ]
   },
   {
@@ -15178,7 +15178,7 @@ function Cashflow({
   const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   return (
     <section className="space-y-5">
-      <PageTitle title="Cashflow" text="Cashflow gem. BWA sowie Bank-Cashflow aus Praxiseingängen, Kosten, Annuitäten und Umbuchungen MVZ." />
+      <PageTitle title="Cashflow-Analyse" text="Cashflow gem. BWA sowie Bank-Cashflow aus Praxiseingängen, Kosten, Annuitäten und Umbuchungen MVZ." />
       <TabExecutiveSummary
         title="Cashflow-Abgleich kompakt"
         text="Der Start trennt BWA-Cashflow, Bankbestand und Forderungen. Der detaillierte Bank/BWA-Abgleich bleibt darunter mit Zeitraumlogik und Sondernotizen erhalten."
