@@ -173,6 +173,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Fokus auf wesentliche Kennzahlen: EBITDA-Marge, Kostenquoten, durchschnittlicher Monats-Gesamtumsatz je Zahnarzt-FTE/Zimmer, durchschnittliche Monats-Patienten je Zimmer, Neupatientenquote, Terminwahrnehmung, Terminausfallquote.
   - Kapazitaets-/Produktivitaetskennzahlen werden vor Division durch FTE/Zimmer/Stunden auf einen durchschnittlichen Monatswert normalisiert. Grundlage sind die aktiven Ist-BWA-Monate im ausgewaehlten Zeitraum seit jeweiligem Vertragsstart. Dadurch werden Standorte mit unterschiedlich langer Vertragslaufzeit vergleichbar.
   - Quoten wie EBITDA-Marge, Kostenquoten, Neupatientenquote, Terminwahrnehmung und Terminausfallquote bleiben reine Quoten und werden nicht durch Monate geteilt.
+  - Terminwahrnehmung und Terminausfall im Benchmarking nur berechnen, wenn eine echte Ausfall-/Absagebasis vorhanden ist (`Nicht wahrgenommene Termine` oder `Absagequote`). Wenn ein Softwarehersteller diese Daten nicht liefert, muessen beide Werte `n. v.` bleiben.
   - Doppelte Index-Kachelgruppen und redundante Rankingbloecke sind aus der Hauptansicht entfernt.
   - Detail-Herleitungen sind einklappbar und standardmaessig geschlossen.
 - Benchmarking-Reports und PMR-Benchmarking-Anlage laufen mit derselben verdichteten Logik:

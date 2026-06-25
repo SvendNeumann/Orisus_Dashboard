@@ -10114,15 +10114,19 @@ function appointmentRatesPercent({
   attendedAppointments,
   missedAppointments,
   attendanceRateSource,
-  cancellationRateSource
+  cancellationRateSource,
+  requireCancellationBase = false
 }: {
   bookedAppointments: number | null | undefined;
   attendedAppointments: number | null | undefined;
   missedAppointments: number | null | undefined;
   attendanceRateSource: number | null | undefined;
   cancellationRateSource: number | null | undefined;
+  requireCancellationBase?: boolean;
 }) {
   const hasAppointmentBase = bookedAppointments != null && bookedAppointments > 0;
+  const hasCancellationBase = missedAppointments != null || cancellationRateSource != null;
+  if (requireCancellationBase && !hasCancellationBase) return { attendanceRate: null, cancellationRate: null };
   let cancellationRate =
     hasAppointmentBase && missedAppointments != null
       ? normalizedPercent(missedAppointments / bookedAppointments)
@@ -12147,7 +12151,8 @@ function Analysen({
       attendedAppointments,
       missedAppointments,
       attendanceRateSource,
-      cancellationRateSource
+      cancellationRateSource,
+      requireCancellationBase: true
     });
     const newPatientRate = treatedPatients != null && treatedPatients > 0 && newPatients != null ? (newPatients / treatedPatients) * 100 : null;
     const patientsPerRoom =
@@ -18867,7 +18872,8 @@ function buildPmrBenchmarkPage(
       attendedAppointments,
       missedAppointments,
       attendanceRateSource,
-      cancellationRateSource
+      cancellationRateSource,
+      requireCancellationBase: true
     });
     const newPatientRate = treatedPatients != null && treatedPatients > 0 && newPatients != null ? (newPatients / treatedPatients) * 100 : null;
     const patientsPerRoom =
