@@ -18040,7 +18040,8 @@ function findPersonalEmployeeForPersonnelCost(
 ) {
   const rowName = normalizeMetric(row.name);
   const rowTokens = personnelCostNameTokens(row.name);
-  return (personalData?.employees ?? []).find((employee) => {
+  const siteEmployees = (personalData?.employees ?? []).filter((employee) => siteIdForName(employee.site) === siteId);
+  const directMatch = siteEmployees.find((employee) => {
     if (siteIdForName(employee.site) !== siteId) return false;
     if (row.employeeId && employee.id && normalizeMetric(employee.id) === normalizeMetric(row.employeeId)) return true;
     const employeeName = normalizeMetric(employee.name);
@@ -18049,6 +18050,15 @@ function findPersonalEmployeeForPersonnelCost(
     if (rowTokens.length >= 2 && rowTokens.every((token) => employeeTokens.includes(token))) return true;
     return rowTokens.length >= 2 && employeeTokens.every((token) => rowTokens.includes(token));
   });
+  if (directMatch) return directMatch;
+
+  if (rowTokens.length === 1) {
+    const token = rowTokens[0];
+    const candidates = siteEmployees.filter((employee) => personnelCostNameTokens(employee.name).includes(token));
+    if (candidates.length === 1) return candidates[0];
+  }
+
+  return undefined;
 }
 
 function personnelCostDisplayStatusNote(

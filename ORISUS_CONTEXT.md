@@ -628,6 +628,7 @@ Inhalte:
   - PK-Quote immer mit einer Nachkommastelle darstellen
   - `MVZ` und `Unbekannt` nie anzeigen, nie mitzählen und nicht erwaehnen, obwohl sie importiert werden.
   - Inaktive Mitarbeiter sollen mit Hinweis auf Inaktivitaet und Austrittsdatum erkennbar sein, wenn vorhanden.
+  - Inaktiv-Hinweis kommt entweder direkt aus der CFO-Personalkostenzeile oder aus eindeutigem Match mit dem Personal-Upload; gekuerzte CFO-Namen duerfen per eindeutigem Nachnamen je Standort gematcht werden.
 
 Wichtig:
 
