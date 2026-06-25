@@ -5236,7 +5236,7 @@ function PersonalCockpit({
       .values()
   )
     .sort((a, b) => b.days - a.days)
-    .slice(0, 10);
+    .slice(0, 15);
   const costOverviewRows = siteRows.map((site) => {
     const activeEmployees = personalData.employees.filter((employee) => employee.site === site.site && isActiveStatus(employee));
     const teamEmployees = activeEmployees.filter((employee) => !employee.isDentist);
@@ -5551,7 +5551,7 @@ function PersonalCockpit({
         </ChartCard>
         <Card className="analysis-only overflow-hidden">
           <div className="table-head p-4 text-white">
-            <h2 className="font-bold">Top 10 Krankheitstage Mitarbeiter | {selectedYear}</h2>
+            <h2 className="font-bold">Top 15 Krankheitstage Mitarbeiter | {selectedYear}</h2>
           </div>
           <ResponsiveTable>
             <thead>

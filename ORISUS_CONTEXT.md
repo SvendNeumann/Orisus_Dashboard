@@ -222,6 +222,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Performance & Benchmarking enthaelt ein eigenes Tab `Personalproduktivitaet`.
 - Personal-Cockpit:
   - Die Diagramme `Aktive Mitarbeiter je Standort` und `Krankheitstage je Standort` zeigen die Werte direkt lesbar in den Balken, damit die Zahl nicht erst per Hover/Touch-Tooltip sichtbar wird.
+  - Die Übersicht `Krankheitstage Mitarbeiter` zeigt im Personal-Cockpit die Top 15 Mitarbeiter des gewählten Jahres.
 - Administration:
   - CFO-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
   - Personal-Upload enthaelt Datenqualitaets-/Plausibilitaetschecks.
