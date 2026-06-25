@@ -16018,7 +16018,7 @@ function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[];
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <KpiCard
           label="Abrufdarlehen"
           value={totals.abrufdarlehen}
@@ -16064,6 +16064,22 @@ function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[];
                 {rows.map((row) => <InfoLine key={row.site.id} label={row.site.name} value={row.debt} />)}
                 <InfoLine label="= Fremdkapital aufgenommen gesamt" value={totals.debt} strong />
                 <InfoLine label="Davon bereits getilgt" value={totals.repaid} />
+              </div>
+            </div>
+          }
+        />
+        <KpiCard
+          label="Bereits getilgt"
+          value={totals.repaid}
+          delta="seit Vertragsstart"
+          icon={ShieldCheck}
+          status="green"
+          info={
+            <div className="space-y-3">
+              <p>Summe der bereits getilgten Beträge je Standort. Grundlage sind die vorhandenen Darlehens-/BWA-Daten seit jeweiligem Vertragsstart.</p>
+              <div className="space-y-1">
+                {rows.map((row) => <InfoLine key={row.site.id} label={row.site.name} value={row.repaid} />)}
+                <InfoLine label="= Bereits getilgt gesamt" value={totals.repaid} strong />
               </div>
             </div>
           }
