@@ -6559,7 +6559,7 @@ function DailyCfoCockpit({
   }>;
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {kpis.map((kpi) => (
         <KpiCard key={kpi.label} {...kpi} />
       ))}
@@ -6569,10 +6569,10 @@ function DailyCfoCockpit({
 
 function PageTitle({ title, text }: { title: string; text: string }) {
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div className="page-title flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
-        <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{text}</p>
+        <h1 className="text-3xl font-extrabold text-white sm:text-4xl">{title}</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{text}</p>
       </div>
     </div>
   );
@@ -6604,7 +6604,7 @@ function KpiCard({
   const positive = !delta.startsWith("-");
   const [infoOpen, setInfoOpen] = useState(false);
   return (
-    <Card className="modern-kpi-card relative flex min-h-[12.5rem] flex-col p-5 text-center">
+    <Card className="modern-kpi-card relative flex min-h-[13rem] flex-col p-5 text-center">
       <div className="mb-3 flex min-h-8 items-start justify-between gap-3">
         <div className="w-8 shrink-0">
           {info && (
@@ -6623,12 +6623,12 @@ function KpiCard({
         </div>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="modern-icon-tile flex h-12 w-12 items-center justify-center rounded-lg text-primary">
+        <div className="modern-icon-tile flex h-12 w-12 items-center justify-center rounded-xl text-primary">
           <Icon className="h-5 w-5" />
         </div>
         <p className="mt-4 max-w-full text-sm font-semibold text-muted-foreground">{label}</p>
         {control ? <div className="mt-3 w-full max-w-[15rem]">{control}</div> : null}
-        <p className="mt-1 text-3xl font-extrabold tracking-tight text-white">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
+        <p className="mt-1 text-3xl font-extrabold text-white">{plain ? value.toLocaleString("de-DE") : percent ? pct(value) : eur(value, true)}</p>
         {secondaryValue ? <p className="mt-1 text-sm font-bold text-slate-200">{secondaryValue}</p> : null}
         <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 text-sm font-semibold", positive ? "text-emerald-700" : "text-red-700")}>
           {positive ? <ArrowUpRight className="h-4 w-4 shrink-0" /> : <ArrowDownRight className="h-4 w-4 shrink-0" />}
@@ -6667,7 +6667,7 @@ function InfoDialog({ title, children, onClose }: { title: string; children: Rea
       <div
         role="dialog"
         aria-modal="true"
-        className="app-info-popover relative z-[201] max-h-[calc(100vh-3rem)] w-full max-w-2xl overflow-y-auto overflow-x-hidden rounded-lg border border-slate-200 bg-white p-4 text-left text-sm leading-6 text-slate-900 shadow-2xl sm:max-h-[calc(100vh-8rem)]"
+        className="app-info-popover relative z-[201] max-h-[calc(100vh-3rem)] w-full max-w-2xl overflow-y-auto overflow-x-hidden rounded-xl border border-slate-200 bg-white p-4 text-left text-sm leading-6 text-slate-900 shadow-2xl sm:max-h-[calc(100vh-8rem)]"
       >
         <div className="sticky top-0 z-10 mb-3 flex items-start justify-between gap-3 border-b border-slate-200 bg-white pb-3">
           <p className="text-base font-bold text-slate-950">{title}</p>
@@ -6822,11 +6822,13 @@ function ChartCard({
   const [infoOpen, setInfoOpen] = useState(false);
 
   return (
-    <Card className="chart-card relative h-full p-4">
+    <Card className="chart-card relative h-full p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <Icon className="h-5 w-5 text-primary" />
-          <h2 className="font-bold">{title}</h2>
+          <div className="modern-icon-tile flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary">
+            <Icon className="h-4 w-4" />
+          </div>
+          <h2 className="text-base font-extrabold text-white">{title}</h2>
           {info ? (
             <button
               type="button"
@@ -7520,9 +7522,9 @@ function TabExecutiveSummary({
   }>;
 }) {
   return (
-    <Card className="tab-start-card overflow-hidden p-4">
+    <Card className="tab-start-card overflow-hidden p-4 sm:p-5">
       <div className="grid gap-4 xl:grid-cols-[0.95fr_1.55fr]">
-        <div className="rounded-xl border border-white/12 bg-slate-950/28 p-4">
+        <div className="rounded-xl border border-white/12 bg-slate-950/30 p-4 shadow-inner shadow-black/10">
           <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#55e6dd]">Startüberblick</p>
           <h2 className="mt-2 text-xl font-extrabold text-white">{title}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
@@ -7531,7 +7533,7 @@ function TabExecutiveSummary({
           {items.map((item) => {
             const Icon = item.icon ?? Gauge;
             return (
-              <div key={item.label} className="rounded-xl border border-white/12 bg-white/6 p-4">
+              <div key={item.label} className="rounded-xl border border-white/12 bg-white/7 p-4 shadow-sm shadow-black/10">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#30d5c8]/25 bg-[#30d5c8]/12 text-[#73f2e8]">
                     <Icon className="h-4 w-4" />
@@ -10345,7 +10347,7 @@ function EbitdaCauseAnalysis({
 
 function ResponsiveTable({ children }: { children: React.ReactNode }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="table-scroll-frame overflow-x-auto">
       <table className="data-table border-separate border-spacing-0 text-sm">{children}</table>
     </div>
   );
@@ -14439,7 +14441,7 @@ function BenchmarkBasisInfoButton<Row extends { label: string; comparison: numbe
 
 function FilterShell({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="min-w-0 rounded-lg border border-white/15 bg-slate-950/50 p-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
+    <label className="min-w-0 rounded-xl border border-white/15 bg-slate-950/48 p-2.5 text-xs font-semibold uppercase tracking-wide text-slate-300 shadow-sm shadow-black/10">
       <span className="mb-1 block">{label}</span>
       {children}
     </label>
@@ -14448,7 +14450,7 @@ function FilterShell({ label, children }: { label: string; children: ReactNode }
 
 function BenchmarkPanel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <div className="min-w-0 overflow-hidden rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_14px_36px_rgba(0,0,0,0.18)]">
+    <div className="min-w-0 overflow-hidden rounded-xl border border-white/15 bg-slate-950/55 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.2)]">
       <h3 className="text-lg font-bold text-white">{title}</h3>
       {subtitle ? <p className="mt-1 text-sm text-slate-300">{subtitle}</p> : null}
       <div className="mt-4 min-w-0">{children}</div>
@@ -14465,8 +14467,8 @@ function BenchmarkRanking({ title, rows, suffix, max }: { title: string; rows: {
         {sortedRows.map((row) => (
           <div key={`${title}-${row.label}`} className="grid min-w-0 grid-cols-[minmax(68px,88px)_minmax(0,1fr)_52px] items-center gap-2 text-[11px] text-slate-200 sm:grid-cols-[88px_1fr_56px] sm:text-xs">
             <span className="truncate">{row.label}</span>
-            <div className="min-w-0 overflow-hidden rounded-full bg-white/10">
-              <div className={cn("h-3 rounded-full", row.selected ? "bg-cyan-400" : "bg-slate-400")} style={{ width: `${Math.max(4, Math.min(100, (row.value / (max || 1)) * 100))}%` }} />
+            <div className="min-w-0 overflow-hidden rounded-full bg-slate-950/38 shadow-inner shadow-black/20">
+              <div className={cn("h-3 rounded-full shadow-sm", row.selected ? "bg-gradient-to-r from-[#79eee7] to-[#30d5c8]" : "bg-gradient-to-r from-slate-500 to-slate-300")} style={{ width: `${Math.max(4, Math.min(100, (row.value / (max || 1)) * 100))}%` }} />
             </div>
             <strong className="text-right text-white">{row.value.toLocaleString("de-DE", { maximumFractionDigits: 1 })}{suffix}</strong>
           </div>

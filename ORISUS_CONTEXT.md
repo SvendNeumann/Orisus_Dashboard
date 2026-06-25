@@ -265,6 +265,11 @@ App nach Login:
   - Modernisierte Chart-Optik ist auf zentrale Dashboard-Charts ausgeweitet: Orisus Board, Standortdetails, BWA, Orisus Performance, Bankenreporting und Personal-/Produktivitaetsdiagramme.
   - Zentrale Tabs erhalten einen kurzen `Startueberblick` oberhalb der Detailbereiche. Dieser zeigt 3-4 wesentliche Steuerungswerte; Detailtabellen bleiben darunter unveraendert erhalten.
   - Ausnahme: Bereich `Christian Henrici` bleibt in seiner bestehenden Detailstruktur unangetastet, damit alle Investorinformationen wie bisher voll sichtbar bleiben.
+- Letzter UI-Durchgang:
+  - App-weite Optik wurde ueber `src/components/ui.tsx` und `src/app/globals.css` modernisiert.
+  - Geaendert wurden nur Layout, Kartenoptik, Tabellenrahmen, Chart-Flaechen, Badges, Buttons und visuelle Hierarchie.
+  - Keine Wertebezuege, Importlogiken, Ziel-EBITDA-Logiken, Rollenrechte oder Reportberechnungen wurden fachlich veraendert.
+  - Desktop-Ansichten sollen durch staerkere Container, bessere Chart-Flaechen und einheitlichere Tabellenkoepfe ruhiger wirken; mobile Ansichten bleiben kompakt.
 - Ziel der UI-Ordnung:
   - oben Entscheidungsebene
   - darunter Hauptdiagramm/Haupttabelle
