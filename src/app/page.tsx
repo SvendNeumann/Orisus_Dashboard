@@ -4284,7 +4284,7 @@ export default function HomePage() {
               }}
             />
           )}
-          {personalData && page === "personal-cockpit" && <PersonalCockpit personalData={personalData} />}
+          {personalData && page === "personal-cockpit" && <PersonalCockpit personalData={personalData} importedData={effectiveImportedData} />}
           {personalData && page === "personal-krankheit" && <PersonalSickness personalData={personalData} />}
           {personalData && page === "personal-mitarbeiter" && <PersonalEmployees personalData={personalData} userRole={userRole} />}
           {personalData && page === "personal-massnahmen" && <PersonalActions personalData={personalData} />}
@@ -5146,7 +5146,13 @@ function personalWasEmployedInMonth(employee: PersonalEmployee, year: number, mo
   return entryDate <= periodEnd && exitDate >= periodStart;
 }
 
-function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData }) {
+function PersonalCockpit({
+  personalData,
+  importedData
+}: {
+  personalData: PersonalDashboardData;
+  importedData?: ImportedDashboardData | null;
+}) {
   const yearFromDisplayDate = (value: string) => {
     const parts = value.split(".");
     return Number(parts[2]) || 0;
@@ -5259,6 +5265,28 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
       return sum + teamEmployees.reduce((subtotal, employee) => subtotal + employee.hourlyWage, 0);
     }, 0)
   };
+  const productivityPeriodOptions = importedData ? bwaPeriodOptionsFor(importedData) : [];
+  const productivityPeriod =
+    importedData && productivityPeriodOptions.includes(periodLabel)
+      ? periodLabel
+      : importedData && productivityPeriodOptions.includes("Gesamte Periode")
+        ? "Gesamte Periode"
+        : importedData
+          ? defaultBwaPeriodFor(importedData)
+          : "";
+  const productivityRows = importedData
+    ? sortSitesByContractStart(importedData.sites)
+        .filter((site) => importedData.bwaRows.some((row) => row.siteId === site.id))
+        .map((site) => {
+          const filteredSite = filteredSiteForPeriod(site, importedData, productivityPeriod);
+          const capacity = personnelCapacityBySiteForPeriod(personalData, importedData, site.id, productivityPeriod);
+          const fte = capacity?.fte ?? null;
+          return fte ? filteredSite.gesamtleistung / fte : null;
+        })
+        .filter((value): value is number => value != null && Number.isFinite(value))
+    : [];
+  const averageRevenuePerFte = productivityRows.length ? productivityRows.reduce((sum, value) => sum + value, 0) / productivityRows.length : null;
+  const productivityStatus: Status = averageRevenuePerFte == null ? "yellow" : "green";
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -5295,6 +5323,27 @@ function PersonalCockpit({ personalData }: { personalData: PersonalDashboardData
         <KpiCard label="Wochenstunden aktiv" value={active.reduce((sum, employee) => sum + employee.weeklyHours, 0)} plain delta="Kapazität laut aktiven Verträgen" icon={Gauge} status="green" />
         <KpiCard label="AG-Aufwand aktiv" value={active.reduce((sum, employee) => sum + employee.employerCost, 0)} delta="monatlich laut Import" icon={BadgeEuro} status="yellow" />
         <KpiCard label={`Krankheitstage ${selectedYear}`} value={sicknessBySite.reduce((sum, row) => sum + row.days, 0)} plain delta={`${sicknessDays.toLocaleString("de-DE")} Tage gesamt im Import`} icon={Stethoscope} status="yellow" />
+        <KpiCard
+          label="Ø Gesamtleistung je FTE"
+          value={averageRevenuePerFte ?? 0}
+          valueLabel={formatNullableCurrency(averageRevenuePerFte)}
+          delta={importedData ? performancePeriodLabel(productivityPeriod) : "CFO-Import benötigt"}
+          icon={TrendingUp}
+          status={productivityStatus}
+          info={
+            <>
+              <p className="font-bold text-slate-900">Herleitung</p>
+              <InfoTextLine label="Quelle Leistung" value="BWA-Gesamtleistung je Standort aus bestätigtem CFO-Import" />
+              <InfoTextLine label="Quelle FTE" value="Personalimport, durchschnittliche aktive FTE im Zeitraum" />
+              <InfoTextLine label="Zeitraum" value={importedData ? performancePeriodLabel(productivityPeriod) : "kein CFO-Import verfügbar"} strong />
+              <InfoTextLine label="Rechnung je Standort" value="BWA-Gesamtleistung / durchschnittliche aktive FTE" />
+              <InfoTextLine label="Kachelwert" value="Durchschnitt der berechenbaren Standortwerte" />
+              <p className="text-xs text-slate-600">
+                Entspricht der Kennzahl aus dem Tab Personalproduktivität. Ohne bestätigten CFO-Import oder ohne FTE-Basis wird n. v. gezeigt.
+              </p>
+            </>
+          }
+        />
       </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Aktive Mitarbeiter je Standort | aktueller Stand" icon={Building2}>
