@@ -6113,16 +6113,7 @@ function Cockpit({
         <TrafficLights sites={sites} monthlyData={monthlyData} />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Insights setPage={setPage} />
-        <Card className="analysis-only h-full p-4">
-          <h2 className="font-bold">Detailauswertungen</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Das Orisus Board bleibt die verdichtete Steuerungssicht. BWA, Standortdetails, Cashflow-Herleitungen,
-            Darlehen, Earn-Outs und Benchmarking liegen in den jeweiligen Fachreitern.
-          </p>
-        </Card>
-      </div>
+      <Insights setPage={setPage} />
     </section>
   );
 }
