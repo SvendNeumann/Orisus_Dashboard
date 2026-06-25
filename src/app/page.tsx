@@ -10802,16 +10802,38 @@ function eurOrBlank(value: number | null) {
 
 function monthsSinceStartForPeriod(site: DashboardSite, period: string) {
   const selection = selectedBwaPeriod(period);
-  const [day, month, year] = site.start.split(".").map(Number);
+  const [, month, year] = site.start.split(".").map(Number);
   const today = new Date();
   const endYear = selection.year ?? today.getFullYear();
   const endMonth = selection.months?.at(-1) ?? 12;
   return Math.max(1, (endYear - year) * 12 + endMonth - month + 1);
 }
 
-function openingHoursBasisForPeriod(site: DashboardSite, period: string, weeklyOpeningHours: number) {
-  if (!weeklyOpeningHours) return 0;
-  return weeklyOpeningHours * monthsSinceStartForPeriod(site, period) * 4.33;
+function actualBwaMonthKeysForSite(importedData: ImportedDashboardData | null | undefined, site: DashboardSite, period: string) {
+  if (!importedData?.bwaRows?.length) return [];
+  const selection = selectedBwaPeriod(period);
+  const rows = importedData.bwaRows.filter((row) => row.siteId === site.id && (row.metricKey === "summe_umsatz" || row.metricKey === "ebitda"));
+  const keys = new Set<string>();
+  rows.forEach((row) => {
+    Object.entries(row.valuesByMonth).forEach(([key, value]) => {
+      if (!row.hasValueByMonth[key] || Math.abs(value ?? 0) <= 0) return;
+      const [year, month] = key.split("-").map(Number);
+      if (!isPeriodOnOrAfterStart(year, month, site.start)) return;
+      if (selection.year && year !== selection.year) return;
+      if (selection.months?.length && !selection.months.includes(month)) return;
+      keys.add(key);
+    });
+  });
+  return Array.from(keys).sort((a, b) => {
+    const [yearA, monthA] = a.split("-").map(Number);
+    const [yearB, monthB] = b.split("-").map(Number);
+    return yearA === yearB ? monthA - monthB : yearA - yearB;
+  });
+}
+
+function benchmarkMonthCountForSite(importedData: ImportedDashboardData | null | undefined, site: DashboardSite, period: string) {
+  const actualMonthCount = actualBwaMonthKeysForSite(importedData, site, period).length;
+  return actualMonthCount || monthsSinceStartForPeriod(site, period);
 }
 
 function monthSelectionForPeriod(period: string) {
@@ -11632,21 +11654,25 @@ function Analysen({
     [personalData, period]
   );
 
-  const siteRows = sortedSites.map((site, index) => {
+  const siteRows = sortedSites.map((site) => {
     const dentistCapacity = dentistCapacityBySite.get(site.id);
     const dentistFte = dentistCapacity?.fte ?? 0;
     const dentistWeeklyHours = dentistCapacity?.weeklyHours ?? 0;
     const dentistHeadcount = dentistCapacity?.headcount ?? 0;
     const importedRoomCount = asNumber(site.treatmentRooms);
     const roomCount = importedRoomCount && importedRoomCount > 0 ? importedRoomCount : staticTreatmentRoomsForSite(site.name);
-    const pvsPerDentist = dentistFte ? site.pvsUmsatz / dentistFte : null;
-    const performancePerDentist = dentistFte ? site.gesamtleistung / dentistFte : null;
-    const ebitdaPerDentist = dentistFte ? site.ebitda / dentistFte : null;
-    const pvsPerRoom = roomCount ? site.pvsUmsatz / roomCount : null;
-    const performancePerRoom = roomCount ? site.gesamtleistung / roomCount : null;
-    const ebitdaPerRoom = roomCount ? site.ebitda / roomCount : null;
+    const benchmarkMonths = benchmarkMonthCountForSite(importedData, site, period);
+    const monthlyPvsUmsatz = site.pvsUmsatz / Math.max(benchmarkMonths, 1);
+    const monthlyGesamtleistung = site.gesamtleistung / Math.max(benchmarkMonths, 1);
+    const monthlyEbitda = site.ebitda / Math.max(benchmarkMonths, 1);
+    const pvsPerDentist = dentistFte ? monthlyPvsUmsatz / dentistFte : null;
+    const performancePerDentist = dentistFte ? monthlyGesamtleistung / dentistFte : null;
+    const ebitdaPerDentist = dentistFte ? monthlyEbitda / dentistFte : null;
+    const pvsPerRoom = roomCount ? monthlyPvsUmsatz / roomCount : null;
+    const performancePerRoom = roomCount ? monthlyGesamtleistung / roomCount : null;
+    const ebitdaPerRoom = roomCount ? monthlyEbitda / roomCount : null;
     const weeklyOpeningHours = practiceOpeningHoursForSite(site.id, openingHoursBySiteId);
-    const openingHoursBasis = openingHoursBasisForPeriod(site, period, weeklyOpeningHours);
+    const openingHoursBasis = weeklyOpeningHours ? weeklyOpeningHours * Math.max(benchmarkMonths, 1) * 4.33 : 0;
     const pvsPerOpeningHour = openingHoursBasis ? site.pvsUmsatz / openingHoursBasis : null;
     const performancePerOpeningHour = openingHoursBasis ? site.gesamtleistung / openingHoursBasis : null;
     const ebitdaPerOpeningHour = openingHoursBasis ? site.ebitda / openingHoursBasis : null;
@@ -11660,6 +11686,7 @@ function Analysen({
       rooms: roomCount,
       weeklyOpeningHours,
       openingHoursBasis,
+      benchmarkMonths,
       pvsPerDentist,
       performancePerDentist,
       ebitdaPerDentist,
@@ -11702,7 +11729,10 @@ function Analysen({
           ? normalizedPercent(cancellationRateSource)
           : null;
     const newPatientRate = treatedPatients != null && treatedPatients > 0 && newPatients != null ? (newPatients / treatedPatients) * 100 : null;
-    const patientsPerRoom = treatedPatients != null && row.rooms ? treatedPatients / row.rooms : importedPatientsPerRoom;
+    const patientsPerRoom =
+      treatedPatients != null && row.rooms
+        ? treatedPatients / Math.max(row.benchmarkMonths, 1) / row.rooms
+        : importedPatientsPerRoom;
     const hasPatientData = [
       treatedPatients,
       newPatients,
@@ -11746,42 +11776,42 @@ function Analysen({
   const indexFor = (value: number | null, average: number | null) => (value != null && average ? (value / average) * 100 : null);
   const benchmarkItems = [
     {
-      label: "Gesamtumsatz je Zahnarzt-FTE",
+      label: "Ø mtl. Gesamtumsatz je Zahnarzt-FTE",
       selected: indexFor(selectedRow?.pvsPerDentist ?? null, numericAverage((row) => row.pvsPerDentist)),
       group: 100,
       higherIsBetter: true,
       unavailable: !selectedRow?.dentistFte
     },
     {
-      label: "Gesamtleistung je Zahnarzt-FTE",
+      label: "Ø mtl. Gesamtleistung je Zahnarzt-FTE",
       selected: indexFor(selectedRow?.performancePerDentist ?? null, numericAverage((row) => row.performancePerDentist)),
       group: 100,
       higherIsBetter: true,
       unavailable: !selectedRow?.dentistFte
     },
     {
-      label: "EBITDA je Zahnarzt-FTE",
+      label: "Ø mtl. EBITDA je Zahnarzt-FTE",
       selected: indexFor(selectedRow?.ebitdaPerDentist ?? null, numericAverage((row) => row.ebitdaPerDentist)),
       group: 100,
       higherIsBetter: true,
       unavailable: !selectedRow?.dentistFte
     },
     {
-      label: "Gesamtumsatz je Behandlungszimmer",
+      label: "Ø mtl. Gesamtumsatz je Behandlungszimmer",
       selected: indexFor(selectedRow?.pvsPerRoom ?? null, numericAverage((row) => row.pvsPerRoom)),
       group: 100,
       higherIsBetter: true,
       unavailable: !selectedRow?.rooms
     },
     {
-      label: "Gesamtleistung je Behandlungszimmer",
+      label: "Ø mtl. Gesamtleistung je Behandlungszimmer",
       selected: indexFor(selectedRow?.performancePerRoom ?? null, numericAverage((row) => row.performancePerRoom)),
       group: 100,
       higherIsBetter: true,
       unavailable: !selectedRow?.rooms
     },
     {
-      label: "EBITDA je Behandlungszimmer",
+      label: "Ø mtl. EBITDA je Behandlungszimmer",
       selected: indexFor(selectedRow?.ebitdaPerRoom ?? null, numericAverage((row) => row.ebitdaPerRoom)),
       group: 100,
       higherIsBetter: true,
@@ -11931,8 +11961,8 @@ function Analysen({
     describeBenchmarkGap("EBITDA-Marge", selectedRow?.ebitdaMargin, marginGroup, true),
     describeBenchmarkGap("Gesamtkostenquote", selectedRow?.gesamtkostenquote, costGroup.gesamtkostenquote, false),
     selectedPvsPerDentistIndex != null
-      ? `${displaySiteName}: Gesamtumsatz je Zahnarzt-FTE liegt bei ${pct(selectedPvsPerDentistIndex)} des Ø Orisus ohne Standort und damit ${selectedPvsPerDentistIndex >= 100 ? "über" : "unter"} Ø Orisus.`
-      : `${displaySiteName}: Gesamtumsatz je Zahnarzt-FTE kann mangels Zahnarztstunden- oder Umsatzbasis noch nicht bewertet werden.`,
+      ? `${displaySiteName}: Ø mtl. Gesamtumsatz je Zahnarzt-FTE liegt bei ${pct(selectedPvsPerDentistIndex)} des Ø Orisus ohne Standort und damit ${selectedPvsPerDentistIndex >= 100 ? "über" : "unter"} Ø Orisus.`
+      : `${displaySiteName}: Ø mtl. Gesamtumsatz je Zahnarzt-FTE kann mangels Zahnarztstunden- oder Umsatzbasis noch nicht bewertet werden.`,
     selectedPatientRow?.attendanceRate != null && attendanceRateGroup != null
       ? describeBenchmarkGap("Terminwahrnehmungsquote", selectedPatientRow.attendanceRate, attendanceRateGroup, true)
       : "Patienten- und Termindaten fehlen für den ausgewählten Standort noch im Import."
@@ -11940,46 +11970,46 @@ function Analysen({
   const hasMissingBasis = benchmarkItems.some((item) => item.unavailable);
   const basisRows = [
     {
-      label: "Gesamtumsatz je Zahnarzt-FTE",
+      label: "Ø mtl. Gesamtumsatz je Zahnarzt-FTE",
       own: selectedRow?.pvsPerDentist ?? null,
       comparison: numericAverage((row) => row.pvsPerDentist),
       type: "currency" as const,
-      basis: dentistCapacityBasisLabel(selectedRow?.dentistCapacity)
+      basis: `${dentistCapacityBasisLabel(selectedRow?.dentistCapacity)} | ${selectedRow?.benchmarkMonths ?? 0} aktive Ist-BWA-Monate`
     },
     {
-      label: "Gesamtleistung je Zahnarzt-FTE",
+      label: "Ø mtl. Gesamtleistung je Zahnarzt-FTE",
       own: selectedRow?.performancePerDentist ?? null,
       comparison: numericAverage((row) => row.performancePerDentist),
       type: "currency" as const,
-      basis: dentistCapacityBasisLabel(selectedRow?.dentistCapacity)
+      basis: `${dentistCapacityBasisLabel(selectedRow?.dentistCapacity)} | ${selectedRow?.benchmarkMonths ?? 0} aktive Ist-BWA-Monate`
     },
     {
-      label: "EBITDA je Zahnarzt-FTE",
+      label: "Ø mtl. EBITDA je Zahnarzt-FTE",
       own: selectedRow?.ebitdaPerDentist ?? null,
       comparison: numericAverage((row) => row.ebitdaPerDentist),
       type: "currency" as const,
-      basis: dentistCapacityBasisLabel(selectedRow?.dentistCapacity)
+      basis: `${dentistCapacityBasisLabel(selectedRow?.dentistCapacity)} | ${selectedRow?.benchmarkMonths ?? 0} aktive Ist-BWA-Monate`
     },
     {
-      label: "Gesamtumsatz je Behandlungszimmer",
+      label: "Ø mtl. Gesamtumsatz je Behandlungszimmer",
       own: selectedRow?.pvsPerRoom ?? null,
       comparison: numericAverage((row) => row.pvsPerRoom),
       type: "currency" as const,
-      basis: `${selectedRow?.rooms ?? 0} Behandlungszimmer`
+      basis: `${selectedRow?.rooms ?? 0} Behandlungszimmer | ${selectedRow?.benchmarkMonths ?? 0} aktive Ist-BWA-Monate`
     },
     {
-      label: "Gesamtleistung je Behandlungszimmer",
+      label: "Ø mtl. Gesamtleistung je Behandlungszimmer",
       own: selectedRow?.performancePerRoom ?? null,
       comparison: numericAverage((row) => row.performancePerRoom),
       type: "currency" as const,
-      basis: `${selectedRow?.rooms ?? 0} Behandlungszimmer`
+      basis: `${selectedRow?.rooms ?? 0} Behandlungszimmer | ${selectedRow?.benchmarkMonths ?? 0} aktive Ist-BWA-Monate`
     },
     {
-      label: "EBITDA je Behandlungszimmer",
+      label: "Ø mtl. EBITDA je Behandlungszimmer",
       own: selectedRow?.ebitdaPerRoom ?? null,
       comparison: numericAverage((row) => row.ebitdaPerRoom),
       type: "currency" as const,
-      basis: `${selectedRow?.rooms ?? 0} Behandlungszimmer`
+      basis: `${selectedRow?.rooms ?? 0} Behandlungszimmer | ${selectedRow?.benchmarkMonths ?? 0} aktive Ist-BWA-Monate`
     },
     {
       label: "Gesamtumsatz je Öffnungsstunde",
@@ -12033,11 +12063,11 @@ function Analysen({
       basis: "Summe im Zeitraum"
     },
     {
-      label: "Patienten je Behandlungszimmer",
+      label: "Ø mtl. Patienten je Behandlungszimmer",
       value: selectedPatientRow?.patientsPerRoom ?? null,
       comparison: patientAverage((row) => row.patientsPerRoom),
       type: "average" as const,
-      basis: `${selectedPatientRow?.rooms ?? 0} Behandlungszimmer`
+      basis: `${selectedPatientRow?.rooms ?? 0} Behandlungszimmer | ${selectedPatientRow?.benchmarkMonths ?? 0} aktive Ist-BWA-Monate`
     },
     {
       label: "Neupatientenquote",
@@ -12123,7 +12153,7 @@ function Analysen({
     },
     {
       group: "Kapazität",
-      label: "Gesamtumsatz je Zahnarzt-FTE",
+      label: "Ø mtl. Gesamtumsatz je Zahnarzt-FTE",
       siteValue: selectedRow?.pvsPerDentist ?? null,
       orisusValue: numericAverage((row) => row.pvsPerDentist),
       type: "currency" as const,
@@ -12132,7 +12162,7 @@ function Analysen({
     },
     {
       group: "Kapazität",
-      label: "Gesamtumsatz je Behandlungszimmer",
+      label: "Ø mtl. Gesamtumsatz je Behandlungszimmer",
       siteValue: selectedRow?.pvsPerRoom ?? null,
       orisusValue: numericAverage((row) => row.pvsPerRoom),
       type: "currency" as const,
@@ -12141,7 +12171,7 @@ function Analysen({
     },
     {
       group: "Patienten",
-      label: "Patienten je Behandlungszimmer",
+      label: "Ø mtl. Patienten je Behandlungszimmer",
       siteValue: selectedPatientRow?.patientsPerRoom ?? null,
       orisusValue: patientAverage((row) => row.patientsPerRoom),
       type: "number" as const,
@@ -12402,7 +12432,7 @@ function Analysen({
           <th>Neupatientenquote</th>
           <th>Terminwahrnehmung</th>
           <th>Terminausfallquote</th>
-          <th>Patienten je Zimmer</th>
+          <th>Ø mtl. Patienten je Zimmer</th>
         </tr>
       </thead>
       <tbody>
@@ -12963,7 +12993,7 @@ function BenchmarkOverviewTable({
             </button>
           </div>
           <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-300">
-            Die wichtigsten Kennzahlen auf einen Blick: Standortwert gegen Ø Orisus ohne den ausgewerteten Standort. Zeitraum: {period}.
+            Die wichtigsten Kennzahlen auf einen Blick: Standortwert gegen Ø Orisus ohne den ausgewerteten Standort. Kapazitätswerte werden als Monatsdurchschnitt gerechnet und dann je FTE/Zimmer/Stunde vergleichbar gemacht. Zeitraum: {period}.
           </p>
         </div>
         <div className="rounded-lg border border-teal-200/20 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100">
@@ -17873,7 +17903,9 @@ function buildPmrBenchmarkPage(
     const importedRoomCount = asNumber(candidate.treatmentRooms);
     const rooms = importedRoomCount && importedRoomCount > 0 ? importedRoomCount : staticTreatmentRoomsForSite(candidate.name);
     const weeklyOpeningHours = practiceOpeningHoursForSite(candidate.id);
-    const openingHoursBasis = openingHoursBasisForPeriod(candidate, period, weeklyOpeningHours);
+    const benchmarkMonths = benchmarkMonthCountForSite(importedData, candidate, period);
+    const monthlyPvsUmsatz = candidate.pvsUmsatz / Math.max(benchmarkMonths, 1);
+    const openingHoursBasis = weeklyOpeningHours ? weeklyOpeningHours * Math.max(benchmarkMonths, 1) * 4.33 : 0;
     const treatedPatients = patientMetricPeriodOptionalValue(patientRows, candidate.id, "treatedPatients", period);
     const newPatients = patientMetricPeriodOptionalValue(patientRows, candidate.id, "newPatients", period);
     const bookedAppointments = patientMetricPeriodOptionalValue(patientRows, candidate.id, "bookedAppointments", period);
@@ -17895,14 +17927,17 @@ function buildPmrBenchmarkPage(
           ? normalizedPercent(cancellationRateSource)
           : null;
     const newPatientRate = treatedPatients != null && treatedPatients > 0 && newPatients != null ? (newPatients / treatedPatients) * 100 : null;
-    const patientsPerRoom = treatedPatients != null && rooms ? treatedPatients / rooms : importedPatientsPerRoom;
+    const patientsPerRoom =
+      treatedPatients != null && rooms
+        ? treatedPatients / Math.max(benchmarkMonths, 1) / rooms
+        : importedPatientsPerRoom;
 
     return {
       siteId: candidate.id,
       label: labelForSite(candidate),
-      pvsPerDentist: dentistFte ? candidate.pvsUmsatz / dentistFte : null,
+      pvsPerDentist: dentistFte ? monthlyPvsUmsatz / dentistFte : null,
       ebitdaMargin: candidate.ebitdaMarge,
-      pvsPerRoom: rooms ? candidate.pvsUmsatz / rooms : null,
+      pvsPerRoom: rooms ? monthlyPvsUmsatz / rooms : null,
       pvsPerOpeningHour: openingHoursBasis ? candidate.pvsUmsatz / openingHoursBasis : null,
       patientsPerRoom,
       attendanceRate,
@@ -17982,7 +18017,7 @@ function buildPmrBenchmarkPage(
     },
     {
       group: "Kapazität",
-      label: "Umsatz je Zahnarzt-FTE",
+      label: "Ø mtl. Umsatz je Zahnarzt-FTE",
       siteValue: selectedRow?.pvsPerDentist ?? null,
       orisusValue: averages.pvsPerDentist,
       type: "currency",
@@ -17991,7 +18026,7 @@ function buildPmrBenchmarkPage(
     },
     {
       group: "Kapazität",
-      label: "Umsatz je Zimmer",
+      label: "Ø mtl. Umsatz je Zimmer",
       siteValue: selectedRow?.pvsPerRoom ?? null,
       orisusValue: averages.pvsPerRoom,
       type: "currency",
@@ -18009,7 +18044,7 @@ function buildPmrBenchmarkPage(
     },
     {
       group: "Patienten",
-      label: "Patienten je Zimmer",
+      label: "Ø mtl. Patienten je Zimmer",
       siteValue: selectedRow?.patientsPerRoom ?? null,
       orisusValue: averages.patientsPerRoom,
       type: "number",
@@ -18076,12 +18111,12 @@ function buildPmrBenchmarkPage(
   `).join("")}</div>`;
   const focusCards = [
     {
-      label: "Umsatz je Zimmer",
+      label: "Ø mtl. Umsatz je Zimmer",
       value: pmrBenchmarkFormat(selectedRow?.pvsPerRoom, "currency"),
       detail: `${pmrBenchmarkComparisonText(selectedRow?.pvsPerRoom, averages.pvsPerRoom, true, "currency")} | Ø Orisus ${pmrBenchmarkFormat(averages.pvsPerRoom, "currency")}`
     },
     {
-      label: "Patienten je Zimmer",
+      label: "Ø mtl. Patienten je Zimmer",
       value: pmrBenchmarkFormat(selectedRow?.patientsPerRoom, "number"),
       detail: `${pmrBenchmarkComparisonText(selectedRow?.patientsPerRoom, averages.patientsPerRoom, true, "number")} | Ø Orisus ${pmrBenchmarkFormat(averages.patientsPerRoom, "number")}`
     },
@@ -18123,7 +18158,7 @@ function buildPmrBenchmarkPage(
   return `<div class="pmr-benchmark-page">
     <header class="pmr-benchmark-header">
       <div><img src="/orisus-logo.png" alt="Orisus Zahnmedizin" /></div>
-      <div><div class="eyebrow">Benchmarking-Report</div><h1>Benchmark ${reportEscape(selectedSite.name)}</h1><p>${reportEscape(periodLabel)} | anonymisierter Peer-Auszug | Standortleiter-Anlage</p><p class="logic">Leselogik: ${reportEscape(selectedSite.name)} bleibt sichtbar, Vergleichsstandorte anonymisiert. Ø Orisus wird ohne ${reportEscape(selectedSite.name)} gebildet; bei Kosten- und Ausfallquoten ist niedriger besser.</p></div>
+      <div><div class="eyebrow">Benchmarking-Report</div><h1>Benchmark ${reportEscape(selectedSite.name)}</h1><p>${reportEscape(periodLabel)} | anonymisierter Peer-Auszug | Standortleiter-Anlage</p><p class="logic">Leselogik: ${reportEscape(selectedSite.name)} bleibt sichtbar, Vergleichsstandorte anonymisiert. Ø Orisus wird ohne ${reportEscape(selectedSite.name)} gebildet; Kapazitätswerte werden als Monatsdurchschnitt je FTE/Zimmer/Stunde berechnet; bei Kosten- und Ausfallquoten ist niedriger besser.</p></div>
       <div class="pmr-benchmark-meta"><strong>Seite 2</strong><span>PMR-Anlage</span><span>Vertraulich</span></div>
     </header>
     ${reportSection("Standort vs. Ø Orisus", overviewTable, "Kernkennzahlen auf einen Blick: Standortwert, Ø Orisus, Abweichung, Einordnung und Datenquelle.")}
@@ -18133,7 +18168,7 @@ function buildPmrBenchmarkPage(
         <tbody>${heatRows}<tr><td>Ø Orisus ohne Standort</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.materialquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.fremdlaborquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.personalquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.sonstigeKostenquote, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.gesamtkostenquote, "percent"))}</td></tr></tbody>
       </table>`, "Statusfarben gegen Ø Orisus ohne Standort; bei Kosten ist niedriger besser.")}
       ${reportSection("Patienten- und Terminindikatoren", `<table class="heatmap-table">
-        <thead><tr><th>Peer</th><th>Pat./Zimmer</th><th>Neupatienten</th><th>Wahrnehmung</th><th>Ausfall</th></tr></thead>
+        <thead><tr><th>Peer</th><th>Ø mtl. Pat./Zimmer</th><th>Neupatienten</th><th>Wahrnehmung</th><th>Ausfall</th></tr></thead>
         <tbody>${patientRowsHtml}<tr><td>Ø Orisus ohne Standort</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.patientsPerRoom, "number"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.newPatientRate, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.attendanceRate, "percent"))}</td><td class="heat-neutral">${reportEscape(pmrBenchmarkFormat(averages.cancellationRate, "percent"))}</td></tr></tbody>
       </table>`, "Patientenbasis aus dem bestätigten Import, soweit je Standort gepflegt.")}
     </div>

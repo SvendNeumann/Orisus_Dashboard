@@ -164,7 +164,9 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Benchmarking mit dynamischem Standortnamen und Standardzeitraum `Gesamte Periode`.
 - Benchmarking-Tab ist auf Standortleiter-Lesbarkeit verdichtet:
   - Oben direkte Tabelle `Standort vs. Ø Orisus`.
-  - Fokus auf wesentliche Kennzahlen: EBITDA-Marge, Kostenquoten, Gesamtumsatz je Zahnarzt-FTE/Zimmer, Patienten je Zimmer, Neupatientenquote, Terminwahrnehmung, Terminausfallquote.
+  - Fokus auf wesentliche Kennzahlen: EBITDA-Marge, Kostenquoten, durchschnittlicher Monats-Gesamtumsatz je Zahnarzt-FTE/Zimmer, durchschnittliche Monats-Patienten je Zimmer, Neupatientenquote, Terminwahrnehmung, Terminausfallquote.
+  - Kapazitaets-/Produktivitaetskennzahlen werden vor Division durch FTE/Zimmer/Stunden auf einen durchschnittlichen Monatswert normalisiert. Grundlage sind die aktiven Ist-BWA-Monate im ausgewaehlten Zeitraum seit jeweiligem Vertragsstart. Dadurch werden Standorte mit unterschiedlich langer Vertragslaufzeit vergleichbar.
+  - Quoten wie EBITDA-Marge, Kostenquoten, Neupatientenquote, Terminwahrnehmung und Terminausfallquote bleiben reine Quoten und werden nicht durch Monate geteilt.
   - Doppelte Index-Kachelgruppen und redundante Rankingbloecke sind aus der Hauptansicht entfernt.
   - Detail-Herleitungen sind einklappbar und standardmaessig geschlossen.
 - Benchmarking-Reports und PMR-Benchmarking-Anlage laufen mit derselben verdichteten Logik:
@@ -674,6 +676,7 @@ Ziel:
 - Vergleich mit `Ø Orisus ohne Standort`: Der ausgewaertete Standort wird aus dem Durchschnitt der Vergleichsgruppe herausgerechnet, damit er seinen eigenen Benchmark nicht verwaessert.
 - Standortleiter-Ansicht.
 - In der App-Ansicht steht oben eine klare Tabelle `Standort vs. Ø Orisus`, damit Standortleiter sofort sehen, ob z. B. Personalquote, Kostenquoten, Patienten je Behandlungszimmer oder Neupatientenquote ueber/unter Vergleich liegen.
+- Kapazitaetswerte in dieser Tabelle sind Monatsdurchschnitte: erst Umsatz/Leistung/Patientenzahl durch aktive Ist-BWA-Monate seit Vertragsstart, danach durch Zahnarzt-FTE, Behandlungszimmer oder Oeffnungsstunden. Keine kumulierten Gesamtperiodenwerte fuer FTE-/Zimmervergleiche verwenden.
 - Die Hauptansicht soll nicht mit vielen doppelten Indexkacheln ueberladen sein; Detailtabellen/Rechenbasis bleiben einklappbar bzw. nachgelagert.
 - PDF-Export sauber, farbig, druckfaehig, nicht nur Screenshot der App.
 - Oben in der Ansicht muss immer `Standort-Benchmarking: <Standortname>` stehen, nicht `ausgewaehlter Standort`.
@@ -696,12 +699,12 @@ Ziel:
 
 Wichtige Kennzahlen:
 
-- Gesamtumsatz je Zahnarzt-FTE
-- Gesamtleistung je Zahnarzt-FTE
-- EBITDA je Zahnarzt-FTE
-- Gesamtumsatz je Behandlungszimmer
-- Gesamtleistung je Behandlungszimmer
-- EBITDA je Behandlungszimmer
+- Ø mtl. Gesamtumsatz je Zahnarzt-FTE
+- Ø mtl. Gesamtleistung je Zahnarzt-FTE
+- Ø mtl. EBITDA je Zahnarzt-FTE
+- Ø mtl. Gesamtumsatz je Behandlungszimmer
+- Ø mtl. Gesamtleistung je Behandlungszimmer
+- Ø mtl. EBITDA je Behandlungszimmer
 - EBITDA-Marge
 - Forderungsquote
 - Kostenquoten
