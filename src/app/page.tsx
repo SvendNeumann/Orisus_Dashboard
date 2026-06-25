@@ -3928,6 +3928,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (authStep !== "app" || !authProfileReady) return;
+    window.dispatchEvent(new Event(targetEbitdaChangedEvent));
     if (!allowedPages.includes(page)) {
       setPage(defaultPageForRole(userRole));
     }
@@ -6687,7 +6688,7 @@ function EbitdaTargetChart({ sites = standorte, importedData }: { sites?: Dashbo
   return (
     <div className="space-y-2">
       <p className="text-xs leading-5 text-muted-foreground">
-        Soll-Linien kumuliert nur für aktive Ist-BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen Datenstand. Übernahmeziel wird vorrangig aus den importierten BWA-Monatswerten übernommen und nur ohne Importwert aus p.a.-Fallbacks abgeleitet.
+        Soll-Linien kumuliert nur für aktive Ist-BWA-Monate seit jeweiligem Vertragsstart bis zum aktuellen Datenstand. Admin-gepflegte Ziel-EBITDA-Stammdaten überschreiben Importwerte app-weit.
       </p>
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={chartData}>
@@ -10864,7 +10865,7 @@ function OrisusPerformance({
           info={
             <div className="space-y-3">
               <p>
-                Die operative Entwicklung bündelt die Gruppe auf Basis des bestätigten CFO-/BWA-Imports für den gewählten Zeitraum.
+                Die operative Entwicklung bündelt die Gruppe auf Basis des bestätigten CFO-/BWA-Imports und der zentralen Ziel-EBITDA-Stammdaten für den gewählten Zeitraum.
               </p>
               <div className="space-y-1">
                 <InfoTextLine label="Säulen" value="BWA-Gesamtleistung" />
@@ -10873,7 +10874,7 @@ function OrisusPerformance({
                 <InfoTextLine label="Graue Linie" value="Cashflow gem. BWA" />
               </div>
               <p className="text-slate-600">
-                Die Soll-Linie ist kein klassischer Planwert, sondern der importierte Zielwert aus der Übernahme-/Kaufvertragslogik. Fehlende Monate bleiben aus der Logik heraus und werden nicht als operative Null gewertet.
+                Die Soll-Linie ist kein klassischer Planwert. Admin-gepflegte Ziel-EBITDA-Stammdaten haben Vorrang vor dem Import; fehlende Monate bleiben aus der Logik heraus und werden nicht als operative Null gewertet.
               </p>
             </div>
           }
@@ -19023,7 +19024,7 @@ function AdminKpiRules() {
         <Card className="p-4">
           <h2 className="font-bold">Ziel-EBITDA</h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Ziel-EBITDA gemäß Kaufvertrag und Übernahme sind Importwerte und keine separat geplanten Budgetwerte.
+            Ziel-EBITDA gemäß Kaufvertrag und Übernahme wird zentral über die Ziel-EBITDA-Stammdaten gesteuert; nur leere Adminfelder fallen auf Importwerte zurück.
           </p>
         </Card>
         <Card className="p-4">
