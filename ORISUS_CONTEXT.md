@@ -191,7 +191,9 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Das fruehere `Status-Center | aktueller Stand` ist entfernt.
   - Kostenquote und Kapitaldienstfaehigkeit werden als normale KPI-Kacheln oben im Orisus Board angezeigt.
   - Die KPI-Kacheln `Cashflow gem. BWA` und `EBITDA` haben eigene Zeitraumfilter. Titel, Wert, Status und Info-Herleitung muessen immer dem jeweils gewaehlten Zeitraum folgen.
+  - Die Zeitraumfilter in den kompakten Orisus-Board-KPI-Kacheln sollen desktop-tauglich klein und dezent bleiben.
   - Orisus Insights stehen im unteren Analysebereich neben dem Kostenquoten-Donut.
+  - Im Management-Fokus `Was gerade steuerungsrelevant ist` bezieht sich die Kachel `Zielabweichung` strikt auf Ziel-EBITDA gemaess Uebernahme. Kein Kaufvertrags-Fallback in dieser Kachel; ohne berechenbares Uebernahmeziel wird `n. v.` gezeigt.
 - Orisus Board Diagramm `Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Uebernahme`:
   - Ist-EBITDA und Ziel-Linien laufen nur ueber aktive Ist-BWA-Monate mit echtem Wert seit jeweiligem Vertragsstart bis zum aktuellen BWA-Datenstand.
   - Ziel-Linien duerfen nicht als gesamte Vertragsperiode oder voller Zukunftszielwert gezeigt werden.

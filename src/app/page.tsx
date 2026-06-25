@@ -6206,8 +6206,10 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
   const sortedSites = sortSitesByContractStart(sites);
   const metrics = cfoMetrics(sortedSites);
   const targetRows = sortedSites.map((site) => ebitdaTargetChartRow(site, importedData));
-  const targetDeviation = targetRows.reduce((sum, row) => sum + (row.abweichungUebernahme ?? row.abweichung), 0);
-  const targetBase = targetRows.reduce((sum, row) => sum + (row.zielEbitdaUebernahme ?? row.zielEbitdaKaufvertrag), 0);
+  const takeoverTargetRows = targetRows.filter((row) => row.zielEbitdaUebernahme != null && row.abweichungUebernahme != null);
+  const targetDeviation = takeoverTargetRows.reduce((sum, row) => sum + (row.abweichungUebernahme ?? 0), 0);
+  const targetBase = takeoverTargetRows.reduce((sum, row) => sum + (row.zielEbitdaUebernahme ?? 0), 0);
+  const targetActual = takeoverTargetRows.reduce((sum, row) => sum + row.ebitda, 0);
   const targetDeviationPct = targetBase ? (targetDeviation / targetBase) * 100 : 0;
   const highestReceivableSite = [...sortedSites].sort((a, b) => b.forderungen - a.forderungen)[0];
   const weakestCashflowSite = [...sortedSites].sort((a, b) => a.cashflow - b.cashflow)[0];
@@ -6236,22 +6238,22 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
     },
     {
       label: "Zielabweichung",
-      value: `${targetDeviation >= 0 ? "+" : ""}${eur(targetDeviation, true)}`,
-      text: `${targetDeviationPct >= 0 ? "+" : ""}${pct(targetDeviationPct)} ggü. Zielpfad`,
-      status: targetDeviation >= 0 ? "green" : targetDeviationPct > -15 ? "yellow" : "red",
+      value: targetBase ? `${targetDeviation >= 0 ? "+" : ""}${eur(targetDeviation, true)}` : "n. v.",
+      text: targetBase ? `${targetDeviationPct >= 0 ? "+" : ""}${pct(targetDeviationPct)} ggü. Ziel Übernahme` : "Ziel Übernahme n. v.",
+      status: targetBase ? (targetDeviation >= 0 ? "green" : targetDeviationPct > -15 ? "yellow" : "red") : "yellow",
       icon: Gauge,
       sparkline: ebitdaSparkline,
       info: (
         <>
           <p className="font-semibold text-slate-950">Was ist das?</p>
           <p>
-            Die Zielabweichung vergleicht das Ist-EBITDA mit dem zeitanteiligen Ziel-EBITDA. Wenn vorhanden,
-            wird das Ziel-EBITDA gemäß Übernahme verwendet, sonst der Kaufvertrags-Zielpfad.
+            Die Zielabweichung vergleicht das Ist-EBITDA mit dem zeitanteiligen Ziel-EBITDA gemäß Übernahme.
+            Standorte ohne berechenbares Übernahmeziel werden in dieser Steuerungskachel nicht mit einem Kaufvertragsziel ersetzt.
           </p>
-          <InfoLine label="Ist-EBITDA gesamt" value={targetRows.reduce((sum, row) => sum + row.ebitda, 0)} />
-          <InfoLine label="Ziel-EBITDA gesamt" value={targetBase} />
-          <InfoLine label="= Abweichung" value={targetDeviation} strong />
-          <InfoTextLine label="Abweichung in %" value={pct(targetDeviationPct)} strong />
+          <InfoLine label="Ist-EBITDA für Standorte mit Übernahmeziel" value={targetActual} />
+          <InfoLine label="Ziel-EBITDA gemäß Übernahme" value={targetBase} />
+          <InfoLine label="= Abweichung zu Übernahmeziel" value={targetDeviation} strong />
+          <InfoTextLine label="Abweichung in %" value={targetBase ? pct(targetDeviationPct) : "n. v."} strong />
           <InfoTextLine label="Quelle" value="BWA / zentrale Ziel-EBITDA-Stammdaten bzw. bestätigter CFO-Import" />
         </>
       )
@@ -6594,7 +6596,7 @@ function DailyCfoCockpit({
       status: statusByRule(cashflowTotal, rules.cashflow_bwa),
       sparkline: cashflowSparkline,
       control: (
-        <Select className="w-full text-left" value={cashflowPeriod} onChange={(event) => setCashflowPeriod(event.target.value)}>
+        <Select className="mx-auto h-9 w-full max-w-[10.75rem] px-2 text-xs font-semibold lg:max-w-[9.75rem] xl:max-w-[10.25rem]" value={cashflowPeriod} onChange={(event) => setCashflowPeriod(event.target.value)}>
           {revenuePeriods.map((option) => (
             <option key={option}>{option}</option>
           ))}
@@ -6630,7 +6632,7 @@ function DailyCfoCockpit({
       status: statusByRule(ebitdaMarginForPeriod, rules.ebitda_marge),
       sparkline: ebitdaSparkline,
       control: (
-        <Select className="w-full text-left" value={ebitdaPeriod} onChange={(event) => setEbitdaPeriod(event.target.value)}>
+        <Select className="mx-auto h-9 w-full max-w-[10.75rem] px-2 text-xs font-semibold lg:max-w-[9.75rem] xl:max-w-[10.25rem]" value={ebitdaPeriod} onChange={(event) => setEbitdaPeriod(event.target.value)}>
           {revenuePeriods.map((option) => (
             <option key={option}>{option}</option>
           ))}
