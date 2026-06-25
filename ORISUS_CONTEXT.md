@@ -169,7 +169,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Personalkosten-/Honorar-Gegenueberstellung je Behandler in PMR und Standortdetails.
 - Benchmarking mit dynamischem Standortnamen und Standardzeitraum `Gesamte Periode`.
 - Benchmarking-Tab ist auf Standortleiter-Lesbarkeit verdichtet:
-  - Oben direkte Tabelle `Standort vs. Ø Orisus`.
+  - Oben direkte Tabelle `Standort vs. Orisus-Durchschnitt`.
   - Fokus auf wesentliche Kennzahlen: EBITDA-Marge, Kostenquoten, durchschnittlicher Monats-Gesamtumsatz je Zahnarzt-FTE/Zimmer, durchschnittliche Monats-Patienten je Zimmer, Neupatientenquote, Terminwahrnehmung, Terminausfallquote.
   - Kapazitaets-/Produktivitaetskennzahlen werden vor Division durch FTE/Zimmer/Stunden auf einen durchschnittlichen Monatswert normalisiert. Grundlage sind die aktiven Ist-BWA-Monate im ausgewaehlten Zeitraum seit jeweiligem Vertragsstart. Dadurch werden Standorte mit unterschiedlich langer Vertragslaufzeit vergleichbar.
   - Quoten wie EBITDA-Marge, Kostenquoten, Neupatientenquote, Terminwahrnehmung und Terminausfallquote bleiben reine Quoten und werden nicht durch Monate geteilt.
@@ -177,8 +177,8 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Doppelte Index-Kachelgruppen und redundante Rankingbloecke sind aus der Hauptansicht entfernt.
   - Detail-Herleitungen sind einklappbar und standardmaessig geschlossen.
 - Benchmarking-Reports und PMR-Benchmarking-Anlage laufen mit derselben verdichteten Logik:
-  - oben `Standort vs. Ø Orisus`
-  - Spalten: Standortwert, Ø Orisus, Abweichung, Einordnung; keine technische Quellen-Spalte im Report
+  - oben `Standort vs. Orisus-Durchschnitt`
+  - Spalten: Standortwert, Orisus-Durchschnitt, Abweichung, Einordnung; keine technische Quellen-Spalte im Report
   - Seite 2 nutzt freie Flaeche mit kompakten Kosten-, Patienten-/Termin- sowie Produktivitaets-/Ergebnis-Benchmarkwerten
   - keine doppelte Index-/Ranking-Ueberladung in den Reports
 - KPI-Regeln im Admin-Bereich editierbar, mit verbessertem Kontrast der Eingabefelder.
@@ -698,9 +698,9 @@ Tab wurde von `Analyse` in `Benchmarking` umbenannt.
 Ziel:
 
 - Standort-Benchmarking mit relativen Indexkennzahlen.
-- Vergleich mit `Ø Orisus ohne Standort`: Der ausgewaertete Standort wird aus dem Durchschnitt der Vergleichsgruppe herausgerechnet, damit er seinen eigenen Benchmark nicht verwaessert.
+- Vergleich mit `Orisus-Durchschnitt`: Der ausgewertete Standort wird intern aus dem Durchschnitt der Vergleichsgruppe herausgerechnet, damit er seinen eigenen Benchmark nicht verwaessert. Sichtbar soll nur `Orisus-Durchschnitt` stehen.
 - Standortleiter-Ansicht.
-- In der App-Ansicht steht oben eine klare Tabelle `Standort vs. Ø Orisus`, damit Standortleiter sofort sehen, ob z. B. Personalquote, Kostenquoten, Patienten je Behandlungszimmer oder Neupatientenquote ueber/unter Vergleich liegen.
+- In der App-Ansicht steht oben eine klare Tabelle `Standort vs. Orisus-Durchschnitt`, damit Standortleiter sofort sehen, ob z. B. Personalquote, Kostenquoten, Patienten je Behandlungszimmer oder Neupatientenquote ueber/unter Vergleich liegen.
 - Kapazitaetswerte in dieser Tabelle sind Monatsdurchschnitte: erst Umsatz/Leistung/Patientenzahl durch aktive Ist-BWA-Monate seit Vertragsstart, danach durch Zahnarzt-FTE, Behandlungszimmer oder Oeffnungsstunden. Keine kumulierten Gesamtperiodenwerte fuer FTE-/Zimmervergleiche verwenden.
 - Die Hauptansicht soll nicht mit vielen doppelten Indexkacheln ueberladen sein; Detailtabellen/Rechenbasis bleiben einklappbar bzw. nachgelagert.
 - PDF-Export sauber, farbig, druckfaehig, nicht nur Screenshot der App.
@@ -709,7 +709,7 @@ Ziel:
 - `Gesamte Periode` bedeutet je Standort: seit jeweiligem Vertragsstart, nicht pauschal derselbe Zeitraum fuer alle.
 - Der ausgewaehlte Standort darf im Benchmarking im Klartext genannt und visuell markiert werden.
 - Vergleichsstandorte duerfen nicht im Klartext erscheinen, sondern anonymisiert als Peer-/Standort-Vergleich.
-- In Basis-Tabellen, Kacheln, Heatmaps und PDF-Reports muss der Vergleich als `Ø Orisus ohne Standort` bzw. sinngemaess als Durchschnitt der anderen Standorte beschriftet werden.
+- In Basis-Tabellen, Kacheln, Heatmaps und PDF-Reports muss der Vergleich sichtbar als `Orisus-Durchschnitt` beschriftet werden.
 - Nicht sichtbar machen, dass die Gruppe nur aus einer bestimmten Anzahl Standorten besteht. Formulierungen wie `Peer-Auszug`, `Top-Peer-Auszug` oder `anonymisierte Vergleichsgruppe` verwenden, nicht `Standort A-E` als vollstaendige Gruppenliste.
 - Forderungsquote soll aus den oberen Benchmark-Kacheln entfernt bleiben.
 - Benchmarking-Report fuer Standortleiter/PMR:
@@ -717,7 +717,7 @@ Ziel:
   - Querformat
   - muss auf genau eine Seite passen
   - keine uebergrossen Kacheln oder weissen Leerflaechen
-  - oben kompakte Tabelle `Standort vs. Ø Orisus`
+  - oben kompakte Tabelle `Standort vs. Orisus-Durchschnitt`
   - keine doppelten Index-Kacheln oder redundanten Rankingbloecke
   - ergaenzende Kosten-, Patienten-/Termin- und Rechenbasis-Tabellen bleiben kompakt darunter
   - keine horizontal verschobenen Inhalte im Druckfenster
@@ -790,7 +790,7 @@ Patientendaten:
   - nie ueber 100 %
   - wenn Terminausfallquote vorhanden ist, maximal `100 % - Terminausfallquote`
   - Beispiel: 13,6 % Ausfall => Wahrnehmung maximal 86,4 %, nicht 123,2 %.
-  - Das gilt auch fuer `Ø Orisus ohne Standort`: Wenn Ø Ausfallquote 8,7 % ist, darf Ø Terminwahrnehmung maximal 91,3 % sein.
+  - Das gilt auch fuer den `Orisus-Durchschnitt`: Wenn die Durchschnitts-Ausfallquote 8,7 % ist, darf die Durchschnitts-Terminwahrnehmung maximal 91,3 % sein.
 - Kirchberg-Patientendaten sind in der aktuellen CFO-Arbeitsmappe vorhanden und der Parser ist vorbereitet.
 - Wenn Patientendaten in der Live-App leer bleiben, ist zuerst zu pruefen, ob nach Parser-/Schema-Aenderung ein neuer CFO-Import bestaetigt wurde.
 
@@ -1227,7 +1227,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Zentrales Vergleichsregelwerk sichtbar halten:
     - Vertragsstart beachten.
     - gleiche Datenwelt vergleichen.
-    - Peer-Vergleich als `Ø Orisus ohne Standort`.
+    - Peer-Vergleich sichtbar als `Orisus-Durchschnitt`.
     - `Gesamte Periode` je Standort seit Vertragsstart.
     - Vorjahre nur innerhalb der Vertragsperiode.
     - fehlende Werte nicht als 0 behandeln.
@@ -1276,7 +1276,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - VJ-/QTD-/Monat-VJ-Vergleiche werden je Standort nur aus Monaten innerhalb der Vertragsperiode gebildet; Vergleichswerte vor Vertragsstart bleiben leer.
   - Unter der monatlichen EBITDA-Uebersicht gibt es eine kompakte `EBITDA-Abweichungsanalyse nach Ursache`.
   - Diese Analyse ueberlagert keine Charts, sondern zeigt je Standort in einer Tabelle die EBITDA-Abweichung zum Ziel-EBITDA und den wichtigsten Treiber.
-  - Ursachenlogik: Kostenquote des Standorts minus `Ø Orisus ohne Standort` mal Gesamtleistung des Standorts. Datenbasis sind BWA-Umsatz, EBITDA, Ziel-EBITDA, Material, Fremdlabor, Personal und Sachkosten.
+  - Ursachenlogik: Kostenquote des Standorts minus `Orisus-Durchschnitt` mal Gesamtleistung des Standorts. Datenbasis sind BWA-Umsatz, EBITDA, Ziel-EBITDA, Material, Fremdlabor, Personal und Sachkosten.
   - Die `!`-Erklaerung nutzt das zentrale Vergleichsregelwerk.
 - Standortdetails:
   - KPI-Kacheln sollen Info-Buttons mit Herleitung und Datenquelle haben.
@@ -1324,7 +1324,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Ausgewaehlter Standort darf im Klartext stehen.
   - Vergleichsstandorte anonymisieren als Peer-Auszug.
   - Ø-Orisus-/Vergleichswerte im PMR-Benchmarking muessen den ausgewaehlten Standort ausschliessen.
-  - Seite 2 beginnt mit `Standort vs. Ø Orisus` und zeigt Kernkennzahlen mit Standortwert, Ø Orisus, Abweichung und Einordnung; keine Quellen-Spalte im Report.
+  - Seite 2 beginnt mit `Standort vs. Orisus-Durchschnitt` und zeigt Kernkennzahlen mit Standortwert, Orisus-Durchschnitt, Abweichung und Einordnung; keine Quellen-Spalte im Report.
   - Keine alte Index-/Ranking-Ueberladung; Details als kompakte Kosten-, Patienten-/Termin- und Produktivitaets-/Ergebnis-Tabellen.
   - Nicht offenlegen, wie viele Standorte die Gruppe insgesamt hat.
   - Seite 2 muss komprimiert und druckfaehig sein.
