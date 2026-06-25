@@ -86,17 +86,6 @@ body {
   min-width: 0;
 }
 
-.app-mode-management .analysis-only {
-  display: none !important;
-}
-
-.view-mode-card {
-  border-color: rgba(121, 238, 231, 0.24) !important;
-  background:
-    linear-gradient(135deg, rgba(48, 213, 200, 0.16), rgba(14, 47, 68, 0.7)),
-    rgba(12, 34, 49, 0.82) !important;
-}
-
 .modern-kpi-card {
   overflow: hidden;
   border-color: rgba(178, 226, 229, 0.22) !important;

@@ -256,22 +256,19 @@ Oeffentliche Landing Page:
 App nach Login:
 
 - An Landing Page angelehnt, aber etwas heller und dauerhaft gut lesbar.
-- Die App hat einen globalen Ansichtsmodus:
-  - `Management`: verdichtete Sicht mit KPI-Kacheln, Kerncharts, Fokus-/Top-Erkenntnissen und wichtigsten Steuerungstabellen.
-  - `Analyse`: vollstaendige Sicht mit allen Detailtabellen, Herleitungen, Importpruefungen und Pruefebenen.
-- Wichtig: Der Ansichtsmodus ist reine UI-Ordnung. Es werden keine Informationen geloescht und keine Daten-/Importlogik veraendert.
-- Detailbereiche mit Klasse `analysis-only` sind in `Management` ausgeblendet und in `Analyse` voll sichtbar.
+- Der globale Ansichtsmodus `Management/Analyse` wurde wieder entfernt. Es gibt keinen Umschalter oben mehr.
+- Alle vorhandenen Detailtabellen, Herleitungen, Importpruefungen und Pruefebenen sind standardmaessig sichtbar; `analysis-only` darf nicht mehr global ausgeblendet werden.
 - Die Modernisierung erfolgt ueber zentrale UI-Bausteine, damit die App konsistent wirkt:
   - KPI-Karten mit ruhiger Premium-Optik, klareren Icons und besserer Wert-Hierarchie.
   - Chart-Karten mit eigener Chart-Flaeche, dezenter Tiefe und modernisierten Recharts-Farbverlaeufen.
   - CFO-Cockpit zusaetzlich mit `Management-Fokus` als kurzer Lesestrecke fuer Ergebnisqualitaet, Zielabweichung, Forderungen und Cashflow-Fokus.
   - Modernisierte Chart-Optik ist auf zentrale Dashboard-Charts ausgeweitet: CFO Cockpit, Standortdetails, BWA, Orisus Performance, Bankenreporting und Personal-/Produktivitaetsdiagramme.
-  - Zentrale Tabs erhalten einen kurzen `Startueberblick` oberhalb der Detailbereiche. Dieser ist in `Management` und `Analyse` sichtbar und zeigt 3-4 wesentliche Steuerungswerte; Detailtabellen bleiben darunter unveraendert und werden nur ueber `analysis-only` gesteuert.
-  - Ausnahme: Bereich `Christian Henrici` bleibt in seiner bestehenden Detailstruktur unangetastet, damit alle Investorinformationen im Analysemodus wie bisher voll sichtbar bleiben.
+  - Zentrale Tabs erhalten einen kurzen `Startueberblick` oberhalb der Detailbereiche. Dieser zeigt 3-4 wesentliche Steuerungswerte; Detailtabellen bleiben darunter unveraendert erhalten.
+  - Ausnahme: Bereich `Christian Henrici` bleibt in seiner bestehenden Detailstruktur unangetastet, damit alle Investorinformationen wie bisher voll sichtbar bleiben.
 - Ziel der UI-Ordnung:
   - oben Entscheidungsebene
   - darunter Hauptdiagramm/Haupttabelle
-  - Detail-/Pruefebene nur bei Bedarf im Analysemodus
+  - Detail-/Pruefebene darunter voll sichtbar
 - Tabellen sollen einheitliche Header haben.
 - Zeitraumfilter muessen hell/lesbar sein, sowohl Desktop als auch Mobile.
 - KPI-Kacheln sollen optisch zentriert und nicht in die Ecke gedrueckt wirken.
@@ -1363,7 +1360,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Personal-Aenderungsprotokoll: Veraenderung Mitarbeiterbestand, aktive Mitarbeiter, Massnahmen, Importwarnungen und Fehler.
 - Mobile/Tabellen:
   - Neue breite Auswertungstabellen erhalten horizontales Scrollen, feste Kopfzeilen innerhalb der Tabelle und Mindestbreiten, damit Spalten auf Smartphone nicht ineinander laufen.
-  - Lange Detail-/Prueftabellen sollen bevorzugt im Analysemodus liegen, damit die mobile Managementsicht nicht ueberladen wird.
+  - Lange Detail-/Prueftabellen sollen optisch ruhig und mit Scroll-/Sticky-Hilfen lesbar bleiben, da sie standardmaessig sichtbar sind.
 
 Aktuell besonders sensible Pruefpunkte:
 

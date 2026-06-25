@@ -134,7 +134,6 @@ type Page =
   | "patienten-auswertungen";
 
 type AuthStep = "checking" | "welcome" | "forgot" | "set-password" | "app";
-type AppViewMode = "management" | "analyse";
 type UserRole = "admin" | "info" | "praxismanagement";
 type AccessUser = {
   email: string;
@@ -187,7 +186,6 @@ const supabaseUserRoleKey = "orisus-cfo-supabase-user-role";
 const supabaseUserNameKey = "orisus-cfo-supabase-user-name";
 const activePageStorageKey = "orisus-cfo-active-page";
 const activeSiteStorageKey = "orisus-cfo-active-site";
-const appViewModeStorageKey = "orisus-cfo-view-mode-v1";
 const kpiRulesSettingKey = "kpi_rules";
 const kpiRulesStorageKey = "orisus-cfo-kpi-rules";
 const kpiRulesChangedEventName = "orisus-cfo-kpi-rules-changed";
@@ -1877,12 +1875,6 @@ function storedPage(): Page {
 function storedSiteId() {
   if (typeof window === "undefined") return "kirchberg";
   return window.localStorage.getItem(activeSiteStorageKey) || "kirchberg";
-}
-
-function storedAppViewMode(): AppViewMode {
-  if (typeof window === "undefined") return "management";
-  const savedMode = window.localStorage.getItem(appViewModeStorageKey);
-  return savedMode === "analyse" ? "analyse" : "management";
 }
 
 function scrollAppToTop() {
@@ -3879,7 +3871,6 @@ export default function HomePage() {
   const [authProfileReady, setAuthProfileReady] = useState(false);
   const [importDataLoading, setImportDataLoading] = useState(false);
   const [personalDataLoading, setPersonalDataLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<AppViewMode>(storedAppViewMode);
 
   const setPage = (target: Page) => {
     setPageState(target);
@@ -3900,13 +3891,6 @@ export default function HomePage() {
     window.localStorage.setItem(activePageStorageKey, page);
     window.localStorage.setItem(activeSiteStorageKey, selectedSite);
     window.location.reload();
-  };
-
-  const updateViewMode = (mode: AppViewMode) => {
-    setViewMode(mode);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(appViewModeStorageKey, mode);
-    }
   };
 
   const { targetEbitdaOverrides } = useTargetEbitdaOverrides();
@@ -4158,7 +4142,7 @@ export default function HomePage() {
   const requiresPersonalImport = personalContentPages.includes(page);
 
   return (
-    <div className={cn("app-shell min-h-screen xl:flex", viewMode === "management" ? "app-mode-management" : "app-mode-analyse")}>
+    <div className="app-shell min-h-screen xl:flex">
       <aside className="app-sidebar fixed left-0 top-0 z-30 hidden h-screen w-72 flex-col border-r border-border px-5 py-6 xl:flex">
         <div className="shrink-0">
           <Brand onClick={() => go(defaultPageForRole(userRole))} />
@@ -4257,7 +4241,6 @@ export default function HomePage() {
             previousPage={previousPage}
             onBack={() => go(previousPage ?? "cockpit")}
           />
-          <AppViewModeBar mode={viewMode} onChange={updateViewMode} />
           {requiresImport && !importDataLoading && !effectiveImportedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
           {requiresPersonalImport && !personalDataLoading && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
           {effectiveImportedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
@@ -6509,39 +6492,6 @@ function PageTitle({ title, text }: { title: string; text: string }) {
         <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{text}</p>
       </div>
     </div>
-  );
-}
-
-function AppViewModeBar({ mode, onChange }: { mode: AppViewMode; onChange: (mode: AppViewMode) => void }) {
-  return (
-    <Card className="view-mode-card mb-5 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-xs font-bold uppercase text-primary">Ansicht</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {mode === "management"
-            ? "Managementsicht: die wichtigsten Aussagen zuerst. Detail- und Prüftabellen bleiben im Analysemodus verfügbar."
-            : "Analysemodus: alle Detailtabellen, Herleitungen und Prüfebenen sind sichtbar."}
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-1 rounded-md border border-white/15 bg-slate-950/25 p-1 shadow-inner">
-        {[
-          { id: "management" as const, label: "Management" },
-          { id: "analyse" as const, label: "Analyse" }
-        ].map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={cn(
-              "rounded px-3 py-2 text-sm font-bold transition",
-              mode === item.id ? "bg-primary text-slate-950 shadow-sm" : "text-slate-200 hover:bg-white/10 hover:text-white"
-            )}
-            onClick={() => onChange(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-    </Card>
   );
 }
 
@@ -11660,7 +11610,7 @@ function OrisusPerformance({
       />
       <TabExecutiveSummary
         title="Operative Steuerung"
-        text="Management sieht zuerst die wichtigsten Ergebnis- und Liquiditätstreiber. Im Analysemodus bleiben die Detailtabellen zu PVS, Behandlerumsatz und Bankbewegungen darunter erhalten."
+        text="Die wichtigsten Ergebnis- und Liquiditätstreiber stehen oben. Die Detailtabellen zu PVS, Behandlerumsatz und Bankbewegungen bleiben darunter vollständig erhalten."
         items={[
           { label: "Gesamtleistung", value: eur(metrics.gesamtleistung, true), detail: "BWA / Vertragsperioden", status: "green", icon: TrendingUp },
           { label: "PVS-Umsatz", value: eur(pvsTotal, true), detail: "Performance-Export", status: "green", icon: BadgeEuro },
@@ -16628,7 +16578,7 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
       <PageTitle title="Darlehen & Earn-Out" text="Kaufpreise, Restschulden, Zins, Tilgung und Earn-Out-Fortschritt je Standort." />
       <TabExecutiveSummary
         title="Finanzierungsstatus"
-        text="Die Kachel trennt Restschuld, offene Earn-Outs und erwartete Verpflichtung. Die Vertragsperioden-Details bleiben im Analysebereich darunter."
+        text="Die Kachel trennt Restschuld, offene Earn-Outs und erwartete Verpflichtung. Die Vertragsperioden-Details bleiben darunter vollständig erhalten."
         items={[
           { label: "Restschuld", value: eur(restschuld, true), detail: "konsolidiert", status: "yellow", icon: Landmark },
           { label: "Earn-Out offen", value: eur(earnOut, true), detail: `${eur(earnOutDueNow, true)} aktuell fällig`, status: earnOutDueNow > 0 ? "yellow" : "green", icon: BadgeEuro },
