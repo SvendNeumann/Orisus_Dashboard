@@ -13,6 +13,7 @@ import {
   LabelList,
   Legend,
   Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -6173,6 +6174,9 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
   const targetDeviationPct = targetBase ? (targetDeviation / targetBase) * 100 : 0;
   const highestReceivableSite = [...sortedSites].sort((a, b) => b.forderungen - a.forderungen)[0];
   const weakestCashflowSite = [...sortedSites].sort((a, b) => a.cashflow - b.cashflow)[0];
+  const ebitdaSparkline = aggregateMetricTrendData(importedData, "ebitda");
+  const cashflowSparkline = aggregateMetricTrendData(importedData, "cashflow_gesamt");
+  const revenueSparkline = aggregateMetricTrendData(importedData, "summe_umsatz");
   const storyItems = [
     {
       label: "Ergebnisqualität",
@@ -6180,6 +6184,7 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
       text: `${eur(metrics.ebitda, true)} EBITDA seit Vertragsstart`,
       status: metrics.ebitdaMarge >= 18 ? "green" : metrics.ebitdaMarge >= 10 ? "yellow" : "red",
       icon: TrendingUp,
+      sparkline: ebitdaSparkline,
       info: (
         <>
           <p className="font-semibold text-slate-950">Was ist das?</p>
@@ -6198,6 +6203,7 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
       text: `${targetDeviationPct >= 0 ? "+" : ""}${pct(targetDeviationPct)} ggü. Zielpfad`,
       status: targetDeviation >= 0 ? "green" : targetDeviationPct > -15 ? "yellow" : "red",
       icon: Gauge,
+      sparkline: ebitdaSparkline,
       info: (
         <>
           <p className="font-semibold text-slate-950">Was ist das?</p>
@@ -6219,6 +6225,7 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
       text: highestReceivableSite ? `höchster Bestand: ${highestReceivableSite.name}` : "aktueller Stand",
       status: "yellow",
       icon: ReceiptText,
+      sparkline: revenueSparkline,
       info: (
         <>
           <p className="font-semibold text-slate-950">Was ist das?</p>
@@ -6236,6 +6243,7 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
       text: weakestCashflowSite ? `${eur(weakestCashflowSite.cashflow, true)} Cashflow gem. BWA` : "keine Standortdaten",
       status: weakestCashflowSite && weakestCashflowSite.cashflow < 0 ? "yellow" : "green",
       icon: Wallet,
+      sparkline: cashflowSparkline,
       info: (
         <>
           <p className="font-semibold text-slate-950">Was ist das?</p>
@@ -6259,6 +6267,7 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
     text: string;
     status: Status;
     icon: React.ComponentType<{ className?: string }>;
+    sparkline?: { label: string; value: number }[];
     info: React.ReactNode;
   }>;
 
@@ -6289,6 +6298,7 @@ function ManagementStorylineCard({
     text: string;
     status: Status;
     icon: React.ComponentType<{ className?: string }>;
+    sparkline?: { label: string; value: number }[];
     info: React.ReactNode;
   };
 }) {
@@ -6314,6 +6324,11 @@ function ManagementStorylineCard({
       </div>
       <p className="mt-3 text-center text-sm font-semibold text-muted-foreground">{item.label}</p>
       <p className="mt-1 break-words text-center text-2xl font-extrabold text-white">{item.value}</p>
+      {item.sparkline?.length ? (
+        <div className="mt-2">
+          <MiniSparkline data={item.sparkline} color={item.status === "red" ? "#ff8f95" : item.status === "yellow" ? "#f59e0b" : "#30d5c8"} />
+        </div>
+      ) : null}
       <p className="mt-2 text-center text-sm leading-5 text-muted-foreground">{item.text}</p>
       {infoOpen ? (
         <InfoDialog title={item.label} onClose={() => setInfoOpen(false)}>
@@ -6321,6 +6336,48 @@ function ManagementStorylineCard({
         </InfoDialog>
       ) : null}
     </div>
+  );
+}
+
+function aggregateMetricTrendData(importedData: ImportedDashboardData | null | undefined, metricKey: string, limit = 8) {
+  if (!importedData?.bwaRows?.length) return [];
+  const monthKeys = Array.from(
+    new Set(
+      importedData.bwaRows
+        .filter((row) => row.metricKey === metricKey)
+        .flatMap((row) => Object.keys(row.valuesByMonth).filter((monthKey) => row.hasValueByMonth[monthKey]))
+    )
+  );
+  return monthKeys
+    .map((monthKey) => {
+      const [year, month] = monthKey.split("-").map(Number);
+      const value = importedData.bwaRows
+        .filter((row) => row.metricKey === metricKey && row.hasValueByMonth[monthKey])
+        .reduce((sum, row) => sum + (row.valuesByMonth[monthKey] ?? 0), 0);
+      return {
+        key: monthKey,
+        label: `${bwaMonths[month - 1] ?? month} ${String(year).slice(-2)}`,
+        sort: year * 100 + month,
+        value
+      };
+    })
+    .filter((entry) => Number.isFinite(entry.value))
+    .sort((a, b) => a.sort - b.sort)
+    .slice(-limit);
+}
+
+function MiniSparkline({ data, color = "#30d5c8" }: { data: { label: string; value: number }[]; color?: string }) {
+  if (data.length < 2) {
+    return <div className="flex h-12 items-center justify-center rounded-lg bg-slate-950/24 text-[11px] font-semibold text-muted-foreground">n. v.</div>;
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={52}>
+      <LineChart data={data} margin={{ top: 8, right: 4, bottom: 2, left: 4 }}>
+        <Line type="monotone" dataKey="value" stroke={color} strokeWidth={3} dot={false} isAnimationActive={false} />
+        <Tooltip formatter={(value) => eur(Number(value))} labelFormatter={(label) => String(label)} />
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
 
