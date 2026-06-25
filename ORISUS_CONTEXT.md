@@ -1220,6 +1220,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Admin-Bereich enthaelt einen kompakten Rollen- und Sicherheitscheck.
   - Admin-API prueft aktive Admin-Rolle serverseitig, nutzt Service Role nur serverseitig und hat Same-Origin-/Rate-Limit-Schutz.
   - Praxismanagement bekommt nur Personalbereiche und keine CFO-/Finanzimportdaten in den App-State.
+  - Menuebereich `Christian Henrici` mit Tab `Abrufdarlehen` ist nur fuer Rollen `Admin` und `Info` vorgesehen; Praxismanagement darf diesen Bereich nicht sehen.
   - Supabase-RLS/Policies bleiben als separate Datenbank-Pruefung relevant und duerfen nicht durch reine UI-Sichtbarkeit ersetzt werden.
 - Statusueberarbeitung:
   - Sichtbare Statuslabels: `Stabil`, `Beobachten`, `Auffaellig`.

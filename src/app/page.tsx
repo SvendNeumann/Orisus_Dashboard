@@ -117,6 +117,7 @@ type Page =
   | "bwa"
   | "cashflow"
   | "darlehen"
+  | "christian-henrici-abrufdarlehen"
   | "banken"
   | "board"
   | "uploads"
@@ -1721,6 +1722,11 @@ const navSections = [
     ]
   },
   {
+    id: "christian-henrici",
+    label: "Christian Henrici",
+    items: [{ id: "christian-henrici-abrufdarlehen", label: "Abrufdarlehen", icon: Banknote }]
+  },
+  {
     id: "patients",
     label: "Patienten",
     items: [{ id: "patienten-auswertungen", label: "Auswertungen", icon: Stethoscope }]
@@ -1766,6 +1772,7 @@ const appPageIds: Page[] = [
   "bwa",
   "cashflow",
   "darlehen",
+  "christian-henrici-abrufdarlehen",
   "banken",
   "board",
   "uploads",
@@ -1780,11 +1787,12 @@ const appPageIds: Page[] = [
 ];
 
 const praxisManagementPages: Page[] = ["personal-krankheit", "personal-mitarbeiter", "personal-massnahmen"];
+const christianHenriciPages: Page[] = ["christian-henrici-abrufdarlehen"];
 
 function pagesForRole(role: UserRole): Page[] {
   if (role === "admin") return appPageIds;
   if (role === "praxismanagement") return praxisManagementPages;
-  return appPageIds.filter((page) => !["uploads", "admin", "personal-upload"].includes(page));
+  return appPageIds.filter((page) => !["uploads", "admin", "personal-upload"].includes(page) || christianHenriciPages.includes(page));
 }
 
 function navSectionsForRole(role: UserRole) {
@@ -4177,6 +4185,7 @@ export default function HomePage() {
           {effectiveImportedData && page === "bwa" && <Bwa importedData={effectiveImportedData} sites={dashboardSites} monthlyData={dashboardMonthly} />}
           {effectiveImportedData && page === "cashflow" && <Cashflow sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "darlehen" && <Darlehen sites={dashboardSites} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "christian-henrici-abrufdarlehen" && <ChristianHenriciAbrufdarlehen />}
           {effectiveImportedData && page === "banken" && <Bankenreporting sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} />}
           {effectiveImportedData && page === "board" && <BoardPack sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
           {page === "uploads" && isAdmin && (
@@ -15796,6 +15805,32 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function ChristianHenriciAbrufdarlehen() {
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Christian Henrici"
+        text="Separater Bereich fuer Informationen und Unterlagen zum Abrufdarlehen. Zugriff nur fuer Admin- und Info-Rolle."
+      />
+      <Card className="p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-primary" />
+              <h2 className="text-xl font-semibold">Abrufdarlehen</h2>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Dieser Tab ist als eigener, rollenbeschraenkter Bereich vorbereitet. Fachwerte, Dokumente oder Abruflogik koennen hier
+              ergaenzt werden, ohne die bestehenden Darlehen-, Earn-Out- oder BWA-Auswertungen zu veraendern.
+            </p>
+          </div>
+          <Badge tone="green">Info / Admin</Badge>
+        </div>
+      </Card>
     </section>
   );
 }
