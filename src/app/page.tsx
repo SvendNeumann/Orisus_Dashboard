@@ -558,6 +558,9 @@ type PersonalDashboardData = {
 type PayrollEmployeeCostRow = {
   personnelNumber: string;
   name: string;
+  entryDate?: string;
+  exitDate?: string;
+  employmentDateSource?: string;
   gross: number;
   bavEmployerShare: number;
   bavSubsidy: number;
@@ -582,7 +585,7 @@ type PayrollPeriodData = {
   fileName: string;
   importedAt: string;
   employeeRows: PayrollEmployeeCostRow[];
-  totals: Omit<PayrollEmployeeCostRow, "personnelNumber" | "name">;
+  totals: Omit<PayrollEmployeeCostRow, "personnelNumber" | "name" | "entryDate" | "exitDate" | "employmentDateSource">;
   warnings: string[];
   errors: string[];
 };
@@ -2349,6 +2352,80 @@ function parseDatevAmount(value: string) {
   return negative ? -amount : amount;
 }
 
+function parsePayrollDate(value: string) {
+  const cleaned = value.trim();
+  const dotted = cleaned.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (dotted) return `${dotted[3]}-${dotted[2]}-${dotted[1]}`;
+  const compact = cleaned.match(/^(\d{2})(\d{2})(\d{2})$/);
+  if (!compact) return null;
+  const year = Number(compact[3]);
+  return `${year >= 50 ? "19" : "20"}${compact[3]}-${compact[2]}-${compact[1]}`;
+}
+
+function formatPayrollDate(value?: string) {
+  if (!value) return "n. v.";
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : value;
+}
+
+function earlierPayrollDate(current?: string, next?: string) {
+  if (!next) return current;
+  if (!current) return next;
+  return next < current ? next : current;
+}
+
+function laterPayrollDate(current?: string, next?: string) {
+  if (!next) return current;
+  if (!current) return next;
+  return next > current ? next : current;
+}
+
+function parsePayrollEmploymentDatesFromText(text: string) {
+  const rows = new Map<string, { entryDate?: string; exitDate?: string; source?: string }>();
+  const lines = text.replace(/\u00a0/g, " ").split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const upsert = (personnelNumber: string, entryDate?: string, exitDate?: string, source = "DATEV") => {
+    if (!personnelNumber) return;
+    const existing = rows.get(personnelNumber) ?? {};
+    rows.set(personnelNumber, {
+      entryDate: earlierPayrollDate(existing.entryDate, entryDate),
+      exitDate: laterPayrollDate(existing.exitDate, exitDate),
+      source: existing.source ?? source
+    });
+  };
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const headerMatch = line.match(/^[A-Z0-9]+\s+\d+\/\d+\/(\d{5})\b/);
+    const headerPersonnelNumber = headerMatch?.[1];
+    if (headerPersonnelNumber) {
+      const nextHeaderIndex = lines.findIndex((candidate, candidateIndex) => candidateIndex > index && /^[A-Z0-9]+\s+\d+\/\d+\/\d{5}\b/.test(candidate));
+      const blockEnd = nextHeaderIndex > index ? nextHeaderIndex : Math.min(lines.length, index + 80);
+      for (let blockIndex = index; blockIndex < blockEnd; blockIndex += 1) {
+        if (!compactDatevText(lines[blockIndex]).includes("eintrittaustritt")) continue;
+        const dateLine = lines[blockIndex + 1] ?? "";
+        const dates = dateLine.match(/\b\d{6}\b/g) ?? [];
+        if (dates[0]) {
+          upsert(headerPersonnelNumber, parsePayrollDate(dates[0]) ?? undefined, parsePayrollDate(dates[1] ?? "") ?? undefined, "Entgeltabrechnung");
+        }
+        break;
+      }
+    }
+
+    if (/^Pers\.-Nr\./i.test(line)) {
+      const personnelNumber = (lines[index + 1] ?? "").match(/\b(\d{5})\b/)?.[1];
+      if (!personnelNumber) continue;
+      const block = lines.slice(index, Math.min(lines.length, index + 60)).join(" ");
+      const periodMatch = block.match(/B\s*e\s*sc\s*h\s*ä\s*ft\s*ig\s*u\s*ng\s*s\s*z\s*e\s*i\s*tr\s*a\s*u\s*m\s+(\d{2}\.\d{2}\.\d{4})\s+b\s*i\s*s(?:\s+(\d{2}\.\d{2}\.\d{4}))?/i) ??
+        block.match(/Beschäftigungszeitraum\s+(\d{2}\.\d{2}\.\d{4})\s+bis(?:\s+(\d{2}\.\d{2}\.\d{4}))?/i);
+      if (periodMatch) {
+        upsert(personnelNumber, parsePayrollDate(periodMatch[1]) ?? undefined, parsePayrollDate(periodMatch[2] ?? "") ?? undefined, "DEÜV");
+      }
+    }
+  }
+
+  return rows;
+}
+
 function compactDatevText(value: string) {
   return value
     .toLowerCase()
@@ -2456,13 +2533,18 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   const site = payrollSiteFromText(normalizedText);
   const period = payrollMonthFromText(normalizedText);
   const { employeeRows, totals } = parsePayrollEmployeeRows(lines);
+  const employmentDates = parsePayrollEmploymentDatesFromText(normalizedText);
+  const enrichedEmployeeRows = employeeRows.map((row) => {
+    const dates = employmentDates.get(row.personnelNumber);
+    return dates ? { ...row, entryDate: dates.entryDate, exitDate: dates.exitDate, employmentDateSource: dates.source } : row;
+  });
   const warnings: string[] = [];
   const errors: string[] = [];
   if (!site) errors.push("Standort konnte nicht aus der PDF-Kopfzeile erkannt werden.");
   if (!period) errors.push("Monat/Jahr konnte nicht aus der Personalkostenübersicht erkannt werden.");
   if (!compactDatevText(normalizedText).includes("personalkostenubersicht")) errors.push("Keine DATEV-Personalkostenübersicht in der Datei erkannt.");
-  if (!employeeRows.length) errors.push("Keine Mitarbeiterzeilen in der Personalkostenübersicht erkannt.");
-  const employeeTotal = employeeRows.reduce((sum, row) => sum + row.totalCostIncludingReimbursements, 0);
+  if (!enrichedEmployeeRows.length) errors.push("Keine Mitarbeiterzeilen in der Personalkostenübersicht erkannt.");
+  const employeeTotal = enrichedEmployeeRows.reduce((sum, row) => sum + row.totalCostIncludingReimbursements, 0);
   if (totals.totalCostIncludingReimbursements && Math.abs(employeeTotal - totals.totalCostIncludingReimbursements) > 1) {
     warnings.push(`Summe Mitarbeiter (${eur(employeeTotal)}) weicht von DATEV-Summe inkl. Erstattungen (${eur(totals.totalCostIncludingReimbursements)}) ab.`);
   }
@@ -2478,7 +2560,7 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
     monthLabel: period?.label ?? "Unbekannter Zeitraum",
     fileName,
     importedAt: new Date().toISOString(),
-    employeeRows,
+    employeeRows: enrichedEmployeeRows,
     totals,
     warnings,
     errors
@@ -19904,7 +19986,7 @@ function PayrollCosts({
             <table className="data-table border-separate border-spacing-0 text-xs">
               <thead>
                 <tr>
-                  {["Standort", "Monat", "Pers.-Nr.", "Name", "Gesamtbrutto", "SV-AG", "Umlage", "Pausch. Steuern", "Erstattungen", "Gesamtkosten inkl."].map((head) => (
+                  {["Standort", "Monat", "Pers.-Nr.", "Name", "Eintritt", "Austritt", "Quelle Datum", "Gesamtbrutto", "SV-AG", "Umlage", "Pausch. Steuern", "Erstattungen", "Gesamtkosten inkl."].map((head) => (
                     <th key={head} className="sticky top-0 table-head border-b border-r border-border p-2 text-left uppercase text-white">{head}</th>
                   ))}
                 </tr>
@@ -19916,6 +19998,9 @@ function PayrollCosts({
                     <TableCell>{row.monthLabel}</TableCell>
                     <TableCell>{row.personnelNumber}</TableCell>
                     <TableCell strong>{row.name}</TableCell>
+                    <TableCell>{formatPayrollDate(row.entryDate)}</TableCell>
+                    <TableCell>{formatPayrollDate(row.exitDate)}</TableCell>
+                    <TableCell>{row.employmentDateSource ?? "n. v."}</TableCell>
                     <TableCell>{eur(row.gross)}</TableCell>
                     <TableCell>{eur(row.svEmployerShare)}</TableCell>
                     <TableCell>{eur(row.allocation)}</TableCell>
