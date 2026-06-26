@@ -1430,6 +1430,13 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Wenn ein neuer Import geladen, aber noch nicht bestaetigt ist, zeigt ein Aenderungsprotokoll die wesentlichen Unterschiede gegenueber dem letzten bestaetigten Stand.
   - CFO-Aenderungsprotokoll: neue BWA-Monate, wesentliche Umsatz-/EBITDA-Deltas, Importwarnungen und Fehler.
   - Personal-Aenderungsprotokoll: Veraenderung Mitarbeiterbestand, aktive Mitarbeiter, Massnahmen, Importwarnungen und Fehler.
+- Lohnjournal / DATEV-Personalkosten:
+  - Es gibt einen eigenen Administration-Tab `Lohnjournal-Upload` fuer DATEV-PDFs mit `Personalkostenuebersicht` je Standort/Monat.
+  - Sammelupload liest mehrere PDFs, erkennt Standort und Monat/Jahr aus der DATEV-Kopfzeile und ersetzt gleiche Standort-/Monatskombinationen, ohne andere Monate zu loeschen.
+  - Die Lohnjournal-Daten sind eine separate Datenwelt: BWA bleibt offizielle GuV-/Finanzsicht, Personal-Upload bleibt Stammdaten-/FTE-/Rollenbasis, Lohnjournal ist echte Abrechnungskostenbasis.
+  - Neuer Personal-Tab `Personalkosten Lohnjournal` zeigt Verlaeufe, Abweichung Lohnjournal vs. BWA-Personalkosten und Mitarbeiterkosten fuer berechtigte Rollen.
+  - Fehlende Lohnjournalmonate werden nicht als 0 gewertet.
+  - Praxismanagement darf keine Lohnjournal-/Gehalts-/AG-Kostendetails sehen.
 - Mobile/Tabellen:
   - Neue breite Auswertungstabellen erhalten horizontales Scrollen, feste Kopfzeilen innerhalb der Tabelle und Mindestbreiten, damit Spalten auf Smartphone nicht ineinander laufen.
   - Lange Detail-/Prueftabellen sollen optisch ruhig und mit Scroll-/Sticky-Hilfen lesbar bleiben, da sie standardmaessig sichtbar sind.

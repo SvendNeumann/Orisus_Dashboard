@@ -134,6 +134,8 @@ type Page =
   | "personal-mitarbeiter"
   | "personal-massnahmen"
   | "personal-upload"
+  | "payroll-upload"
+  | "payroll-costs"
   | "patienten-auswertungen";
 
 type AuthStep = "checking" | "welcome" | "forgot" | "set-password" | "app";
@@ -181,6 +183,8 @@ const personalImportPersistenceDashboardKey = "personal-dashboard";
 const personalImportStorageKey = "orisus-personal-import-report";
 const personalImportDashboardStorageKey = "orisus-personal-import-dashboard-data";
 const personalImportSchemaVersion = "2026-06-21-personal-stage-one-v1";
+const payrollJournalStorageKey = "orisus-payroll-journal-data";
+const payrollJournalSchemaVersion = "2026-06-26-payroll-journal-v1";
 const personalSupabaseImportTableName = "orisus_personal_imports";
 const supabaseAccessTokenKey = "orisus-cfo-supabase-access-token";
 const supabaseRefreshTokenKey = "orisus-cfo-supabase-refresh-token";
@@ -548,6 +552,46 @@ type PersonalDashboardData = {
     payModels: string[];
   };
   report: PersonalImportReport;
+};
+
+type PayrollEmployeeCostRow = {
+  personnelNumber: string;
+  name: string;
+  gross: number;
+  bavEmployerShare: number;
+  bavSubsidy: number;
+  netAdjustments: number;
+  svEmployerShare: number;
+  allocation: number;
+  flatTax: number;
+  reimbursementBa: number;
+  reimbursementHealthInsurance: number;
+  reimbursementIfsg: number;
+  totalCostWithoutReimbursements: number;
+  totalCostIncludingReimbursements: number;
+};
+
+type PayrollPeriodData = {
+  id: string;
+  siteId: string;
+  siteName: string;
+  year: number;
+  month: number;
+  monthLabel: string;
+  fileName: string;
+  importedAt: string;
+  employeeRows: PayrollEmployeeCostRow[];
+  totals: Omit<PayrollEmployeeCostRow, "personnelNumber" | "name">;
+  warnings: string[];
+  errors: string[];
+};
+
+type PayrollJournalData = {
+  schemaVersion: string;
+  importedAt: string;
+  periods: PayrollPeriodData[];
+  warnings: string[];
+  errors: string[];
 };
 
 function openImportPersistenceDb(): Promise<IDBDatabase> {
@@ -1780,6 +1824,7 @@ const navSections = [
     id: "personal",
     label: "Personal",
     items: [
+      { id: "payroll-costs", label: "Personalkosten Lohnjournal", icon: BadgeEuro },
       { id: "personal-krankheit", label: "Krankheit / Fehlzeiten", icon: Stethoscope },
       { id: "personal-mitarbeiter", label: "Mitarbeiterübersicht", icon: UserRound },
       { id: "personal-massnahmen", label: "Personalmaßnahmen", icon: CheckCircle2 }
@@ -1791,6 +1836,7 @@ const navSections = [
     items: [
       { id: "uploads", label: "CFO-Upload", icon: FileUp },
       { id: "personal-upload", label: "Personal-Upload", icon: FileUp },
+      { id: "payroll-upload", label: "Lohnjournal-Upload", icon: FileUp },
       { id: "reports", label: "Reports", icon: FileBarChart },
       { id: "admin", label: "Nutzerkontrolle", icon: Lock },
       { id: "kpi-regeln", label: "KPI-Regeln", icon: Gauge }
@@ -1842,6 +1888,8 @@ const appPageIds: Page[] = [
   "personal-mitarbeiter",
   "personal-massnahmen",
   "personal-upload",
+  "payroll-upload",
+  "payroll-costs",
   "patienten-auswertungen"
 ];
 
@@ -1851,7 +1899,7 @@ const christianHenriciPages: Page[] = ["christian-henrici-info", "christian-henr
 function pagesForRole(role: UserRole): Page[] {
   if (role === "admin") return appPageIds;
   if (role === "praxismanagement") return praxisManagementPages;
-  return appPageIds.filter((page) => !["uploads", "admin", "kpi-regeln", "personal-upload"].includes(page) || christianHenriciPages.includes(page));
+  return appPageIds.filter((page) => !["uploads", "admin", "kpi-regeln", "personal-upload", "payroll-upload"].includes(page) || christianHenriciPages.includes(page));
 }
 
 function navSectionsForRole(role: UserRole) {
@@ -2270,6 +2318,240 @@ function buildPersonalDashboardData(workbook: XLSX.WorkBook, fileName: string, p
     actionEntries,
     settings,
     report
+  };
+}
+
+function emptyPayrollTotals(): PayrollPeriodData["totals"] {
+  return {
+    gross: 0,
+    bavEmployerShare: 0,
+    bavSubsidy: 0,
+    netAdjustments: 0,
+    svEmployerShare: 0,
+    allocation: 0,
+    flatTax: 0,
+    reimbursementBa: 0,
+    reimbursementHealthInsurance: 0,
+    reimbursementIfsg: 0,
+    totalCostWithoutReimbursements: 0,
+    totalCostIncludingReimbursements: 0
+  };
+}
+
+function parseDatevAmount(value: string) {
+  const cleaned = value.trim();
+  if (!cleaned) return 0;
+  const negative = cleaned.endsWith("-");
+  const digits = cleaned.replace(/[^0-9]/g, "");
+  if (!digits) return 0;
+  const amount = Number(digits) / 100;
+  return negative ? -amount : amount;
+}
+
+function payrollMonthFromText(text: string) {
+  const match = text.match(/Personalkostenübersicht\s+([A-Za-zÄÖÜäöü]+)\s+(20\d{2})/i);
+  if (!match) return null;
+  const monthIndex = bwaMonths.findIndex((month) => month.toLowerCase() === match[1].toLowerCase());
+  if (monthIndex < 0) return null;
+  return { month: monthIndex + 1, year: Number(match[2]), label: `${bwaMonths[monthIndex]} ${match[2]}` };
+}
+
+function payrollSiteFromText(text: string) {
+  const headerMatch = text.match(/Standort\s+([A-Za-zÄÖÜäöüß\-\s]+?)(?:\s+V\s*K\s*Z|\*|Feldstraße|Datum|$)/i);
+  const rawName = normalizePersonalText(headerMatch?.[1] ?? "");
+  return sortSitesByContractStart(standorte).find((site) => rawName && normalizeMetric(site.name) === normalizeMetric(rawName)) ??
+    sortSitesByContractStart(standorte).find((site) => rawName && normalizeMetric(rawName).includes(normalizeMetric(site.name))) ??
+    null;
+}
+
+function payrollRowAmountsFromLine(line: string, expectedCount: number) {
+  const matches = line.match(/[0-9][0-9.]*-?/g) ?? [];
+  return matches.slice(-expectedCount).map(parseDatevAmount);
+}
+
+function parsePayrollEmployeeRows(lines: string[]) {
+  const employeeRows: PayrollEmployeeCostRow[] = [];
+  const totals = emptyPayrollTotals();
+  const rowPattern = /^(\d{5})\s+(.+?)\s+([0-9][0-9.]*-?)\s+([0-9][0-9.]*-?)\s+([0-9][0-9.]*-?)\s+([0-9][0-9.]*-?)\s+([0-9][0-9.]*-?)\s+([0-9][0-9.]*-?)\s+([0-9][0-9.]*-?)\s+([0-9][0-9.]*-?)$/;
+  const continuationPattern = /^(.+?)\s+([0-9][0-9.]*-?)\s+([0-9][0-9.]*-?)\s+([0-9][0-9.]*-?)\s+([0-9][0-9.]*-?)$/;
+  let inOverview = false;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].replace(/\s+/g, " ").trim();
+    if (!line) continue;
+    if (/Personalkostenübersicht/i.test(line)) {
+      inOverview = true;
+      continue;
+    }
+    if (!inOverview) continue;
+    if (/AFP Form/i.test(line)) {
+      inOverview = false;
+      continue;
+    }
+    if (line.startsWith("Summen:")) {
+      const first = payrollRowAmountsFromLine(line, 8);
+      const next = payrollRowAmountsFromLine(lines[index + 1]?.replace(/\s+/g, " ").trim() ?? "", 4);
+      if (first.length >= 8) {
+        totals.gross += first[0];
+        totals.bavEmployerShare += first[1];
+        totals.netAdjustments += first[2];
+        totals.svEmployerShare += first[3];
+        totals.allocation += first[4];
+        totals.flatTax += first[5];
+        totals.reimbursementBa += first[6];
+        totals.totalCostWithoutReimbursements += first[7];
+      }
+      if (next.length >= 4) {
+        totals.bavSubsidy += next[0];
+        totals.reimbursementHealthInsurance += next[1];
+        totals.reimbursementIfsg += next[2];
+        totals.totalCostIncludingReimbursements += next[3];
+      }
+      continue;
+    }
+    const match = line.match(rowPattern);
+    if (!match) continue;
+    const continuation = (lines[index + 1] ?? "").replace(/\s+/g, " ").trim();
+    const nextMatch = continuation.match(continuationPattern);
+    const name = normalizePersonalText(`${match[2]} ${nextMatch?.[1] ?? ""}`);
+    const values = match.slice(3).map(parseDatevAmount);
+    const nextValues = nextMatch ? nextMatch.slice(2).map(parseDatevAmount) : [0, 0, 0, values[7]];
+    employeeRows.push({
+      personnelNumber: match[1],
+      name,
+      gross: values[0],
+      bavEmployerShare: values[1],
+      bavSubsidy: nextValues[0] ?? 0,
+      netAdjustments: values[2],
+      svEmployerShare: values[3],
+      allocation: values[4],
+      flatTax: values[5],
+      reimbursementBa: values[6],
+      reimbursementHealthInsurance: nextValues[1] ?? 0,
+      reimbursementIfsg: nextValues[2] ?? 0,
+      totalCostWithoutReimbursements: values[7],
+      totalCostIncludingReimbursements: nextValues[3] ?? values[7]
+    });
+  }
+
+  return { employeeRows, totals };
+}
+
+function buildPayrollPeriodDataFromText(text: string, fileName: string): PayrollPeriodData {
+  const normalizedText = text.replace(/\u00a0/g, " ");
+  const lines = normalizedText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const site = payrollSiteFromText(normalizedText);
+  const period = payrollMonthFromText(normalizedText);
+  const { employeeRows, totals } = parsePayrollEmployeeRows(lines);
+  const warnings: string[] = [];
+  const errors: string[] = [];
+  if (!site) errors.push("Standort konnte nicht aus der PDF-Kopfzeile erkannt werden.");
+  if (!period) errors.push("Monat/Jahr konnte nicht aus der Personalkostenübersicht erkannt werden.");
+  if (!/Personalkostenübersicht/i.test(normalizedText)) errors.push("Keine DATEV-Personalkostenübersicht in der Datei erkannt.");
+  if (!employeeRows.length) errors.push("Keine Mitarbeiterzeilen in der Personalkostenübersicht erkannt.");
+  const employeeTotal = employeeRows.reduce((sum, row) => sum + row.totalCostIncludingReimbursements, 0);
+  if (totals.totalCostIncludingReimbursements && Math.abs(employeeTotal - totals.totalCostIncludingReimbursements) > 1) {
+    warnings.push(`Summe Mitarbeiter (${eur(employeeTotal)}) weicht von DATEV-Summe inkl. Erstattungen (${eur(totals.totalCostIncludingReimbursements)}) ab.`);
+  }
+  const siteName = site?.name ?? "Unbekannt";
+  const year = period?.year ?? new Date().getFullYear();
+  const month = period?.month ?? 1;
+  return {
+    id: `${site?.id ?? "unknown"}-${year}-${String(month).padStart(2, "0")}`,
+    siteId: site?.id ?? "",
+    siteName,
+    year,
+    month,
+    monthLabel: period?.label ?? "Unbekannter Zeitraum",
+    fileName,
+    importedAt: new Date().toISOString(),
+    employeeRows,
+    totals,
+    warnings,
+    errors
+  };
+}
+
+type PdfJsModule = {
+  GlobalWorkerOptions: { workerSrc: string };
+  getDocument: (options: { data: Uint8Array }) => { promise: Promise<{ numPages: number; getPage: (pageNumber: number) => Promise<{ getTextContent: () => Promise<{ items: Array<{ str?: string; transform?: number[] }> }> }> }> };
+};
+
+async function extractPdfText(file: File) {
+  const pdfModuleUrl = "/vendor/pdfjs/pdf.min.mjs";
+  const pdfjs = (await import(/* webpackIgnore: true */ pdfModuleUrl)) as PdfJsModule;
+  pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.min.mjs";
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const pages: string[] = [];
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const items = content.items
+      .map((item) => ({
+        text: item.str ?? "",
+        x: item.transform?.[4] ?? 0,
+        y: Math.round(item.transform?.[5] ?? 0)
+      }))
+      .filter((item) => item.text.trim());
+    const lines = new Map<number, typeof items>();
+    items.forEach((item) => {
+      const bucket = lines.get(item.y) ?? [];
+      bucket.push(item);
+      lines.set(item.y, bucket);
+    });
+    pages.push(
+      Array.from(lines.entries())
+        .sort((a, b) => b[0] - a[0])
+        .map(([, lineItems]) => lineItems.sort((a, b) => a.x - b.x).map((item) => item.text).join(" ").replace(/\s+/g, " ").trim())
+        .join("\n")
+    );
+  }
+  return pages.join("\n");
+}
+
+function readPayrollJournalData(): PayrollJournalData | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(payrollJournalStorageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PayrollJournalData;
+    return parsed?.schemaVersion ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function savePayrollJournalData(data: PayrollJournalData | null) {
+  if (typeof window === "undefined") return;
+  if (!data) {
+    window.localStorage.removeItem(payrollJournalStorageKey);
+    return;
+  }
+  window.localStorage.setItem(payrollJournalStorageKey, JSON.stringify(data));
+}
+
+function mergePayrollPeriods(previous: PayrollJournalData | null, nextPeriods: PayrollPeriodData[]): PayrollJournalData {
+  const merged = new Map<string, PayrollPeriodData>();
+  (previous?.periods ?? []).forEach((period) => merged.set(period.id, period));
+  nextPeriods.forEach((period) => merged.set(period.id, period));
+  const periods = Array.from(merged.values()).sort((a, b) => a.year * 100 + a.month - (b.year * 100 + b.month) || compareSiteNamesByContractStart(a.siteName, b.siteName));
+  const warnings = nextPeriods.flatMap((period) => period.warnings);
+  const errors = nextPeriods.flatMap((period) => period.errors);
+  nextPeriods.forEach((period) => {
+    const previousPeriod = periods
+      .filter((candidate) => candidate.siteId === period.siteId && candidate.id !== period.id && candidate.year * 100 + candidate.month < period.year * 100 + period.month)
+      .at(-1);
+    if (previousPeriod?.totals.totalCostIncludingReimbursements) {
+      const change = ((period.totals.totalCostIncludingReimbursements - previousPeriod.totals.totalCostIncludingReimbursements) / Math.abs(previousPeriod.totals.totalCostIncludingReimbursements)) * 100;
+      if (Math.abs(change) >= 15) warnings.push(`${period.siteName} ${period.monthLabel}: Personalkosten ${pct(change)} ggü. vorherigem Lohnjournalmonat.`);
+    }
+  });
+  return {
+    schemaVersion: payrollJournalSchemaVersion,
+    importedAt: new Date().toISOString(),
+    periods,
+    warnings,
+    errors
   };
 }
 
@@ -4065,6 +4347,7 @@ export default function HomePage() {
   const [previousPage, setPreviousPage] = useState<Page | null>(null);
   const [importedData, setImportedData] = useState<ImportedDashboardData | null>(null);
   const [personalData, setPersonalData] = useState<PersonalDashboardData | null>(null);
+  const [payrollData, setPayrollData] = useState<PayrollJournalData | null>(null);
   const [userDisplayName, setUserDisplayName] = useState("Svend Neumann");
   const [userRole, setUserRole] = useState<UserRole>("info");
   const [authProfileReady, setAuthProfileReady] = useState(false);
@@ -4230,6 +4513,7 @@ export default function HomePage() {
     if (authStep !== "app" || !authProfileReady) return;
     if (!canLoadPersonalData(userRole)) {
       setPersonalData(null);
+      setPayrollData(null);
       setPersonalDataLoading(false);
       return;
     }
@@ -4246,6 +4530,11 @@ export default function HomePage() {
     return () => {
       isMounted = false;
     };
+  }, [authProfileReady, authStep, userRole]);
+
+  useEffect(() => {
+    if (authStep !== "app" || !authProfileReady || !canLoadPersonalData(userRole)) return;
+    setPayrollData(readPayrollJournalData());
   }, [authProfileReady, authStep, userRole]);
 
   const setPersistentAuthStep = (step: AuthStep) => {
@@ -4486,6 +4775,7 @@ export default function HomePage() {
           {personalData && page === "personal-krankheit" && <PersonalSickness personalData={personalData} />}
           {personalData && page === "personal-mitarbeiter" && <PersonalEmployees personalData={personalData} userRole={userRole} />}
           {personalData && page === "personal-massnahmen" && <PersonalActions personalData={personalData} />}
+          {page === "payroll-costs" && <PayrollCosts payrollData={payrollData} importedData={effectiveImportedData} userRole={userRole} onUpload={() => go("payroll-upload")} />}
           {page === "personal-upload" && isAdmin && (
             <PersonalUpload
               userRole={userRole}
@@ -4495,6 +4785,19 @@ export default function HomePage() {
               }}
               onImportReset={() => {
                 setPersonalData(null);
+                window.setTimeout(reloadCurrentPage, 150);
+              }}
+            />
+          )}
+          {page === "payroll-upload" && isAdmin && (
+            <PayrollUpload
+              payrollData={payrollData}
+              onImportConfirmed={(data) => {
+                setPayrollData(data);
+                window.setTimeout(reloadCurrentPage, 150);
+              }}
+              onImportReset={() => {
+                setPayrollData(null);
                 window.setTimeout(reloadCurrentPage, 150);
               }}
             />
@@ -19081,6 +19384,341 @@ function formatNullableNumber(value: number | null | undefined, digits = 1) {
 
 function formatNullablePercent(value: number | null | undefined) {
   return value == null || !Number.isFinite(value) ? "n. v." : pct(value);
+}
+
+function payrollPeriodsByMonth(payrollData?: PayrollJournalData | null) {
+  return [...(payrollData?.periods ?? [])].sort((a, b) => a.year * 100 + a.month - (b.year * 100 + b.month) || compareSiteNamesByContractStart(a.siteName, b.siteName));
+}
+
+function payrollBwaDifference(period: PayrollPeriodData, importedData?: ImportedDashboardData | null) {
+  if (!importedData?.bwaRows?.length || !period.siteId) return null;
+  const bwaValue = Math.abs(importedBwaMetricValue(importedData.bwaRows, period.siteId, "personalkosten_gesamt", `${bwaMonths[period.month - 1]} ${period.year}`));
+  if (!bwaValue) return null;
+  const payrollValue = period.totals.totalCostIncludingReimbursements;
+  return {
+    bwaValue,
+    payrollValue,
+    delta: payrollValue - bwaValue,
+    deltaPct: ((payrollValue - bwaValue) / bwaValue) * 100
+  };
+}
+
+function PayrollUpload({
+  payrollData,
+  onImportConfirmed,
+  onImportReset
+}: {
+  payrollData: PayrollJournalData | null;
+  onImportConfirmed: (data: PayrollJournalData) => void;
+  onImportReset: () => void;
+}) {
+  const [pendingPeriods, setPendingPeriods] = useState<PayrollPeriodData[]>([]);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const pendingData = pendingPeriods.length ? mergePayrollPeriods(payrollData, pendingPeriods) : payrollData;
+  const periods = payrollPeriodsByMonth(pendingData);
+  const warnings = [...(pendingData?.warnings ?? []), ...pendingPeriods.flatMap((period) => period.warnings)];
+  const errors = [...(pendingData?.errors ?? []), ...pendingPeriods.flatMap((period) => period.errors)];
+
+  const handleFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!files.length) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const parsed: PayrollPeriodData[] = [];
+      for (const file of files) {
+        if (!file.name.toLowerCase().endsWith(".pdf")) {
+          parsed.push({
+            id: `invalid-${file.name}`,
+            siteId: "",
+            siteName: "Unbekannt",
+            year: new Date().getFullYear(),
+            month: 1,
+            monthLabel: "Unbekannt",
+            fileName: file.name,
+            importedAt: new Date().toISOString(),
+            employeeRows: [],
+            totals: emptyPayrollTotals(),
+            warnings: [],
+            errors: ["Nur PDF-Lohnjournale werden akzeptiert."]
+          });
+          continue;
+        }
+        const text = await extractPdfText(file);
+        parsed.push(buildPayrollPeriodDataFromText(text, file.name));
+      }
+      setPendingPeriods(parsed);
+      setMessage(`${parsed.length} Datei(en) gelesen. Bitte Plausibilitätscheck prüfen und dann freigeben.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Lohnjournal-PDF konnte nicht gelesen werden.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirm = () => {
+    const data = mergePayrollPeriods(payrollData, pendingPeriods);
+    savePayrollJournalData(data);
+    setPendingPeriods([]);
+    onImportConfirmed(data);
+  };
+
+  const reset = () => {
+    const confirmed = window.confirm("Lohnjournal-Datenbasis wirklich zurücksetzen?");
+    if (!confirmed) return;
+    savePayrollJournalData(null);
+    setPendingPeriods([]);
+    onImportReset();
+  };
+
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Lohnjournal-Upload"
+        text="Sammelupload für DATEV-PDFs mit Personalkostenübersicht je Standort und Monat. Bestehende Lohnjournalmonate werden je Standort/Monat gezielt ersetzt."
+      />
+      <Card className="p-4">
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div>
+            <h2 className="font-bold">Sammelupload</h2>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Mehrere Standort-PDFs gleichzeitig hochladen. Die App erkennt Standort und Monat aus der DATEV-Kopfzeile und liest die Personalkostenübersicht.
+            </p>
+          </div>
+          <label className={cn("inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground", busy && "pointer-events-none opacity-60")}>
+            <FileUp className="h-4 w-4" />
+            {busy ? "PDFs werden gelesen..." : "Lohnjournale hochladen"}
+            <input className="sr-only" type="file" accept=".pdf,application/pdf" multiple onChange={handleFiles} disabled={busy} />
+          </label>
+        </div>
+        {message ? <p className="mt-3 text-sm font-semibold text-primary">{message}</p> : null}
+      </Card>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <Mini label="Geladene Monate" value={(payrollData?.periods.length ?? 0).toLocaleString("de-DE")} />
+        <Mini label="Aus Upload gelesen" value={pendingPeriods.length.toLocaleString("de-DE")} />
+        <Mini label="Warnungen" value={warnings.length.toLocaleString("de-DE")} />
+        <Mini label="Fehler" value={errors.length.toLocaleString("de-DE")} />
+      </div>
+
+      {(warnings.length || errors.length) ? (
+        <Card className="p-4">
+          <h2 className="font-bold">Plausibilitätscheck</h2>
+          <div className="mt-3 grid gap-2">
+            {errors.map((error, index) => <p key={`payroll-error-${index}`} className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p>)}
+            {warnings.map((warning, index) => <p key={`payroll-warning-${index}`} className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-900">{warning}</p>)}
+          </div>
+        </Card>
+      ) : null}
+
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Erkannte Lohnjournal-Daten</h2>
+          <p className="mt-1 text-sm text-white/75">Freigabe ersetzt gleiche Standort-/Monatskombinationen und behält andere Monate unverändert.</p>
+        </div>
+        {periods.length ? (
+          <div className="overflow-x-auto">
+            <table className="data-table border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr>
+                  {["Status", "Standort", "Monat", "Datei", "Mitarbeiter", "Gesamtbrutto", "SV-AG", "Umlage", "Erstattungen", "Gesamtkosten inkl."].map((head) => (
+                    <th key={head} className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">{head}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {periods.map((period) => (
+                  <tr key={period.id}>
+                    <td className="border-b border-r border-border p-3"><StatusDot status={period.errors.length ? "red" : period.warnings.length ? "yellow" : "green"} /></td>
+                    <TableCell strong>{period.siteName}</TableCell>
+                    <TableCell>{period.monthLabel}</TableCell>
+                    <TableCell>{period.fileName}</TableCell>
+                    <TableCell>{period.employeeRows.length}</TableCell>
+                    <TableCell>{eur(period.totals.gross)}</TableCell>
+                    <TableCell>{eur(period.totals.svEmployerShare)}</TableCell>
+                    <TableCell>{eur(period.totals.allocation)}</TableCell>
+                    <TableCell>{eur(period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg + period.totals.reimbursementBa)}</TableCell>
+                    <TableCell strong>{eur(period.totals.totalCostIncludingReimbursements)}</TableCell>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="p-4 text-sm font-semibold text-muted-foreground">Noch keine Lohnjournal-Daten geladen.</p>
+        )}
+        <div className="flex flex-col gap-3 border-t border-border p-4 sm:flex-row sm:justify-between">
+          <Button variant="secondary" onClick={reset} disabled={!payrollData?.periods.length && !pendingPeriods.length}>Lohnjournal-Daten zurücksetzen</Button>
+          <Button onClick={confirm} disabled={!pendingPeriods.length || pendingPeriods.some((period) => period.errors.length)}>Importbericht freigeben</Button>
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+function PayrollCosts({
+  payrollData,
+  importedData,
+  userRole,
+  onUpload
+}: {
+  payrollData: PayrollJournalData | null;
+  importedData?: ImportedDashboardData | null;
+  userRole: UserRole;
+  onUpload: () => void;
+}) {
+  const periods = payrollPeriodsByMonth(payrollData);
+  const sites = sortSiteNamesByContractStart(uniqueSortedText(periods.map((period) => period.siteName)));
+  const [site, setSite] = useState("Alle Standorte");
+  const [year, setYear] = useState<number | "Alle Jahre">("Alle Jahre");
+  const canSeeDetails = userRole !== "praxismanagement";
+  const years = uniqueSortedNumbers(periods.map((period) => period.year));
+  const filteredPeriods = periods.filter((period) => (site === "Alle Standorte" || period.siteName === site) && (year === "Alle Jahre" || period.year === year));
+  const chartRows = filteredPeriods.map((period) => {
+    const bwa = payrollBwaDifference(period, importedData);
+    return {
+      label: `${period.siteName} ${bwaMonths[period.month - 1].slice(0, 3)} ${String(period.year).slice(-2)}`,
+      payroll: period.totals.totalCostIncludingReimbursements,
+      gross: period.totals.gross,
+      reimbursements: Math.abs(period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg + period.totals.reimbursementBa),
+      bwa: bwa?.bwaValue ?? null
+    };
+  });
+  const totalPayroll = filteredPeriods.reduce((sum, period) => sum + period.totals.totalCostIncludingReimbursements, 0);
+  const totalGross = filteredPeriods.reduce((sum, period) => sum + period.totals.gross, 0);
+  const totalReimbursements = filteredPeriods.reduce((sum, period) => sum + period.totals.reimbursementBa + period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg, 0);
+  const totalEmployees = filteredPeriods.reduce((sum, period) => sum + period.employeeRows.length, 0);
+  const employeeRows = filteredPeriods.flatMap((period) =>
+    period.employeeRows.map((row) => ({
+      ...row,
+      siteName: period.siteName,
+      monthLabel: period.monthLabel
+    }))
+  );
+
+  return (
+    <section className="space-y-5">
+      <PageTitle title="Personalkosten Lohnjournal" text="Verläufe, Abweichungen und Plausibilisierung der echten Personalkosten aus DATEV-Lohnjournalen." />
+      {!periods.length ? (
+        <Card className="p-5">
+          <h2 className="font-bold">Noch keine Lohnjournal-Daten</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Nach dem Lohnjournal-Upload erscheinen hier Verläufe und Abweichungen je Standort und Monat.</p>
+          {userRole === "admin" ? <Button className="mt-4" onClick={onUpload}>Zum Lohnjournal-Upload</Button> : null}
+        </Card>
+      ) : null}
+
+      <Card className="p-4">
+        <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
+          <div>
+            <h2 className="font-bold">Filter</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Fehlende Monate werden nicht als 0 gewertet; nur hochgeladene Lohnjournalmonate erscheinen im Verlauf.</p>
+          </div>
+          <Select value={site} onChange={(event) => setSite(event.target.value)}>
+            <option>Alle Standorte</option>
+            {sites.map((option) => <option key={option}>{option}</option>)}
+          </Select>
+          <Select value={String(year)} onChange={(event) => setYear(event.target.value === "Alle Jahre" ? "Alle Jahre" : Number(event.target.value))}>
+            <option>Alle Jahre</option>
+            {years.map((option) => <option key={option} value={option}>{option}</option>)}
+          </Select>
+        </div>
+      </Card>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <Mini label="Gesamtkosten inkl. Erstatt." value={eur(totalPayroll, true)} />
+        <Mini label="Gesamtbrutto" value={eur(totalGross, true)} />
+        <Mini label="Erstattungen Saldo" value={eur(totalReimbursements, true)} />
+        <Mini label="Mitarbeiterzeilen" value={totalEmployees.toLocaleString("de-DE")} />
+      </div>
+
+      <ChartCard title="Verlauf Personalkosten gem. Lohnjournal" icon={BadgeEuro}>
+        <ResponsiveContainer width="100%" height={340}>
+          <ComposedChart data={chartRows}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 11, fontWeight: 700 }} />
+            <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
+            <Tooltip formatter={(value) => eur(Number(value))} />
+            <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+            <Bar dataKey="payroll" name="Lohnjournal Gesamtkosten inkl." fill="#30d5c8" radius={[8, 8, 0, 0]} maxBarSize={54} />
+            <Line type="monotone" dataKey="bwa" name="BWA Personalkosten" stroke="#f59e0b" strokeWidth={3} connectNulls={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Abweichung Lohnjournal vs. BWA</h2>
+          <p className="mt-1 text-sm text-white/75">BWA bleibt offizielle GuV-Sicht; Lohnjournal ist die echte Abrechnungsbasis je Standort/Monat.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="data-table border-separate border-spacing-0 text-sm">
+            <thead>
+              <tr>
+                {["Standort", "Monat", "Lohnjournal inkl.", "BWA-Personalkosten", "Abweichung", "Abweichung %", "Einordnung"].map((head) => (
+                  <th key={head} className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">{head}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPeriods.map((period) => {
+                const diff = payrollBwaDifference(period, importedData);
+                const tone: Status = !diff ? "yellow" : Math.abs(diff.deltaPct) >= 15 ? "red" : Math.abs(diff.deltaPct) >= 5 ? "yellow" : "green";
+                return (
+                  <tr key={period.id}>
+                    <TableCell strong>{period.siteName}</TableCell>
+                    <TableCell>{period.monthLabel}</TableCell>
+                    <TableCell>{eur(period.totals.totalCostIncludingReimbursements)}</TableCell>
+                    <TableCell>{diff ? eur(diff.bwaValue) : "n. v."}</TableCell>
+                    <TableCell>{diff ? eur(diff.delta) : "n. v."}</TableCell>
+                    <TableCell>{diff ? pct(diff.deltaPct) : "n. v."}</TableCell>
+                    <td className="border-b border-r border-border p-3"><StatusDot status={tone} label={!diff ? "BWA n. v." : tone === "green" ? "Stabil" : tone === "yellow" ? "Beobachten" : "Auffällig"} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {canSeeDetails ? (
+        <Card className="overflow-hidden">
+          <div className="border-b border-border p-4">
+            <h2 className="font-bold">Mitarbeiterkosten aus Lohnjournal</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Nur für Rollen mit Zugriff auf Vergütungs-/Kosteninformationen sichtbar.</p>
+          </div>
+          <div className="max-h-[70vh] overflow-auto">
+            <table className="data-table border-separate border-spacing-0 text-xs">
+              <thead>
+                <tr>
+                  {["Standort", "Monat", "Pers.-Nr.", "Name", "Gesamtbrutto", "SV-AG", "Umlage", "Pausch. Steuern", "Erstattungen", "Gesamtkosten inkl."].map((head) => (
+                    <th key={head} className="sticky top-0 table-head border-b border-r border-border p-2 text-left uppercase text-white">{head}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {employeeRows.map((row) => (
+                  <tr key={`${row.siteName}-${row.monthLabel}-${row.personnelNumber}`}>
+                    <TableCell>{row.siteName}</TableCell>
+                    <TableCell>{row.monthLabel}</TableCell>
+                    <TableCell>{row.personnelNumber}</TableCell>
+                    <TableCell strong>{row.name}</TableCell>
+                    <TableCell>{eur(row.gross)}</TableCell>
+                    <TableCell>{eur(row.svEmployerShare)}</TableCell>
+                    <TableCell>{eur(row.allocation)}</TableCell>
+                    <TableCell>{eur(row.flatTax)}</TableCell>
+                    <TableCell>{eur(row.reimbursementBa + row.reimbursementHealthInsurance + row.reimbursementIfsg)}</TableCell>
+                    <TableCell strong>{eur(row.totalCostIncludingReimbursements)}</TableCell>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : null}
+    </section>
+  );
 }
 
 function PersonalProduktivitaet({
