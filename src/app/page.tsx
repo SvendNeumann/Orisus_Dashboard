@@ -2438,7 +2438,9 @@ function compactDatevText(value: string) {
 function payrollMonthFromText(text: string) {
   const compactText = compactDatevText(text);
   const monthAlternatives = bwaMonths.map((month) => compactDatevText(month)).join("|");
-  const match = compactText.match(new RegExp(`personalkostenubersicht(${monthAlternatives})(20\\d{2})`, "i"));
+  const match = compactText.match(new RegExp(`personalkostenubersicht(${monthAlternatives})(20\\d{2})`, "i")) ??
+    compactText.match(new RegExp(`abrechnungderbruttonettobezugefur(${monthAlternatives})(20\\d{2})`, "i")) ??
+    compactText.match(new RegExp(`lohngehalt(${monthAlternatives})(20\\d{2})`, "i"));
   if (!match) return null;
   const monthIndex = bwaMonths.findIndex((month) => compactDatevText(month) === match[1]);
   if (monthIndex < 0) return null;
@@ -2527,12 +2529,94 @@ function parsePayrollEmployeeRows(lines: string[]) {
   return { employeeRows, totals };
 }
 
+function parsePayrollPayslipRows(lines: string[]) {
+  const rows: PayrollEmployeeCostRow[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].replace(/\s+/g, " ").trim();
+    const headerMatch = line.match(/^[A-Z0-9]+\s+\d+\/\d+\/(\d{5})\b/);
+    const personnelNumber = headerMatch?.[1];
+    if (!personnelNumber) continue;
+    const nextHeaderIndex = lines.findIndex((candidate, candidateIndex) => candidateIndex > index && /^[A-Z0-9]+\s+\d+\/\d+\/\d{5}\b/.test(candidate.replace(/\s+/g, " ").trim()));
+    const blockEnd = nextHeaderIndex > index ? nextHeaderIndex : Math.min(lines.length, index + 120);
+    const blockLines = lines.slice(index, blockEnd).map((entry) => entry.replace(/\s+/g, " ").trim()).filter(Boolean);
+    if (!blockLines.some((entry) => compactDatevText(entry).includes("abrechnungderbruttonettobez")) || !blockLines.some((entry) => compactDatevText(entry).includes("svaganteilzusagkostengesamtkosten"))) continue;
+
+    const entryHeaderIndex = blockLines.findIndex((entry) => compactDatevText(entry).includes("eintrittaustritt"));
+    const dateValues = entryHeaderIndex >= 0 ? (blockLines[entryHeaderIndex + 1]?.match(/\b\d{6}\b/g) ?? []) : [];
+    const entryDate = dateValues[0] ? parsePayrollDate(dateValues[0]) ?? undefined : undefined;
+    const exitDate = dateValues[1] ? parsePayrollDate(dateValues[1]) ?? undefined : undefined;
+
+    const brutoIndex = blockLines.findIndex((entry) => compactDatevText(entry) === "steuersozialversicherung");
+    const gross = brutoIndex >= 0 ? parseDatevAmount(blockLines.slice(brutoIndex + 1).find((entry) => /^\d{1,3}(?:\.\d{3})*,\d{2}$|^\d+,\d{2}$|^0,00$/.test(entry)) ?? "") : 0;
+
+    const costIndex = blockLines.findIndex((entry) => compactDatevText(entry).includes("svaganteilzusagkostengesamtkostenauszahlungsbetrag"));
+    let svEmployerShare = 0;
+    let netAdjustments = 0;
+    let totalCostIncludingReimbursements = 0;
+    if (costIndex >= 0) {
+      const costLine = blockLines.slice(costIndex + 1, costIndex + 5).find((entry) => entry.includes("XXX") || /\b[0-9][0-9.]*-?\s+[0-9][0-9.]*-?\s+[0-9][0-9.]*-?\s+[0-9][0-9.,]*-?$/.test(entry)) ?? "";
+      const amounts = costLine.match(/[0-9][0-9.,]*-?/g) ?? [];
+      const costAmounts = amounts.slice(-4).map(parseDatevAmount);
+      svEmployerShare = costAmounts[0] ?? 0;
+      netAdjustments = costAmounts[1] ?? 0;
+      totalCostIncludingReimbursements = costAmounts[2] ?? 0;
+    }
+
+    const personMarkerIndex = blockLines.findIndex((entry) => entry.includes(`*Pers.-Nr. ${personnelNumber}*`));
+    const nameCandidates = blockLines.slice(Math.max(0, personMarkerIndex + 1), Math.min(blockLines.length, personMarkerIndex + 14))
+      .filter((entry) => {
+        const compact = compactDatevText(entry);
+        if (!entry || entry.startsWith("-") || /\d/.test(entry)) return false;
+        if (["bn", "hinweisezurabrechnung", "bruttobezuge", "unbezahlterurlaub"].includes(compact)) return false;
+        return /^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß .'-]+$/.test(entry);
+      });
+    const name = normalizePersonalText(nameCandidates[0] ?? personnelNumber);
+
+    rows.push({
+      personnelNumber,
+      name,
+      entryDate,
+      exitDate,
+      employmentDateSource: entryDate || exitDate ? "Entgeltabrechnung" : undefined,
+      gross,
+      bavEmployerShare: 0,
+      bavSubsidy: 0,
+      netAdjustments,
+      svEmployerShare,
+      allocation: 0,
+      flatTax: 0,
+      reimbursementBa: 0,
+      reimbursementHealthInsurance: 0,
+      reimbursementIfsg: 0,
+      totalCostWithoutReimbursements: totalCostIncludingReimbursements,
+      totalCostIncludingReimbursements
+    });
+  }
+  return rows;
+}
+
 function buildPayrollPeriodDataFromText(text: string, fileName: string): PayrollPeriodData {
   const normalizedText = text.replace(/\u00a0/g, " ");
   const lines = normalizedText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const site = payrollSiteFromText(normalizedText);
   const period = payrollMonthFromText(normalizedText);
-  const { employeeRows, totals } = parsePayrollEmployeeRows(lines);
+  const parsedOverview = parsePayrollEmployeeRows(lines);
+  const payslipRows = parsePayrollPayslipRows(lines);
+  const employeeRows = parsedOverview.employeeRows.length >= 3 ? parsedOverview.employeeRows : payslipRows;
+  const totals = parsedOverview.employeeRows.length >= 3 ? parsedOverview.totals : employeeRows.reduce((sum, row) => ({
+    gross: sum.gross + row.gross,
+    bavEmployerShare: sum.bavEmployerShare + row.bavEmployerShare,
+    bavSubsidy: sum.bavSubsidy + row.bavSubsidy,
+    netAdjustments: sum.netAdjustments + row.netAdjustments,
+    svEmployerShare: sum.svEmployerShare + row.svEmployerShare,
+    allocation: sum.allocation + row.allocation,
+    flatTax: sum.flatTax + row.flatTax,
+    reimbursementBa: sum.reimbursementBa + row.reimbursementBa,
+    reimbursementHealthInsurance: sum.reimbursementHealthInsurance + row.reimbursementHealthInsurance,
+    reimbursementIfsg: sum.reimbursementIfsg + row.reimbursementIfsg,
+    totalCostWithoutReimbursements: sum.totalCostWithoutReimbursements + row.totalCostWithoutReimbursements,
+    totalCostIncludingReimbursements: sum.totalCostIncludingReimbursements + row.totalCostIncludingReimbursements
+  }), emptyPayrollTotals());
   const employmentDates = parsePayrollEmploymentDatesFromText(normalizedText);
   const enrichedEmployeeRows = employeeRows.map((row) => {
     const dates = employmentDates.get(row.personnelNumber);
@@ -19614,6 +19698,7 @@ function PayrollUpload({
   const [pendingPeriods, setPendingPeriods] = useState<PayrollPeriodData[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetArmed, setResetArmed] = useState(false);
   const pendingData = pendingPeriods.length ? mergePayrollPeriods(payrollData, pendingPeriods) : payrollData;
   const periods = payrollPeriodsByMonth(pendingData);
   const warnings = [...(pendingData?.warnings ?? []), ...pendingPeriods.flatMap((period) => period.warnings)];
@@ -19625,6 +19710,7 @@ function PayrollUpload({
     if (!files.length) return;
     setBusy(true);
     setMessage("");
+    setResetArmed(false);
     try {
       const parsed: PayrollPeriodData[] = [];
       for (const file of files) {
@@ -19679,14 +19765,19 @@ function PayrollUpload({
     const data = mergePayrollPeriods(payrollData, pendingPeriods);
     savePayrollJournalData(data);
     setPendingPeriods([]);
+    setResetArmed(false);
     onImportConfirmed(data);
   };
 
   const reset = () => {
-    const confirmed = window.confirm("Lohnjournal-Datenbasis wirklich zurücksetzen?");
-    if (!confirmed) return;
+    if (!resetArmed) {
+      setResetArmed(true);
+      setMessage("Zum Zurücksetzen bitte den Button noch einmal bestätigen.");
+      return;
+    }
     savePayrollJournalData(null);
     setPendingPeriods([]);
+    setResetArmed(false);
     onImportReset();
   };
 
@@ -19773,7 +19864,7 @@ function PayrollUpload({
           <p className="p-4 text-sm font-semibold text-muted-foreground">Noch keine Lohnjournal-Daten geladen.</p>
         )}
         <div className="flex flex-col gap-3 border-t border-border p-4 sm:flex-row sm:justify-between">
-          <Button variant="secondary" onClick={reset} disabled={!payrollData?.periods.length && !pendingPeriods.length}>Lohnjournal-Daten zurücksetzen</Button>
+          <Button variant="secondary" onClick={reset} disabled={!payrollData?.periods.length && !pendingPeriods.length}>{resetArmed ? "Zurücksetzen bestätigen" : "Lohnjournal-Daten zurücksetzen"}</Button>
           <Button onClick={confirm} disabled={!pendingPeriods.length || pendingPeriods.some((period) => period.errors.length)}>Importbericht freigeben</Button>
         </div>
       </Card>
