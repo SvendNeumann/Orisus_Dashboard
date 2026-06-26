@@ -19449,8 +19449,25 @@ function PayrollUpload({
         const text = await extractPdfText(file);
         parsed.push(buildPayrollPeriodDataFromText(text, file.name));
       }
-      setPendingPeriods(parsed);
-      setMessage(`${parsed.length} Datei(en) gelesen. Bitte Plausibilitätscheck prüfen und dann freigeben.`);
+      const existingPeriodIds = new Set((payrollData?.periods ?? []).map((period) => period.id));
+      const pendingCounts = parsed.reduce<Record<string, number>>((counts, period) => {
+        if (!period.errors.length) counts[period.id] = (counts[period.id] ?? 0) + 1;
+        return counts;
+      }, {});
+      const checked = parsed.map((period) => {
+        if (period.errors.length) return period;
+        const duplicateWarnings: string[] = [];
+        if (existingPeriodIds.has(period.id)) {
+          duplicateWarnings.push(`${period.siteName} ${period.monthLabel} ist bereits gespeichert. Freigabe ersetzt diesen bestehenden Lohnjournalmonat.`);
+        }
+        if ((pendingCounts[period.id] ?? 0) > 1) {
+          duplicateWarnings.push(`${period.siteName} ${period.monthLabel} ist im aktuellen Uploadpaket mehrfach enthalten. Bei Freigabe bleibt nur die zuletzt gelesene Datei für diese Kombination aktiv.`);
+        }
+        return duplicateWarnings.length ? { ...period, warnings: [...period.warnings, ...duplicateWarnings] } : period;
+      });
+      const duplicateCount = checked.filter((period) => period.warnings.some((warning) => warning.includes("bereits gespeichert") || warning.includes("mehrfach enthalten"))).length;
+      setPendingPeriods(checked);
+      setMessage(`${checked.length} Datei(en) gelesen. ${duplicateCount ? `${duplicateCount} Doppel-Hinweis(e) prüfen. ` : ""}Bitte Plausibilitätscheck prüfen und dann freigeben.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Lohnjournal-PDF konnte nicht gelesen werden.");
     } finally {
@@ -19523,7 +19540,7 @@ function PayrollUpload({
             <table className="data-table border-separate border-spacing-0 text-sm">
               <thead>
                 <tr>
-                  {["Status", "Standort", "Monat", "Datei", "Mitarbeiter", "Gesamtbrutto", "SV-AG", "Umlage", "Erstattungen", "Gesamtkosten inkl."].map((head) => (
+                  {["Status", "Standort", "Monat", "Datei", "Mitarbeiter", "Gesamtbrutto", "SV-AG", "Umlage", "Erstattungen", "Gesamtkosten inkl.", "Hinweis"].map((head) => (
                     <th key={head} className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">{head}</th>
                   ))}
                 </tr>
@@ -19541,6 +19558,7 @@ function PayrollUpload({
                     <TableCell>{eur(period.totals.allocation)}</TableCell>
                     <TableCell>{eur(period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg + period.totals.reimbursementBa)}</TableCell>
                     <TableCell strong>{eur(period.totals.totalCostIncludingReimbursements)}</TableCell>
+                    <TableCell>{[...period.errors, ...period.warnings].join(" ") || "OK"}</TableCell>
                   </tr>
                 ))}
               </tbody>
