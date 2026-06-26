@@ -6090,6 +6090,20 @@ type PersonalEmployeeColumn = {
   render: (employee: PersonalEmployee) => string | number;
 };
 
+function employeeCountsAsDentist(employee: PersonalEmployee) {
+  const roleText = `${employee.functionName} ${employee.area} ${employee.employmentType}`.toLowerCase();
+  return (
+    employee.isDentist ||
+    /\b(za|zä)\b/.test(roleText) ||
+    roleText.includes("zahnarzt") ||
+    roleText.includes("zahnärzt") ||
+    roleText.includes("zahnaerzt") ||
+    roleText.includes("assistenzzahnarzt") ||
+    roleText.includes("assistenzzahnärzt") ||
+    roleText.includes("vorbereitungsassist")
+  );
+}
+
 function PersonalEmployees({ personalData, userRole }: { personalData: PersonalDashboardData; userRole: UserRole }) {
   const [site, setSite] = useState("Alle Standorte");
   const [status, setStatus] = useState("Alle Status");
@@ -6101,6 +6115,8 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
   const normalizedSearch = search.trim().toLowerCase();
   const activeEmployees = personalData.employees.filter((employee) => employee.status.toLowerCase() === "aktiv");
   const activeEmployeesCount = activeEmployees.length;
+  const activeDentists = activeEmployees.filter(employeeCountsAsDentist);
+  const activeDentistsCount = activeDentists.length;
   const activeFte = activeEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
   const activeEmployerCost = activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0);
   const employeeSiteNames = sortSiteNamesByContractStart(uniqueSortedText(personalData.employees.map((employee) => employee.site)));
@@ -6109,6 +6125,7 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
     return {
       siteName,
       count: siteEmployees.length,
+      dentists: siteEmployees.filter(employeeCountsAsDentist).length,
       fte: siteEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0),
       employerCost: siteEmployees.reduce((sum, employee) => sum + employee.employerCost, 0)
     };
@@ -6270,7 +6287,29 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
             }
           />
         )}
-        <KpiCard label="Gefilterte Zeilen" value={rows.length} plain delta="aktuelle Tabellenansicht" icon={UserRound} status="green" />
+        <KpiCard
+          label="Aktive Zahnärzte"
+          value={activeDentistsCount}
+          plain
+          delta="inkl. Assistenzzahnärzte"
+          icon={Stethoscope}
+          status="green"
+          info={
+            <>
+              <p className="font-bold text-slate-900">Aktive Zahnärzte je Standort</p>
+              <div className="space-y-1">
+                {activeEmployeeBreakdownBySite.map((row) => (
+                  <InfoTextLine key={row.siteName} label={row.siteName} value={row.dentists.toLocaleString("de-DE")} />
+                ))}
+              </div>
+              <InfoTextLine label="Gesamt" value={activeDentistsCount.toLocaleString("de-DE")} strong />
+              <p className="text-xs text-slate-600">
+                Gezählt werden aktive Mitarbeiter mit Behandlerkennzeichnung oder Funktion/Bereich als Zahnarzt, Zahnärztin,
+                Assistenzzahnarzt/-zahnärztin bzw. Vorbereitungsassistenz.
+              </p>
+            </>
+          }
+        />
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input
