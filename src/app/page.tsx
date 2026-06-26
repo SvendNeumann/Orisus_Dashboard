@@ -2506,7 +2506,12 @@ function payrollMonthFromFileName(fileName: string) {
 function payrollSiteFromFileName(fileName: string) {
   const compactName = compactDatevText(fileName);
   const aliasByKey: Record<string, string> = {
-    kallweit: "kirchberg"
+    kallweit: "kirchberg",
+    krauhausen: "huettenberg",
+    krause: "essen",
+    zorndebulach: "kehl",
+    zdb: "kehl",
+    hangx: "ulmet"
   };
   const alias = Object.entries(aliasByKey).find(([key]) => compactName.includes(key))?.[1];
   if (alias) return sortSitesByContractStart(standorte).find((site) => site.id === alias) ?? null;
@@ -2517,7 +2522,17 @@ function payrollSiteFromContent(text: string) {
   const compactText = compactDatevText(text);
   const aliasByKey: Record<string, string> = {
     kallweit: "kirchberg",
-    kirchberg: "kirchberg"
+    kirchberg: "kirchberg",
+    krauhausen: "huettenberg",
+    huettenberg: "huettenberg",
+    huttenberg: "huettenberg",
+    krause: "essen",
+    essen: "essen",
+    zorndebulach: "kehl",
+    zdb: "kehl",
+    kehl: "kehl",
+    hangx: "ulmet",
+    ulmet: "ulmet"
   };
   const alias = Object.entries(aliasByKey).find(([key]) => compactText.includes(key))?.[1];
   if (alias) return sortSitesByContractStart(standorte).find((site) => site.id === alias) ?? null;
@@ -2673,6 +2688,97 @@ function parsePayrollPayslipRows(lines: string[]) {
   return rows;
 }
 
+function normalizeLegacyPayrollName(value: string) {
+  const normalized = normalizePersonalText(value);
+  const tokens = normalized.split(" ");
+  if (tokens.length >= 6 && tokens.every((token) => token.length === 1 || token.includes("-"))) {
+    return tokens.join("").replace(/([a-zäöüß])([A-ZÄÖÜ])/g, "$1 $2");
+  }
+  return normalized;
+}
+
+function parseLegacyPayrollRows(lines: string[]) {
+  const rows: PayrollEmployeeCostRow[] = [];
+  const compactText = compactDatevText(lines.join(" "));
+  if (!compactText.includes("persnr") || !compactText.includes("lohngehalt")) return { rows, totals: emptyPayrollTotals(), used: false };
+
+  const markerIndexes = lines
+    .map((line, index) => ({ line: line.replace(/\s+/g, " ").trim(), index }))
+    .filter(({ line }) => /\*Pers\.-Nr\.\s+\d{5}\*/.test(line))
+    .map(({ index }) => index);
+
+  for (let markerPosition = 0; markerPosition < markerIndexes.length; markerPosition += 1) {
+    const index = markerIndexes[markerPosition];
+    const nextIndex = markerIndexes[markerPosition + 1] ?? Math.min(lines.length, index + 80);
+    const blockLines = lines.slice(Math.max(0, index - 12), nextIndex).map((entry) => entry.replace(/\s+/g, " ").trim()).filter(Boolean);
+    const blockText = blockLines.join(" ");
+    const personnelNumber = blockText.match(/\*Pers\.-Nr\.\s+(\d{5})\*/)?.[1];
+    if (!personnelNumber) continue;
+
+    const entryExitLine = blockLines.slice(0, 12).find((entry) => {
+      const dates = entry.match(/\b\d{6}\b/g) ?? [];
+      return dates.some((date) => parsePayrollDate(date));
+    });
+    const dateValues = entryExitLine?.match(/\b\d{6}\b/g) ?? [];
+    const entryDate = dateValues[0] ? parsePayrollDate(dateValues[0]) ?? undefined : undefined;
+    const exitDate = dateValues[1] ? parsePayrollDate(dateValues[1]) ?? undefined : undefined;
+
+    const markerIndex = blockLines.findIndex((entry) => entry.includes(`*Pers.-Nr. ${personnelNumber}*`));
+    const nameCandidate = blockLines.slice(Math.max(0, markerIndex + 1), Math.min(blockLines.length, markerIndex + 18)).find((entry) => {
+      const compact = compactDatevText(entry);
+      if (!entry || /\d/.test(entry)) return false;
+      if (entry.includes("§") || entry.includes("-")) return false;
+      if (["bn", "lohnartbezeichnung", "hinweisezurabrechnung", "mitgliedsnummer"].some((term) => compact.includes(term))) return false;
+      if (compact.includes("versorgungswerk") || compact.includes("krankheit") || compact.includes("betrnrag")) return false;
+      return /^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß .'`-]+$/.test(entry) || /^([A-Za-zÄÖÜäöüß]\s+){4,}[A-Za-zÄÖÜäöüß]$/.test(entry);
+    });
+    const name = normalizeLegacyPayrollName(nameCandidate ?? personnelNumber);
+
+    const gross = blockLines.reduce((sum, entry) => {
+      if (!/^\d{4}\s+/.test(entry)) return sum;
+      if (!/\s[LPF]\s+[LPF]\s+[JN]\s+/.test(entry)) return sum;
+      const amounts = entry.match(/[0-9][0-9.]*,[0-9]{2}-?|[0-9][0-9.]*-?/g) ?? [];
+      return sum + parseDatevAmount(amounts.at(-1) ?? "");
+    }, 0);
+
+    const bankLine = blockLines.find((entry) => /DE\d{2}.*X{2,}\s+[0-9][0-9.,]*-?(?:\s+[0-9][0-9.,]*-?)+$/.test(entry));
+    const bankAmounts = bankLine?.match(/X{2,}\s+([0-9][0-9.,]*-?)(?:\s+[0-9][0-9.,]*-?)+$/);
+    const employerAdditions = parseDatevAmount(bankAmounts?.[1] ?? "");
+    if (!gross && !employerAdditions) continue;
+
+    rows.push({
+      personnelNumber,
+      name,
+      entryDate,
+      exitDate,
+      employmentDateSource: entryDate || exitDate ? "Altformat Entgeltabrechnung" : undefined,
+      gross,
+      bavEmployerShare: 0,
+      bavSubsidy: 0,
+      netAdjustments: employerAdditions,
+      svEmployerShare: employerAdditions,
+      allocation: 0,
+      flatTax: 0,
+      reimbursementBa: 0,
+      reimbursementHealthInsurance: 0,
+      reimbursementIfsg: 0,
+      totalCostWithoutReimbursements: gross + employerAdditions,
+      totalCostIncludingReimbursements: gross + employerAdditions
+    });
+  }
+
+  const uniqueRows = Array.from(new Map(rows.map((row) => [row.personnelNumber, row])).values());
+  const totals = payrollTotalsFromRows(uniqueRows);
+  const reimbursementLine = lines.find((entry) => compactDatevText(entry).includes("gesamtsummeerstattungsbetrag"));
+  const reimbursement = parseDatevAmount(reimbursementLine?.match(/[0-9][0-9.]*,[0-9]{2}-?|[0-9][0-9.]*-?/g)?.at(-1) ?? "");
+  if (reimbursement) {
+    totals.reimbursementHealthInsurance = reimbursement;
+    totals.totalCostIncludingReimbursements = totals.totalCostWithoutReimbursements - reimbursement;
+  }
+
+  return { rows: uniqueRows, totals, used: uniqueRows.length > 0 };
+}
+
 function buildPayrollPeriodDataFromText(text: string, fileName: string): PayrollPeriodData {
   const normalizedText = text.replace(/\u00a0/g, " ");
   const lines = normalizedText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -2680,10 +2786,11 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   const period = payrollMonthFromFileName(fileName) ?? payrollMonthFromText(normalizedText);
   const parsedOverview = parsePayrollEmployeeRows(lines);
   const payslipRows = parsePayrollPayslipRows(lines);
-  const employeeRows = parsedOverview.employeeRows.length >= 3 ? parsedOverview.employeeRows : payslipRows;
+  const legacyRows = parsedOverview.employeeRows.length >= 3 || payslipRows.length ? { rows: [], totals: emptyPayrollTotals(), used: false } : parseLegacyPayrollRows(lines);
+  const employeeRows = parsedOverview.employeeRows.length >= 3 ? parsedOverview.employeeRows : payslipRows.length ? payslipRows : legacyRows.rows;
   const rowTotals = payrollTotalsFromRows(employeeRows);
   const usedEmployeeSumFallback = parsedOverview.employeeRows.length >= 3 && !parsedOverview.totals.totalCostIncludingReimbursements && !!rowTotals.totalCostIncludingReimbursements;
-  const totals = parsedOverview.employeeRows.length >= 3 ? payrollTotalsWithRowFallback(parsedOverview.totals, rowTotals) : rowTotals;
+  const totals = parsedOverview.employeeRows.length >= 3 ? payrollTotalsWithRowFallback(parsedOverview.totals, rowTotals) : legacyRows.used ? legacyRows.totals : rowTotals;
   const employmentDates = parsePayrollEmploymentDatesFromText(normalizedText);
   const enrichedEmployeeRows = employeeRows.map((row) => {
     const dates = employmentDates.get(row.personnelNumber);
@@ -2693,7 +2800,7 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   const errors: string[] = [];
   if (!site) errors.push(`${fileName}: Standort konnte nicht aus der PDF-Kopfzeile erkannt werden.`);
   if (!period) errors.push(`${fileName}: Monat/Jahr konnte weder aus DATEV-Text noch aus Dateiname erkannt werden.`);
-  if (!compactDatevText(normalizedText).includes("personalkostenubersicht")) warnings.push(`${fileName}: Keine DATEV-Personalkostenübersicht im Text erkannt; Entgeltabrechnungsseiten werden als Fallback genutzt.`);
+  if (!compactDatevText(normalizedText).includes("personalkostenubersicht")) warnings.push(legacyRows.used ? `${fileName}: Alte DATEV-Lohnjournalstruktur erkannt; Personalkosten wurden aus Einzelabrechnungsseiten und AAG-Erstattungen gelesen.` : `${fileName}: Keine DATEV-Personalkostenübersicht im Text erkannt; Entgeltabrechnungsseiten werden als Fallback genutzt.`);
   if (usedEmployeeSumFallback) warnings.push(`${fileName}: DATEV-Summenzeile wurde nicht vollständig erkannt; Periodensummen wurden aus den Mitarbeiterzeilen gebildet.`);
   if (!enrichedEmployeeRows.length) errors.push(`${fileName}: Keine Mitarbeiterzeilen in Personalkostenübersicht oder Entgeltabrechnungen erkannt.`);
   const employeeTotal = enrichedEmployeeRows.reduce((sum, row) => sum + row.totalCostIncludingReimbursements, 0);
@@ -19801,6 +19908,8 @@ function PayrollUpload({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [resetArmed, setResetArmed] = useState(false);
+  const releasablePendingPeriods = pendingPeriods.filter((period) => !period.errors.length);
+  const blockedPendingPeriods = pendingPeriods.filter((period) => period.errors.length);
   const pendingData = pendingPeriods.length ? mergePayrollPeriods(payrollData, pendingPeriods) : payrollData;
   const periods = payrollPeriodsByMonth(pendingData);
   const pendingWarnings = pendingPeriods.flatMap((period) => period.warnings).filter((warning) => !isNeutralPayrollNotice(warning));
@@ -19860,8 +19969,10 @@ function PayrollUpload({
         return duplicateWarnings.length ? { ...period, warnings: [...period.warnings, ...duplicateWarnings] } : period;
       });
       const duplicateCount = checked.filter((period) => period.warnings.some((warning) => warning.includes("bereits gespeichert") || warning.includes("mehrfach enthalten"))).length;
+      const releasableCount = checked.filter((period) => !period.errors.length).length;
+      const blockedCount = checked.length - releasableCount;
       setPendingPeriods(checked);
-      setMessage(`${checked.length} Datei(en) gelesen. ${duplicateCount ? `${duplicateCount} Doppel-Hinweis(e) prüfen. ` : ""}Bitte Plausibilitätscheck prüfen und dann freigeben.`);
+      setMessage(`${checked.length} Datei(en) gelesen. ${releasableCount} freigabefähig. ${blockedCount ? `${blockedCount} auffällig und werden nicht gespeichert. ` : ""}${duplicateCount ? `${duplicateCount} Doppel-Hinweis(e) prüfen. ` : ""}Bitte Plausibilitätscheck prüfen und dann freigeben.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Lohnjournal-PDF konnte nicht gelesen werden.");
     } finally {
@@ -19870,7 +19981,7 @@ function PayrollUpload({
   };
 
   const confirm = () => {
-    const data = mergePayrollPeriods(payrollData, pendingPeriods);
+    const data = mergePayrollPeriods(payrollData, releasablePendingPeriods);
     savePayrollJournalData(data);
     setPendingPeriods([]);
     setResetArmed(false);
@@ -19977,6 +20088,11 @@ function PayrollUpload({
           Hinweis: Beim Ordnerupload zeigt Chrome aus Sicherheitsgründen eine eigene Bestätigung. Ohne diesen Browser-Hinweis bitte alle PDFs im Ordner markieren und über „PDFs hochladen“ laden.
         </p>
         {message ? <p className="mt-3 text-sm font-semibold text-primary">{message}</p> : null}
+        {pendingPeriods.length && blockedPendingPeriods.length ? (
+          <p className="mt-2 text-xs font-semibold text-muted-foreground">
+            {releasablePendingPeriods.length.toLocaleString("de-DE")} gültige Datei(en) können freigegeben werden; {blockedPendingPeriods.length.toLocaleString("de-DE")} auffällige Datei(en) bleiben im Bericht und werden nicht gespeichert.
+          </p>
+        ) : null}
       </Card>
 
       <div className="grid gap-3 md:grid-cols-4">
@@ -20041,7 +20157,7 @@ function PayrollUpload({
               <FileBarChart className="h-4 w-4" />
               Importbericht als PDF
             </Button>
-            <Button onClick={confirm} disabled={!pendingPeriods.length || pendingPeriods.some((period) => period.errors.length)}>Importbericht freigeben</Button>
+            <Button onClick={confirm} disabled={!releasablePendingPeriods.length}>{blockedPendingPeriods.length ? "Gültige Dateien freigeben" : "Importbericht freigeben"}</Button>
           </div>
         </div>
       </Card>
