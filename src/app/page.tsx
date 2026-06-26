@@ -9799,13 +9799,30 @@ function defaultBenchmarkPeriodFor(importedData?: ImportedDashboardData | null) 
 function BwaStatement({ title, siteId, importedData }: { title: string; siteId?: string; importedData?: ImportedDashboardData | null }) {
   const availablePeriods = bwaPeriodOptionsFor(importedData);
   const [period, setPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  const sourceSites = sortSitesByContractStart(importedData?.sites ?? []);
+  const [selectedMatrixSiteId, setSelectedMatrixSiteId] = useState(() => sourceSites[0]?.id ?? "");
   useEffect(() => {
     if (!availablePeriods.includes(period)) {
       setPeriod(defaultBwaPeriodFor(importedData));
     }
   }, [availablePeriods, importedData, period]);
+  useEffect(() => {
+    if (!siteId && sourceSites.length && !sourceSites.some((site) => site.id === selectedMatrixSiteId)) {
+      setSelectedMatrixSiteId(sourceSites[0].id);
+    }
+  }, [selectedMatrixSiteId, siteId, sourceSites]);
   if (!siteId) {
-    return <ConsolidatedBwaMatrix title={title} period={period} setPeriod={setPeriod} importedData={importedData} availablePeriods={availablePeriods} />;
+    return (
+      <ConsolidatedBwaMatrix
+        title={title}
+        period={period}
+        setPeriod={setPeriod}
+        selectedSiteId={selectedMatrixSiteId}
+        setSelectedSiteId={setSelectedMatrixSiteId}
+        importedData={importedData}
+        availablePeriods={availablePeriods}
+      />
+    );
   }
 
   const rows = importedData?.bwaRows?.length ? buildImportedBwaLines(importedData.bwaRows, period, siteId) : [];
@@ -9865,43 +9882,65 @@ function ConsolidatedBwaMatrix({
   title,
   period,
   setPeriod,
+  selectedSiteId,
+  setSelectedSiteId,
   importedData,
   availablePeriods
 }: {
   title: string;
   period: string;
   setPeriod: (value: string) => void;
+  selectedSiteId: string;
+  setSelectedSiteId: (value: string) => void;
   importedData?: ImportedDashboardData | null;
   availablePeriods: string[];
 }) {
   const sourceSites = sortSitesByContractStart(importedData?.sites ?? []);
+  const selectedSite = sourceSites.find((site) => site.id === selectedSiteId) ?? sourceSites[0];
   const groups = importedData?.bwaRows?.length
     ? [
         { id: "konzern", label: "Konzern", rows: buildImportedBwaLines(importedData.bwaRows, period), hasData: true },
-        ...sourceSites.map((site) => ({
-          id: site.id,
-          label: site.name,
-          rows: buildImportedBwaLines(importedData.bwaRows, period, site.id),
-          hasData: hasImportedBwaPeriodData(importedData.bwaRows, period, site.id)
-        }))
+        ...(selectedSite
+          ? [
+              {
+                id: selectedSite.id,
+                label: selectedSite.name,
+                rows: buildImportedBwaLines(importedData.bwaRows, period, selectedSite.id),
+                hasData: hasImportedBwaPeriodData(importedData.bwaRows, period, selectedSite.id)
+              }
+            ]
+          : [])
       ]
     : [];
-  const rowTemplate = groups[0].rows;
+  const rowTemplate = groups[0]?.rows ?? [];
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-col gap-3 border-b border-border bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-b border-border bg-white p-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="font-bold">{title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Links stehen die BWA-Positionen, rechts Konzern und Standorte nebeneinander. Neue Standorte werden als weitere Spalten ergänzt.
+            Links stehen die BWA-Positionen, rechts bleibt der Konzern fest sichtbar; der Standort daneben ist auswählbar.
           </p>
         </div>
-        <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
-          {availablePeriods.map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </Select>
+        <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[28rem]">
+          <label className="grid gap-1 text-xs font-bold uppercase text-muted-foreground">
+            Zeitraum
+            <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
+              {availablePeriods.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </Select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-muted-foreground">
+            Standort
+            <Select value={selectedSite?.id ?? ""} onChange={(event) => setSelectedSiteId(event.target.value)} disabled={!sourceSites.length}>
+              {sourceSites.map((site) => (
+                <option key={site.id} value={site.id}>{site.name}</option>
+              ))}
+            </Select>
+          </label>
+        </div>
       </div>
       <div className="max-h-[72vh] overflow-auto">
         <table className="data-table border-separate border-spacing-0 text-sm">
@@ -9963,7 +10002,7 @@ function ConsolidatedBwaMatrix({
         </table>
       </div>
       <div className="border-t border-border bg-slate-50 p-4 text-sm text-muted-foreground">
-        Mobile Ansicht: horizontal wischen; die BWA-Position bleibt links fixiert.
+        Ansicht: Konzern bleibt als Referenz fest sichtbar; der zweite Block zeigt den ausgewählten Standort.
       </div>
     </Card>
   );
@@ -15811,7 +15850,7 @@ function Bwa({ importedData, sites = standorte, monthlyData = monthly }: { impor
 
   return (
     <section className="space-y-5">
-      <PageTitle title="BWA" text="Konsolidierte BWA bis zum Cashflow gem. BWA, dynamisch nach Jahren und gesamter Periode auswählbar." />
+      <PageTitle title="BWA" text="BWA bis zum Cashflow gem. BWA mit Zeitraumfilter und Standortauswahl. Der Konzern bleibt als feste Referenz sichtbar." />
       <TabExecutiveSummary
         title="BWA auf einen Blick"
         text="Der Einstieg zeigt die zentrale BWA-Basis: Leistung, EBITDA und Cashflow. Detailbrücken und Tabellen bleiben darunter vollständig verfügbar."
