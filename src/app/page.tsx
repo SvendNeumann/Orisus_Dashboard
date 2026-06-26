@@ -34,6 +34,7 @@ import {
   CircleDollarSign,
   FileBarChart,
   FileUp,
+  FolderUp,
   Gauge,
   Home,
   Info,
@@ -19421,7 +19422,7 @@ function PayrollUpload({
   const errors = [...(pendingData?.errors ?? []), ...pendingPeriods.flatMap((period) => period.errors)];
 
   const handleFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
+    const files = Array.from(event.target.files ?? []).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, "de"));
     event.target.value = "";
     if (!files.length) return;
     setBusy(true);
@@ -19429,15 +19430,16 @@ function PayrollUpload({
     try {
       const parsed: PayrollPeriodData[] = [];
       for (const file of files) {
+        const displayName = file.webkitRelativePath || file.name;
         if (!file.name.toLowerCase().endsWith(".pdf")) {
           parsed.push({
-            id: `invalid-${file.name}`,
+            id: `invalid-${displayName}`,
             siteId: "",
             siteName: "Unbekannt",
             year: new Date().getFullYear(),
             month: 1,
             monthLabel: "Unbekannt",
-            fileName: file.name,
+            fileName: displayName,
             importedAt: new Date().toISOString(),
             employeeRows: [],
             totals: emptyPayrollTotals(),
@@ -19447,7 +19449,7 @@ function PayrollUpload({
           continue;
         }
         const text = await extractPdfText(file);
-        parsed.push(buildPayrollPeriodDataFromText(text, file.name));
+        parsed.push(buildPayrollPeriodDataFromText(text, displayName));
       }
       const existingPeriodIds = new Set((payrollData?.periods ?? []).map((period) => period.id));
       const pendingCounts = parsed.reduce<Record<string, number>>((counts, period) => {
@@ -19497,17 +19499,22 @@ function PayrollUpload({
         text="Sammelupload für DATEV-PDFs mit Personalkostenübersicht je Standort und Monat. Bestehende Lohnjournalmonate werden je Standort/Monat gezielt ersetzt."
       />
       <Card className="p-4">
-        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto] lg:items-center">
           <div>
             <h2 className="font-bold">Sammelupload</h2>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Mehrere Standort-PDFs gleichzeitig hochladen. Die App erkennt Standort und Monat aus der DATEV-Kopfzeile und liest die Personalkostenübersicht.
+              Mehrere Standort-PDFs oder einen ganzen Ordner hochladen. Die App erkennt Standort und Monat aus der DATEV-Kopfzeile und liest die Personalkostenübersicht.
             </p>
           </div>
           <label className={cn("inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground", busy && "pointer-events-none opacity-60")}>
             <FileUp className="h-4 w-4" />
-            {busy ? "PDFs werden gelesen..." : "Lohnjournale hochladen"}
+            {busy ? "PDFs werden gelesen..." : "PDFs hochladen"}
             <input className="sr-only" type="file" accept=".pdf,application/pdf" multiple onChange={handleFiles} disabled={busy} />
+          </label>
+          <label className={cn("inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-primary/30 bg-background px-4 text-sm font-bold text-primary shadow-sm", busy && "pointer-events-none opacity-60")}>
+            <FolderUp className="h-4 w-4" />
+            Ordner hochladen
+            <input className="sr-only" type="file" multiple onChange={handleFiles} disabled={busy} {...{ webkitdirectory: "", directory: "" }} />
           </label>
         </div>
         {message ? <p className="mt-3 text-sm font-semibold text-primary">{message}</p> : null}
