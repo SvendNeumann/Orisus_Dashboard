@@ -2439,8 +2439,10 @@ function payrollMonthFromText(text: string) {
   const compactText = compactDatevText(text);
   const monthAlternatives = bwaMonths.map((month) => compactDatevText(month)).join("|");
   const match = compactText.match(new RegExp(`personalkostenubersicht(${monthAlternatives})(20\\d{2})`, "i")) ??
-    compactText.match(new RegExp(`abrechnungderbruttonettobezugefur(${monthAlternatives})(20\\d{2})`, "i")) ??
-    compactText.match(new RegExp(`lohngehalt(${monthAlternatives})(20\\d{2})`, "i"));
+    compactText.match(new RegExp(`abrechnungderbruttonettobezuege(?:[a-z0-9]{0,40})fur(${monthAlternatives})(20\\d{2})`, "i")) ??
+    compactText.match(new RegExp(`abrechnungderbruttonettobezuge(?:[a-z0-9]{0,40})fur(${monthAlternatives})(20\\d{2})`, "i")) ??
+    compactText.match(new RegExp(`lohngehalt(${monthAlternatives})(20\\d{2})`, "i")) ??
+    compactText.match(new RegExp(`(${monthAlternatives})(20\\d{2})`, "i"));
   if (!match) return null;
   const monthIndex = bwaMonths.findIndex((month) => compactDatevText(month) === match[1]);
   if (monthIndex < 0) return null;
@@ -2678,12 +2680,23 @@ async function extractPdfText(file: File) {
       bucket.push(item);
       lines.set(item.y, bucket);
     });
-    pages.push(
-      Array.from(lines.entries())
+    const textByHorizontalLine = Array.from(lines.entries())
         .sort((a, b) => b[0] - a[0])
         .map(([, lineItems]) => lineItems.sort((a, b) => a.x - b.x).map((item) => item.text).join(" ").replace(/\s+/g, " ").trim())
-        .join("\n")
-    );
+        .join("\n");
+    const rotatedLines = new Map<number, typeof items>();
+    items.forEach((item) => {
+      const xBucket = Math.round(item.x);
+      const bucket = rotatedLines.get(xBucket) ?? [];
+      bucket.push(item);
+      rotatedLines.set(xBucket, bucket);
+    });
+    const textByVerticalLine = Array.from(rotatedLines.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, lineItems]) => lineItems.sort((a, b) => a.y - b.y).map((item) => item.text).join(" ").replace(/\s+/g, " ").trim())
+      .filter((line) => line.split(" ").length > 1)
+      .join("\n");
+    pages.push(`${textByHorizontalLine}\n${textByVerticalLine}`);
   }
   return pages.join("\n");
 }

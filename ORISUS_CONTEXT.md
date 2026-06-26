@@ -1435,7 +1435,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Sammelupload liest mehrere PDFs oder einen ausgewaehlten Ordner mit PDFs, erkennt Standort und Monat/Jahr aus der DATEV-Kopfzeile und ersetzt gleiche Standort-/Monatskombinationen, ohne andere Monate zu loeschen.
   - Wenn ein Standort/Monat bereits gespeichert ist oder im aktuellen Uploadpaket mehrfach vorkommt, muss der Upload vor Freigabe einen klaren Doppel-Hinweis im Plausibilitaetscheck zeigen.
   - DATEV-PDFs koennen Ueberschriften mit auseinandergezogenen Buchstaben ausgeben (`P e rs o n a lk o s t e n ...`); Parser muessen diese Schreibweise tolerant erkennen.
-  - Wenn PDF.js die Personalkostenuebersicht spaltenweise statt zeilenweise ausliest, nutzt der Parser die Entgeltabrechnungsseiten je Personalnummer als Fallback fuer Mitarbeiter, Brutto, AG-Anteil/Gesamtkosten und Eintritt/Austritt.
+  - Wenn PDF.js die Personalkostenuebersicht spaltenweise statt zeilenweise ausliest, erzeugt die PDF-Extraktion zusaetzlich positionsbasierte Zeilen nach X-Koordinate; als weiterer Fallback dienen die Entgeltabrechnungsseiten je Personalnummer fuer Mitarbeiter, Brutto, AG-Anteil/Gesamtkosten und Eintritt/Austritt.
   - Zuruecksetzen im Lohnjournal-Upload darf keine nativen Browser-Confirm-Dialoge verwenden, sondern nur App-interne Bestaetigung.
   - Der Chrome-/Browser-Sicherheitsdialog beim Ordnerupload ist nicht appseitig unterdrueckbar; die App muss darauf hinweisen und als Alternative Multi-PDF-Auswahl anbieten.
   - Die Lohnjournal-Daten sind eine separate Datenwelt: BWA bleibt offizielle GuV-/Finanzsicht, Personal-Upload bleibt Stammdaten-/FTE-/Rollenbasis, Lohnjournal ist echte Abrechnungskostenbasis.
