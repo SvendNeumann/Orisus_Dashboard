@@ -2513,11 +2513,23 @@ function payrollSiteFromFileName(fileName: string) {
   return sortSitesByContractStart(standorte).find((site) => compactName.includes(normalizeMetric(site.name))) ?? null;
 }
 
+function payrollSiteFromContent(text: string) {
+  const compactText = compactDatevText(text);
+  const aliasByKey: Record<string, string> = {
+    kallweit: "kirchberg",
+    kirchberg: "kirchberg"
+  };
+  const alias = Object.entries(aliasByKey).find(([key]) => compactText.includes(key))?.[1];
+  if (alias) return sortSitesByContractStart(standorte).find((site) => site.id === alias) ?? null;
+  return null;
+}
+
 function payrollSiteFromText(text: string, fileName = "") {
   const headerMatch = text.match(/Standort\s+([A-Za-zÄÖÜäöüß\-\s]+?)(?:\s+V\s*K\s*Z|\*|Feldstraße|Datum|$)/i);
   const rawName = normalizePersonalText(headerMatch?.[1] ?? "");
   return sortSitesByContractStart(standorte).find((site) => rawName && normalizeMetric(site.name) === normalizeMetric(rawName)) ??
     sortSitesByContractStart(standorte).find((site) => rawName && normalizeMetric(rawName).includes(normalizeMetric(site.name))) ??
+    payrollSiteFromContent(text) ??
     payrollSiteFromFileName(fileName);
 }
 
