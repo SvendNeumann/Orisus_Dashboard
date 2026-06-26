@@ -6851,7 +6851,6 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
   const weakestCashflowSite = [...sortedSites].sort((a, b) => a.cashflow - b.cashflow)[0];
   const ebitdaSparkline = aggregateMetricTrendData(importedData, "ebitda");
   const cashflowSparkline = aggregateMetricTrendData(importedData, "cashflow_gesamt");
-  const revenueSparkline = aggregateMetricTrendData(importedData, "summe_umsatz");
   const storyItems = [
     {
       label: "Ergebnisqualität",
@@ -6900,7 +6899,6 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
       text: highestReceivableSite ? `höchster Bestand: ${highestReceivableSite.name}` : "aktueller Stand",
       status: "yellow",
       icon: ReceiptText,
-      sparkline: revenueSparkline,
       info: (
         <>
           <p className="font-semibold text-slate-950">Was ist das?</p>
@@ -6942,7 +6940,7 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
     text: string;
     status: Status;
     icon: React.ComponentType<{ className?: string }>;
-    sparkline?: { label: string; value: number }[];
+    sparkline?: SparklinePoint[];
     info: React.ReactNode;
   }>;
 
@@ -6973,7 +6971,7 @@ function ManagementStorylineCard({
     text: string;
     status: Status;
     icon: React.ComponentType<{ className?: string }>;
-    sparkline?: { label: string; value: number }[];
+    sparkline?: SparklinePoint[];
     info: React.ReactNode;
   };
 }) {
@@ -7001,7 +6999,7 @@ function ManagementStorylineCard({
       <p className="mt-1 break-words text-center text-2xl font-extrabold text-white">{item.value}</p>
       {item.sparkline?.length ? (
         <div className="mt-2">
-          <MiniSparkline data={item.sparkline} color={item.status === "red" ? "#ff8f95" : item.status === "yellow" ? "#f59e0b" : "#30d5c8"} />
+          <MiniSparkline data={item.sparkline} />
         </div>
       ) : null}
       <p className="mt-2 text-center text-sm leading-5 text-muted-foreground">{item.text}</p>
@@ -7014,14 +7012,16 @@ function ManagementStorylineCard({
   );
 }
 
-function aggregateMetricTrendData(importedData: ImportedDashboardData | null | undefined, metricKey: string, period?: string, limit = 8) {
+type SparklinePoint = { label: string; value: number };
+
+function aggregateMetricTrendData(importedData: ImportedDashboardData | null | undefined, metricKey: string, period?: string, limit = 8): SparklinePoint[] {
   if (!importedData?.bwaRows?.length) return [];
   const selection = period ? selectedBwaPeriod(period) : { year: null, months: null };
   const allMonthKeys = Array.from(
     new Set(
       importedData.bwaRows
         .filter((row) => row.metricKey === metricKey)
-        .flatMap((row) => Object.keys(row.valuesByMonth).filter((monthKey) => row.hasValueByMonth[monthKey]))
+        .flatMap((row) => Object.keys(row.valuesByMonth).filter((monthKey) => row.hasValueByMonth[monthKey] || row.hasDataByMonth[monthKey]))
     )
   );
   const monthKeys = allMonthKeys
@@ -7035,7 +7035,7 @@ function aggregateMetricTrendData(importedData: ImportedDashboardData | null | u
     .map((monthKey) => {
       const [year, month] = monthKey.split("-").map(Number);
       const value = importedData.bwaRows
-        .filter((row) => row.metricKey === metricKey && row.hasValueByMonth[monthKey])
+        .filter((row) => row.metricKey === metricKey && (row.hasValueByMonth[monthKey] || row.hasDataByMonth[monthKey]))
         .reduce((sum, row) => sum + (row.valuesByMonth[monthKey] ?? 0), 0);
       return {
         key: monthKey,
@@ -7046,15 +7046,33 @@ function aggregateMetricTrendData(importedData: ImportedDashboardData | null | u
     })
     .filter((entry) => Number.isFinite(entry.value))
     .sort((a, b) => a.sort - b.sort);
-  return selection.year ? monthKeys : monthKeys.slice(-limit);
+  return period ? monthKeys : monthKeys.slice(-limit);
+}
+
+function sparklineTrendStatus(data: SparklinePoint[]): Status | "neutral" {
+  if (data.length < 2) return "neutral";
+  const first = data[0]?.value ?? 0;
+  const last = data.at(-1)?.value ?? first;
+  const tolerance = Math.max(Math.abs(first), Math.abs(last), 1) * 0.005;
+  if (last > first + tolerance) return "green";
+  if (last < first - tolerance) return "red";
+  return "neutral";
+}
+
+function sparklineTrendColor(data: SparklinePoint[], fallback = "#30d5c8") {
+  const trend = sparklineTrendStatus(data);
+  if (trend === "green") return "#30d5c8";
+  if (trend === "red") return "#ff8f95";
+  if (trend === "neutral") return "#b5cbd1";
+  return fallback;
 }
 
 function MiniSparkline({
   data,
-  color = "#30d5c8",
+  color,
   height = 52
 }: {
-  data: { label: string; value: number }[];
+  data: SparklinePoint[];
   color?: string;
   height?: number;
 }) {
@@ -7066,7 +7084,7 @@ function MiniSparkline({
     <div className="pointer-events-none">
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={{ top: 8, right: 4, bottom: 2, left: 4 }}>
-          <Line type="monotone" dataKey="value" stroke={color} strokeWidth={3} dot={false} isAnimationActive={false} />
+          <Line type="monotone" dataKey="value" stroke={color ?? sparklineTrendColor(data)} strokeWidth={3} dot={false} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -7353,7 +7371,7 @@ function DailyCfoCockpit({
     status: Status;
     control?: React.ReactNode;
     info?: React.ReactNode;
-    sparkline?: { label: string; value: number }[];
+    sparkline?: SparklinePoint[];
     valueLabel?: string;
   }>;
   const topKpis = kpis.slice(0, 3);
@@ -7421,7 +7439,7 @@ function KpiCard({
   secondaryValue?: React.ReactNode;
   valueLabel?: string;
   info?: React.ReactNode;
-  sparkline?: { label: string; value: number }[];
+  sparkline?: SparklinePoint[];
   featured?: boolean;
   className?: string;
 }) {
@@ -7456,7 +7474,7 @@ function KpiCard({
         {secondaryValue ? <p className="mt-1 text-sm font-bold text-slate-200">{secondaryValue}</p> : null}
         {sparkline?.length ? (
           <div className="mt-2 w-full max-w-[13rem]">
-            <MiniSparkline data={sparkline} color={status === "red" ? "#ff8f95" : status === "yellow" ? "#f59e0b" : "#30d5c8"} height={42} />
+            <MiniSparkline data={sparkline} height={42} />
           </div>
         ) : null}
         <div className={cn("mt-3 flex max-w-full items-center justify-center gap-1 font-semibold", featured ? "text-sm" : "text-xs", positive ? "text-emerald-700" : "text-red-700")}>
