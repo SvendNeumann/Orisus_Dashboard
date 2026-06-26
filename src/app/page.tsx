@@ -19638,11 +19638,14 @@ function payrollEmployeeSurnameCandidates(name: string) {
   while (tokens.length > 1 && providerRolePrefixKeys.has(tokens[0])) tokens.shift();
   const candidates = new Set<string>();
   const first = tokens[0];
+  const second = tokens[1];
   const last = tokens.at(-1);
   if (first && first.length > 1) candidates.add(first);
+  if (second && second.length > 1) candidates.add(second);
   if (last && last.length > 1) candidates.add(last);
   if (tokens.length >= 2) {
     const penultimate = tokens[tokens.length - 2];
+    if (first && surnameParticleKeys.has(first) && second) candidates.add(`${first}_${second}`);
     if (penultimate && surnameParticleKeys.has(penultimate) && last) candidates.add(`${penultimate}_${last}`);
   }
   return candidates;

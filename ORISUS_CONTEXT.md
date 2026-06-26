@@ -1446,7 +1446,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Die Lohnjournal-Daten sind eine separate Datenwelt: BWA bleibt offizielle GuV-/Finanzsicht, Personal-Upload bleibt Stammdaten-/FTE-/Rollenbasis, Lohnjournal ist echte Abrechnungskostenbasis.
   - Neuer Personal-Tab `Personalkosten Lohnjournal` zeigt Verlaeufe, Abweichung Lohnjournal vs. BWA-Personalkosten und Mitarbeiterkosten fuer berechtigte Rollen.
   - Im Tab `Personalkosten Lohnjournal` werden echte Lohnjournal-Arztkosten gegen reinen Honorarumsatz aus `Input_Behandler_Leistung` gematcht; Eigenlabor sowie offensichtliche PZR-/Prophylaxe-Behandler bleiben in dieser Arztquote draussen.
-  - Wenn Lohnjournal-Namen und Behandlernamen nicht direkt identisch sind, darf der Arztkosten-Match je Standort ueber eindeutig gleiche Nachnamen erfolgen. Dabei sollen sowohl DATEV-Schreibweisen `Nachname Vorname` als auch Behandler-Schreibweisen mit Titel/Initiale beruecksichtigt werden; bei mehreren Treffern bleibt der Match offen.
+  - Wenn Lohnjournal-Namen und Behandlernamen nicht direkt identisch sind, darf der Arztkosten-Match je Standort ueber eindeutig gleiche Nachnamen erfolgen. Dabei sollen sowohl DATEV-Schreibweisen `Nachname Vorname` als auch Behandler-Schreibweisen mit Titel/Initiale beruecksichtigt werden; zusammengesetzte Nachnamen wie `Al Sare` muessen ebenfalls erkannt werden. Bei mehreren Treffern bleibt der Match offen.
   - Eintritts- und Austrittsdatum werden je Personalnummer aus den DATEV-Entgeltabrechnungsseiten (`Eintritt`/`Austritt`) und, wenn vorhanden, aus DEUEV-Beschaeftigungszeitraeumen gelesen; sichtbar nach erneutem Lohnjournal-Import.
   - Fehlende Lohnjournalmonate werden nicht als 0 gewertet.
   - Praxismanagement darf keine Lohnjournal-/Gehalts-/AG-Kostendetails sehen.
