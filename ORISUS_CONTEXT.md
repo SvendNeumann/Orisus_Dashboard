@@ -1437,6 +1437,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - DATEV-PDFs koennen Ueberschriften mit auseinandergezogenen Buchstaben ausgeben (`P e rs o n a lk o s t e n ...`); Parser muessen diese Schreibweise tolerant erkennen.
   - Die Lohnjournal-Daten sind eine separate Datenwelt: BWA bleibt offizielle GuV-/Finanzsicht, Personal-Upload bleibt Stammdaten-/FTE-/Rollenbasis, Lohnjournal ist echte Abrechnungskostenbasis.
   - Neuer Personal-Tab `Personalkosten Lohnjournal` zeigt Verlaeufe, Abweichung Lohnjournal vs. BWA-Personalkosten und Mitarbeiterkosten fuer berechtigte Rollen.
+  - Im Tab `Personalkosten Lohnjournal` werden echte Lohnjournal-Arztkosten gegen reinen Honorarumsatz aus `Input_Behandler_Leistung` gematcht; Eigenlabor sowie offensichtliche PZR-/Prophylaxe-Behandler bleiben in dieser Arztquote draussen.
   - Fehlende Lohnjournalmonate werden nicht als 0 gewertet.
   - Praxismanagement darf keine Lohnjournal-/Gehalts-/AG-Kostendetails sehen.
 - Mobile/Tabellen:

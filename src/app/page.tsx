@@ -19403,6 +19403,110 @@ function payrollPeriodsByMonth(payrollData?: PayrollJournalData | null) {
   return [...(payrollData?.periods ?? [])].sort((a, b) => a.year * 100 + a.month - (b.year * 100 + b.month) || compareSiteNamesByContractStart(a.siteName, b.siteName));
 }
 
+type PayrollDoctorHonorarRow = {
+  key: string;
+  siteName: string;
+  doctorName: string;
+  payrollNames: string[];
+  months: string[];
+  payrollCost: number;
+  honorar: number;
+  quote: number | null;
+  matchNote: string;
+};
+
+function payrollEmployeeSurnameKey(name: string) {
+  const tokens = normalizeMetric(name).split("_").filter(Boolean);
+  while (tokens.length > 1 && providerRolePrefixKeys.has(tokens[0])) tokens.shift();
+  return tokens[0] ?? "";
+}
+
+function matchPayrollEmployeeProvider(siteId: string, employeeName: string, providers: ImportedBehandlerDetailRow[]) {
+  const directKey = canonicalProviderKey(siteId, employeeName);
+  const directMatches = providers.filter((provider) => canonicalProviderKey(siteId, provider.name) === directKey);
+  if (directMatches.length === 1) return directMatches[0];
+
+  const surnameKey = payrollEmployeeSurnameKey(employeeName);
+  if (!surnameKey) return null;
+  const surnameMatches = providers.filter((provider) => providerSurnameKey(siteId, provider.name) === surnameKey);
+  return surnameMatches.length === 1 ? surnameMatches[0] : null;
+}
+
+function isDoctorHonorarProviderName(name: string) {
+  const tokens = normalizeMetric(name).split("_").filter(Boolean);
+  return !tokens.some((token) => ["pzr", "prophylaxe"].includes(token));
+}
+
+function payrollDoctorHonorarRows(periods: PayrollPeriodData[], importedData?: ImportedDashboardData | null): PayrollDoctorHonorarRow[] {
+  if (!importedData?.behandlerDetailRows?.length || !periods.length) return [];
+  const monthKeysBySite = new Map<string, Set<string>>();
+  periods.forEach((period) => {
+    if (!period.siteId) return;
+    const monthKey = `${period.year}-${period.month}`;
+    const monthKeys = monthKeysBySite.get(period.siteId) ?? new Set<string>();
+    monthKeys.add(monthKey);
+    monthKeysBySite.set(period.siteId, monthKeys);
+  });
+
+  const rowsByProvider = new Map<string, PayrollDoctorHonorarRow>();
+  const matchedProviderKeys = new Set<string>();
+
+  Array.from(monthKeysBySite.entries()).forEach(([siteId, monthKeys]) => {
+    const siteName = standorte.find((candidate) => candidate.id === siteId)?.name ?? periods.find((period) => period.siteId === siteId)?.siteName ?? siteId;
+    const providers = groupedProviderDetailRows((importedData.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId), siteId)
+      .filter((provider) => isDoctorHonorarProviderName(provider.name));
+    providers.forEach((provider) => {
+      const honorar = Array.from(monthKeys).reduce((sum, monthKey) => sum + (provider.honorarByMonth[monthKey] ?? 0), 0);
+      if (!Math.abs(honorar)) return;
+      const providerKey = `${siteId}-${canonicalProviderKey(siteId, provider.name)}`;
+      rowsByProvider.set(providerKey, {
+        key: providerKey,
+        siteName,
+        doctorName: canonicalProviderName(siteId, provider.name),
+        payrollNames: [],
+        months: Array.from(monthKeys).sort(),
+        payrollCost: 0,
+        honorar,
+        quote: null,
+        matchNote: "kein Lohnjournal-Match"
+      });
+    });
+  });
+
+  periods.forEach((period) => {
+    if (!period.siteId) return;
+    const monthKey = `${period.year}-${period.month}`;
+    const providers = groupedProviderDetailRows((importedData.behandlerDetailRows ?? []).filter((row) => row.siteId === period.siteId), period.siteId)
+      .filter((provider) => isDoctorHonorarProviderName(provider.name))
+      .filter((provider) => Math.abs(provider.honorarByMonth[monthKey] ?? 0) > 0);
+    period.employeeRows.forEach((employee) => {
+      const provider = matchPayrollEmployeeProvider(period.siteId, employee.name, providers);
+      if (!provider) return;
+      const providerKey = `${period.siteId}-${canonicalProviderKey(period.siteId, provider.name)}`;
+      const existing = rowsByProvider.get(providerKey);
+      if (!existing) return;
+      existing.payrollCost += employee.totalCostIncludingReimbursements;
+      existing.payrollNames = uniqueSortedText([...existing.payrollNames, employee.name]);
+      existing.months = uniqueSortedText([...existing.months, monthKey]);
+      existing.matchNote = "gematcht";
+      matchedProviderKeys.add(providerKey);
+    });
+  });
+
+  return Array.from(rowsByProvider.values())
+    .map((row) => ({
+      ...row,
+      months: row.months.map((monthKey) => {
+        const [year, month] = monthKey.split("-").map(Number);
+        return `${bwaMonths[month - 1]} ${year}`;
+      }),
+      quote: row.honorar ? (row.payrollCost / row.honorar) * 100 : null,
+      matchNote: matchedProviderKeys.has(row.key) ? row.matchNote : row.matchNote
+    }))
+    .filter((row) => Math.abs(row.honorar) > 0 || Math.abs(row.payrollCost) > 0)
+    .sort((a, b) => b.payrollCost - a.payrollCost || b.honorar - a.honorar || compareSiteNamesByContractStart(a.siteName, b.siteName) || a.doctorName.localeCompare(b.doctorName, "de"));
+}
+
 function payrollBwaDifference(period: PayrollPeriodData, importedData?: ImportedDashboardData | null) {
   if (!importedData?.bwaRows?.length || !period.siteId) return null;
   const bwaValue = Math.abs(importedBwaMetricValue(importedData.bwaRows, period.siteId, "personalkosten_gesamt", `${bwaMonths[period.month - 1]} ${period.year}`));
@@ -19627,6 +19731,15 @@ function PayrollCosts({
   const totalGross = filteredPeriods.reduce((sum, period) => sum + period.totals.gross, 0);
   const totalReimbursements = filteredPeriods.reduce((sum, period) => sum + period.totals.reimbursementBa + period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg, 0);
   const totalEmployees = filteredPeriods.reduce((sum, period) => sum + period.employeeRows.length, 0);
+  const doctorHonorarRows = payrollDoctorHonorarRows(filteredPeriods, importedData);
+  const matchedDoctorHonorarRows = doctorHonorarRows.filter((row) => row.payrollCost > 0);
+  const doctorHonorarTotals = matchedDoctorHonorarRows.reduce(
+    (sum, row) => ({
+      payrollCost: sum.payrollCost + row.payrollCost,
+      honorar: sum.honorar + row.honorar
+    }),
+    { payrollCost: 0, honorar: 0 }
+  );
   const employeeRows = filteredPeriods.flatMap((period) =>
     period.employeeRows.map((row) => ({
       ...row,
@@ -19718,6 +19831,68 @@ function PayrollCosts({
           </table>
         </div>
       </Card>
+
+      {canSeeDetails ? (
+        <Card className="overflow-hidden">
+          <div className="border-b border-border p-4">
+            <h2 className="font-bold">Arztkosten vs. reiner Honorarumsatz</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Lohnjournal-Gesamtkosten gematchter Ärzte gegen reinen Honorarumsatz aus dem bestätigten CFO-Import. Eigenlabor ist hier bewusst nicht enthalten.
+            </p>
+          </div>
+          <ResponsiveTable>
+            <thead>
+              <tr>
+                <TableHead>Standort</TableHead>
+                <TableHead>Arzt / Behandler</TableHead>
+                <TableHead>Lohnjournal-Name</TableHead>
+                <TableHead>Monate</TableHead>
+                <TableHead>Arztkosten inkl. Erstatt.</TableHead>
+                <TableHead>Reiner Honorarumsatz</TableHead>
+                <TableHead>Kostenquote</TableHead>
+                <TableHead>Hinweis</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {doctorHonorarRows.map((row) => (
+                <tr key={row.key}>
+                  <TableCell strong>{row.siteName}</TableCell>
+                  <TableCell strong>{row.doctorName}</TableCell>
+                  <TableCell>{row.payrollNames.join(", ") || "n. v."}</TableCell>
+                  <TableCell>{row.months.join(", ")}</TableCell>
+                  <TableCell>{eur(row.payrollCost)}</TableCell>
+                  <TableCell>{eur(row.honorar)}</TableCell>
+                  <TableCell>{formatNullablePercent(row.quote)}</TableCell>
+                  <TableCell>{row.matchNote}</TableCell>
+                </tr>
+              ))}
+              {doctorHonorarRows.length ? (
+                <tr className="summary-row">
+                  <TableCell strong summary>Gesamt gematcht</TableCell>
+                  <TableCell summary>{""}</TableCell>
+                  <TableCell summary>{""}</TableCell>
+                  <TableCell summary>{""}</TableCell>
+                  <TableCell strong summary>{eur(doctorHonorarTotals.payrollCost)}</TableCell>
+                  <TableCell strong summary>{eur(doctorHonorarTotals.honorar)}</TableCell>
+                  <TableCell strong summary>{formatNullablePercent(doctorHonorarTotals.honorar ? (doctorHonorarTotals.payrollCost / doctorHonorarTotals.honorar) * 100 : null)}</TableCell>
+                  <TableCell summary>{""}</TableCell>
+                </tr>
+              ) : (
+                <tr>
+                  <TableCell strong>Keine Match-Daten</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{importedData?.behandlerDetailRows?.length ? "Für den gewählten Zeitraum kein eindeutiger Arzt-Match." : "CFO-Behandlerumsatz fehlt."}</TableCell>
+                </tr>
+              )}
+            </tbody>
+          </ResponsiveTable>
+        </Card>
+      ) : null}
 
       {canSeeDetails ? (
         <Card className="overflow-hidden">
