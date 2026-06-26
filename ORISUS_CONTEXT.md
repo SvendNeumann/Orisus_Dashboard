@@ -1437,6 +1437,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - DATEV-PDFs koennen Ueberschriften mit auseinandergezogenen Buchstaben ausgeben (`P e rs o n a lk o s t e n ...`); Parser muessen diese Schreibweise tolerant erkennen.
   - Wenn PDF.js die Personalkostenuebersicht spaltenweise statt zeilenweise ausliest, erzeugt die PDF-Extraktion zusaetzlich positionsbasierte Zeilen nach X-Koordinate; als weiterer Fallback dienen die Entgeltabrechnungsseiten je Personalnummer fuer Mitarbeiter, Brutto, AG-Anteil/Gesamtkosten und Eintritt/Austritt.
   - Monat/Jahr duerfen zusaetzlich aus DATEV-Dateinamen wie `Lohnauswertungen_vom_24.06.2026` abgeleitet werden, falls PDF.js die Monatsueberschrift im Browser nicht stabil ausliest.
+  - Bei DATEV-Dateinamen mit `vom DD.MM.YYYY` hat der Dateiname fuer den Lohnjournal-Monat Vorrang vor zufaelligen Monats-/Jahresfunden im PDF-Text.
+  - Lohnjournal-Ordner-/Dateiname `kallweit` gehoert fachlich zum Standort Kirchberg und darf als Standort-Fallback genutzt werden, wenn die DATEV-Kopfzeile keinen App-Standort liefert.
   - Fehlerhafte/noch nicht erkannte Lohnjournaldateien muessen im Uploadbericht dateischarf erhalten bleiben und duerfen sich nicht gegenseitig ueberschreiben, wenn Standort oder Monat unbekannt ist.
   - Der Lohnjournal-Upload hat einen PDF-/Druckexport `Importbericht als PDF`, der den aktuell sichtbaren Upload inkl. Plausibilitaetscheck, Fehlern, Warnungen und erkannter Dateitabelle ausgibt.
   - Wenn die DATEV-Summenzeile in der Personalkostenuebersicht nicht stabil auslesbar ist, aber Mitarbeiterzeilen mit Kostenwerten erkannt wurden, duerfen Periodensummen aus den Mitarbeiterzeilen gebildet werden; der Importbericht weist diesen Fallback als neutralen Hinweis aus, nicht als gelbe Warnung.

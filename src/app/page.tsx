@@ -2485,22 +2485,40 @@ function payrollMonthFromText(text: string) {
 
 function payrollMonthFromFileName(fileName: string) {
   const dateMatch = fileName.match(/vom[_\s-]*(\d{2})\.(\d{2})\.(20\d{2})/i);
-  if (!dateMatch) return null;
-  const monthText = dateMatch[2];
-  const yearText = dateMatch[3];
-  if (!monthText || !yearText) return null;
-  const month = Number(monthText);
-  const year = Number(yearText);
-  if (!month || month < 1 || month > 12) return null;
+  if (dateMatch) {
+    const monthText = dateMatch[2];
+    const yearText = dateMatch[3];
+    if (!monthText || !yearText) return null;
+    const month = Number(monthText);
+    const year = Number(yearText);
+    if (!month || month < 1 || month > 12) return null;
+    return { month, year, label: `${bwaMonths[month - 1]} ${year}` };
+  }
+  const compactName = compactDatevText(fileName);
+  const monthIndex = bwaMonths.findIndex((month) => compactName.includes(compactDatevText(month)));
+  const yearMatch = compactName.match(/(20\d{2})/);
+  if (monthIndex < 0 || !yearMatch?.[1]) return null;
+  const year = Number(yearMatch[1]);
+  const month = monthIndex + 1;
   return { month, year, label: `${bwaMonths[month - 1]} ${year}` };
 }
 
-function payrollSiteFromText(text: string) {
+function payrollSiteFromFileName(fileName: string) {
+  const compactName = compactDatevText(fileName);
+  const aliasByKey: Record<string, string> = {
+    kallweit: "kirchberg"
+  };
+  const alias = Object.entries(aliasByKey).find(([key]) => compactName.includes(key))?.[1];
+  if (alias) return sortSitesByContractStart(standorte).find((site) => site.id === alias) ?? null;
+  return sortSitesByContractStart(standorte).find((site) => compactName.includes(normalizeMetric(site.name))) ?? null;
+}
+
+function payrollSiteFromText(text: string, fileName = "") {
   const headerMatch = text.match(/Standort\s+([A-Za-zÄÖÜäöüß\-\s]+?)(?:\s+V\s*K\s*Z|\*|Feldstraße|Datum|$)/i);
   const rawName = normalizePersonalText(headerMatch?.[1] ?? "");
   return sortSitesByContractStart(standorte).find((site) => rawName && normalizeMetric(site.name) === normalizeMetric(rawName)) ??
     sortSitesByContractStart(standorte).find((site) => rawName && normalizeMetric(rawName).includes(normalizeMetric(site.name))) ??
-    null;
+    payrollSiteFromFileName(fileName);
 }
 
 function payrollRowAmountsFromLine(line: string, expectedCount: number) {
@@ -2646,8 +2664,8 @@ function parsePayrollPayslipRows(lines: string[]) {
 function buildPayrollPeriodDataFromText(text: string, fileName: string): PayrollPeriodData {
   const normalizedText = text.replace(/\u00a0/g, " ");
   const lines = normalizedText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const site = payrollSiteFromText(normalizedText);
-  const period = payrollMonthFromText(normalizedText) ?? payrollMonthFromFileName(fileName);
+  const site = payrollSiteFromText(normalizedText, fileName);
+  const period = payrollMonthFromFileName(fileName) ?? payrollMonthFromText(normalizedText);
   const parsedOverview = parsePayrollEmployeeRows(lines);
   const payslipRows = parsePayrollPayslipRows(lines);
   const employeeRows = parsedOverview.employeeRows.length >= 3 ? parsedOverview.employeeRows : payslipRows;
