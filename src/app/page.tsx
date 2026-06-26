@@ -2349,10 +2349,21 @@ function parseDatevAmount(value: string) {
   return negative ? -amount : amount;
 }
 
+function compactDatevText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
 function payrollMonthFromText(text: string) {
-  const match = text.match(/Personalkostenübersicht\s+([A-Za-zÄÖÜäöü]+)\s+(20\d{2})/i);
+  const compactText = compactDatevText(text);
+  const monthAlternatives = bwaMonths.map((month) => compactDatevText(month)).join("|");
+  const match = compactText.match(new RegExp(`personalkostenubersicht(${monthAlternatives})(20\\d{2})`, "i"));
   if (!match) return null;
-  const monthIndex = bwaMonths.findIndex((month) => month.toLowerCase() === match[1].toLowerCase());
+  const monthIndex = bwaMonths.findIndex((month) => compactDatevText(month) === match[1]);
   if (monthIndex < 0) return null;
   return { month: monthIndex + 1, year: Number(match[2]), label: `${bwaMonths[monthIndex]} ${match[2]}` };
 }
@@ -2379,17 +2390,18 @@ function parsePayrollEmployeeRows(lines: string[]) {
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index].replace(/\s+/g, " ").trim();
+    const compactLine = compactDatevText(line);
     if (!line) continue;
-    if (/Personalkostenübersicht/i.test(line)) {
+    if (compactLine.includes("personalkostenubersicht")) {
       inOverview = true;
       continue;
     }
     if (!inOverview) continue;
-    if (/AFP Form/i.test(line)) {
+    if (compactLine.includes("afpform")) {
       inOverview = false;
       continue;
     }
-    if (line.startsWith("Summen:")) {
+    if (compactLine.startsWith("summen")) {
       const first = payrollRowAmountsFromLine(line, 8);
       const next = payrollRowAmountsFromLine(lines[index + 1]?.replace(/\s+/g, " ").trim() ?? "", 4);
       if (first.length >= 8) {
@@ -2448,7 +2460,7 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   const errors: string[] = [];
   if (!site) errors.push("Standort konnte nicht aus der PDF-Kopfzeile erkannt werden.");
   if (!period) errors.push("Monat/Jahr konnte nicht aus der Personalkostenübersicht erkannt werden.");
-  if (!/Personalkostenübersicht/i.test(normalizedText)) errors.push("Keine DATEV-Personalkostenübersicht in der Datei erkannt.");
+  if (!compactDatevText(normalizedText).includes("personalkostenubersicht")) errors.push("Keine DATEV-Personalkostenübersicht in der Datei erkannt.");
   if (!employeeRows.length) errors.push("Keine Mitarbeiterzeilen in der Personalkostenübersicht erkannt.");
   const employeeTotal = employeeRows.reduce((sum, row) => sum + row.totalCostIncludingReimbursements, 0);
   if (totals.totalCostIncludingReimbursements && Math.abs(employeeTotal - totals.totalCostIncludingReimbursements) > 1) {

@@ -1434,6 +1434,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Es gibt einen eigenen Administration-Tab `Lohnjournal-Upload` fuer DATEV-PDFs mit `Personalkostenuebersicht` je Standort/Monat.
   - Sammelupload liest mehrere PDFs oder einen ausgewaehlten Ordner mit PDFs, erkennt Standort und Monat/Jahr aus der DATEV-Kopfzeile und ersetzt gleiche Standort-/Monatskombinationen, ohne andere Monate zu loeschen.
   - Wenn ein Standort/Monat bereits gespeichert ist oder im aktuellen Uploadpaket mehrfach vorkommt, muss der Upload vor Freigabe einen klaren Doppel-Hinweis im Plausibilitaetscheck zeigen.
+  - DATEV-PDFs koennen Ueberschriften mit auseinandergezogenen Buchstaben ausgeben (`P e rs o n a lk o s t e n ...`); Parser muessen diese Schreibweise tolerant erkennen.
   - Die Lohnjournal-Daten sind eine separate Datenwelt: BWA bleibt offizielle GuV-/Finanzsicht, Personal-Upload bleibt Stammdaten-/FTE-/Rollenbasis, Lohnjournal ist echte Abrechnungskostenbasis.
   - Neuer Personal-Tab `Personalkosten Lohnjournal` zeigt Verlaeufe, Abweichung Lohnjournal vs. BWA-Personalkosten und Mitarbeiterkosten fuer berechtigte Rollen.
   - Fehlende Lohnjournalmonate werden nicht als 0 gewertet.
