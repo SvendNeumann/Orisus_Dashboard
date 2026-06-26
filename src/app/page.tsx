@@ -2342,6 +2342,40 @@ function emptyPayrollTotals(): PayrollPeriodData["totals"] {
   };
 }
 
+function payrollTotalsFromRows(rows: PayrollEmployeeCostRow[]): PayrollPeriodData["totals"] {
+  return rows.reduce((sum, row) => ({
+    gross: sum.gross + row.gross,
+    bavEmployerShare: sum.bavEmployerShare + row.bavEmployerShare,
+    bavSubsidy: sum.bavSubsidy + row.bavSubsidy,
+    netAdjustments: sum.netAdjustments + row.netAdjustments,
+    svEmployerShare: sum.svEmployerShare + row.svEmployerShare,
+    allocation: sum.allocation + row.allocation,
+    flatTax: sum.flatTax + row.flatTax,
+    reimbursementBa: sum.reimbursementBa + row.reimbursementBa,
+    reimbursementHealthInsurance: sum.reimbursementHealthInsurance + row.reimbursementHealthInsurance,
+    reimbursementIfsg: sum.reimbursementIfsg + row.reimbursementIfsg,
+    totalCostWithoutReimbursements: sum.totalCostWithoutReimbursements + row.totalCostWithoutReimbursements,
+    totalCostIncludingReimbursements: sum.totalCostIncludingReimbursements + row.totalCostIncludingReimbursements
+  }), emptyPayrollTotals());
+}
+
+function payrollTotalsWithRowFallback(primary: PayrollPeriodData["totals"], fallback: PayrollPeriodData["totals"]): PayrollPeriodData["totals"] {
+  return {
+    gross: primary.gross || fallback.gross,
+    bavEmployerShare: primary.bavEmployerShare || fallback.bavEmployerShare,
+    bavSubsidy: primary.bavSubsidy || fallback.bavSubsidy,
+    netAdjustments: primary.netAdjustments || fallback.netAdjustments,
+    svEmployerShare: primary.svEmployerShare || fallback.svEmployerShare,
+    allocation: primary.allocation || fallback.allocation,
+    flatTax: primary.flatTax || fallback.flatTax,
+    reimbursementBa: primary.reimbursementBa || fallback.reimbursementBa,
+    reimbursementHealthInsurance: primary.reimbursementHealthInsurance || fallback.reimbursementHealthInsurance,
+    reimbursementIfsg: primary.reimbursementIfsg || fallback.reimbursementIfsg,
+    totalCostWithoutReimbursements: primary.totalCostWithoutReimbursements || fallback.totalCostWithoutReimbursements,
+    totalCostIncludingReimbursements: primary.totalCostIncludingReimbursements || fallback.totalCostIncludingReimbursements
+  };
+}
+
 function parseDatevAmount(value: string) {
   const cleaned = value.trim();
   if (!cleaned) return 0;
@@ -2617,20 +2651,9 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   const parsedOverview = parsePayrollEmployeeRows(lines);
   const payslipRows = parsePayrollPayslipRows(lines);
   const employeeRows = parsedOverview.employeeRows.length >= 3 ? parsedOverview.employeeRows : payslipRows;
-  const totals = parsedOverview.employeeRows.length >= 3 ? parsedOverview.totals : employeeRows.reduce((sum, row) => ({
-    gross: sum.gross + row.gross,
-    bavEmployerShare: sum.bavEmployerShare + row.bavEmployerShare,
-    bavSubsidy: sum.bavSubsidy + row.bavSubsidy,
-    netAdjustments: sum.netAdjustments + row.netAdjustments,
-    svEmployerShare: sum.svEmployerShare + row.svEmployerShare,
-    allocation: sum.allocation + row.allocation,
-    flatTax: sum.flatTax + row.flatTax,
-    reimbursementBa: sum.reimbursementBa + row.reimbursementBa,
-    reimbursementHealthInsurance: sum.reimbursementHealthInsurance + row.reimbursementHealthInsurance,
-    reimbursementIfsg: sum.reimbursementIfsg + row.reimbursementIfsg,
-    totalCostWithoutReimbursements: sum.totalCostWithoutReimbursements + row.totalCostWithoutReimbursements,
-    totalCostIncludingReimbursements: sum.totalCostIncludingReimbursements + row.totalCostIncludingReimbursements
-  }), emptyPayrollTotals());
+  const rowTotals = payrollTotalsFromRows(employeeRows);
+  const usedEmployeeSumFallback = parsedOverview.employeeRows.length >= 3 && !parsedOverview.totals.totalCostIncludingReimbursements && !!rowTotals.totalCostIncludingReimbursements;
+  const totals = parsedOverview.employeeRows.length >= 3 ? payrollTotalsWithRowFallback(parsedOverview.totals, rowTotals) : rowTotals;
   const employmentDates = parsePayrollEmploymentDatesFromText(normalizedText);
   const enrichedEmployeeRows = employeeRows.map((row) => {
     const dates = employmentDates.get(row.personnelNumber);
@@ -2641,6 +2664,7 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   if (!site) errors.push(`${fileName}: Standort konnte nicht aus der PDF-Kopfzeile erkannt werden.`);
   if (!period) errors.push(`${fileName}: Monat/Jahr konnte weder aus DATEV-Text noch aus Dateiname erkannt werden.`);
   if (!compactDatevText(normalizedText).includes("personalkostenubersicht")) warnings.push(`${fileName}: Keine DATEV-Personalkostenübersicht im Text erkannt; Entgeltabrechnungsseiten werden als Fallback genutzt.`);
+  if (usedEmployeeSumFallback) warnings.push(`${fileName}: DATEV-Summenzeile wurde nicht vollständig erkannt; Periodensummen wurden aus den Mitarbeiterzeilen gebildet.`);
   if (!enrichedEmployeeRows.length) errors.push(`${fileName}: Keine Mitarbeiterzeilen in Personalkostenübersicht oder Entgeltabrechnungen erkannt.`);
   const employeeTotal = enrichedEmployeeRows.reduce((sum, row) => sum + row.totalCostIncludingReimbursements, 0);
   if (totals.totalCostIncludingReimbursements && Math.abs(employeeTotal - totals.totalCostIncludingReimbursements) > 1) {
@@ -19983,6 +20007,12 @@ function PayrollCosts({
   const [site, setSite] = useState("Alle Standorte");
   const [year, setYear] = useState<number | "Alle Jahre">("Alle Jahre");
   const canSeeDetails = userRole !== "praxismanagement";
+
+  useEffect(() => {
+    setSite("Alle Standorte");
+    setYear("Alle Jahre");
+  }, [payrollData?.importedAt]);
+
   const years = uniqueSortedNumbers(periods.map((period) => period.year));
   const filteredPeriods = periods.filter((period) => (site === "Alle Standorte" || period.siteName === site) && (year === "Alle Jahre" || period.year === year));
   const chartRows = filteredPeriods.map((period) => {
