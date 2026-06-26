@@ -19631,10 +19631,21 @@ type PayrollDoctorHonorarRow = {
   matchNote: string;
 };
 
-function payrollEmployeeSurnameKey(name: string) {
+const surnameParticleKeys = new Set(["al", "el", "de", "del", "van", "von"]);
+
+function payrollEmployeeSurnameCandidates(name: string) {
   const tokens = normalizeMetric(name).split("_").filter(Boolean);
   while (tokens.length > 1 && providerRolePrefixKeys.has(tokens[0])) tokens.shift();
-  return tokens[0] ?? "";
+  const candidates = new Set<string>();
+  const first = tokens[0];
+  const last = tokens.at(-1);
+  if (first && first.length > 1) candidates.add(first);
+  if (last && last.length > 1) candidates.add(last);
+  if (tokens.length >= 2) {
+    const penultimate = tokens[tokens.length - 2];
+    if (penultimate && surnameParticleKeys.has(penultimate) && last) candidates.add(`${penultimate}_${last}`);
+  }
+  return candidates;
 }
 
 function matchPayrollEmployeeProvider(siteId: string, employeeName: string, providers: ImportedBehandlerDetailRow[]) {
@@ -19642,9 +19653,9 @@ function matchPayrollEmployeeProvider(siteId: string, employeeName: string, prov
   const directMatches = providers.filter((provider) => canonicalProviderKey(siteId, provider.name) === directKey);
   if (directMatches.length === 1) return directMatches[0];
 
-  const surnameKey = payrollEmployeeSurnameKey(employeeName);
-  if (!surnameKey) return null;
-  const surnameMatches = providers.filter((provider) => providerSurnameKey(siteId, provider.name) === surnameKey);
+  const surnameKeys = payrollEmployeeSurnameCandidates(employeeName);
+  if (!surnameKeys.size) return null;
+  const surnameMatches = providers.filter((provider) => surnameKeys.has(providerSurnameKey(siteId, provider.name)));
   return surnameMatches.length === 1 ? surnameMatches[0] : null;
 }
 
