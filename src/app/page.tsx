@@ -2449,6 +2449,18 @@ function payrollMonthFromText(text: string) {
   return { month: monthIndex + 1, year: Number(match[2]), label: `${bwaMonths[monthIndex]} ${match[2]}` };
 }
 
+function payrollMonthFromFileName(fileName: string) {
+  const dateMatch = fileName.match(/vom[_\s-]*(\d{2})\.(\d{2})\.(20\d{2})/i);
+  if (!dateMatch) return null;
+  const monthText = dateMatch[2];
+  const yearText = dateMatch[3];
+  if (!monthText || !yearText) return null;
+  const month = Number(monthText);
+  const year = Number(yearText);
+  if (!month || month < 1 || month > 12) return null;
+  return { month, year, label: `${bwaMonths[month - 1]} ${year}` };
+}
+
 function payrollSiteFromText(text: string) {
   const headerMatch = text.match(/Standort\s+([A-Za-zÄÖÜäöüß\-\s]+?)(?:\s+V\s*K\s*Z|\*|Feldstraße|Datum|$)/i);
   const rawName = normalizePersonalText(headerMatch?.[1] ?? "");
@@ -2601,7 +2613,7 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   const normalizedText = text.replace(/\u00a0/g, " ");
   const lines = normalizedText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const site = payrollSiteFromText(normalizedText);
-  const period = payrollMonthFromText(normalizedText);
+  const period = payrollMonthFromText(normalizedText) ?? payrollMonthFromFileName(fileName);
   const parsedOverview = parsePayrollEmployeeRows(lines);
   const payslipRows = parsePayrollPayslipRows(lines);
   const employeeRows = parsedOverview.employeeRows.length >= 3 ? parsedOverview.employeeRows : payslipRows;
@@ -2626,10 +2638,10 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   });
   const warnings: string[] = [];
   const errors: string[] = [];
-  if (!site) errors.push("Standort konnte nicht aus der PDF-Kopfzeile erkannt werden.");
-  if (!period) errors.push("Monat/Jahr konnte nicht aus der Personalkostenübersicht erkannt werden.");
-  if (!compactDatevText(normalizedText).includes("personalkostenubersicht")) errors.push("Keine DATEV-Personalkostenübersicht in der Datei erkannt.");
-  if (!enrichedEmployeeRows.length) errors.push("Keine Mitarbeiterzeilen in der Personalkostenübersicht erkannt.");
+  if (!site) errors.push(`${fileName}: Standort konnte nicht aus der PDF-Kopfzeile erkannt werden.`);
+  if (!period) errors.push(`${fileName}: Monat/Jahr konnte weder aus DATEV-Text noch aus Dateiname erkannt werden.`);
+  if (!compactDatevText(normalizedText).includes("personalkostenubersicht")) warnings.push(`${fileName}: Keine DATEV-Personalkostenübersicht im Text erkannt; Entgeltabrechnungsseiten werden als Fallback genutzt.`);
+  if (!enrichedEmployeeRows.length) errors.push(`${fileName}: Keine Mitarbeiterzeilen in Personalkostenübersicht oder Entgeltabrechnungen erkannt.`);
   const employeeTotal = enrichedEmployeeRows.reduce((sum, row) => sum + row.totalCostIncludingReimbursements, 0);
   if (totals.totalCostIncludingReimbursements && Math.abs(employeeTotal - totals.totalCostIncludingReimbursements) > 1) {
     warnings.push(`Summe Mitarbeiter (${eur(employeeTotal)}) weicht von DATEV-Summe inkl. Erstattungen (${eur(totals.totalCostIncludingReimbursements)}) ab.`);
@@ -2637,8 +2649,9 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   const siteName = site?.name ?? "Unbekannt";
   const year = period?.year ?? new Date().getFullYear();
   const month = period?.month ?? 1;
+  const fallbackId = normalizeMetric(fileName).slice(0, 80) || "unknown-file";
   return {
-    id: `${site?.id ?? "unknown"}-${year}-${String(month).padStart(2, "0")}`,
+    id: site && period ? `${site.id}-${year}-${String(month).padStart(2, "0")}` : `invalid-${fallbackId}`,
     siteId: site?.id ?? "",
     siteName,
     year,
@@ -19714,8 +19727,10 @@ function PayrollUpload({
   const [resetArmed, setResetArmed] = useState(false);
   const pendingData = pendingPeriods.length ? mergePayrollPeriods(payrollData, pendingPeriods) : payrollData;
   const periods = payrollPeriodsByMonth(pendingData);
-  const warnings = [...(pendingData?.warnings ?? []), ...pendingPeriods.flatMap((period) => period.warnings)];
-  const errors = [...(pendingData?.errors ?? []), ...pendingPeriods.flatMap((period) => period.errors)];
+  const pendingWarnings = pendingPeriods.flatMap((period) => period.warnings);
+  const pendingErrors = pendingPeriods.flatMap((period) => period.errors);
+  const warnings = pendingPeriods.length ? pendingWarnings : (pendingData?.warnings ?? []);
+  const errors = pendingPeriods.length ? pendingErrors : (pendingData?.errors ?? []);
 
   const handleFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, "de"));
@@ -19792,6 +19807,64 @@ function PayrollUpload({
     setPendingPeriods([]);
     setResetArmed(false);
     onImportReset();
+  };
+
+  const openImportReport = () => {
+    const reportPeriods = pendingPeriods.length ? pendingPeriods : periods;
+    const stableCount = reportPeriods.filter((period) => !period.errors.length && !period.warnings.length).length;
+    const warningCount = reportPeriods.filter((period) => !period.errors.length && period.warnings.length).length;
+    const errorCount = reportPeriods.filter((period) => period.errors.length).length;
+    const issueRows = [
+      ...reportPeriods.flatMap((period) => period.errors.map((entry) => ["Fehler", period.fileName, period.siteName, period.monthLabel, entry])),
+      ...reportPeriods.flatMap((period) => period.warnings.map((entry) => ["Warnung", period.fileName, period.siteName, period.monthLabel, entry]))
+    ];
+    const periodRows = reportPeriods.map((period) => [
+      period.errors.length ? "Auffaellig" : period.warnings.length ? "Beobachten" : "Stabil",
+      period.siteName,
+      period.monthLabel,
+      period.fileName,
+      period.employeeRows.length.toLocaleString("de-DE"),
+      eur(period.totals.gross),
+      eur(period.totals.svEmployerShare),
+      eur(period.totals.totalCostIncludingReimbursements),
+      [...period.errors, ...period.warnings].join(" ") || "OK"
+    ]);
+
+    const body = [
+      reportKpiGrid([
+        { label: "Dateien im Bericht", value: reportPeriods.length.toLocaleString("de-DE"), detail: pendingPeriods.length ? "aktueller Upload" : "gespeicherte Daten", tone: "blue" },
+        { label: "Stabil", value: stableCount.toLocaleString("de-DE"), detail: "ohne Hinweis", tone: "green" },
+        { label: "Beobachten", value: warningCount.toLocaleString("de-DE"), detail: "mit Warnung", tone: "yellow" },
+        { label: "Auffaellig", value: errorCount.toLocaleString("de-DE"), detail: "mit Fehler", tone: "red" },
+        { label: "Fehler", value: errors.length.toLocaleString("de-DE"), detail: "Einzelmeldungen", tone: errors.length ? "red" : "green" },
+        { label: "Warnungen", value: warnings.length.toLocaleString("de-DE"), detail: "Einzelmeldungen", tone: warnings.length ? "yellow" : "green" }
+      ]),
+      reportSection(
+        "Fehler und Warnungen",
+        issueRows.length
+          ? reportTable(["Typ", "Datei", "Standort", "Monat", "Meldung"], issueRows, { compact: true })
+          : "<p style='padding:12px'>Keine Fehler oder Warnungen im aktuellen Bericht.</p>",
+        "Dateigenaue Importmeldungen aus dem Lohnjournal-Upload."
+      ),
+      reportSection(
+        "Erkannte Lohnjournal-Daten",
+        periodRows.length
+          ? reportTable(["Status", "Standort", "Monat", "Datei", "Mitarbeiter", "Gesamtbrutto", "SV-AG", "Gesamtkosten inkl.", "Hinweis"], periodRows, { compact: true })
+          : "<p style='padding:12px'>Noch keine Lohnjournal-Daten geladen.</p>",
+        "Bei Freigabe ersetzt die App gleiche Standort-/Monatskombinationen und behaelt andere Monate unveraendert."
+      )
+    ].join("");
+
+    openPrintableReport(
+      "Lohnjournal-Importbericht",
+      buildReportDocument({
+        title: "Lohnjournal-Importbericht",
+        subtitle: `Erstellt am ${reportDateStamp()}. Enthalten sind die aktuell sichtbaren Lohnjournal-Uploaddaten inklusive Plausibilitaetscheck.`,
+        orientation: "landscape",
+        body,
+        footerNote: "Lohnjournal-Importbericht | Vertraulich | Internal Use Only"
+      })
+    );
   };
 
   return (
@@ -19881,7 +19954,13 @@ function PayrollUpload({
         )}
         <div className="flex flex-col gap-3 border-t border-border p-4 sm:flex-row sm:justify-between">
           <Button variant="secondary" onClick={reset} disabled={!payrollData?.periods.length && !pendingPeriods.length}>{resetArmed ? "Zurücksetzen bestätigen" : "Lohnjournal-Daten zurücksetzen"}</Button>
-          <Button onClick={confirm} disabled={!pendingPeriods.length || pendingPeriods.some((period) => period.errors.length)}>Importbericht freigeben</Button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button className="gap-2" variant="secondary" onClick={openImportReport} disabled={!periods.length && !pendingPeriods.length}>
+              <FileBarChart className="h-4 w-4" />
+              Importbericht als PDF
+            </Button>
+            <Button onClick={confirm} disabled={!pendingPeriods.length || pendingPeriods.some((period) => period.errors.length)}>Importbericht freigeben</Button>
+          </div>
         </div>
       </Card>
     </section>

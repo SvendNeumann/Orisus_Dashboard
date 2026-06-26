@@ -1436,6 +1436,9 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Wenn ein Standort/Monat bereits gespeichert ist oder im aktuellen Uploadpaket mehrfach vorkommt, muss der Upload vor Freigabe einen klaren Doppel-Hinweis im Plausibilitaetscheck zeigen.
   - DATEV-PDFs koennen Ueberschriften mit auseinandergezogenen Buchstaben ausgeben (`P e rs o n a lk o s t e n ...`); Parser muessen diese Schreibweise tolerant erkennen.
   - Wenn PDF.js die Personalkostenuebersicht spaltenweise statt zeilenweise ausliest, erzeugt die PDF-Extraktion zusaetzlich positionsbasierte Zeilen nach X-Koordinate; als weiterer Fallback dienen die Entgeltabrechnungsseiten je Personalnummer fuer Mitarbeiter, Brutto, AG-Anteil/Gesamtkosten und Eintritt/Austritt.
+  - Monat/Jahr duerfen zusaetzlich aus DATEV-Dateinamen wie `Lohnauswertungen_vom_24.06.2026` abgeleitet werden, falls PDF.js die Monatsueberschrift im Browser nicht stabil ausliest.
+  - Fehlerhafte/noch nicht erkannte Lohnjournaldateien muessen im Uploadbericht dateischarf erhalten bleiben und duerfen sich nicht gegenseitig ueberschreiben, wenn Standort oder Monat unbekannt ist.
+  - Der Lohnjournal-Upload hat einen PDF-/Druckexport `Importbericht als PDF`, der den aktuell sichtbaren Upload inkl. Plausibilitaetscheck, Fehlern, Warnungen und erkannter Dateitabelle ausgibt.
   - Zuruecksetzen im Lohnjournal-Upload darf keine nativen Browser-Confirm-Dialoge verwenden, sondern nur App-interne Bestaetigung.
   - Der Chrome-/Browser-Sicherheitsdialog beim Ordnerupload ist nicht appseitig unterdrueckbar; die App muss darauf hinweisen und als Alternative Multi-PDF-Auswahl anbieten.
   - Die Lohnjournal-Daten sind eine separate Datenwelt: BWA bleibt offizielle GuV-/Finanzsicht, Personal-Upload bleibt Stammdaten-/FTE-/Rollenbasis, Lohnjournal ist echte Abrechnungskostenbasis.
