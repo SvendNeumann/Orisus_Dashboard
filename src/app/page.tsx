@@ -19802,10 +19802,13 @@ function PayrollUpload({
           </label>
           <label className={cn("inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-primary/30 bg-background px-4 text-sm font-bold text-primary shadow-sm", busy && "pointer-events-none opacity-60")}>
             <FolderUp className="h-4 w-4" />
-            Ordner hochladen
+            Ordner auswählen
             <input className="sr-only" type="file" multiple onChange={handleFiles} disabled={busy} {...{ webkitdirectory: "", directory: "" }} />
           </label>
         </div>
+        <p className="mt-3 text-xs font-semibold text-muted-foreground">
+          Hinweis: Beim Ordnerupload zeigt Chrome aus Sicherheitsgründen eine eigene Bestätigung. Ohne diesen Browser-Hinweis bitte alle PDFs im Ordner markieren und über „PDFs hochladen“ laden.
+        </p>
         {message ? <p className="mt-3 text-sm font-semibold text-primary">{message}</p> : null}
       </Card>
 
