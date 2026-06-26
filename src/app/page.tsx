@@ -9899,7 +9899,6 @@ function ConsolidatedBwaMatrix({
   const selectedSite = sourceSites.find((site) => site.id === selectedSiteId) ?? sourceSites[0];
   const groups = importedData?.bwaRows?.length
     ? [
-        { id: "konzern", label: "Konzern", rows: buildImportedBwaLines(importedData.bwaRows, period), hasData: true },
         ...(selectedSite
           ? [
               {
@@ -9909,7 +9908,8 @@ function ConsolidatedBwaMatrix({
                 hasData: hasImportedBwaPeriodData(importedData.bwaRows, period, selectedSite.id)
               }
             ]
-          : [])
+          : []),
+        { id: "konzern", label: "Konzern", rows: buildImportedBwaLines(importedData.bwaRows, period), hasData: true }
       ]
     : [];
   const rowTemplate = groups[0]?.rows ?? [];
@@ -9920,7 +9920,7 @@ function ConsolidatedBwaMatrix({
         <div>
           <h2 className="font-bold">{title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Links stehen die BWA-Positionen, rechts bleibt der Konzern fest sichtbar; der Standort daneben ist auswählbar.
+            Links stehen die BWA-Positionen, daneben der ausgewählte Standort; der Konzern bleibt rechts als feste Referenz sichtbar.
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[28rem]">
@@ -10002,7 +10002,7 @@ function ConsolidatedBwaMatrix({
         </table>
       </div>
       <div className="border-t border-border bg-slate-50 p-4 text-sm text-muted-foreground">
-        Ansicht: Konzern bleibt als Referenz fest sichtbar; der zweite Block zeigt den ausgewählten Standort.
+        Ansicht: Der ausgewählte Standort steht links im Vergleichsbereich; der Konzern bleibt rechts als Referenz sichtbar.
       </div>
     </Card>
   );
