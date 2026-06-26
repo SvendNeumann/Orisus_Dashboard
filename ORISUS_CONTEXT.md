@@ -205,6 +205,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Kostenquote und Kapitaldienstfaehigkeit werden als normale KPI-Kacheln oben im Orisus Board angezeigt.
   - Die KPI-Kacheln `Cashflow gem. BWA` und `EBITDA` haben eigene Zeitraumfilter. Titel, Wert, Status und Info-Herleitung muessen immer dem jeweils gewaehlten Zeitraum folgen.
   - Die Zeitraumfilter in den kompakten Orisus-Board-KPI-Kacheln sollen desktop-tauglich klein und dezent bleiben.
+  - Das Diagramm `Top Behandler nach Honorarumsatz` hat einen eigenen Zeitraumfilter und startet standardmaessig auf `Geschaeftsjahr 2026`, wenn dieser Zeitraum im bestaetigten Import vorhanden ist.
   - Orisus Insights stehen im unteren Analysebereich neben dem Kostenquoten-Donut.
   - Im Management-Fokus `Was gerade steuerungsrelevant ist` bezieht sich die Kachel `Zielabweichung` strikt auf Ziel-EBITDA gemaess Uebernahme. Kein Kaufvertrags-Fallback in dieser Kachel; ohne berechenbares Uebernahmeziel wird `n. v.` gezeigt.
 - Orisus Board Diagramm `Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Uebernahme`:

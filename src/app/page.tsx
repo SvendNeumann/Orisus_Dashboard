@@ -3545,6 +3545,24 @@ function topBehandlerFromDetailRows(rows: ImportedBehandlerDetailRow[], latestYe
     .slice(0, 6);
 }
 
+function topBehandlerFromDetailRowsForPeriod(rows: ImportedBehandlerDetailRow[] = [], period: string): TopBehandlerEntry[] {
+  const selection = selectedBwaPeriod(period);
+  return rows
+    .map((row) => ({
+      name: row.name,
+      standort: row.siteName,
+      honorar: Object.entries(row.honorarByMonth).reduce((sum, [monthKey, value]) => {
+        const [year, month] = monthKey.split("-").map(Number);
+        if (selection.year && year !== selection.year) return sum;
+        if (selection.year && selection.months?.length && !selection.months.includes(month)) return sum;
+        return sum + value;
+      }, 0)
+    }))
+    .filter((entry) => entry.honorar > 0)
+    .sort((a, b) => b.honorar - a.honorar)
+    .slice(0, 6);
+}
+
 function buildImportedDashboardData(workbook: XLSX.WorkBook, fileName: string, report: ImportReport): ImportedDashboardData {
   const rows = cfoImportRowsFromWorkbook(workbook);
   const latestYear = latestActiveBwaYear(rows, report.standorte) ?? report.jahre.filter((year) => year > 1900).at(-1) ?? new Date().getFullYear();
@@ -6728,7 +6746,14 @@ function Cockpit({
   importedData: ImportedDashboardData | null;
 }) {
   const cockpitPeriod = defaultBwaPeriodFor(importedData);
-  const topBehandlerPeriod = importedData?.topBehandlerPeriod ?? cockpitPeriod;
+  const topBehandlerPeriods = periodOptionsFromImportedRows(importedData?.behandlerHonorarRows);
+  const [topBehandlerPeriod, setTopBehandlerPeriod] = useState(() => defaultBusinessYear2026PeriodFromOptions(topBehandlerPeriods));
+  useEffect(() => {
+    if (!topBehandlerPeriods.includes(topBehandlerPeriod)) {
+      setTopBehandlerPeriod(defaultBusinessYear2026PeriodFromOptions(topBehandlerPeriods));
+    }
+  }, [topBehandlerPeriod, topBehandlerPeriods]);
+  const topBehandlerData = topBehandlerFromDetailRowsForPeriod(importedData?.behandlerDetailRows ?? [], topBehandlerPeriod);
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -6751,8 +6776,18 @@ function Cockpit({
         <ChartCard title="Standortvergleich Gesamtleistung & EBITDA | seit Vertragsstart" icon={BarChart3}>
           <SitePerformanceChart sites={sites} />
         </ChartCard>
-        <ChartCard title={`Top Behandler nach Honorarumsatz | ${topBehandlerPeriod}`} icon={BadgeEuro}>
-          <TopBehandlerChart data={importedData?.topBehandler ?? []} />
+        <ChartCard
+          title={`Top Behandler nach Honorarumsatz | ${performancePeriodLabel(topBehandlerPeriod)}`}
+          icon={BadgeEuro}
+          action={
+            <Select className="h-9 min-w-[12rem] px-3 text-sm font-semibold" value={topBehandlerPeriod} onChange={(event) => setTopBehandlerPeriod(event.target.value)}>
+              {topBehandlerPeriods.map((option) => (
+                <option key={option} value={option}>{performancePeriodLabel(option)}</option>
+              ))}
+            </Select>
+          }
+        >
+          <TopBehandlerChart data={topBehandlerData} />
         </ChartCard>
       </div>
 
@@ -9728,6 +9763,10 @@ function defaultPeriodFromOptions(options: string[]) {
     options.findLast((option) => option.startsWith("YTD ")) ??
     options[0]
   );
+}
+
+function defaultBusinessYear2026PeriodFromOptions(options: string[]) {
+  return options.find((option) => option === "Geschäftsjahr 2026") ?? defaultPeriodFromOptions(options);
 }
 
 function defaultBwaPeriodFor(importedData?: ImportedDashboardData | null) {
