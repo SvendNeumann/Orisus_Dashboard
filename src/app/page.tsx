@@ -19619,6 +19619,14 @@ function payrollPeriodsByMonth(payrollData?: PayrollJournalData | null) {
   return [...(payrollData?.periods ?? [])].sort((a, b) => a.year * 100 + a.month - (b.year * 100 + b.month) || compareSiteNamesByContractStart(a.siteName, b.siteName));
 }
 
+function isNeutralPayrollNotice(message: string) {
+  return message.includes("Periodensummen wurden aus den Mitarbeiterzeilen gebildet");
+}
+
+function payrollStatusWarnings(period: PayrollPeriodData) {
+  return period.warnings.filter((warning) => !isNeutralPayrollNotice(warning));
+}
+
 type PayrollDoctorHonorarRow = {
   key: string;
   siteName: string;
@@ -19765,9 +19773,13 @@ function PayrollUpload({
   const [resetArmed, setResetArmed] = useState(false);
   const pendingData = pendingPeriods.length ? mergePayrollPeriods(payrollData, pendingPeriods) : payrollData;
   const periods = payrollPeriodsByMonth(pendingData);
-  const pendingWarnings = pendingPeriods.flatMap((period) => period.warnings);
+  const pendingWarnings = pendingPeriods.flatMap((period) => period.warnings).filter((warning) => !isNeutralPayrollNotice(warning));
+  const pendingNotices = pendingPeriods.flatMap((period) => period.warnings).filter(isNeutralPayrollNotice);
   const pendingErrors = pendingPeriods.flatMap((period) => period.errors);
-  const warnings = pendingPeriods.length ? pendingWarnings : (pendingData?.warnings ?? []);
+  const dataWarnings = (pendingData?.warnings ?? []).filter((warning) => !isNeutralPayrollNotice(warning));
+  const dataNotices = (pendingData?.warnings ?? []).filter(isNeutralPayrollNotice);
+  const warnings = pendingPeriods.length ? pendingWarnings : dataWarnings;
+  const notices = pendingPeriods.length ? pendingNotices : dataNotices;
   const errors = pendingPeriods.length ? pendingErrors : (pendingData?.errors ?? []);
 
   const handleFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -19849,15 +19861,16 @@ function PayrollUpload({
 
   const openImportReport = () => {
     const reportPeriods = pendingPeriods.length ? pendingPeriods : periods;
-    const stableCount = reportPeriods.filter((period) => !period.errors.length && !period.warnings.length).length;
-    const warningCount = reportPeriods.filter((period) => !period.errors.length && period.warnings.length).length;
+    const stableCount = reportPeriods.filter((period) => !period.errors.length && !payrollStatusWarnings(period).length).length;
+    const warningCount = reportPeriods.filter((period) => !period.errors.length && payrollStatusWarnings(period).length).length;
     const errorCount = reportPeriods.filter((period) => period.errors.length).length;
     const issueRows = [
       ...reportPeriods.flatMap((period) => period.errors.map((entry) => ["Fehler", period.fileName, period.siteName, period.monthLabel, entry])),
-      ...reportPeriods.flatMap((period) => period.warnings.map((entry) => ["Warnung", period.fileName, period.siteName, period.monthLabel, entry]))
+      ...reportPeriods.flatMap((period) => payrollStatusWarnings(period).map((entry) => ["Warnung", period.fileName, period.siteName, period.monthLabel, entry])),
+      ...reportPeriods.flatMap((period) => period.warnings.filter(isNeutralPayrollNotice).map((entry) => ["Hinweis", period.fileName, period.siteName, period.monthLabel, entry]))
     ];
     const periodRows = reportPeriods.map((period) => [
-      period.errors.length ? "Auffaellig" : period.warnings.length ? "Beobachten" : "Stabil",
+      period.errors.length ? "Auffaellig" : payrollStatusWarnings(period).length ? "Beobachten" : "Stabil",
       period.siteName,
       period.monthLabel,
       period.fileName,
@@ -19875,13 +19888,13 @@ function PayrollUpload({
         { label: "Beobachten", value: warningCount.toLocaleString("de-DE"), detail: "mit Warnung", tone: "yellow" },
         { label: "Auffaellig", value: errorCount.toLocaleString("de-DE"), detail: "mit Fehler", tone: "red" },
         { label: "Fehler", value: errors.length.toLocaleString("de-DE"), detail: "Einzelmeldungen", tone: errors.length ? "red" : "green" },
-        { label: "Warnungen", value: warnings.length.toLocaleString("de-DE"), detail: "Einzelmeldungen", tone: warnings.length ? "yellow" : "green" }
+        { label: "Hinweise", value: notices.length.toLocaleString("de-DE"), detail: "technische Leselogik", tone: "blue" }
       ]),
       reportSection(
-        "Fehler und Warnungen",
+        "Fehler, Warnungen und Hinweise",
         issueRows.length
           ? reportTable(["Typ", "Datei", "Standort", "Monat", "Meldung"], issueRows, { compact: true })
-          : "<p style='padding:12px'>Keine Fehler oder Warnungen im aktuellen Bericht.</p>",
+          : "<p style='padding:12px'>Keine Fehler, Warnungen oder Hinweise im aktuellen Bericht.</p>",
         "Dateigenaue Importmeldungen aus dem Lohnjournal-Upload."
       ),
       reportSection(
@@ -19943,12 +19956,13 @@ function PayrollUpload({
         <Mini label="Fehler" value={errors.length.toLocaleString("de-DE")} />
       </div>
 
-      {(warnings.length || errors.length) ? (
+      {(warnings.length || errors.length || notices.length) ? (
         <Card className="p-4">
           <h2 className="font-bold">Plausibilitätscheck</h2>
           <div className="mt-3 grid gap-2">
             {errors.map((error, index) => <p key={`payroll-error-${index}`} className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p>)}
             {warnings.map((warning, index) => <p key={`payroll-warning-${index}`} className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-900">{warning}</p>)}
+            {notices.map((notice, index) => <p key={`payroll-notice-${index}`} className="rounded-md bg-cyan-50 p-3 text-sm font-semibold text-cyan-900">{notice}</p>)}
           </div>
         </Card>
       ) : null}
@@ -19971,7 +19985,7 @@ function PayrollUpload({
               <tbody>
                 {periods.map((period) => (
                   <tr key={period.id}>
-                    <td className="border-b border-r border-border p-3"><StatusDot status={period.errors.length ? "red" : period.warnings.length ? "yellow" : "green"} /></td>
+                    <td className="border-b border-r border-border p-3"><StatusDot status={period.errors.length ? "red" : payrollStatusWarnings(period).length ? "yellow" : "green"} /></td>
                     <TableCell strong>{period.siteName}</TableCell>
                     <TableCell>{period.monthLabel}</TableCell>
                     <TableCell>{period.fileName}</TableCell>

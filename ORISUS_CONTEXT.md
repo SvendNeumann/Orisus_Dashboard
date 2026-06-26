@@ -1439,7 +1439,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Monat/Jahr duerfen zusaetzlich aus DATEV-Dateinamen wie `Lohnauswertungen_vom_24.06.2026` abgeleitet werden, falls PDF.js die Monatsueberschrift im Browser nicht stabil ausliest.
   - Fehlerhafte/noch nicht erkannte Lohnjournaldateien muessen im Uploadbericht dateischarf erhalten bleiben und duerfen sich nicht gegenseitig ueberschreiben, wenn Standort oder Monat unbekannt ist.
   - Der Lohnjournal-Upload hat einen PDF-/Druckexport `Importbericht als PDF`, der den aktuell sichtbaren Upload inkl. Plausibilitaetscheck, Fehlern, Warnungen und erkannter Dateitabelle ausgibt.
-  - Wenn die DATEV-Summenzeile in der Personalkostenuebersicht nicht stabil auslesbar ist, aber Mitarbeiterzeilen mit Kostenwerten erkannt wurden, duerfen Periodensummen aus den Mitarbeiterzeilen gebildet werden; der Importbericht weist diesen Fallback als Warnung aus.
+  - Wenn die DATEV-Summenzeile in der Personalkostenuebersicht nicht stabil auslesbar ist, aber Mitarbeiterzeilen mit Kostenwerten erkannt wurden, duerfen Periodensummen aus den Mitarbeiterzeilen gebildet werden; der Importbericht weist diesen Fallback als neutralen Hinweis aus, nicht als gelbe Warnung.
   - Nach einem neuen Lohnjournal-Import setzt der Tab `Personalkosten Lohnjournal` seine Filter auf `Alle Standorte` und `Alle Jahre`, damit neu geladene Monate wie Mai/Juni nicht durch alte Filterauswahl verborgen bleiben.
   - Zuruecksetzen im Lohnjournal-Upload darf keine nativen Browser-Confirm-Dialoge verwenden, sondern nur App-interne Bestaetigung.
   - Der Chrome-/Browser-Sicherheitsdialog beim Ordnerupload ist nicht appseitig unterdrueckbar; die App muss darauf hinweisen und als Alternative Multi-PDF-Auswahl anbieten.
