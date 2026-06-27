@@ -20702,11 +20702,13 @@ function PayrollCosts({
   const periods = payrollPeriodsByMonth(payrollData);
   const sites = sortSiteNamesByContractStart(uniqueSortedText(periods.map((period) => period.siteName)));
   const [site, setSite] = useState("Alle Standorte");
+  const [providerSite, setProviderSite] = useState("Alle Standorte");
   const [year, setYear] = useState<number | "Alle Jahre">("Alle Jahre");
   const canSeeDetails = userRole !== "praxismanagement";
 
   useEffect(() => {
     setSite("Alle Standorte");
+    setProviderSite("Alle Standorte");
     setYear("Alle Jahre");
   }, [payrollData?.importedAt]);
 
@@ -20824,8 +20826,18 @@ function PayrollCosts({
   const topEmployeeCostRows = [...employeeSummaryRows]
     .sort((a, b) => b.totalCost - a.totalCost)
     .slice(0, 12);
-  const providerCategoryRows = (["Arzt", "PZR"] as const).map((category) => {
-    const rows = matchedDoctorHonorarRows.filter((row) => row.category === category);
+  const providerDetailPeriods = periods.filter((period) => providerSite === "Alle Standorte" || period.siteName === providerSite);
+  const providerDetailRows = payrollDoctorHonorarRows(providerDetailPeriods, importedData);
+  const matchedProviderDetailRows = providerDetailRows.filter((row) => row.payrollCost > 0);
+  const providerDetailTotals = matchedProviderDetailRows.reduce(
+    (sum, row) => ({
+      payrollCost: sum.payrollCost + row.payrollCost,
+      honorar: sum.honorar + row.honorar
+    }),
+    { payrollCost: 0, honorar: 0 }
+  );
+  const providerDetailCategoryRows = (["Arzt", "PZR"] as const).map((category) => {
+    const rows = matchedProviderDetailRows.filter((row) => row.category === category);
     const payrollCost = rows.reduce((sum, row) => sum + row.payrollCost, 0);
     const honorar = rows.reduce((sum, row) => sum + row.honorar, 0);
     return {
@@ -20836,7 +20848,7 @@ function PayrollCosts({
       quote: honorar ? (payrollCost / honorar) * 100 : null
     };
   });
-  const providerFocusRows = [...matchedDoctorHonorarRows]
+  const providerDetailFocusRows = [...matchedProviderDetailRows]
     .filter((row) => Math.abs(row.honorar) > 0)
     .sort((a, b) => a.category.localeCompare(b.category, "de") || (b.quote ?? -1) - (a.quote ?? -1) || b.payrollCost - a.payrollCost)
     .slice(0, 14);
@@ -21133,13 +21145,21 @@ function PayrollCosts({
       {canSeeDetails ? (
         <Card className="overflow-hidden">
           <div className="border-b border-border p-4">
-            <h2 className="font-bold">Behandlerkosten vs. Honorarumsatz | Ärzte und PZR</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Aktive Lohnjournal-Mitarbeiter gegen reinen Honorarumsatz aus dem CFO-Import. Ausgeschlossen: Dietrich, Schneider, Pomsel, Korkel.
-            </p>
+            <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+              <div>
+                <h2 className="font-bold">Behandlerkosten vs. Honorarumsatz | Ärzte und PZR</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Immer gesamte Lohnjournalperiode seit Vertragsstart; unabhängig vom Jahresfilter oben. Ausgeschlossen: Dietrich, Schneider, Pomsel, Korkel.
+                </p>
+              </div>
+              <Select value={providerSite} onChange={(event) => setProviderSite(event.target.value)}>
+                <option>Alle Standorte</option>
+                {sites.map((option) => <option key={option}>{option}</option>)}
+              </Select>
+            </div>
           </div>
           <div className="grid gap-3 p-4 md:grid-cols-2">
-            {providerCategoryRows.map((row) => (
+            {providerDetailCategoryRows.map((row) => (
               <div key={row.category} className="rounded-lg border border-border bg-slate-950/20 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -21175,7 +21195,7 @@ function PayrollCosts({
               </tr>
             </thead>
             <tbody>
-              {providerFocusRows.map((row) => (
+              {providerDetailFocusRows.map((row) => (
                 <tr key={row.key}>
                   <TableCell strong>{row.category}</TableCell>
                   <TableCell strong>{row.siteName}</TableCell>
@@ -21187,15 +21207,15 @@ function PayrollCosts({
                   <TableCell>{row.matchNote}</TableCell>
                 </tr>
               ))}
-              {providerFocusRows.length ? (
+              {providerDetailFocusRows.length ? (
                 <tr className="summary-row">
                   <TableCell strong summary>Gesamt gematcht</TableCell>
                   <TableCell summary>{""}</TableCell>
                   <TableCell summary>{""}</TableCell>
                   <TableCell summary>{""}</TableCell>
-                  <TableCell strong summary>{eur(doctorHonorarTotals.payrollCost)}</TableCell>
-                  <TableCell strong summary>{eur(doctorHonorarTotals.honorar)}</TableCell>
-                  <TableCell strong summary>{formatNullablePercent(doctorHonorarTotals.honorar ? (doctorHonorarTotals.payrollCost / doctorHonorarTotals.honorar) * 100 : null)}</TableCell>
+                  <TableCell strong summary>{eur(providerDetailTotals.payrollCost)}</TableCell>
+                  <TableCell strong summary>{eur(providerDetailTotals.honorar)}</TableCell>
+                  <TableCell strong summary>{formatNullablePercent(providerDetailTotals.honorar ? (providerDetailTotals.payrollCost / providerDetailTotals.honorar) * 100 : null)}</TableCell>
                   <TableCell summary>{""}</TableCell>
                 </tr>
               ) : (
@@ -21207,7 +21227,7 @@ function PayrollCosts({
                   <TableCell>{""}</TableCell>
                   <TableCell>{""}</TableCell>
                   <TableCell>{""}</TableCell>
-                  <TableCell>{importedData?.behandlerDetailRows?.length ? "Für den gewählten Zeitraum kein eindeutiger Arzt-Match." : "CFO-Behandlerumsatz fehlt."}</TableCell>
+                  <TableCell>{importedData?.behandlerDetailRows?.length ? "Für diesen Standort kein eindeutiger aktiver Behandler-Match im gesamten Zeitraum." : "CFO-Behandlerumsatz fehlt."}</TableCell>
                 </tr>
               )}
             </tbody>
