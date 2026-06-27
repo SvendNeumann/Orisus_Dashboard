@@ -20152,8 +20152,24 @@ function formatNullablePercent(value: number | null | undefined) {
   return value == null || !Number.isFinite(value) ? "n. v." : pct(value);
 }
 
+const payrollEmployeeNameAliases: Record<string, string> = {
+  "kirchberg:01016": "Franziska Paatsch"
+};
+
+function payrollEmployeeDisplayName(siteId: string, personnelNumber: string, name: string) {
+  return payrollEmployeeNameAliases[`${siteId}:${personnelNumber}`] ?? name;
+}
+
 function payrollPeriodsByMonth(payrollData?: PayrollJournalData | null) {
-  return [...(payrollData?.periods ?? [])].sort((a, b) => a.year * 100 + a.month - (b.year * 100 + b.month) || compareSiteNamesByContractStart(a.siteName, b.siteName));
+  return [...(payrollData?.periods ?? [])]
+    .map((period) => ({
+      ...period,
+      employeeRows: period.employeeRows.map((row) => ({
+        ...row,
+        name: payrollEmployeeDisplayName(period.siteId, row.personnelNumber, row.name)
+      }))
+    }))
+    .sort((a, b) => a.year * 100 + a.month - (b.year * 100 + b.month) || compareSiteNamesByContractStart(a.siteName, b.siteName));
 }
 
 function isNeutralPayrollNotice(message: string) {
