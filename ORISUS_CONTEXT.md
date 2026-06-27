@@ -395,6 +395,7 @@ Import soll persistent in Supabase gespeichert bleiben:
 - Nach Bestaetigung soll die App automatisch refreshen bzw. Daten neu laden.
 - Im Uploadablauf soll `Importbericht freigegeben` abgehakt werden, sobald bestaetigt.
 - Nach erfolgreicher Bestaetigung von CFO- oder Personal-Import muss ein klares Popup erscheinen, dass der Import eingelesen und als aktive Datenbasis freigegeben wurde.
+- Supabase-Datenhygiene: Es gibt immer nur einen aktiven Importstand je Bereich. Ersetzte Uploads werden als inaktive Historie gehalten, aber nach erfolgreicher neuer Freigabe automatisch auf die letzten 20 inaktiven Historienstaende je Importtabelle begrenzt. Der aktive Import darf dabei nie geloescht werden; falls die Historienbereinigung fehlschlaegt, darf die erfolgreiche Freigabe nicht blockiert werden.
 
 ## 9. BWA-Logik
 
@@ -1435,7 +1436,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Personal-Aenderungsprotokoll: Veraenderung Mitarbeiterbestand, aktive Mitarbeiter, Massnahmen, Importwarnungen und Fehler.
 - Lohnjournal / DATEV-Personalkosten:
   - Es gibt einen eigenen Administration-Tab `Lohnjournal-Upload` fuer DATEV-PDFs mit `Personalkostenuebersicht` je Standort/Monat.
-  - Lohnjournal-Importe werden persistent in Supabase gespeichert (`orisus_payroll_journal_imports`) und lokal nur als Fallback gecacht. Freigabe ersetzt die aktive Lohnjournal-Datenbasis in Supabase; gleiche Standort-/Monatskombinationen werden appseitig vor dem Speichern zusammengefuehrt. Lesen duerfen Admin und Info; Praxismanagement darf keine Lohnjournal-/Gehalts-/AG-Kostendetails laden.
+  - Lohnjournal-Importe werden persistent in Supabase gespeichert (`orisus_payroll_journal_imports`) und lokal nur als Fallback gecacht. Freigabe ersetzt die aktive Lohnjournal-Datenbasis in Supabase; gleiche Standort-/Monatskombinationen werden appseitig vor dem Speichern zusammengefuehrt. Inaktive ersetzte Lohnjournal-Importstaende werden analog zur allgemeinen Supabase-Datenhygiene auf die letzten 20 Historienstaende begrenzt; die aktive Lohnjournal-Datenbasis bleibt erhalten. Lesen duerfen Admin und Info; Praxismanagement darf keine Lohnjournal-/Gehalts-/AG-Kostendetails laden.
   - Sammelupload liest mehrere PDFs oder einen ausgewaehlten Ordner mit PDFs, erkennt Standort und Monat/Jahr aus der DATEV-Kopfzeile und ersetzt gleiche Standort-/Monatskombinationen, ohne andere Monate zu loeschen.
   - Der Lohnjournal-Upload darf gemischte Ordner mit mehreren Standorten enthalten. Die UI muss dies klar anzeigen: Zuordnung zuerst ueber DATEV-Kopfzeile, danach ueber bekannte Datei-/Ordner-Aliase; der Check zeigt kompakt Standortgruppen, Statuszaehler und eine reduzierte Dateiliste, Detailumfang bleibt im Importbericht.
   - Die Tabelle `Erkannte Lohnjournal-Daten` im Upload bleibt kompakt und nutzt einen internen Scrollbereich mit fixierter Kopfzeile, damit alle gelesenen Monate direkt in der App geprueft werden koennen.

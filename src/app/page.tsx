@@ -188,6 +188,7 @@ const payrollJournalStorageKey = "orisus-payroll-journal-data";
 const payrollJournalSchemaVersion = "2026-06-26-payroll-journal-v1";
 const personalSupabaseImportTableName = "orisus_personal_imports";
 const payrollSupabaseImportTableName = "orisus_payroll_journal_imports";
+const supabaseInactiveImportRetentionLimit = 20;
 const supabaseAccessTokenKey = "orisus-cfo-supabase-access-token";
 const supabaseRefreshTokenKey = "orisus-cfo-supabase-refresh-token";
 const supabaseUserEmailKey = "orisus-cfo-supabase-user-email";
@@ -1285,6 +1286,31 @@ function importHistoryId(fileName: string) {
   return `${Date.now()}-${fileName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "import"}`;
 }
 
+async function pruneSupabaseInactiveImportHistory(tableName: string, token: string) {
+  const rows = await supabaseFetch<Array<{ id: string }>>(
+    `/rest/v1/${tableName}?select=id&active=eq.false&order=created_at.desc`,
+    undefined,
+    token
+  ).catch(() => []);
+  const staleIds = rows
+    .slice(supabaseInactiveImportRetentionLimit)
+    .map((row) => row.id)
+    .filter(Boolean);
+  const chunkSize = 50;
+  for (let index = 0; index < staleIds.length; index += chunkSize) {
+    const ids = staleIds.slice(index, index + chunkSize).map(encodeURIComponent).join(",");
+    if (!ids) continue;
+    await supabaseFetch(
+      `/rest/v1/${tableName}?id=in.(${ids})`,
+      {
+        method: "DELETE",
+        headers: { Prefer: "return=minimal" }
+      },
+      token
+    ).catch(() => undefined);
+  }
+}
+
 async function loadSupabaseConfirmedPersonalImport() {
   if (!isSupabaseConfigured()) return null;
   const token = currentSupabaseAccessToken();
@@ -1342,6 +1368,7 @@ async function saveSupabaseConfirmedPersonalImport(report: PersonalImportReport,
     },
     token
   );
+  await pruneSupabaseInactiveImportHistory(personalSupabaseImportTableName, token);
   return true;
 }
 
@@ -1406,6 +1433,7 @@ async function saveSupabasePayrollJournalData(data: PayrollJournalData) {
     },
     token
   );
+  await pruneSupabaseInactiveImportHistory(payrollSupabaseImportTableName, token);
   return true;
 }
 
@@ -1455,6 +1483,7 @@ async function saveSupabaseConfirmedImport(report: ImportReport, dashboardData: 
     },
     token
   );
+  await pruneSupabaseInactiveImportHistory(supabaseImportTableName, token);
   return true;
 }
 
