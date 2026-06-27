@@ -6756,6 +6756,9 @@ function PersonalCockpit({
       </Card>
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Aktive Mitarbeiter je Standort | aktueller Stand" icon={Building2}>
+          <p className="mb-3 text-sm font-semibold text-muted-foreground">
+            Quelle: Mitarbeiterliste / Personalimport. Gezählt werden aktive Mitarbeiter; kein DATEV-Lohnjournal.
+          </p>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={siteRows}>
               <defs>
@@ -6775,6 +6778,9 @@ function PersonalCockpit({
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title={`Krankheitstage je Standort | ${selectedYear}`} icon={Stethoscope}>
+          <p className="mb-3 text-sm font-semibold text-muted-foreground">
+            Quelle: Fehlzeitenimport aus Personal-Upload. Standortzuordnung aus Mitarbeiterliste; kein DATEV-Lohnjournal.
+          </p>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={sicknessBySite}>
               <defs>
@@ -6935,7 +6941,9 @@ function PersonalCockpit({
       </Card>
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="AG-Kosten je Standort | aktive Mitarbeiter" icon={BadgeEuro}>
-          <p className="mb-3 text-sm text-muted-foreground">Datenbasis: Mitarbeiterliste / Personalimport. Kein Lohnjournal-Vergleich in diesem Chart.</p>
+          <p className="mb-3 text-sm font-semibold text-muted-foreground">
+            Quelle: Mitarbeiterliste / Personalimport. AG-Kosten = AG_Aufwand aktiver Mitarbeiter; keine echten DATEV-Lohnjournal-Abrechnungskosten.
+          </p>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie
@@ -6974,6 +6982,9 @@ function PersonalCockpit({
         <Card className="analysis-only overflow-hidden">
           <div className="table-head p-4 text-white">
             <h2 className="font-bold">Top 15 Krankheitstage Mitarbeiter | {selectedYear}</h2>
+            <p className="mt-1 text-sm text-white/75">
+              Quelle: Fehlzeitenimport aus Personal-Upload; Mitarbeiter-/Standortbezug aus Mitarbeiterliste. Kein DATEV-Lohnjournal.
+            </p>
           </div>
           <ResponsiveTable>
             <thead>
@@ -7007,7 +7018,7 @@ function PersonalCockpit({
             </tbody>
           </ResponsiveTable>
           <p className="border-t border-border bg-slate-50 p-3 text-xs text-muted-foreground">
-            Anteil Jahr = Krankheitstage des Mitarbeiters im ausgewählten Jahr geteilt durch {daysInSelectedYear} Kalendertage.
+            Quelle dieser Tabelle: Fehlzeitenimport/Personalimport. Anteil Jahr = Krankheitstage des Mitarbeiters im ausgewählten Jahr geteilt durch {daysInSelectedYear} Kalendertage. Kein Lohnjournal-Vergleich.
           </p>
         </Card>
       </div>
