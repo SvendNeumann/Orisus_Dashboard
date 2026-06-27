@@ -20127,6 +20127,40 @@ function PayrollUpload({
   const warnings = pendingPeriods.length ? pendingWarnings : dataWarnings;
   const notices = pendingPeriods.length ? pendingNotices : dataNotices;
   const errors = pendingPeriods.length ? pendingErrors : (pendingData?.errors ?? []);
+  const visiblePeriods = pendingPeriods.length ? payrollPeriodsByMonth({ periods: pendingPeriods, warnings: [], errors: [], importedAt: "", schemaVersion: payrollJournalSchemaVersion }) : periods;
+  const visibleStableCount = visiblePeriods.filter((period) => !period.errors.length && !payrollStatusWarnings(period).length).length;
+  const visibleWarningCount = visiblePeriods.filter((period) => !period.errors.length && payrollStatusWarnings(period).length).length;
+  const visibleErrorCount = visiblePeriods.filter((period) => period.errors.length).length;
+  const visibleIssueRows = visiblePeriods.flatMap((period) => [
+    ...period.errors.map((entry) => ({ type: "Fehler", tone: "red" as Status, period, message: entry })),
+    ...payrollStatusWarnings(period).map((entry) => ({ type: "Warnung", tone: "yellow" as Status, period, message: entry })),
+    ...period.warnings.filter(isNeutralPayrollNotice).map((entry) => ({ type: "Hinweis", tone: "green" as Status, period, message: entry }))
+  ]);
+  const visibleSiteRows = Array.from(visiblePeriods.reduce((map, period) => {
+    const key = period.siteName || "Unbekannt";
+    const existing = map.get(key) ?? {
+      siteName: key,
+      periods: 0,
+      employees: 0,
+      gross: 0,
+      totalCost: 0,
+      errors: 0,
+      warnings: 0,
+      months: [] as string[]
+    };
+    existing.periods += 1;
+    existing.employees += period.employeeRows.length;
+    existing.gross += period.totals.gross;
+    existing.totalCost += period.totals.totalCostIncludingReimbursements;
+    existing.errors += period.errors.length ? 1 : 0;
+    existing.warnings += !period.errors.length && payrollStatusWarnings(period).length ? 1 : 0;
+    existing.months = uniqueSortedText([...existing.months, period.monthLabel]);
+    map.set(key, existing);
+    return map;
+  }, new Map<string, { siteName: string; periods: number; employees: number; gross: number; totalCost: number; errors: number; warnings: number; months: string[] }>()).values())
+    .sort((a, b) => compareSiteNamesByContractStart(a.siteName, b.siteName));
+  const visiblePeriodRows = visiblePeriods.slice(0, 14);
+  const hiddenPeriodCount = Math.max(visiblePeriods.length - visiblePeriodRows.length, 0);
 
   const handleFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
@@ -20291,23 +20325,39 @@ function PayrollUpload({
         text="Sammelupload für DATEV-PDFs mit Personalkostenübersicht je Standort und Monat. Bestehende Lohnjournalmonate werden je Standort/Monat gezielt ersetzt."
       />
       <Card className="p-4">
-        <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto] lg:items-center">
+        <div className="grid gap-4 xl:grid-cols-[1fr_auto_auto] xl:items-start">
           <div>
             <h2 className="font-bold">Sammelupload</h2>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Mehrere Standort-PDFs oder einen ganzen Ordner hochladen. Die App erkennt Standort und Monat aus der DATEV-Kopfzeile und liest die Personalkostenübersicht.
+              Mehrere Standort-PDFs oder einen ganzen Ordner hochladen. Die App erkennt Standort und Monat aus der DATEV-Kopfzeile; bekannte Kanzlei-/Ordnernamen werden als Fallback zugeordnet.
             </p>
+            <div className="mt-3 grid gap-2 text-xs font-semibold text-muted-foreground md:grid-cols-3">
+              <div className="rounded-lg border border-border bg-muted/10 p-3">
+                <p className="text-foreground">Gemischter Ordner möglich</p>
+                <p className="mt-1 font-medium">Kirchberg, Ulmet und andere Standorte können zusammen hochgeladen werden.</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/10 p-3">
+                <p className="text-foreground">Automatische Zuordnung</p>
+                <p className="mt-1 font-medium">DATEV-Kopfzeile zuerst, danach Datei-/Ordner-Aliase wie Kallweit oder Hangx.</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/10 p-3">
+                <p className="text-foreground">Gezieltes Ersetzen</p>
+                <p className="mt-1 font-medium">Nur gleiche Standort-/Monatskombinationen werden überschrieben.</p>
+              </div>
+            </div>
           </div>
-          <label className={cn("inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground", busy && "pointer-events-none opacity-60")}>
-            <FileUp className="h-4 w-4" />
-            {busy ? "PDFs werden gelesen..." : "PDFs hochladen"}
-            <input className="sr-only" type="file" accept=".pdf,application/pdf" multiple onChange={handleFiles} disabled={busy} />
-          </label>
-          <label className={cn("inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-primary/30 bg-background px-4 text-sm font-bold text-primary shadow-sm", busy && "pointer-events-none opacity-60")}>
-            <FolderUp className="h-4 w-4" />
-            Ordner auswählen
-            <input className="sr-only" type="file" multiple onChange={handleFiles} disabled={busy} {...{ webkitdirectory: "", directory: "" }} />
-          </label>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <label className={cn("inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground", busy && "pointer-events-none opacity-60")}>
+              <FileUp className="h-4 w-4" />
+              {busy ? "PDFs werden gelesen..." : "PDFs hochladen"}
+              <input className="sr-only" type="file" accept=".pdf,application/pdf" multiple onChange={handleFiles} disabled={busy} />
+            </label>
+            <label className={cn("inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-primary/30 bg-background px-4 text-sm font-bold text-primary shadow-sm", busy && "pointer-events-none opacity-60")}>
+              <FolderUp className="h-4 w-4" />
+              Ordner auswählen
+              <input className="sr-only" type="file" multiple onChange={handleFiles} disabled={busy} {...{ webkitdirectory: "", directory: "" }} />
+            </label>
+          </div>
         </div>
         <p className="mt-3 text-xs font-semibold text-muted-foreground">
           Hinweis: Beim Ordnerupload zeigt Chrome aus Sicherheitsgründen eine eigene Bestätigung. Ohne diesen Browser-Hinweis bitte alle PDFs im Ordner markieren und über „PDFs hochladen“ laden.
@@ -20327,50 +20377,128 @@ function PayrollUpload({
         <Mini label="Fehler" value={errors.length.toLocaleString("de-DE")} />
       </div>
 
-      {(warnings.length || errors.length || notices.length) ? (
-        <Card className="p-4">
-          <h2 className="font-bold">Plausibilitätscheck</h2>
-          <div className="mt-3 grid gap-2">
-            {errors.map((error, index) => <p key={`payroll-error-${index}`} className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-800">{error}</p>)}
-            {warnings.map((warning, index) => <p key={`payroll-warning-${index}`} className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-900">{warning}</p>)}
-            {notices.map((notice, index) => <p key={`payroll-notice-${index}`} className="rounded-md bg-cyan-50 p-3 text-sm font-semibold text-cyan-900">{notice}</p>)}
-          </div>
-        </Card>
+      {(visiblePeriods.length || warnings.length || errors.length || notices.length) ? (
+        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <Card className="p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="font-bold">Plausibilitätscheck</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Kompakter Überblick über den aktuell gelesenen Upload oder den gespeicherten Stand.</p>
+              </div>
+              <StatusDot status={visibleErrorCount ? "red" : visibleWarningCount ? "yellow" : "green"} label={visibleErrorCount ? "Auffällig" : visibleWarningCount ? "Beobachten" : "Stabil"} />
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-muted/10 p-3">
+                <p className="text-xs font-bold uppercase text-muted-foreground">Stabil</p>
+                <p className="mt-1 text-xl font-extrabold text-white">{visibleStableCount.toLocaleString("de-DE")}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/10 p-3">
+                <p className="text-xs font-bold uppercase text-muted-foreground">Beobachten</p>
+                <p className="mt-1 text-xl font-extrabold text-white">{visibleWarningCount.toLocaleString("de-DE")}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/10 p-3">
+                <p className="text-xs font-bold uppercase text-muted-foreground">Fehler</p>
+                <p className="mt-1 text-xl font-extrabold text-white">{visibleErrorCount.toLocaleString("de-DE")}</p>
+              </div>
+            </div>
+            <div className="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1">
+              {visibleIssueRows.length ? visibleIssueRows.slice(0, 12).map((row, index) => (
+                <div key={`${row.type}-${row.period.id}-${index}`} className={cn("rounded-lg border p-3 text-sm font-semibold", row.tone === "red" ? "border-red-200 bg-red-50 text-red-800" : row.tone === "yellow" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-cyan-200 bg-cyan-50 text-cyan-900")}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusDot status={row.tone} label={row.type} />
+                    <span>{row.period.siteName} | {row.period.monthLabel}</span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5">{row.message}</p>
+                </div>
+              )) : (
+                <p className="rounded-lg border border-border bg-muted/10 p-3 text-sm font-semibold text-muted-foreground">Keine Fehler oder Warnungen im aktuellen Stand.</p>
+              )}
+              {visibleIssueRows.length > 12 ? <p className="text-xs font-semibold text-muted-foreground">Weitere Hinweise stehen im Importbericht als PDF.</p> : null}
+            </div>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <div className="table-head p-4 text-white">
+              <h2 className="font-bold">Standorte im Upload</h2>
+              <p className="mt-1 text-sm text-white/75">Schnellcheck, ob der gemischte Ordner richtig zugeordnet wurde.</p>
+            </div>
+            {visibleSiteRows.length ? (
+              <div className="divide-y divide-border">
+                {visibleSiteRows.map((row) => (
+                  <div key={row.siteName} className="grid gap-3 p-3 text-sm md:grid-cols-[1fr_auto_auto_auto] md:items-center">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-extrabold text-white">{row.siteName}</p>
+                        <StatusDot status={row.errors ? "red" : row.warnings ? "yellow" : "green"} label={row.errors ? "Auffällig" : row.warnings ? "Beobachten" : "Stabil"} />
+                      </div>
+                      <p className="mt-1 text-xs font-semibold text-muted-foreground">{row.months.slice(0, 5).join(", ")}{row.months.length > 5 ? ` +${row.months.length - 5}` : ""}</p>
+                    </div>
+                    <div className="text-left md:text-right">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">Monate</p>
+                      <p className="font-extrabold text-white">{row.periods.toLocaleString("de-DE")}</p>
+                    </div>
+                    <div className="text-left md:text-right">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">Mitarbeiterzeilen</p>
+                      <p className="font-extrabold text-white">{row.employees.toLocaleString("de-DE")}</p>
+                    </div>
+                    <div className="text-left md:text-right">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">Kosten inkl.</p>
+                      <p className="font-extrabold text-white">{eur(row.totalCost, true)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="p-4 text-sm font-semibold text-muted-foreground">Noch keine Standortdaten geladen.</p>
+            )}
+          </Card>
+        </div>
       ) : null}
 
       <Card className="overflow-hidden">
-        <div className="table-head p-4 text-white">
-          <h2 className="font-bold">Erkannte Lohnjournal-Daten</h2>
-          <p className="mt-1 text-sm text-white/75">Freigabe ersetzt gleiche Standort-/Monatskombinationen und behält andere Monate unverändert.</p>
+        <div className="table-head flex flex-col gap-3 p-4 text-white lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="font-bold">Erkannte Lohnjournal-Daten</h2>
+            <p className="mt-1 text-sm text-white/75">Kompakte Dateiliste. Der vollständige Detailcheck bleibt im Importbericht verfügbar.</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs font-bold">
+            <span className="rounded-full bg-white/15 px-3 py-1">{visiblePeriods.length.toLocaleString("de-DE")} Monate</span>
+            <span className="rounded-full bg-white/15 px-3 py-1">{visibleSiteRows.length.toLocaleString("de-DE")} Standorte</span>
+          </div>
         </div>
-        {periods.length ? (
+        {visiblePeriods.length ? (
           <div className="overflow-x-auto">
-            <table className="data-table border-separate border-spacing-0 text-sm">
+            <table className="data-table min-w-[880px] border-separate border-spacing-0 text-sm">
               <thead>
                 <tr>
-                  {["Status", "Standort", "Monat", "Datei", "Mitarbeiter", "Gesamtbrutto", "SV-AG", "Umlage", "Erstattungen", "Gesamtkosten inkl.", "Hinweis"].map((head) => (
+                  {["Status", "Standort", "Monat", "Datei", "Mitarbeiter", "Gesamtkosten inkl.", "Check"].map((head) => (
                     <th key={head} className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">{head}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {periods.map((period) => (
-                  <tr key={period.id}>
-                    <td className="border-b border-r border-border p-3"><StatusDot status={period.errors.length ? "red" : payrollStatusWarnings(period).length ? "yellow" : "green"} /></td>
-                    <TableCell strong>{period.siteName}</TableCell>
-                    <TableCell>{period.monthLabel}</TableCell>
-                    <TableCell>{period.fileName}</TableCell>
-                    <TableCell>{period.employeeRows.length}</TableCell>
-                    <TableCell>{eur(period.totals.gross)}</TableCell>
-                    <TableCell>{eur(period.totals.svEmployerShare)}</TableCell>
-                    <TableCell>{eur(period.totals.allocation)}</TableCell>
-                    <TableCell>{eur(period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg + period.totals.reimbursementBa)}</TableCell>
-                    <TableCell strong>{eur(period.totals.totalCostIncludingReimbursements)}</TableCell>
-                    <TableCell>{[...period.errors, ...period.warnings].join(" ") || "OK"}</TableCell>
-                  </tr>
-                ))}
+                {visiblePeriodRows.map((period) => {
+                  const status = period.errors.length ? "red" : payrollStatusWarnings(period).length ? "yellow" : "green";
+                  const statusLabel = period.errors.length ? "Fehler" : payrollStatusWarnings(period).length ? "Beobachten" : "Stabil";
+                  return (
+                    <tr key={period.id}>
+                      <td className="border-b border-r border-border p-3"><StatusDot status={status} label={statusLabel} /></td>
+                      <TableCell strong>{period.siteName}</TableCell>
+                      <TableCell>{period.monthLabel}</TableCell>
+                      <td className="max-w-[360px] border-b border-r border-border bg-white p-3 text-sm font-semibold text-slate-700">
+                        <span className="line-clamp-2 break-words">{period.fileName}</span>
+                      </td>
+                      <TableCell>{period.employeeRows.length.toLocaleString("de-DE")}</TableCell>
+                      <TableCell strong>{eur(period.totals.totalCostIncludingReimbursements)}</TableCell>
+                      <td className="border-b border-r border-border bg-white p-3 text-sm text-slate-700">
+                        {[...period.errors, ...payrollStatusWarnings(period)].join(" ") || "OK"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+            {hiddenPeriodCount ? <p className="border-t border-border p-3 text-xs font-semibold text-muted-foreground">{hiddenPeriodCount.toLocaleString("de-DE")} weitere Zeile(n) sind im Importbericht enthalten.</p> : null}
           </div>
         ) : (
           <p className="p-4 text-sm font-semibold text-muted-foreground">Noch keine Lohnjournal-Daten geladen.</p>
