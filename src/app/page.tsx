@@ -6703,6 +6703,10 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
       active: employeesInYear.length
     };
   });
+  const totalSicknessDays = siteRows.reduce((sum, row) => sum + row.days, 0);
+  const totalSicknessCases = siteRows.reduce((sum, row) => sum + row.cases, 0);
+  const totalActiveEmployees = siteRows.reduce((sum, row) => sum + row.active, 0);
+  const sicknessDaysPerActiveEmployee = totalActiveEmployees ? totalSicknessDays / totalActiveEmployees : 0;
   const monthRows = bwaMonths.map((month, index) => ({
     month,
     days: personalData.sicknessEntries.filter((entry) => entry.year === selectedYear && entry.month === index + 1).reduce((sum, entry) => sum + entry.days, 0)
@@ -6738,6 +6742,10 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
     (highest, row) => (row.relativeTotal > highest.relativeTotal ? row : highest),
     { site: "", activeEmployees: 0, monthlyActiveEmployees: [], monthlyValues: [], relativeValues: [], total: 0, relativeTotal: 0 }
   );
+  const peakMonth = monthRows.reduce((highest, row) => (row.days > highest.days ? row : highest), { month: "", days: 0 });
+  const sicknessPerEmployeeStatus: Status = sicknessDaysPerActiveEmployee <= 5 ? "green" : sicknessDaysPerActiveEmployee <= 10 ? "yellow" : "red";
+  const highestRelativeStatus: Status = highestRelativeRow.relativeTotal <= 5 ? "green" : highestRelativeRow.relativeTotal <= 10 ? "yellow" : "red";
+  const totalSicknessStatus: Status = totalSicknessDays <= totalActiveEmployees * 5 ? "green" : totalSicknessDays <= totalActiveEmployees * 10 ? "yellow" : "red";
   const maxRelativeMonth = Math.max(...relativeMonthlyRows.flatMap((row) => row.relativeValues), 0);
   const relativeHeatTone = (value: number) => {
     if (!value || !maxRelativeMonth) return "rgba(15, 118, 110, 0.10)";
@@ -6773,6 +6781,57 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
           <option key={item} value={item}>{item}</option>
         ))}
       </Select>
+      <div className="grid gap-3 lg:grid-cols-3">
+        <KpiCard
+          label={`Krankheitstage ${selectedYear}`}
+          value={totalSicknessDays}
+          plain
+          valueLabel={formatOneDecimal(totalSicknessDays)}
+          delta={`${totalSicknessCases.toLocaleString("de-DE")} Einträge aus Input_Krankheitstage`}
+          icon={Stethoscope}
+          status={totalSicknessStatus}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Quelle" value="Personalimport / Input_Krankheitstage" />
+              <InfoTextLine label="Berechnung" value="Summe Krankheitstage im ausgewählten Jahr" />
+              <InfoTextLine label="Einträge" value={totalSicknessCases.toLocaleString("de-DE")} strong />
+            </div>
+          }
+        />
+        <KpiCard
+          label="Krankheit je aktivem Mitarbeiter"
+          value={sicknessDaysPerActiveEmployee}
+          plain
+          valueLabel={formatOneDecimal(sicknessDaysPerActiveEmployee)}
+          delta={`${totalActiveEmployees.toLocaleString("de-DE")} aktive Mitarbeiter im Jahr`}
+          icon={Users}
+          status={sicknessPerEmployeeStatus}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Quelle Krankheit" value="Input_Krankheitstage" />
+              <InfoTextLine label="Quelle Mitarbeiter" value="Personalstamm, im Jahr beschäftigt" />
+              <InfoTextLine label="Berechnung" value="Krankheitstage / aktive Mitarbeiter im Jahr" strong />
+            </div>
+          }
+        />
+        <KpiCard
+          label="Höchster Standortwert"
+          value={highestRelativeRow.relativeTotal}
+          plain
+          valueLabel={highestRelativeRow.site ? formatOneDecimal(highestRelativeRow.relativeTotal) : "n. v."}
+          secondaryValue={highestRelativeRow.site || "Kein Standort"}
+          delta={peakMonth.days ? `Peak-Monat: ${peakMonth.month} mit ${formatOneDecimal(peakMonth.days)} Tagen` : "Keine Krankheitstage im Jahr"}
+          icon={Building2}
+          status={highestRelativeStatus}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Standort" value={highestRelativeRow.site || "n. v."} strong />
+              <InfoTextLine label="Berechnung" value="Höchste Krankheitstage je aktivem Mitarbeiter im Standortvergleich" />
+              <InfoTextLine label="Peak-Monat" value={peakMonth.days ? `${peakMonth.month} | ${formatOneDecimal(peakMonth.days)} Tage` : "n. v."} />
+            </div>
+          }
+        />
+      </div>
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title={`Krankheitstage je Monat | ${selectedYear}`} icon={Stethoscope}>
           <ResponsiveContainer width="100%" height={260}>

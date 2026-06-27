@@ -1460,6 +1460,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Eintritts- und Austrittsdatum werden je Personalnummer aus den DATEV-Entgeltabrechnungsseiten (`Eintritt`/`Austritt`) und, wenn vorhanden, aus DEUEV-Beschaeftigungszeitraeumen gelesen; sichtbar nach erneutem Lohnjournal-Import.
   - Fehlende Lohnjournalmonate werden nicht als 0 gewertet.
   - Praxismanagement darf keine Lohnjournal-/Gehalts-/AG-Kostendetails sehen.
+- Krankheit / Fehlzeiten:
+  - Der Tab `Krankheit / Fehlzeiten` zeigt oben genau drei steuerungsrelevante KPIs: Krankheitstage im Jahr, Krankheitstage je aktivem Mitarbeiter und hoechster Standortwert je aktivem Mitarbeiter. Basis bleibt `Input_Krankheitstage` plus Personalstamm/aktive Beschaeftigung im ausgewaehlten Jahr; Tabellen darunter bleiben Detail-/Plausibilitaetsebene.
 - Mobile/Tabellen:
   - Neue breite Auswertungstabellen erhalten horizontales Scrollen, feste Kopfzeilen innerhalb der Tabelle und Mindestbreiten, damit Spalten auf Smartphone nicht ineinander laufen.
   - Lange Detail-/Prueftabellen sollen optisch ruhig und mit Scroll-/Sticky-Hilfen lesbar bleiben, da sie standardmaessig sichtbar sind.
