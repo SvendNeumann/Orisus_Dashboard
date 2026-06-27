@@ -2716,16 +2716,18 @@ function isLegacyPayrollNameCandidate(value: string) {
 }
 
 function legacyPayrollSummaryGross(lines: string[]) {
-  const summaryIndex = lines.findIndex((entry) => compactDatevText(entry).includes("summenauslohnabrechnung"));
-  if (summaryIndex < 0) return 0;
-  const block = lines.slice(summaryIndex, summaryIndex + 12)
-    .map((entry) => entry.replace(/\s+/g, " ").trim())
-    .join(" ");
-  const values = (block.match(/[0-9][0-9.]*,[0-9]{2}-?|[0-9][0-9.]*-?/g) ?? [])
-    .filter((value) => !/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(value))
-    .map(parseDatevAmount)
-    .filter((value) => value >= 10000 && value <= 300000);
-  return values.length ? Math.max(...values) : 0;
+  for (const line of lines) {
+    if (!compactDatevText(line).includes("summenauslohnabrechnung")) continue;
+    const summaryLine = line.replace(/\s+/g, " ").trim();
+    const summaryValues = summaryLine.split(/Summen\s+aus\s+Lohnabrechnung/i).at(-1) ?? summaryLine;
+    const values = (summaryValues.match(/[0-9][0-9.]*,[0-9]{2}-?|[0-9][0-9.]*-?/g) ?? [])
+      .filter((value) => !/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(value))
+      .map(parseDatevAmount)
+      .filter((value) => value >= 10000 && value <= 300000);
+    const gross = values.find((value) => Math.abs(value) > 0) ?? 0;
+    if (gross) return gross;
+  }
+  return 0;
 }
 
 function applyLegacyPayrollSummaryGrossFallback(rows: PayrollEmployeeCostRow[], totals: PayrollPeriodData["totals"], lines: string[]) {
@@ -2742,6 +2744,50 @@ function applyLegacyPayrollSummaryGrossFallback(rows: PayrollEmployeeCostRow[], 
     row.gross += perRowGrossDelta;
     row.totalCostWithoutReimbursements += perRowGrossDelta;
     row.totalCostIncludingReimbursements += perRowGrossDelta;
+  });
+  return true;
+}
+
+function parseLegacyPayrollOverviewTotals(lines: string[]) {
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    const current = lines[index].replace(/\s+/g, " ").trim();
+    const next = lines[index + 1].replace(/\s+/g, " ").trim();
+    const currentAmounts = current.match(/[0-9][0-9.]*,[0-9]{2}-?|[0-9][0-9.]*-?/g) ?? [];
+    const nextAmounts = next.match(/[0-9][0-9.]*,[0-9]{2}-?|[0-9][0-9.]*-?/g) ?? [];
+    const totalWithoutReimbursements = parseDatevAmount(currentAmounts.at(-1) ?? "");
+    const totalIncludingReimbursements = parseDatevAmount(nextAmounts.at(-1) ?? "");
+    if (
+      currentAmounts.length >= 6 &&
+      nextAmounts.length >= 2 &&
+      totalWithoutReimbursements >= 30000 &&
+      totalWithoutReimbursements <= 300000 &&
+      totalIncludingReimbursements >= 30000 &&
+      totalIncludingReimbursements <= totalWithoutReimbursements &&
+      totalWithoutReimbursements - totalIncludingReimbursements <= 50000
+    ) {
+      return { totalWithoutReimbursements, totalIncludingReimbursements };
+    }
+  }
+  return null;
+}
+
+function applyLegacyPayrollOverviewTotalsFallback(rows: PayrollEmployeeCostRow[], totals: PayrollPeriodData["totals"], lines: string[]) {
+  const overviewTotals = parseLegacyPayrollOverviewTotals(lines);
+  if (!overviewTotals) return false;
+  const previousTotal = totals.totalCostIncludingReimbursements || payrollTotalsFromRows(rows).totalCostIncludingReimbursements;
+  totals.gross = overviewTotals.totalWithoutReimbursements;
+  totals.reimbursementBa = 0;
+  totals.reimbursementIfsg = 0;
+  totals.reimbursementHealthInsurance = overviewTotals.totalWithoutReimbursements - overviewTotals.totalIncludingReimbursements;
+  totals.totalCostWithoutReimbursements = overviewTotals.totalWithoutReimbursements;
+  totals.totalCostIncludingReimbursements = overviewTotals.totalIncludingReimbursements;
+  const delta = overviewTotals.totalIncludingReimbursements - previousTotal;
+  const costRows = rows.filter((row) => row.totalCostIncludingReimbursements > 0);
+  const fallbackRows = costRows.length ? costRows : rows;
+  const perRowDelta = fallbackRows.length ? delta / fallbackRows.length : 0;
+  fallbackRows.forEach((row) => {
+    row.totalCostWithoutReimbursements += perRowDelta;
+    row.totalCostIncludingReimbursements += perRowDelta;
   });
   return true;
 }
@@ -2840,6 +2886,7 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
     : false;
   const usedEmployeeSumFallback = parsedOverview.employeeRows.length >= 3 && !parsedOverview.totals.totalCostIncludingReimbursements && !!rowTotals.totalCostIncludingReimbursements;
   const totals = parsedOverview.employeeRows.length >= 3 ? payrollTotalsWithRowFallback(parsedOverview.totals, rowTotals) : legacyRows.used ? legacyRows.totals : rowTotals;
+  const usedOverviewTotalsFallback = applyLegacyPayrollOverviewTotalsFallback(employeeRows, totals, lines);
   const employmentDates = parsePayrollEmploymentDatesFromText(normalizedText);
   const enrichedEmployeeRows = employeeRows.map((row) => {
     const dates = employmentDates.get(row.personnelNumber);
@@ -2851,7 +2898,8 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   if (!period) errors.push(`${fileName}: Monat/Jahr konnte weder aus DATEV-Text noch aus Dateiname erkannt werden.`);
   if (!compactDatevText(normalizedText).includes("personalkostenubersicht")) warnings.push(legacyRows.used ? `${fileName}: Alte DATEV-Lohnjournalstruktur erkannt; Personalkosten wurden aus Einzelabrechnungsseiten und AAG-Erstattungen gelesen.` : `${fileName}: Keine DATEV-Personalkostenübersicht im Text erkannt; Entgeltabrechnungsseiten werden als Fallback genutzt.`);
   if (usedEmployeeSumFallback) warnings.push(`${fileName}: DATEV-Summenzeile wurde nicht vollständig erkannt; Periodensummen wurden aus den Mitarbeiterzeilen gebildet.`);
-  if (usedPayslipSummaryGrossFallback || legacyRows.usedSummaryGrossFallback) warnings.push(`${fileName}: Gesamtbrutto wurde aus dem DATEV-Block Summen aus Lohnabrechnung übernommen, weil die Einzelzeilen spaltenweise unvollständig ausgelesen wurden.`);
+  if (!usedOverviewTotalsFallback && (usedPayslipSummaryGrossFallback || legacyRows.usedSummaryGrossFallback)) warnings.push(`${fileName}: Gesamtbrutto wurde aus dem DATEV-Block Summen aus Lohnabrechnung übernommen, weil die Einzelzeilen spaltenweise unvollständig ausgelesen wurden.`);
+  if (usedOverviewTotalsFallback) warnings.push(`${fileName}: Periodensummen wurden aus der DATEV-Personalkostenübersicht übernommen.`);
   if (!enrichedEmployeeRows.length) errors.push(`${fileName}: Keine Mitarbeiterzeilen in Personalkostenübersicht oder Entgeltabrechnungen erkannt.`);
   const employeeTotal = enrichedEmployeeRows.reduce((sum, row) => sum + row.totalCostIncludingReimbursements, 0);
   if (totals.totalCostIncludingReimbursements && Math.abs(employeeTotal - totals.totalCostIncludingReimbursements) > 1) {
@@ -19807,7 +19855,8 @@ function payrollPeriodsByMonth(payrollData?: PayrollJournalData | null) {
 }
 
 function isNeutralPayrollNotice(message: string) {
-  return message.includes("Periodensummen wurden aus den Mitarbeiterzeilen gebildet");
+  return message.includes("Periodensummen wurden aus den Mitarbeiterzeilen gebildet") ||
+    message.includes("Periodensummen wurden aus der DATEV-Personalkostenübersicht übernommen");
 }
 
 function payrollStatusWarnings(period: PayrollPeriodData) {
