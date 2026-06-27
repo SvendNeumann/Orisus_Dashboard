@@ -2542,10 +2542,10 @@ function payrollSiteFromContent(text: string) {
 function payrollSiteFromText(text: string, fileName = "") {
   const headerMatch = text.match(/Standort\s+([A-Za-zÄÖÜäöüß\-\s]+?)(?:\s+V\s*K\s*Z|\*|Feldstraße|Datum|$)/i);
   const rawName = normalizePersonalText(headerMatch?.[1] ?? "");
-  return sortSitesByContractStart(standorte).find((site) => rawName && normalizeMetric(site.name) === normalizeMetric(rawName)) ??
+  return payrollSiteFromFileName(fileName) ??
+    sortSitesByContractStart(standorte).find((site) => rawName && normalizeMetric(site.name) === normalizeMetric(rawName)) ??
     sortSitesByContractStart(standorte).find((site) => rawName && normalizeMetric(rawName).includes(normalizeMetric(site.name))) ??
-    payrollSiteFromContent(text) ??
-    payrollSiteFromFileName(fileName);
+    payrollSiteFromContent(text);
 }
 
 function payrollRowAmountsFromLine(line: string, expectedCount: number) {
@@ -19945,9 +19945,17 @@ function PayrollUpload({
   const errors = pendingPeriods.length ? pendingErrors : (pendingData?.errors ?? []);
 
   const handleFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, "de"));
+    const files = Array.from(event.target.files ?? [])
+      .filter((file) => {
+        const displayName = file.webkitRelativePath || file.name;
+        return !displayName.split("/").some((part) => part.startsWith(".") || part === "__MACOSX");
+      })
+      .sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, "de"));
     event.target.value = "";
-    if (!files.length) return;
+    if (!files.length) {
+      setMessage("Keine PDF-Lohnjournale im Upload gefunden.");
+      return;
+    }
     setBusy(true);
     setMessage("");
     setResetArmed(false);
