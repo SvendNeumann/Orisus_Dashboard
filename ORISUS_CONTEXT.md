@@ -242,9 +242,9 @@ Aktuelle wichtige Live-Ergaenzungen:
   - KPI-Block mit aktiven Mitarbeitern, FTE, Krankheit je FTE, Fluktuation, durchschnittlichem Lohnjournal je Monat und Personalkostenquote gegen Honorarumsatz.
   - Personalstruktur-/Fehlzeitenblock aus dem Personalimport.
   - Lohnjournal-Kostensteuerung mit Zeitraum, Gesamtkosten inkl. Erstattungen, durchschnittlichen Kosten je Mitarbeiterzeile, Erstattungsquote und Abweichung Lohnjournal vs. BWA.
-  - Monatsverlauf der Lohnjournalkosten je Standort.
-  - Ein-/Austritte aus den Lohnjournalen als Quervergleich zur Mitarbeiterliste.
-  - Honorarumsatz vs. Personalkosten und Behandlerkosten vs. Honorar seit Vertragsstart.
+  - Monatsverlauf der Lohnjournalkosten je Standort ohne BWA-Abweichungsspalte.
+  - Honorarumsatz inkl. Eigenlabor vs. Personalkosten und Behandlerkosten vs. reiner Honorarumsatz.
+  - Auf PMR-Seite 3 muessen Behandlerkosten und Honorarumsatz auf den gewaehlten PMR-Zeitraum begrenzt werden, z. B. YTD bis April nur Jan-Apr und keine bereits importierten Folge-Lohnjournale. Die separate Vorstandssicht `Personalkosten Lohnjournal` bleibt davon unberuehrt und nutzt fuer ihren eigenen Behandlerkostenblock weiterhin die gesamte geladene Lohnjournalperiode seit Vertragsstart.
   - Fehlende Lohnjournaldaten duerfen nicht als 0 interpretiert werden; falls kein Lohnjournal vorhanden ist, bleiben Werte `n. v.` oder nutzen explizit den BWA-Fallback fuer die Personalkostenquote.
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
 - Orisus Performance hat oben KPI-Kacheln im einheitlichen App-Kachelstil mit Info-Buttons/Herleitungen.
@@ -1410,9 +1410,10 @@ Zuletzt umgesetzte / festgelegte Punkte:
 - PMR Standortleiter-Report:
   - Nur Standortleiter-PMR ist aktuell in Reports sichtbar.
   - Monatsreport, YTD-/Management-Report, Bankenreport und Standortreport sind in der Reportauswahl vorerst ausgeblendet.
-  - PMR-Export soll im Querformat insgesamt zwei Seiten haben:
+  - PMR-Export soll im Querformat insgesamt drei Seiten haben:
     - Seite 1: PMR Standortleiter-Report
     - Seite 2: Benchmarking-Auszug fuer denselben Standort
+    - Seite 3: Personalauswertung fuer denselben Standort
   - Beide Seiten muessen auf je eine Seite passen, ohne Ueberlauf, riesige Kacheln oder grosse Leerflaechen.
   - BWA im PMR bleibt detailliert bis zum vereinbarten EBITDA-/Abweichungsblock.
   - Auszahlungslogik im PMR:
@@ -1421,7 +1422,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
     - `indikativ gesamt erwartet`
   - Sonderfall Ulmet: Earn-Out-/Wachstumszahlung nur zeigen, wenn tatsaechlich etwas verdient ist.
   - Top-10-Krankheitstage sollen im PMR zur Nutzung freier Flaechen aufgenommen werden.
-  - Personalkosten je Behandler im PMR immer seit Vertragsbeginn / gesamte Vertragsperiode.
+  - Personalkosten je Behandler auf Seite 1 im PMR bleiben wie bisher seit Vertragsbeginn / gesamte Vertragsperiode. Die neue Personalseite 3 grenzt Behandlerkosten und Honorarumsatz bewusst auf den gewaehlten PMR-Zeitraum ab.
   - `MVZ` und `Unbekannt` im PMR nicht anzeigen und nicht mitzaehlen.
   - Monatliche Entwicklung: noch nicht vorliegende Monate leer lassen, nicht 0.
   - Vorjahres-/Delta-Spalten in PMR-BWA, Quoten und Behandler-Umsatzboard nur fuellen, wenn der Vergleichszeitraum innerhalb der Vertragsperiode liegt.

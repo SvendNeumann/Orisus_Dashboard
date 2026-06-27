@@ -20473,6 +20473,7 @@ const payrollEmployeeNameAliases: Record<string, string> = {
 };
 
 function payrollEmployeeDisplayName(siteId: string, personnelNumber: string, name: string) {
+  if (siteId === "kirchberg" && normalizeMetric(name) === "fp") return "Franziska Paatsch";
   return payrollEmployeeNameAliases[`${siteId}:${personnelNumber}`] ?? name;
 }
 
@@ -20541,10 +20542,31 @@ function payrollEmployeeSurnameCandidates(name: string) {
   return candidates;
 }
 
+function payrollEmployeeInitialSurnameCandidates(name: string) {
+  const tokens = normalizeMetric(name).split("_").filter(Boolean);
+  while (tokens.length > 1 && providerRolePrefixKeys.has(tokens[0])) tokens.shift();
+  const candidates = new Set<string>();
+  if (tokens.length >= 2) {
+    const first = tokens[0];
+    const second = tokens[1];
+    const last = tokens.at(-1);
+    if (first && second) candidates.add(`${first[0]}_${second}`);
+    if (first && last) candidates.add(`${first[0]}_${last}`);
+    if (last && first) candidates.add(`${last[0]}_${first}`);
+  }
+  return candidates;
+}
+
 function matchPayrollEmployeeProvider(siteId: string, employeeName: string, providers: ImportedBehandlerDetailRow[]) {
   const directKey = canonicalProviderKey(siteId, employeeName);
   const directMatches = providers.filter((provider) => canonicalProviderKey(siteId, provider.name) === directKey);
   if (directMatches.length === 1) return directMatches[0];
+
+  const initialSurnameKeys = payrollEmployeeInitialSurnameCandidates(employeeName);
+  if (initialSurnameKeys.size) {
+    const initialSurnameMatches = providers.filter((provider) => initialSurnameKeys.has(canonicalProviderKey(siteId, provider.name)));
+    if (initialSurnameMatches.length === 1) return initialSurnameMatches[0];
+  }
 
   const surnameKeys = payrollEmployeeSurnameCandidates(employeeName);
   if (!surnameKeys.size) return null;
@@ -22845,9 +22867,9 @@ function buildReportDocument({
         body {
           margin: 0;
           color: #12212f;
-          background:
+          background: ${isPmrDocument ? "#ffffff" : `
             radial-gradient(circle at 18% 0%, rgba(20, 184, 166, .14), transparent 30%),
-            linear-gradient(180deg, #edf7f8 0%, #f8fbfc 42%, #edf4f6 100%);
+            linear-gradient(180deg, #edf7f8 0%, #f8fbfc 42%, #edf4f6 100%)`};
           font-family: Inter, Arial, Helvetica, sans-serif;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
@@ -23041,17 +23063,22 @@ function buildReportDocument({
           page-break-after: always;
           overflow: hidden;
           gap: 4px;
+          background: #ffffff;
+          align-content: start;
         }
         .pmr-document .pmr-page:last-child,
         .pmr-document .pmr-benchmark-page:last-child { page-break-after: auto; }
         .pmr-document .pmr-header {
-          grid-template-columns: 150px 1fr 95px;
+          grid-template-columns: 132px 1fr 88px;
           gap: 8px;
           border-radius: 10px;
-          padding: 7px 10px;
+          padding: 6px 10px;
+          min-height: 22mm;
+          align-items: center;
         }
-        .pmr-document .pmr-logo img { width: 130px; max-height: 39px; }
-        .pmr-document .pmr-header h1 { font-size: 16px; margin: 1px 0; }
+        .pmr-document .pmr-logo { display: flex; align-items: center; overflow: hidden; }
+        .pmr-document .pmr-logo img { width: 118px; max-height: 31px; display: block; object-fit: contain; }
+        .pmr-document .pmr-header h1 { font-size: 15px; margin: 1px 0; line-height: 1.05; }
         .pmr-document .pmr-header p { font-size: 7.8px; }
         .pmr-document .pmr-meta { font-size: 7.2px; }
         .pmr-document .pmr-meta strong { font-size: 11px; }
@@ -23060,7 +23087,7 @@ function buildReportDocument({
         .pmr-document .pmr-grid.top { grid-template-columns: 1.22fr .78fr; }
         .pmr-document .pmr-grid.bottom { grid-template-columns: 1.08fr .92fr; }
         .pmr-document .pmr-stack { gap: 4px; }
-        .pmr-document .pmr-section { border-radius: 8px; }
+        .pmr-document .pmr-section { border-radius: 8px; box-shadow: none; }
         .pmr-document .pmr-section h2 { padding: 4px 6px; font-size: 8.2px; }
         .pmr-document .pmr-table { font-size: 5.95px; line-height: 1.04; }
         .pmr-document .pmr-table.compact { font-size: 5.55px; }
@@ -23072,11 +23099,20 @@ function buildReportDocument({
         .pmr-document .status-dot { width: 5px; height: 5px; margin-right: 2px; }
         .pmr-document .status-label { font-size: 5.2px; }
         .pmr-document .kpi-grid { grid-template-columns: repeat(5, 1fr); gap: 4px; }
-        .pmr-document .pmr-personnel-page .kpi-grid { grid-template-columns: repeat(6, 1fr); }
+        .pmr-document .pmr-personnel-page { gap: 3px; }
+        .pmr-document .pmr-personnel-page .kpi-grid {
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 3px;
+          align-items: stretch;
+        }
         .pmr-document .kpi-card { min-height: 36px; border-radius: 8px; padding: 5px 7px; box-shadow: none; }
+        .pmr-document .pmr-personnel-page .kpi-card { min-height: 24px; padding: 4px 6px; border-radius: 7px; }
         .pmr-document .kpi-label { font-size: 6.3px; }
         .pmr-document .kpi-value { margin-top: 2px; font-size: 10.8px; }
         .pmr-document .kpi-detail { margin-top: 2px; font-size: 6.3px; }
+        .pmr-document .pmr-personnel-page .kpi-label { font-size: 5.7px; }
+        .pmr-document .pmr-personnel-page .kpi-value { font-size: 9.5px; }
+        .pmr-document .pmr-personnel-page .kpi-detail { font-size: 5.6px; }
         .pmr-document .mini-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 5px; }
         .pmr-document .mini-grid div { border-radius: 7px; padding: 5px; background: linear-gradient(180deg, #edf7fa, #e2f0f5); }
         .pmr-document .mini-grid span { font-size: 5.55px; }
@@ -24393,66 +24429,22 @@ function pmrTwoColumnTable(rows: Array<[string, string]>) {
   </table>`;
 }
 
-function pmrPersonnelTrendTable(periods: PayrollPeriodData[], importedData: ImportedDashboardData | null | undefined) {
+function pmrPersonnelTrendTable(periods: PayrollPeriodData[]) {
   const rows = periods.slice(-6);
   return `<table class="pmr-table compact monthly">
-    <thead><tr><th>Monat</th><th>MA</th><th>Lohnjournal inkl.</th><th>Ø/MA</th><th>Erstattung</th><th>BWA-Abw.</th></tr></thead>
+    <thead><tr><th>Monat</th><th>MA</th><th>Lohnjournal inkl.</th><th>Ø/MA</th><th>Erstattung</th></tr></thead>
     <tbody>${rows.length ? rows.map((period) => {
       const total = period.totals.totalCostIncludingReimbursements;
       const employees = period.employeeRows.length;
       const reimbursement = Math.abs(period.totals.reimbursementBa + period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg);
-      const difference = payrollBwaDifference(period, importedData);
-      const differenceClass = difference?.delta ? (difference.delta > 0 ? "negative" : "positive") : "";
       return `<tr>
         <td>${reportEscape(period.monthLabel)}</td>
         <td>${reportEscape(String(employees))}</td>
         <td>${reportEscape(eur(total))}</td>
         <td>${reportEscape(formatNullableCurrency(employees ? total / employees : null))}</td>
         <td>${reportEscape(eur(reimbursement))}</td>
-        <td class="${differenceClass}">${difference ? reportEscape(eur(difference.delta)) : "n. v."}</td>
       </tr>`;
-    }).join("") : `<tr><td>Keine Lohnjournalperioden</td><td></td><td></td><td></td><td></td><td></td></tr>`}</tbody>
-  </table>`;
-}
-
-function payrollIsoMonth(value?: string) {
-  if (!value) return "";
-  const isoMatch = value.match(/^(\d{4})-(\d{2})/);
-  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
-  const germanMatch = value.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-  if (germanMatch) return `${germanMatch[3]}-${germanMatch[2].padStart(2, "0")}`;
-  return "";
-}
-
-function pmrPersonnelMovementTable(periods: PayrollPeriodData[]) {
-  const monthKeys = new Set(periods.map((period) => `${period.year}-${String(period.month).padStart(2, "0")}`));
-  const employeeMap = new Map<string, { name: string; entryDate?: string; exitDate?: string }>();
-  periods.forEach((period) => {
-    period.employeeRows.forEach((employee) => {
-      const key = employee.personnelNumber || normalizeMetric(employee.name);
-      const existing = employeeMap.get(key) ?? { name: employee.name };
-      employeeMap.set(key, {
-        name: existing.name || employee.name,
-        entryDate: existing.entryDate || employee.entryDate,
-        exitDate: existing.exitDate || employee.exitDate
-      });
-    });
-  });
-  const employees = Array.from(employeeMap.values());
-  const entries = employees.filter((employee) => monthKeys.has(payrollIsoMonth(employee.entryDate))).length;
-  const exits = employees.filter((employee) => monthKeys.has(payrollIsoMonth(employee.exitDate))).length;
-  const latestExits = employees
-    .filter((employee) => employee.exitDate)
-    .sort((a, b) => (b.exitDate ?? "").localeCompare(a.exitDate ?? ""))
-    .slice(0, 5);
-  return `<table class="pmr-table compact">
-    <tbody>
-      <tr><td>Eintritte im Reportzeitraum</td><td>${reportEscape(String(entries))}</td></tr>
-      <tr><td>Austritte im Reportzeitraum</td><td>${reportEscape(String(exits))}</td></tr>
-      <tr><td>Lohnjournal-Personen im Zeitraum</td><td>${reportEscape(String(employees.length))}</td></tr>
-      <tr class="section"><td colspan="2">Letzte bekannte Austritte</td></tr>
-      ${latestExits.length ? latestExits.map((employee) => `<tr><td>${reportEscape(employee.name)}</td><td>${reportEscape(employee.exitDate ?? "")}</td></tr>`).join("") : `<tr><td>Keine Austritte im Lohnjournal</td><td></td></tr>`}
-    </tbody>
+    }).join("") : `<tr><td>Keine Lohnjournalperioden</td><td></td><td></td><td></td><td></td></tr>`}</tbody>
   </table>`;
 }
 
@@ -24509,7 +24501,7 @@ function buildPmrPersonnelPage(
   const honorarValue = importedPeriodValueWithinContract(honorarRow, period, contractStart) ?? importedPeriodValue(honorarRow, period);
   const personnelCostForQuote = payrollTotal || Math.abs(importedBwaMetricValue(importedData.bwaRows, site.id, "personalkosten_gesamt", period));
   const personnelToHonorarQuote = honorarValue ? (personnelCostForQuote / honorarValue) * 100 : null;
-  const providerRows = payrollDoctorHonorarRows(allSitePeriods, importedData)
+  const providerRows = payrollDoctorHonorarRows(reportPeriods, importedData)
     .filter((row) => row.siteName === site.name)
     .sort((a, b) => (b.quote ?? 0) - (a.quote ?? 0) || b.payrollCost - a.payrollCost);
   const latestAverageCost = latestPeriod?.employeeRows.length ? latestPeriod.totals.totalCostIncludingReimbursements / latestPeriod.employeeRows.length : null;
@@ -24547,10 +24539,7 @@ function buildPmrPersonnelPage(
         ["Lohnjournal vs. BWA", payrollBwaDelta == null ? "n. v." : `${eur(payrollBwaDelta)} | ${formatNullablePercent(payrollBwaDeltaPct)}`]
       ])}</section>
     </div>
-    <div class="pmr-grid bottom">
-      <section class="pmr-section"><h2>Monatsverlauf Lohnjournal</h2>${pmrPersonnelTrendTable(reportPeriods, importedData)}</section>
-      <section class="pmr-section"><h2>Ein-/Austritte aus Lohnjournal</h2>${pmrPersonnelMovementTable(reportPeriods)}</section>
-    </div>
+    <section class="pmr-section"><h2>Monatsverlauf Lohnjournal</h2>${pmrPersonnelTrendTable(reportPeriods)}</section>
     <div class="pmr-grid bottom">
       <section class="pmr-section"><h2>Honorarumsatz vs. Personalkosten</h2>${pmrTwoColumnTable([
         ["Honorarumsatz inkl. Eigenlabor", formatNullableCurrency(honorarValue)],
@@ -24558,7 +24547,7 @@ function buildPmrPersonnelPage(
         ["Personalkostenquote", formatNullablePercent(personnelToHonorarQuote)],
         ["Datenlogik", reportPeriods.length ? "Lohnjournal im Reportzeitraum" : "Fallback BWA-Personalkosten"]
       ])}</section>
-      <section class="pmr-section"><h2>Behandlerkosten vs. Honorar | seit Vertragsstart</h2>${pmrProviderPayrollTable(providerRows)}</section>
+      <section class="pmr-section"><h2>Behandlerkosten vs. Honorar | ${reportEscape(periodLabel)}</h2>${pmrProviderPayrollTable(providerRows)}</section>
     </div>
   </div>`;
 }
