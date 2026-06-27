@@ -2697,15 +2697,23 @@ function normalizeLegacyPayrollName(value: string) {
   return normalized;
 }
 
+function legacyPayrollSummaryGross(lines: string[]) {
+  const summaryIndex = lines.findIndex((entry) => compactDatevText(entry).includes("summenauslohnabrechnung"));
+  if (summaryIndex < 0) return 0;
+  const values = payrollRowAmountsFromLine(lines[summaryIndex].replace(/\s+/g, " ").trim(), 8);
+  return values.at(-1) ?? 0;
+}
+
 function parseLegacyPayrollRows(lines: string[]) {
   const rows: PayrollEmployeeCostRow[] = [];
   const compactText = compactDatevText(lines.join(" "));
-  if (!compactText.includes("persnr") || !compactText.includes("lohngehalt")) return { rows, totals: emptyPayrollTotals(), used: false };
-
   const markerIndexes = lines
     .map((line, index) => ({ line: line.replace(/\s+/g, " ").trim(), index }))
     .filter(({ line }) => /\*Pers\.-Nr\.\s+\d{5}\*/.test(line))
     .map(({ index }) => index);
+  if (!compactText.includes("persnr") || markerIndexes.length < 3 || !compactText.includes("summenauslohnabrechnung")) {
+    return { rows, totals: emptyPayrollTotals(), used: false };
+  }
 
   for (let markerPosition = 0; markerPosition < markerIndexes.length; markerPosition += 1) {
     const index = markerIndexes[markerPosition];
@@ -2769,6 +2777,21 @@ function parseLegacyPayrollRows(lines: string[]) {
 
   const uniqueRows = Array.from(new Map(rows.map((row) => [row.personnelNumber, row])).values());
   const totals = payrollTotalsFromRows(uniqueRows);
+  const summaryGross = legacyPayrollSummaryGross(lines);
+  if (summaryGross && totals.gross < summaryGross * 0.5) {
+    const grossDelta = summaryGross - totals.gross;
+    totals.gross = summaryGross;
+    totals.totalCostWithoutReimbursements += grossDelta;
+    totals.totalCostIncludingReimbursements += grossDelta;
+    const grossRows = uniqueRows.filter((row) => row.gross > 0);
+    const fallbackRows = grossRows.length ? grossRows : uniqueRows;
+    const perRowGrossDelta = fallbackRows.length ? grossDelta / fallbackRows.length : 0;
+    fallbackRows.forEach((row) => {
+      row.gross += perRowGrossDelta;
+      row.totalCostWithoutReimbursements += perRowGrossDelta;
+      row.totalCostIncludingReimbursements += perRowGrossDelta;
+    });
+  }
   const reimbursementLine = lines.find((entry) => compactDatevText(entry).includes("gesamtsummeerstattungsbetrag"));
   const reimbursement = parseDatevAmount(reimbursementLine?.match(/[0-9][0-9.]*,[0-9]{2}-?|[0-9][0-9.]*-?/g)?.at(-1) ?? "");
   if (reimbursement) {
