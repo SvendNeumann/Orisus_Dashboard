@@ -6574,6 +6574,8 @@ function PersonalCockpit({
   const highestRiskRow = [...riskRows].sort((a, b) => b.riskScore - a.riskScore || compareSiteNamesByContractStart(a.site, b.site))[0];
   const criticalRiskRows = riskRows.filter((row) => row.status === "red");
   const watchRiskRows = riskRows.filter((row) => row.status === "yellow");
+  const personalImportSourceLabel = "Quelle: Mitarbeiterliste / Personalimport";
+  const noPayrollSourceLabel = "nicht DATEV-Lohnjournal";
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -6601,40 +6603,76 @@ function PersonalCockpit({
         </Select>
       </Card>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Aktive Mitarbeiter" value={active.length} plain delta="nur Status Aktiv" icon={Users} status="green" />
+        <KpiCard
+          label="Aktive Mitarbeiter"
+          value={active.length}
+          plain
+          delta="nur Status Aktiv"
+          footnote={`${personalImportSourceLabel}; ${noPayrollSourceLabel}`}
+          icon={Users}
+          status="green"
+        />
         <KpiCard
           label="FTE aktiv"
           value={totalFte}
           valueLabel={totalFte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
           plain
           delta="Basis 40 Std./Woche"
+          footnote={`${personalImportSourceLabel}; ${noPayrollSourceLabel}`}
           icon={Gauge}
           status="green"
         />
-        <KpiCard label={`Neueinstellungen ${selectedYear}`} value={newHiresInSelectedYear.length} plain delta="Eintritte laut Mitarbeiterstamm" icon={UserRound} status="green" />
+        <KpiCard
+          label={`Neueinstellungen ${selectedYear}`}
+          value={newHiresInSelectedYear.length}
+          plain
+          delta="Eintritte laut Mitarbeiterstamm"
+          footnote={`${personalImportSourceLabel}; ${noPayrollSourceLabel}`}
+          icon={UserRound}
+          status="green"
+        />
         <KpiCard
           label={`Fluktuation Standort max. ${selectedYear}`}
           value={highestFluctuationRow.fluctuation}
           percent
           delta={`${highestFluctuationRow.site || "Kein Standort"} | ${highestFluctuationRow.exitsInLatestYear} Austritte`}
+          footnote={`${personalImportSourceLabel}; Austritte laut Mitarbeiterstamm`}
           icon={TrendingUp}
           status={fluctuationStatus}
         />
-        <KpiCard label="Wochenstunden aktiv" value={active.reduce((sum, employee) => sum + employee.weeklyHours, 0)} plain delta="Kapazität laut aktiven Verträgen" icon={Gauge} status="green" />
+        <KpiCard
+          label="Wochenstunden aktiv"
+          value={active.reduce((sum, employee) => sum + employee.weeklyHours, 0)}
+          plain
+          delta="Kapazität laut aktiven Verträgen"
+          footnote={`${personalImportSourceLabel}; ${noPayrollSourceLabel}`}
+          icon={Gauge}
+          status="green"
+        />
         <KpiCard
           label="AG-Aufwand aktiv"
           value={active.reduce((sum, employee) => sum + employee.employerCost, 0)}
           valueLabel={eurTwo(active.reduce((sum, employee) => sum + employee.employerCost, 0))}
           delta="Mitarbeiterliste / Personalimport"
+          footnote="Plan-/Stammdatenwert aus Personalimport; nicht echte Lohnjournal-Abrechnung"
           icon={BadgeEuro}
           status="yellow"
         />
-        <KpiCard label={`Krankheitstage ${selectedYear}`} value={sicknessBySite.reduce((sum, row) => sum + row.days, 0)} plain delta={`${sicknessDays.toLocaleString("de-DE")} Tage gesamt im Import`} icon={Stethoscope} status="yellow" />
+        <KpiCard
+          label={`Krankheitstage ${selectedYear}`}
+          value={sicknessBySite.reduce((sum, row) => sum + row.days, 0)}
+          plain
+          delta={`${sicknessDays.toLocaleString("de-DE")} Tage gesamt im Import`}
+          footnote={`${personalImportSourceLabel}; Fehlzeitenimport`}
+          icon={Stethoscope}
+          status="yellow"
+        />
         <KpiCard
           label="Ø Gesamtleistung je FTE"
           value={averageRevenuePerFte ?? 0}
           valueLabel={formatNullableCurrency(averageRevenuePerFte)}
           delta={importedData ? performancePeriodLabel(productivityPeriod) : "CFO-Import benötigt"}
+          footnote="Quelle: CFO-BWA Gesamtleistung + FTE aus Personalimport; nicht Lohnjournal"
           icon={TrendingUp}
           status={productivityStatus}
           info={
