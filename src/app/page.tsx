@@ -20033,6 +20033,7 @@ function payrollStatusWarnings(period: PayrollPeriodData) {
 type PayrollDoctorHonorarRow = {
   key: string;
   siteName: string;
+  category: "Arzt" | "PZR";
   doctorName: string;
   payrollNames: string[];
   months: string[];
@@ -20043,6 +20044,17 @@ type PayrollDoctorHonorarRow = {
 };
 
 const surnameParticleKeys = new Set(["al", "el", "de", "del", "van", "von"]);
+const excludedPayrollProviderNameKeys = new Set(["dietrich", "schneider", "pomsel", "korkel"]);
+
+function payrollProviderCategory(name: string): "Arzt" | "PZR" {
+  const tokens = normalizeMetric(name).split("_").filter(Boolean);
+  return tokens.some((token) => ["pzr", "prophylaxe"].includes(token)) ? "PZR" : "Arzt";
+}
+
+function isExcludedPayrollProviderName(name: string) {
+  const tokens = normalizeMetric(name).split("_").filter(Boolean);
+  return tokens.some((token) => excludedPayrollProviderNameKeys.has(token));
+}
 
 function payrollEmployeeSurnameCandidates(name: string) {
   const tokens = normalizeMetric(name).split("_").filter(Boolean);
@@ -20073,9 +20085,11 @@ function matchPayrollEmployeeProvider(siteId: string, employeeName: string, prov
   return surnameMatches.length === 1 ? surnameMatches[0] : null;
 }
 
-function isDoctorHonorarProviderName(name: string) {
-  const tokens = normalizeMetric(name).split("_").filter(Boolean);
-  return !tokens.some((token) => ["pzr", "prophylaxe"].includes(token));
+function payrollEmployeeActiveForPeriod(employee: PayrollEmployeeCostRow, period: PayrollPeriodData) {
+  if (!employee.exitDate) return true;
+  const exitMonth = employee.exitDate.slice(0, 7);
+  const periodMonth = `${period.year}-${String(period.month).padStart(2, "0")}`;
+  return exitMonth > periodMonth;
 }
 
 function payrollDoctorHonorarRows(periods: PayrollPeriodData[], importedData?: ImportedDashboardData | null): PayrollDoctorHonorarRow[] {
@@ -20095,7 +20109,7 @@ function payrollDoctorHonorarRows(periods: PayrollPeriodData[], importedData?: I
   Array.from(monthKeysBySite.entries()).forEach(([siteId, monthKeys]) => {
     const siteName = standorte.find((candidate) => candidate.id === siteId)?.name ?? periods.find((period) => period.siteId === siteId)?.siteName ?? siteId;
     const providers = groupedProviderDetailRows((importedData.behandlerDetailRows ?? []).filter((row) => row.siteId === siteId), siteId)
-      .filter((provider) => isDoctorHonorarProviderName(provider.name));
+      .filter((provider) => !isExcludedPayrollProviderName(provider.name));
     providers.forEach((provider) => {
       const honorar = Array.from(monthKeys).reduce((sum, monthKey) => sum + (provider.honorarByMonth[monthKey] ?? 0), 0);
       if (!Math.abs(honorar)) return;
@@ -20103,6 +20117,7 @@ function payrollDoctorHonorarRows(periods: PayrollPeriodData[], importedData?: I
       rowsByProvider.set(providerKey, {
         key: providerKey,
         siteName,
+        category: payrollProviderCategory(provider.name),
         doctorName: canonicalProviderName(siteId, provider.name),
         payrollNames: [],
         months: Array.from(monthKeys).sort(),
@@ -20118,9 +20133,10 @@ function payrollDoctorHonorarRows(periods: PayrollPeriodData[], importedData?: I
     if (!period.siteId) return;
     const monthKey = `${period.year}-${period.month}`;
     const providers = groupedProviderDetailRows((importedData.behandlerDetailRows ?? []).filter((row) => row.siteId === period.siteId), period.siteId)
-      .filter((provider) => isDoctorHonorarProviderName(provider.name))
+      .filter((provider) => !isExcludedPayrollProviderName(provider.name))
       .filter((provider) => Math.abs(provider.honorarByMonth[monthKey] ?? 0) > 0);
     period.employeeRows.forEach((employee) => {
+      if (!payrollEmployeeActiveForPeriod(employee, period) || isExcludedPayrollProviderName(employee.name)) return;
       const provider = matchPayrollEmployeeProvider(period.siteId, employee.name, providers);
       if (!provider) return;
       const providerKey = `${period.siteId}-${canonicalProviderKey(period.siteId, provider.name)}`;
@@ -20713,10 +20729,22 @@ function PayrollCosts({
   const topEmployeeCostRows = [...employeeSummaryRows]
     .sort((a, b) => b.totalCost - a.totalCost)
     .slice(0, 12);
-  const doctorFocusRows = [...doctorHonorarRows]
-    .filter((row) => Math.abs(row.honorar) > 0 || Math.abs(row.payrollCost) > 0)
-    .sort((a, b) => (b.quote ?? -1) - (a.quote ?? -1) || b.payrollCost - a.payrollCost)
-    .slice(0, 10);
+  const providerCategoryRows = (["Arzt", "PZR"] as const).map((category) => {
+    const rows = matchedDoctorHonorarRows.filter((row) => row.category === category);
+    const payrollCost = rows.reduce((sum, row) => sum + row.payrollCost, 0);
+    const honorar = rows.reduce((sum, row) => sum + row.honorar, 0);
+    return {
+      category,
+      count: rows.length,
+      payrollCost,
+      honorar,
+      quote: honorar ? (payrollCost / honorar) * 100 : null
+    };
+  });
+  const providerFocusRows = [...matchedDoctorHonorarRows]
+    .filter((row) => Math.abs(row.honorar) > 0)
+    .sort((a, b) => a.category.localeCompare(b.category, "de") || (b.quote ?? -1) - (a.quote ?? -1) || b.payrollCost - a.payrollCost)
+    .slice(0, 14);
   const periodStart = filteredPeriods.length ? `${Math.min(...filteredPeriods.map((period) => period.year * 100 + period.month))}` : "";
   const periodEnd = filteredPeriods.length ? `${Math.max(...filteredPeriods.map((period) => period.year * 100 + period.month))}` : "";
   const dateWithinSelection = (date?: string) => {
@@ -20756,6 +20784,11 @@ function PayrollCosts({
   const latestExitRows = exitsInSelection
     .sort((a, b) => (b.exitDate ?? "").localeCompare(a.exitDate ?? ""))
     .slice(0, 8);
+  const highestDeviationRow = topDeviationRows[0];
+  const payrollCoveragePct = totalBwa ? (payrollWithBwa / totalBwa) * 100 : null;
+  const payrollStatus: Status = totalDeltaPct === null ? "yellow" : Math.abs(totalDeltaPct) <= 5 ? "green" : Math.abs(totalDeltaPct) <= 15 ? "yellow" : "red";
+  const providerStatus: Status = doctorQuote === null ? "yellow" : doctorQuote <= 35 ? "green" : doctorQuote <= 45 ? "yellow" : "red";
+  const turnoverStatus: Status = turnoverRate === null ? "yellow" : turnoverRate <= 5 ? "green" : turnoverRate <= 10 ? "yellow" : "red";
 
   return (
     <section className="space-y-5">
@@ -20785,14 +20818,76 @@ function PayrollCosts({
         </div>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Mini label="Gesamtkosten inkl. Erstatt." value={eur(totalPayroll, true)} />
-        <Mini label="Ø Monat Lohnjournal" value={eur(avgMonthlyPayroll, true)} />
-        <Mini label="Abw. vs. BWA" value={totalDeltaPct === null ? "n. v." : `${eur(totalDelta, true)} | ${pct(totalDeltaPct)}`} />
-        <Mini label="Fluktuation Lohnjournal" value={turnoverRate === null ? "n. v." : `${exitsInSelection.length} Austritte | ${pct(turnoverRate)}`} />
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Abgerechnete Personalkosten"
+          value={totalPayroll}
+          valueLabel={eur(totalPayroll, true)}
+          delta={`${filteredPeriods.length.toLocaleString("de-DE")} Lohnjournalmonate | Ø ${eur(avgMonthlyPayroll, true)}`}
+          icon={BadgeEuro}
+          status="green"
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Quelle" value="DATEV-Lohnjournal, Gesamtkosten inkl. Erstattungen" />
+              <InfoLine label="Summe" value={totalPayroll} strong />
+              <InfoLine label="Ø Monat" value={avgMonthlyPayroll} />
+            </div>
+          }
+        />
+        <KpiCard
+          label="Abweichung zur BWA"
+          value={totalDelta}
+          valueLabel={totalDeltaPct === null ? "n. v." : eur(totalDelta, true)}
+          secondaryValue={totalDeltaPct === null ? undefined : pct(totalDeltaPct)}
+          delta={payrollCoveragePct === null ? "BWA-Vergleich nicht verfügbar" : `Lohnjournal entspricht ${pct(payrollCoveragePct)} der BWA-Personalkosten`}
+          icon={Gauge}
+          status={payrollStatus}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoLine label="Lohnjournal mit BWA-Match" value={payrollWithBwa} />
+              <InfoLine label="BWA-Personalkosten" value={totalBwa} />
+              <InfoLine label="Differenz" value={totalDelta} strong />
+              <InfoTextLine label="Logik" value="Nur Monate mit vorhandener BWA-Zahl werden verglichen." />
+            </div>
+          }
+        />
+        <KpiCard
+          label="Behandlerkostenquote"
+          value={doctorQuote ?? 0}
+          percent
+          valueLabel={formatNullablePercent(doctorQuote)}
+          secondaryValue={`${matchedDoctorCount.toLocaleString("de-DE")} aktive Matches`}
+          delta={`${eur(doctorHonorarTotals.payrollCost, true)} Kosten zu ${eur(doctorHonorarTotals.honorar, true)} Honorar`}
+          icon={Stethoscope}
+          status={providerStatus}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Gruppen" value="Ärzte und PZR getrennt, ohne Dietrich, Schneider, Pomsel, Korkel" />
+              <InfoLine label="Behandlerkosten" value={doctorHonorarTotals.payrollCost} />
+              <InfoLine label="Reiner Honorarumsatz" value={doctorHonorarTotals.honorar} />
+              <InfoTextLine label="Mitarbeiterbasis" value="Nur aktive Lohnjournal-Mitarbeiter im jeweiligen Monat" strong />
+            </div>
+          }
+        />
+        <KpiCard
+          label="Personalbewegung"
+          value={turnoverRate ?? 0}
+          percent
+          valueLabel={turnoverRate === null ? "n. v." : `${exitsInSelection.length} Austritte`}
+          secondaryValue={turnoverRate === null ? undefined : pct(turnoverRate)}
+          delta={`${entriesInSelection.length.toLocaleString("de-DE")} Eintritte im Zeitraum`}
+          icon={Users}
+          status={turnoverStatus}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Basis" value="Eintritt/Austritt aus DATEV-Lohnjournal je Personalnummer" />
+              <InfoTextLine label="Quote" value="Austritte / eindeutige Mitarbeiter im ausgewählten Zeitraum" strong />
+            </div>
+          }
+        />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
         <ChartCard title="Verlauf Personalkosten gem. Lohnjournal" icon={BadgeEuro}>
           <ResponsiveContainer width="100%" height={330}>
             <ComposedChart data={chartRows}>
@@ -20808,12 +20903,12 @@ function PayrollCosts({
         </ChartCard>
 
         <Card className="p-4">
-          <h2 className="font-bold text-white">Steuerungsfokus</h2>
+          <h2 className="font-bold text-white">Management-Fokus</h2>
           <div className="mt-4 space-y-3">
             <div className="rounded-lg border border-border bg-slate-950/20 p-3">
-              <p className="text-xs font-bold uppercase text-muted-foreground">Abrechnungskosten</p>
-              <p className="mt-1 text-2xl font-extrabold text-white">{eur(totalPayroll, true)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Brutto {eur(totalGross, true)} | Erstattungen {eur(reimbursementAbs, true)}</p>
+              <p className="text-xs font-bold uppercase text-muted-foreground">Größte BWA-Abweichung</p>
+              <p className="mt-1 text-xl font-extrabold text-white">{highestDeviationRow ? `${highestDeviationRow.period.siteName} | ${highestDeviationRow.period.monthLabel}` : "n. v."}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{highestDeviationRow?.diff ? `${eur(highestDeviationRow.diff.delta, true)} | ${pct(highestDeviationRow.diff.deltaPct)}` : "Keine BWA-Vergleichsdaten"}</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-border bg-slate-950/20 p-3">
@@ -20826,9 +20921,14 @@ function PayrollCosts({
               </div>
             </div>
             <div className="rounded-lg border border-border bg-slate-950/20 p-3">
-              <p className="text-xs font-bold uppercase text-muted-foreground">Arztkosten-Match</p>
+              <p className="text-xs font-bold uppercase text-muted-foreground">Behandler-Match</p>
               <p className="mt-1 text-lg font-extrabold text-white">{doctorQuote === null ? "n. v." : formatNullablePercent(doctorQuote)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{matchedDoctorCount} gematcht, {unmatchedDoctorCount} offen</p>
+              <p className="mt-1 text-xs text-muted-foreground">{matchedDoctorCount} aktive Matches, {unmatchedDoctorCount} offen</p>
+            </div>
+            <div className="rounded-lg border border-border bg-slate-950/20 p-3">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Erstattungen entlasten</p>
+              <p className="mt-1 text-lg font-extrabold text-white">{eur(reimbursementAbs, true)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Brutto {eur(totalGross, true)} | inkl. Erstattungen {eur(totalPayroll, true)}</p>
             </div>
           </div>
         </Card>
@@ -20928,52 +21028,61 @@ function PayrollCosts({
       {canSeeDetails ? (
         <Card className="overflow-hidden">
           <div className="border-b border-border p-4">
-            <h2 className="font-bold">Arztkosten vs. reiner Honorarumsatz</h2>
+            <h2 className="font-bold">Behandlerkosten vs. Honorarumsatz | Ärzte und PZR</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Lohnjournal-Gesamtkosten gematchter Ärzte gegen reinen Honorarumsatz aus dem bestätigten CFO-Import. Eigenlabor ist hier bewusst nicht enthalten.
+              Aktive Lohnjournal-Mitarbeiter gegen reinen Honorarumsatz aus dem CFO-Import. Ausgeschlossen: Dietrich, Schneider, Pomsel, Korkel.
             </p>
           </div>
-          <div className="grid gap-3 p-4 md:grid-cols-3">
-            <div className="rounded-lg border border-border bg-muted/10 p-3">
-              <p className="text-xs font-bold uppercase text-muted-foreground">Gematchte Arztkosten</p>
-              <p className="mt-1 text-lg font-extrabold text-white">{eur(doctorHonorarTotals.payrollCost, true)}</p>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/10 p-3">
-              <p className="text-xs font-bold uppercase text-muted-foreground">Reiner Honorarumsatz</p>
-              <p className="mt-1 text-lg font-extrabold text-white">{eur(doctorHonorarTotals.honorar, true)}</p>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/10 p-3">
-              <p className="text-xs font-bold uppercase text-muted-foreground">Arztkostenquote</p>
-              <p className="mt-1 text-lg font-extrabold text-white">{formatNullablePercent(doctorQuote)}</p>
-            </div>
+          <div className="grid gap-3 p-4 md:grid-cols-2">
+            {providerCategoryRows.map((row) => (
+              <div key={row.category} className="rounded-lg border border-border bg-slate-950/20 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-muted-foreground">{row.category}</p>
+                    <p className="mt-1 text-2xl font-extrabold text-white">{formatNullablePercent(row.quote)}</p>
+                  </div>
+                  <StatusDot status={row.quote === null ? "yellow" : row.quote <= 35 ? "green" : row.quote <= 45 ? "yellow" : "red"} label={`${row.count} Matches`} />
+                </div>
+                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-muted-foreground">Kosten</p>
+                    <p className="font-extrabold text-white">{eur(row.payrollCost, true)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase text-muted-foreground">Honorar</p>
+                    <p className="font-extrabold text-white">{eur(row.honorar, true)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
           <ResponsiveTable>
             <thead>
               <tr>
+                <TableHead>Gruppe</TableHead>
                 <TableHead>Standort</TableHead>
-                <TableHead>Arzt / Behandler</TableHead>
+                <TableHead>Behandler</TableHead>
                 <TableHead>Lohnjournal-Name</TableHead>
-                <TableHead>Monate</TableHead>
-                <TableHead>Arztkosten inkl. Erstatt.</TableHead>
+                <TableHead>Kosten inkl. Erstatt.</TableHead>
                 <TableHead>Reiner Honorarumsatz</TableHead>
                 <TableHead>Kostenquote</TableHead>
                 <TableHead>Hinweis</TableHead>
               </tr>
             </thead>
             <tbody>
-              {doctorFocusRows.map((row) => (
+              {providerFocusRows.map((row) => (
                 <tr key={row.key}>
+                  <TableCell strong>{row.category}</TableCell>
                   <TableCell strong>{row.siteName}</TableCell>
                   <TableCell strong>{row.doctorName}</TableCell>
                   <TableCell>{row.payrollNames.join(", ") || "n. v."}</TableCell>
-                  <TableCell>{row.months.join(", ")}</TableCell>
                   <TableCell>{eur(row.payrollCost)}</TableCell>
                   <TableCell>{eur(row.honorar)}</TableCell>
                   <TableCell>{formatNullablePercent(row.quote)}</TableCell>
                   <TableCell>{row.matchNote}</TableCell>
                 </tr>
               ))}
-              {doctorFocusRows.length ? (
+              {providerFocusRows.length ? (
                 <tr className="summary-row">
                   <TableCell strong summary>Gesamt gematcht</TableCell>
                   <TableCell summary>{""}</TableCell>
