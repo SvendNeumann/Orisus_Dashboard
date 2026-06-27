@@ -10847,10 +10847,10 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
               >
                 <span className={cn(row.indent && "pl-5 text-muted-foreground")}>{row.label}</span>
                 <span className={cn("text-right font-semibold", bwaValueToneClass(row.actual, row))}>
-                  {isSectionRow ? "" : row.percent ? pct(row.actual) : eur(row.actual)}
+                  {isSectionRow ? "" : formatBwaLineValue(row.actual, row)}
                 </span>
                 <span className={cn("text-right font-semibold", bwaValueToneClass(contractRow.actual, contractRow))}>
-                  {isSectionRow ? "" : contractRow.percent ? pct(contractRow.actual) : eur(contractRow.actual)}
+                  {isSectionRow ? "" : formatBwaLineValue(contractRow.actual, contractRow)}
                 </span>
               </div>
             );
@@ -11054,7 +11054,7 @@ function FragmentCells({
           bwaValueToneClass(row.actual, row)
         )}
       >
-        {row.percent ? pct(row.actual) : eur(row.actual)}
+        {formatBwaLineValue(row.actual, row)}
       </td>
       <td
         className={cn(
@@ -11603,20 +11603,20 @@ function SiteMonthlyBwa({ site, importedData }: { site: DashboardSite; importedD
                       key={`${row.label}-${bwaMonths[index]}`}
                       className={bwaTableNumberClass(row, value, { compact: true })}
                     >
-                      {row.section ? "" : formatBwaCell(value, row.percent)}
+                      {row.section ? "" : formatBwaLineValue(value, row)}
                     </td>
                   ))}
                   <td className={bwaTableNumberClass(row, totalValue, { bold: true })}>
-                    {row.section ? "" : formatBwaCell(totalValue, row.percent)}
+                    {row.section ? "" : formatBwaLineValue(totalValue, row)}
                   </td>
                   <td className={bwaTableNumberClass(row, row.previousYear, { muted: true })}>
-                    {row.section ? "" : formatBwaCell(row.previousYear ?? null, row.percent)}
+                    {row.section ? "" : formatBwaLineValue(row.previousYear ?? null, row)}
                   </td>
                   <td className={bwaTableNumberClass(row, average, { muted: true })}>
-                    {row.section ? "" : formatBwaCell(average, row.percent)}
+                    {row.section ? "" : formatBwaLineValue(average, row)}
                   </td>
                   <td className={bwaTableNumberClass(row, row.contract, { bold: true })}>
-                    {row.section ? "" : formatBwaCell(row.contract, row.percent)}
+                    {row.section ? "" : formatBwaLineValue(row.contract, row)}
                   </td>
                 </tr>
               );
@@ -11794,9 +11794,23 @@ function calculateImportedMonthlyQuote(importedRows: ImportedBwaRow[], siteId: s
   return 0;
 }
 
-function formatBwaCell(value: number | null, percent?: boolean) {
+function isPositiveCashflowAdjustment(rowOrLabel: string | { label: string; metricKey?: string; percent?: boolean; section?: boolean; emphasis?: boolean; kind?: "cashflow" }, value: number | null | undefined) {
+  if (value == null || value <= 0 || typeof rowOrLabel === "string") return false;
+  const label = rowOrLabel.label.trim();
+  return (
+    rowOrLabel.kind === "cashflow" &&
+    !rowOrLabel.percent &&
+    !rowOrLabel.section &&
+    !rowOrLabel.emphasis &&
+    (label.startsWith("+") || rowOrLabel.metricKey === "cf_abschreibungen")
+  );
+}
+
+function formatBwaLineValue(value: number | null, row: { label: string; metricKey?: string; percent?: boolean; section?: boolean; emphasis?: boolean; kind?: "cashflow" }) {
   if (value === null) return "";
-  return percent ? pct(value) : eur(value);
+  if (row.percent) return pct(value);
+  const formatted = eur(value);
+  return isPositiveCashflowAdjustment(row, value) ? `+${formatted}` : formatted;
 }
 
 function isVarianceRow(label: string) {
@@ -11818,6 +11832,7 @@ function isBwaDeductionRow(rowOrLabel: string | { label: string; metricKey?: str
 
 function bwaValueToneClass(value: number | null | undefined, rowOrLabel: string | { label: string; metricKey?: string; percent?: boolean; section?: boolean }) {
   if (value == null || value === 0) return "";
+  if (isPositiveCashflowAdjustment(rowOrLabel, value)) return "";
   if (isBwaDeductionRow(rowOrLabel)) return "text-red-700";
   if (value < 0) return "text-red-700";
   const label = typeof rowOrLabel === "string" ? rowOrLabel : rowOrLabel.label;

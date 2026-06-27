@@ -197,6 +197,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 - KPI-Regeln sind als eigener Administration-Tab editierbar, mit verbessertem Kontrast der Eingabefelder.
 - FTE-Kennzahlen und Prozent-/Quotenwerte muessen appweit in KPIs, Charts, Tabellen, Reports und Tooltips immer mit genau einer Nachkommastelle dargestellt werden.
 - Im BWA-Tab muss der Standortfilter der konsolidierten BWA-Matrix neben den Einzelstandorten auch `Alle Standorte` enthalten, obwohl der Konzern rechts weiterhin als feste Referenz sichtbar bleibt.
+- In BWA-Darstellungen duerfen positive Cashflow-Addbacks wie `+ Abschreibungen` in Abschnitt 6 nicht rot als Abzug erscheinen; sie werden neutral dargestellt und mit Pluszeichen formatiert. Echte Cashflow-Abzuege wie Investitionen, Tilgung und Umbuchungen bleiben als Abzug erkennbar.
 - Mobile Menues koennen ueber die abgedunkelte Flaeche geschlossen werden.
 - Orisus Board Earn-Out-/Wachstums-KPI-Logik ist fachlich getrennt:
   - erwarteter Earn-Out Run-Rate
