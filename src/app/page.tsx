@@ -21007,8 +21007,9 @@ function PayrollCosts({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-border bg-slate-950/20 p-3">
-                <p className="text-xs font-bold uppercase text-muted-foreground">Ø MA-Kosten</p>
-                <p className="mt-1 text-lg font-extrabold text-white">{eur(avgEmployeeCost, true)}</p>
+                <p className="text-xs font-bold uppercase text-muted-foreground">Ø MA-Kosten alle</p>
+                <p className="mt-1 text-lg font-extrabold text-white">{eur(avgEmployeeCost)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Alle Lohnjournal-Kosten / alle Mitarbeiterzeilen</p>
               </div>
               <div className="rounded-lg border border-border bg-slate-950/20 p-3">
                 <p className="text-xs font-bold uppercase text-muted-foreground">Eintritte</p>
