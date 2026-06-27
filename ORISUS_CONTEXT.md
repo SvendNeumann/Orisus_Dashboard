@@ -206,6 +206,7 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Orisus Board Aufraeumung:
   - Das fruehere `Status-Center | aktueller Stand` ist entfernt.
   - Kostenquote und Kapitaldienstfaehigkeit werden als normale KPI-Kacheln oben im Orisus Board angezeigt.
+  - Liquiditaets-/Kontostand-Kacheln zeigen neben dem aktuellen konsolidierten Kontostand klein den Vormonats-Kontostand und die Abweichung zu jetzt, sofern `Kontostand Monatsende` im bestaetigten CFO-Import vorhanden ist. Fehlende Vormonatswerte duerfen nicht als 0 interpretiert werden.
   - Die KPI-Kacheln `Cashflow gem. BWA` und `EBITDA` haben eigene Zeitraumfilter. Titel, Wert, Status und Info-Herleitung muessen immer dem jeweils gewaehlten Zeitraum folgen.
   - Die Zeitraumfilter in den kompakten Orisus-Board-KPI-Kacheln sollen desktop-tauglich klein und dezent bleiben.
   - Das Diagramm `Top Behandler nach Honorarumsatz` hat einen eigenen Zeitraumfilter und startet standardmaessig auf `Geschaeftsjahr 2026`, wenn dieser Zeitraum im bestaetigten Import vorhanden ist.

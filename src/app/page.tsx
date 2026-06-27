@@ -3369,6 +3369,38 @@ function matchesBankMovementKey(label: unknown, key: string) {
   );
 }
 
+function consolidatedKontostandMonthSnapshots(importedData?: ImportedDashboardData | null) {
+  const rows = (importedData?.bankMovementRows ?? []).filter((row) =>
+    matchesBankMovementKey(row.label, "kontostand_monatsende") && (!row.siteId || row.siteId === "konzern")
+  );
+  const valuesByMonth = new Map<string, { year: number; month: number; value: number }>();
+  rows.forEach((row) => {
+    Object.entries(row.valuesByMonth).forEach(([key, value]) => {
+      if (!row.hasValueByMonth[key]) return;
+      const [year, month] = key.split("-").map(Number);
+      if (!year || !month) return;
+      const existing = valuesByMonth.get(key);
+      valuesByMonth.set(key, { year, month, value: (existing?.value ?? 0) + value });
+    });
+  });
+  return [...valuesByMonth.values()].sort((a, b) => a.year - b.year || a.month - b.month);
+}
+
+function liquidityPreviousMonthComparison(importedData: ImportedDashboardData | null | undefined, currentValue: number) {
+  const snapshots = consolidatedKontostandMonthSnapshots(importedData);
+  if (snapshots.length < 2) return null;
+  const previous = snapshots.at(-2);
+  if (!previous) return null;
+  const deviation = currentValue - previous.value;
+  const monthLabel = `${bwaMonths[previous.month - 1]} ${previous.year}`;
+  return {
+    monthLabel,
+    previousValue: previous.value,
+    deviation,
+    display: `Vormonat ${monthLabel}: ${eur(previous.value)} | ${deviation >= 0 ? "+" : ""}${eur(deviation)} zu jetzt`
+  };
+}
+
 function normalizeSiteId(value: unknown) {
   return asText(value)
     .toLowerCase()
@@ -7590,6 +7622,7 @@ function SummaryKpiCards({ sites, importedData }: { sites: DashboardSite[]; impo
   const ebitdaAchievement = ebitdaTarget ? (ebitdaActual / ebitdaTarget) * 100 : 0;
   const metrics = cfoMetrics(sortedSites, monthly, rules);
   const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
+  const liquidityComparison = liquidityPreviousMonthComparison(importedData, metrics.kontostand);
 
   return (
     <div className="grid auto-rows-fr items-stretch gap-4 lg:grid-cols-3">
@@ -7633,6 +7666,7 @@ function SummaryKpiCards({ sites, importedData }: { sites: DashboardSite[]; impo
         label="Aktuelle Liquidität"
         value={metrics.kontostand}
         delta="aktueller konsolidierter Kontostand"
+        footnote={liquidityComparison?.display}
         icon={CircleDollarSign}
         status={statusByRule(metrics.kontostand, rules.aktuelle_liquiditaet)}
         info={
@@ -7646,6 +7680,12 @@ function SummaryKpiCards({ sites, importedData }: { sites: DashboardSite[]; impo
             </div>
             <div className="border-t border-border pt-2">
               <InfoLine label="= Aktuelle Liquidität" value={metrics.kontostand} strong />
+              {liquidityComparison ? (
+                <>
+                  <InfoLine label={`Vormonat ${liquidityComparison.monthLabel}`} value={liquidityComparison.previousValue} />
+                  <InfoLine label="Abweichung zu jetzt" value={liquidityComparison.deviation} strong />
+                </>
+              ) : null}
             </div>
           </div>
         }
@@ -8257,6 +8297,7 @@ function DailyCfoCockpit({
 }) {
   const rules = useKpiRules();
   const metrics = cfoMetrics(sites, monthlyData, rules);
+  const liquidityComparison = liquidityPreviousMonthComparison(importedData, metrics.kontostand);
   const revenuePeriods = useMemo(() => bwaPeriodOptionsFor(importedData), [importedData]);
   const [revenuePeriod, setRevenuePeriod] = useState(() => defaultBwaPeriodFor(importedData));
   const [cashflowPeriod, setCashflowPeriod] = useState(() => defaultBwaPeriodFor(importedData));
@@ -8369,6 +8410,7 @@ function DailyCfoCockpit({
       label: "Aktuelle Liquidität | aktueller Stand",
       value: metrics.kontostand,
       delta: "Konsolidierter Kontostand",
+      footnote: liquidityComparison?.display,
       icon: CircleDollarSign,
       status: statusByRule(metrics.kontostand, rules.aktuelle_liquiditaet),
       info: (
@@ -8379,6 +8421,12 @@ function DailyCfoCockpit({
           ))}
           <div className="mt-2 border-t border-border pt-2">
             <InfoLine label="= Konsolidierter Kontostand" value={metrics.kontostand} strong />
+            {liquidityComparison ? (
+              <>
+                <InfoLine label={`Vormonat ${liquidityComparison.monthLabel}`} value={liquidityComparison.previousValue} />
+                <InfoLine label="Abweichung zu jetzt" value={liquidityComparison.deviation} strong />
+              </>
+            ) : null}
           </div>
         </div>
       )
@@ -8526,6 +8574,7 @@ function DailyCfoCockpit({
     info?: React.ReactNode;
     sparkline?: SparklinePoint[];
     valueLabel?: string;
+    footnote?: string | null;
   }>;
   const topKpis = kpis.slice(0, 3);
   const bottomKpis = kpis.slice(3);
@@ -8571,6 +8620,7 @@ function KpiCard({
   percent,
   plain,
   delta,
+  footnote,
   icon: Icon,
   status,
   control,
@@ -8586,6 +8636,7 @@ function KpiCard({
   percent?: boolean;
   plain?: boolean;
   delta: string;
+  footnote?: string | null;
   icon: React.ComponentType<{ className?: string }>;
   status: Status;
   control?: React.ReactNode;
@@ -8634,6 +8685,7 @@ function KpiCard({
           {positive ? <ArrowUpRight className="h-4 w-4 shrink-0" /> : <ArrowDownRight className="h-4 w-4 shrink-0" />}
           <span className="min-w-0 break-words">{delta}</span>
         </div>
+        {footnote ? <p className="mt-1 max-w-full break-words text-center text-[11px] font-semibold leading-4 text-slate-300">{footnote}</p> : null}
         {infoOpen && info ? (
           <InfoDialog title={label} onClose={() => setInfoOpen(false)}>
             {info}
@@ -9565,6 +9617,7 @@ function TabExecutiveSummary({
     label: string;
     value: string;
     detail: string;
+    subdetail?: string | null;
     status?: Status;
     icon?: React.ComponentType<{ className?: string }>;
   }>;
@@ -9599,6 +9652,7 @@ function TabExecutiveSummary({
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
                   <p className="mt-1 text-2xl font-extrabold tracking-tight text-white">{item.value}</p>
                   <p className="mt-1 text-xs font-semibold text-slate-300">{item.detail}</p>
+                  {item.subdetail ? <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-400">{item.subdetail}</p> : null}
                 </div>
               </div>
             );
@@ -17387,6 +17441,7 @@ function Cashflow({
   const rules = useKpiRules();
   const metrics = cfoMetrics(sites);
   const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
+  const liquidityComparison = liquidityPreviousMonthComparison(importedData, metrics.kontostand);
   return (
     <section className="space-y-5">
       <PageTitle title="Cashflow-Analyse" text="Cashflow gem. BWA sowie Bank-Cashflow aus Praxiseingängen, Kosten, Annuitäten und Umbuchungen MVZ." />
@@ -17395,7 +17450,7 @@ function Cashflow({
         text="Der Start trennt BWA-Cashflow, Bankbestand und Forderungen. Der detaillierte Bank/BWA-Abgleich bleibt darunter mit Zeitraumlogik und Sondernotizen erhalten."
         items={[
           { label: "Cashflow gem. BWA", value: eur(metrics.cashflow, true), detail: "operativer BWA-Cashflow", status: statusByRule(metrics.cashflow, rules.cashflow_bwa), icon: Wallet },
-          { label: "Kontostand", value: eur(metrics.kontostand, true), detail: "aktueller Bankstand", status: metrics.kontostand >= 0 ? "green" : "red", icon: Landmark },
+          { label: "Kontostand", value: eur(metrics.kontostand, true), detail: "aktueller Bankstand", subdetail: liquidityComparison?.display, status: metrics.kontostand >= 0 ? "green" : "red", icon: Landmark },
           { label: "Offene Forderungen", value: eur(metrics.forderungen, true), detail: `${pct(receivablesRatio)} der Leistung`, status: statusByRule(receivablesRatio, rules.offene_forderungen), icon: ReceiptText },
           { label: "Abgleich", value: "Bank vs. BWA", detail: "nur gleiche BWA-Zeiträume", status: "green", icon: BarChart3 }
         ]}
