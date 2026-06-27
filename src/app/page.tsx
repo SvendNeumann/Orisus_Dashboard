@@ -2055,7 +2055,7 @@ function eurTwo(value: number) {
 }
 
 function pct(value: number) {
-  return `${value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
+  return `${value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
 }
 
 function pctOneDecimal(value: number) {
@@ -3448,7 +3448,7 @@ function dentistCapacityBySiteForPeriod(employees: PersonalEmployee[], period: s
 
 function dentistCapacityBasisLabel(capacity?: DentistCapacityBasis) {
   if (!capacity || !capacity.fte) return "keine Zahnarztstunden im Zeitraum";
-  return `${capacity.fte.toLocaleString("de-DE", { maximumFractionDigits: 1 })} Zahnarzt-FTE (${capacity.weeklyHours.toLocaleString("de-DE", { maximumFractionDigits: 1 })} Std./Woche Ø, ${capacity.headcount.toLocaleString("de-DE", { maximumFractionDigits: 1 })} Köpfe Ø)`;
+  return `${capacity.fte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} Zahnarzt-FTE (${capacity.weeklyHours.toLocaleString("de-DE", { maximumFractionDigits: 1 })} Std./Woche Ø, ${capacity.headcount.toLocaleString("de-DE", { maximumFractionDigits: 1 })} Köpfe Ø)`;
 }
 
 const defaultPracticeOpeningHoursBySiteId: Record<string, number> = {
@@ -6384,7 +6384,15 @@ function PersonalCockpit({
       </Card>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Aktive Mitarbeiter" value={active.length} plain delta="nur Status Aktiv" icon={Users} status="green" />
-        <KpiCard label="FTE aktiv" value={Math.round(totalFte * 10) / 10} plain delta="Basis 40 Std./Woche" icon={Gauge} status="green" />
+        <KpiCard
+          label="FTE aktiv"
+          value={totalFte}
+          valueLabel={totalFte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+          plain
+          delta="Basis 40 Std./Woche"
+          icon={Gauge}
+          status="green"
+        />
         <KpiCard label={`Neueinstellungen ${selectedYear}`} value={newHiresInSelectedYear.length} plain delta="Eintritte laut Mitarbeiterstamm" icon={UserRound} status="green" />
         <KpiCard
           label={`Fluktuation Standort max. ${selectedYear}`}
@@ -6548,7 +6556,7 @@ function PersonalCockpit({
               <TableCell strong summary>{eurTwo(costOverviewTotals.teamCost)}</TableCell>
               <TableCell strong summary>{costOverviewTotals.team ? eurTwo(costOverviewTotals.teamCost / costOverviewTotals.team) : ""}</TableCell>
               <TableCell strong summary>{costOverviewTotals.team ? eurTwo(costOverviewTotals.hourlyWageSum / costOverviewTotals.team) : ""}</TableCell>
-              <TableCell strong summary>{costOverviewTotals.employerCost ? pct((costOverviewTotals.teamCost / costOverviewTotals.employerCost) * 100) : "0 %"}</TableCell>
+              <TableCell strong summary>{costOverviewTotals.employerCost ? pct((costOverviewTotals.teamCost / costOverviewTotals.employerCost) * 100) : pct(0)}</TableCell>
             </tr>
           </tbody>
         </ResponsiveTable>
@@ -6623,7 +6631,7 @@ function PersonalCockpit({
                 <p className="mt-1 text-lg font-bold">
                   {eurTwo(row.value)}{" "}
                   <span className="text-xs font-semibold text-muted-foreground">
-                    ({personnelCostTotal ? pct((row.value / personnelCostTotal) * 100) : "0 %"})
+                    ({personnelCostTotal ? pct((row.value / personnelCostTotal) * 100) : pct(0)})
                   </span>
                 </p>
               </div>
@@ -7172,7 +7180,8 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
         />
         <KpiCard
           label="FTE aktiv"
-          value={Math.round(activeFte * 10) / 10}
+          value={activeFte}
+          valueLabel={activeFte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
           plain
           delta="Basis 40 Std./Woche"
           icon={Gauge}
@@ -7421,7 +7430,7 @@ function SummaryKpiCards({ sites, importedData }: { sites: DashboardSite[]; impo
         label="EBITDA Ist vs. Ziel gem. Übernahme"
         value={ebitdaActual}
         valueLabel={`${eur(ebitdaActual)} / ${ebitdaTarget ? eur(ebitdaTarget) : "n. v."}`}
-        secondaryValue={ebitdaTarget ? `Abw. ${ebitdaDeviation >= 0 ? "+" : ""}${eur(ebitdaDeviation)} | ${ebitdaAchievement.toLocaleString("de-DE", { maximumFractionDigits: 1 })} % Zielerreichung` : "Ziel Übernahme n. v."}
+        secondaryValue={ebitdaTarget ? `Abw. ${ebitdaDeviation >= 0 ? "+" : ""}${eur(ebitdaDeviation)} | ${pct(ebitdaAchievement)} Zielerreichung` : "Ziel Übernahme n. v."}
         delta={performancePeriodLabel(period)}
         icon={TrendingUp}
         status={ebitdaTarget ? statusByRule(ebitdaAchievement, rules.ziel_ebitda_uebernahme) : "yellow"}
@@ -12009,7 +12018,7 @@ function StandortDetail({
               label="FTE aktiv"
               value={activeFte}
               plain
-              valueLabel={activeFte.toLocaleString("de-DE", { maximumFractionDigits: 1 })}
+              valueLabel={activeFte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               delta="Basis 40 Std./Woche"
               icon={Gauge}
               status={fteStatus}
@@ -12771,7 +12780,7 @@ function formatPatientValue(value: number, unit: ImportedPatientMetricRow["unit"
   if (!Number.isFinite(value)) return "–";
   if (unit === "percent") {
     const percentValue = Math.abs(value) <= 1.5 ? value * 100 : value;
-    return `${percentValue.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
+    return pct(percentValue);
   }
   if (unit === "average") return value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
   return Math.round(value).toLocaleString("de-DE");
@@ -15881,7 +15890,7 @@ function Analysen({
 
     const driverRows = costDrivers.map((driver) => [
       driver.label,
-      `${driver.value >= 0 ? "+" : ""}${driver.value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %-Pkt.`,
+      `${driver.value >= 0 ? "+" : ""}${driver.value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %-Pkt.`,
       driver.value > 0 ? "über Orisus-Durchschnitt" : "unter Orisus-Durchschnitt"
     ]);
 
@@ -16736,7 +16745,7 @@ function BenchmarkRanking({ title, rows, suffix, max }: { title: string; rows: {
             <div className="min-w-0 overflow-hidden rounded-full bg-slate-950/38 shadow-inner shadow-black/20">
               <div className={cn("h-3 rounded-full shadow-sm", row.selected ? "bg-gradient-to-r from-[#79eee7] to-[#30d5c8]" : "bg-gradient-to-r from-slate-500 to-slate-300")} style={{ width: `${Math.max(4, Math.min(100, (row.value / (max || 1)) * 100))}%` }} />
             </div>
-            <strong className="text-right text-white">{row.value.toLocaleString("de-DE", { maximumFractionDigits: 1 })}{suffix}</strong>
+            <strong className="text-right text-white">{suffix === "%" ? pct(row.value) : `${row.value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}${suffix}`}</strong>
           </div>
         ))}
       </div>
@@ -16901,7 +16910,7 @@ function DriverLine({ label, value }: { label: string; value: number }) {
     <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 p-3 text-sm">
       <span className="font-semibold text-slate-100">{label}</span>
       <span className={value <= 0 ? "font-bold text-emerald-300" : "font-bold text-red-300"}>
-        {value > 0 ? "+" : ""}{value.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %-Pkt. {value > 0 ? "über" : "unter"} Gruppe
+        {value > 0 ? "+" : ""}{value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %-Pkt. {value > 0 ? "über" : "unter"} Gruppe
       </span>
     </div>
   );
@@ -17990,7 +17999,7 @@ function Bankenreporting({
     },
     {
       label: "Personal-FTE",
-      value: personnelSummary ? personnelSummary.fte.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : "n. v.",
+      value: personnelSummary ? personnelSummary.fte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "n. v.",
       detail: personnelSummary ? `Stand Personalimport | ${personnelSummary.activeCount} aktive MA` : "Personalimport noch nicht aktiv",
       status: personnelSummary ? "green" : "yellow",
       icon: Users,
@@ -17998,7 +18007,7 @@ function Bankenreporting({
     },
     {
       label: "Krankheit je FTE",
-      value: personnelSummary ? personnelSummary.sicknessDaysPerFte.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : "n. v.",
+      value: personnelSummary ? personnelSummary.sicknessDaysPerFte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "n. v.",
       detail: personnelSummary ? `Zeitraum: ${personnelSummary.sicknessYear} | ${personnelSummary.sicknessDays} Tage` : "Personalimport noch nicht aktiv",
       status: personnelSummary ? statusForLower(personnelSummary.sicknessDaysPerFte, 8, 14) : "yellow",
       icon: Stethoscope,
@@ -18126,7 +18135,7 @@ function Bankenreporting({
             <BarChart data={bankKpiActiveSites.map((site) => ({ name: site.name, marge: site.ebitdaMarge, kostenquote: boardCostRatio(site), personal: site.personalquote ?? 0 }))}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
               <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
-              <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `${value}%`} tick={{ fill: "#c8e5e7", fontSize: 11 }} />
+              <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => pct(Number(value))} tick={{ fill: "#c8e5e7", fontSize: 11 }} />
               <Tooltip formatter={(value) => pct(Number(value))} />
               <Bar dataKey="marge" name="EBITDA-Marge" fill="#30d5c8" radius={[8, 8, 0, 0]} />
               <Bar dataKey="kostenquote" name="Gesamtkostenquote" fill="#38bdf8" radius={[8, 8, 0, 0]} />
@@ -18235,10 +18244,10 @@ function Bankenreporting({
                     <tr key={row.site}>
                       <td className="border-b border-r border-border p-3 font-bold">{row.site}</td>
                       <td className="border-b border-r border-border p-3 text-right">{row.active.toLocaleString("de-DE")}</td>
-                      <td className="border-b border-r border-border p-3 text-right">{row.fte.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</td>
+                      <td className="border-b border-r border-border p-3 text-right">{row.fte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
                       <td className="border-b border-r border-border p-3 text-right">{row.dentists.toLocaleString("de-DE")}</td>
                       <td className="border-b border-r border-border p-3 text-right">{row.sicknessDays.toLocaleString("de-DE")}</td>
-                      <td className="border-b border-r border-border p-3 text-right">{row.sicknessDaysPerFte.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</td>
+                      <td className="border-b border-r border-border p-3 text-right">{row.sicknessDaysPerFte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
                       <td className="border-b border-r border-border p-3"><StatusDot status={signal} /></td>
                     </tr>
                   );
@@ -20108,7 +20117,7 @@ function formatNullableCurrency(value: number | null | undefined) {
 }
 
 function formatNullableNumber(value: number | null | undefined, digits = 1) {
-  return value == null || !Number.isFinite(value) ? "n. v." : value.toLocaleString("de-DE", { maximumFractionDigits: digits });
+  return value == null || !Number.isFinite(value) ? "n. v." : value.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 function formatNullablePercent(value: number | null | undefined) {
@@ -23493,7 +23502,7 @@ function pmrProviderRows(importedData: ImportedDashboardData, siteId: string, pe
       <td>${row.hasPrevious ? reportEscape(eur(row.previousTotal)) : ""}</td>
       <td>${row.hasPrevious ? reportEscape(eur(row.total - row.previousTotal)) : ""}</td>
     </tr>`).join("")}
-    <tr class="total"><td>Gesamt</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.honorar, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.eigenlabor, 0)))}</td><td>${reportEscape(eur(totalRevenue))}</td><td>100 %</td><td>${rows.some((row) => row.hasPrevious) ? reportEscape(eur(rows.reduce((sum, row) => sum + (row.hasPrevious ? row.previousTotal : 0), 0))) : ""}</td><td>${rows.some((row) => row.hasPrevious) ? reportEscape(eur(rows.reduce((sum, row) => sum + (row.hasPrevious ? row.total - row.previousTotal : 0), 0))) : ""}</td></tr>
+    <tr class="total"><td>Gesamt</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.honorar, 0)))}</td><td>${reportEscape(eur(rows.reduce((sum, row) => sum + row.eigenlabor, 0)))}</td><td>${reportEscape(eur(totalRevenue))}</td><td>${reportEscape(pct(100))}</td><td>${rows.some((row) => row.hasPrevious) ? reportEscape(eur(rows.reduce((sum, row) => sum + (row.hasPrevious ? row.previousTotal : 0), 0))) : ""}</td><td>${rows.some((row) => row.hasPrevious) ? reportEscape(eur(rows.reduce((sum, row) => sum + (row.hasPrevious ? row.total - row.previousTotal : 0), 0))) : ""}</td></tr>
     </tbody>
   </table>`;
 }
@@ -23557,8 +23566,8 @@ function pmrBenchmarkFormat(value: number | null | undefined, type: "currency" |
   if (value == null || !Number.isFinite(value)) return "n. v.";
   if (type === "currency") return eur(value);
   if (type === "percent") return pct(value);
-  if (type === "index") return `${value.toLocaleString("de-DE", { maximumFractionDigits: 0 })} %`;
-  return value.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+  if (type === "index") return pct(value);
+  return value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
 function pmrBenchmarkComparisonText(value: number | null | undefined, basis: number | null | undefined, higherIsBetter = true, type: "currency" | "percent" | "number" = "number") {

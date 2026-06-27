@@ -195,6 +195,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Seite 2 nutzt freie Flaeche mit kompakten Kosten-, Patienten-/Termin- sowie Produktivitaets-/Ergebnis-Benchmarkwerten
   - keine doppelte Index-/Ranking-Ueberladung in den Reports
 - KPI-Regeln sind als eigener Administration-Tab editierbar, mit verbessertem Kontrast der Eingabefelder.
+- FTE-Kennzahlen und Prozent-/Quotenwerte muessen appweit in KPIs, Charts, Tabellen, Reports und Tooltips immer mit genau einer Nachkommastelle dargestellt werden.
 - Mobile Menues koennen ueber die abgedunkelte Flaeche geschlossen werden.
 - Orisus Board Earn-Out-/Wachstums-KPI-Logik ist fachlich getrennt:
   - erwarteter Earn-Out Run-Rate
