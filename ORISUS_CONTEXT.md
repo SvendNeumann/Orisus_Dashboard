@@ -244,7 +244,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Lohnjournal-Kostensteuerung mit Zeitraum, Gesamtkosten inkl. Erstattungen, durchschnittlichen Kosten je Mitarbeiterzeile, Erstattungsquote und Abweichung Lohnjournal vs. BWA.
   - Monatsverlauf der Lohnjournalkosten je Standort ohne BWA-Abweichungsspalte.
   - Honorarumsatz inkl. Eigenlabor vs. Personalkosten und Behandlerkosten vs. reiner Honorarumsatz.
-  - Auf PMR-Seite 3 muessen Behandlerkosten und Honorarumsatz auf den gewaehlten PMR-Zeitraum begrenzt werden, z. B. YTD bis April nur Jan-Apr und keine bereits importierten Folge-Lohnjournale. Die separate Vorstandssicht `Personalkosten Lohnjournal` bleibt davon unberuehrt und nutzt fuer ihren eigenen Behandlerkostenblock weiterhin die gesamte geladene Lohnjournalperiode seit Vertragsstart.
+  - Auf PMR-Seite 3 muessen Behandlerkosten und reiner Honorarumsatz immer ueber den gesamten Vertragszeitraum bzw. die gesamte geladene Lohnjournalperiode seit Vertragsstart bewertet werden, unabhaengig vom oben gewaehlten PMR-Zeitraum. Grund: Provisionen/Umsatzbeteiligungen koennen verspaetet oder gesammelt ausgezahlt werden; YTD-/Monatsschnitte wuerden diese Quote verzerren.
   - Fehlende Lohnjournaldaten duerfen nicht als 0 interpretiert werden; falls kein Lohnjournal vorhanden ist, bleiben Werte `n. v.` oder nutzen explizit den BWA-Fallback fuer die Personalkostenquote.
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
 - Orisus Performance hat oben KPI-Kacheln im einheitlichen App-Kachelstil mit Info-Buttons/Herleitungen.
@@ -1422,7 +1422,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
     - `indikativ gesamt erwartet`
   - Sonderfall Ulmet: Earn-Out-/Wachstumszahlung nur zeigen, wenn tatsaechlich etwas verdient ist.
   - Top-10-Krankheitstage sollen im PMR zur Nutzung freier Flaechen aufgenommen werden.
-  - Personalkosten je Behandler auf Seite 1 im PMR bleiben wie bisher seit Vertragsbeginn / gesamte Vertragsperiode. Die neue Personalseite 3 grenzt Behandlerkosten und Honorarumsatz bewusst auf den gewaehlten PMR-Zeitraum ab.
+  - Personalkosten je Behandler im PMR bleiben auf Seite 1 und Seite 3 seit Vertragsbeginn / gesamte Vertragsperiode. Der oben gewaehlte PMR-Zeitraum begrenzt BWA-, KPI- und Monatsverlauf-Auswertungen, aber nicht die Behandlerkosten-/Honorarquote.
   - `MVZ` und `Unbekannt` im PMR nicht anzeigen und nicht mitzaehlen.
   - Monatliche Entwicklung: noch nicht vorliegende Monate leer lassen, nicht 0.
   - Vorjahres-/Delta-Spalten in PMR-BWA, Quoten und Behandler-Umsatzboard nur fuellen, wenn der Vergleichszeitraum innerhalb der Vertragsperiode liegt.

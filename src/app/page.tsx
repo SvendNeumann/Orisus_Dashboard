@@ -24501,7 +24501,7 @@ function buildPmrPersonnelPage(
   const honorarValue = importedPeriodValueWithinContract(honorarRow, period, contractStart) ?? importedPeriodValue(honorarRow, period);
   const personnelCostForQuote = payrollTotal || Math.abs(importedBwaMetricValue(importedData.bwaRows, site.id, "personalkosten_gesamt", period));
   const personnelToHonorarQuote = honorarValue ? (personnelCostForQuote / honorarValue) * 100 : null;
-  const providerRows = payrollDoctorHonorarRows(reportPeriods, importedData)
+  const providerRows = payrollDoctorHonorarRows(allSitePeriods, importedData)
     .filter((row) => row.siteName === site.name)
     .sort((a, b) => (b.quote ?? 0) - (a.quote ?? 0) || b.payrollCost - a.payrollCost);
   const latestAverageCost = latestPeriod?.employeeRows.length ? latestPeriod.totals.totalCostIncludingReimbursements / latestPeriod.employeeRows.length : null;
@@ -24547,7 +24547,7 @@ function buildPmrPersonnelPage(
         ["Personalkostenquote", formatNullablePercent(personnelToHonorarQuote)],
         ["Datenlogik", reportPeriods.length ? "Lohnjournal im Reportzeitraum" : "Fallback BWA-Personalkosten"]
       ])}</section>
-      <section class="pmr-section"><h2>Behandlerkosten vs. Honorar | ${reportEscape(periodLabel)}</h2>${pmrProviderPayrollTable(providerRows)}</section>
+      <section class="pmr-section"><h2>Behandlerkosten vs. Honorar | seit Vertragsstart</h2>${pmrProviderPayrollTable(providerRows)}</section>
     </div>
   </div>`;
 }
