@@ -2722,6 +2722,7 @@ function legacyPayrollSummaryGross(lines: string[]) {
     .map((entry) => entry.replace(/\s+/g, " ").trim())
     .join(" ");
   const values = (block.match(/[0-9][0-9.]*,[0-9]{2}-?|[0-9][0-9.]*-?/g) ?? [])
+    .filter((value) => !/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(value))
     .map(parseDatevAmount)
     .filter((value) => value >= 10000 && value <= 300000);
   return values.length ? Math.max(...values) : 0;
