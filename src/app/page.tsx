@@ -354,6 +354,18 @@ type ImportReport = {
   errors: string[];
 };
 
+type UploadProgressState = {
+  active: boolean;
+  label: string;
+  phase: string;
+  total: number;
+  done: number;
+  currentFile?: string;
+  success?: number;
+  warnings?: number;
+  errors?: number;
+};
+
 type ImportedDashboardData = {
   schemaVersion: string;
   importedAt: string;
@@ -9786,6 +9798,61 @@ function Mini({ label, value, info }: { label: string; value: string; info?: Rea
         </InfoDialog>
       ) : null}
     </div>
+  );
+}
+
+function UploadProgressCard({ progress }: { progress: UploadProgressState | null }) {
+  if (!progress) return null;
+
+  const total = Math.max(progress.total, progress.done, 0);
+  const done = total ? Math.min(progress.done, total) : progress.done;
+  const percentage = total ? Math.round((done / total) * 100) : progress.active ? 5 : 0;
+  const status: Status = (progress.errors ?? 0) > 0 ? "red" : (progress.warnings ?? 0) > 0 ? "yellow" : progress.active ? "yellow" : "green";
+  const statusLabel = progress.active ? "In Arbeit" : (progress.errors ?? 0) > 0 ? "Mit Fehlern" : (progress.warnings ?? 0) > 0 ? "Mit Hinweisen" : "Abgeschlossen";
+
+  return (
+    <Card className="overflow-hidden border-cyan-300/35 bg-[#0b2a36]/80 p-4 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#30d5c8]/35 bg-[#30d5c8]/14 text-[#73f2e8]">
+              {progress.active ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            </span>
+            <div>
+              <h2 className="text-sm font-extrabold text-white">{progress.label}</h2>
+              <p className="text-xs font-semibold text-slate-300">{progress.phase}</p>
+            </div>
+            <StatusDot status={status} label={statusLabel} />
+          </div>
+          {progress.currentFile ? (
+            <p className="mt-3 truncate text-xs font-semibold text-slate-300" title={progress.currentFile}>
+              Aktuelle Datei: {progress.currentFile}
+            </p>
+          ) : null}
+          <div className="mt-3">
+            <Progress value={Math.max(0, Math.min(100, percentage))} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 lg:min-w-[28rem]">
+          <div className="rounded-lg border border-white/12 bg-white/7 p-3">
+            <p className="text-xs font-bold uppercase text-slate-400">Fortschritt</p>
+            <p className="mt-1 font-extrabold text-white">{done.toLocaleString("de-DE")} / {total.toLocaleString("de-DE")}</p>
+          </div>
+          <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 p-3">
+            <p className="text-xs font-bold uppercase text-emerald-200">Importfähig</p>
+            <p className="mt-1 font-extrabold text-white">{(progress.success ?? 0).toLocaleString("de-DE")}</p>
+          </div>
+          <div className="rounded-lg border border-amber-300/20 bg-amber-400/10 p-3">
+            <p className="text-xs font-bold uppercase text-amber-200">Hinweise</p>
+            <p className="mt-1 font-extrabold text-white">{(progress.warnings ?? 0).toLocaleString("de-DE")}</p>
+          </div>
+          <div className="rounded-lg border border-red-300/20 bg-red-400/10 p-3">
+            <p className="text-xs font-bold uppercase text-red-200">Fehler</p>
+            <p className="mt-1 font-extrabold text-white">{(progress.errors ?? 0).toLocaleString("de-DE")}</p>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -20942,6 +21009,7 @@ function PayrollUpload({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [resetArmed, setResetArmed] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
   const releasablePendingPeriods = pendingPeriods.filter((period) => !period.errors.length);
   const blockedPendingPeriods = pendingPeriods.filter((period) => period.errors.length);
   const pendingData = pendingPeriods.length ? mergePayrollPeriods(payrollData, pendingPeriods) : payrollData;
@@ -21002,10 +21070,33 @@ function PayrollUpload({
     setBusy(true);
     setMessage("");
     setResetArmed(false);
+    setUploadProgress({
+      active: true,
+      label: "Lohnjournal wird eingelesen",
+      phase: "Dateien werden vorbereitet",
+      total: files.length,
+      done: 0,
+      success: 0,
+      warnings: 0,
+      errors: 0
+    });
     try {
       const parsed: PayrollPeriodData[] = [];
+      let processedCount = 0;
       for (const file of files) {
         const displayName = file.webkitRelativePath || file.name;
+        setUploadProgress({
+          active: true,
+          label: "Lohnjournal wird eingelesen",
+          phase: "PDF wird gelesen",
+          total: files.length,
+          done: processedCount,
+          currentFile: displayName,
+          success: parsed.filter((period) => !period.errors.length).length,
+          warnings: parsed.filter((period) => !period.errors.length && payrollStatusWarnings(period).length).length,
+          errors: parsed.filter((period) => period.errors.length).length
+        });
+        await waitForBrowserPaint();
         if (!file.name.toLowerCase().endsWith(".pdf")) {
           parsed.push({
             id: `invalid-${displayName}`,
@@ -21021,10 +21112,34 @@ function PayrollUpload({
             warnings: [],
             errors: ["Nur PDF-Lohnjournale werden akzeptiert."]
           });
+          processedCount += 1;
+          setUploadProgress({
+            active: true,
+            label: "Lohnjournal wird eingelesen",
+            phase: "Datei verarbeitet",
+            total: files.length,
+            done: processedCount,
+            currentFile: displayName,
+            success: parsed.filter((period) => !period.errors.length).length,
+            warnings: parsed.filter((period) => !period.errors.length && payrollStatusWarnings(period).length).length,
+            errors: parsed.filter((period) => period.errors.length).length
+          });
           continue;
         }
         const text = await extractPdfText(file);
         parsed.push(buildPayrollPeriodDataFromText(text, displayName));
+        processedCount += 1;
+        setUploadProgress({
+          active: true,
+          label: "Lohnjournal wird eingelesen",
+          phase: "Datei verarbeitet",
+          total: files.length,
+          done: processedCount,
+          currentFile: displayName,
+          success: parsed.filter((period) => !period.errors.length).length,
+          warnings: parsed.filter((period) => !period.errors.length && payrollStatusWarnings(period).length).length,
+          errors: parsed.filter((period) => period.errors.length).length
+        });
       }
       const existingPeriodIds = new Set((payrollData?.periods ?? []).map((period) => period.id));
       const pendingCounts = parsed.reduce<Record<string, number>>((counts, period) => {
@@ -21046,8 +21161,24 @@ function PayrollUpload({
       const releasableCount = checked.filter((period) => !period.errors.length).length;
       const blockedCount = checked.length - releasableCount;
       setPendingPeriods(checked);
+      setUploadProgress({
+        active: false,
+        label: "Lohnjournal gelesen",
+        phase: `${checked.length} Datei(en) verarbeitet. ${releasableCount} freigabefähig.`,
+        total: files.length,
+        done: files.length,
+        success: releasableCount,
+        warnings: checked.filter((period) => !period.errors.length && payrollStatusWarnings(period).length).length + duplicateCount,
+        errors: blockedCount
+      });
       setMessage(`${checked.length} Datei(en) gelesen. ${releasableCount} freigabefähig. ${blockedCount ? `${blockedCount} auffällig und werden nicht gespeichert. ` : ""}${duplicateCount ? `${duplicateCount} Doppel-Hinweis(e) prüfen. ` : ""}Bitte Plausibilitätscheck prüfen und dann freigeben.`);
     } catch (error) {
+      setUploadProgress((current) => current ? {
+        ...current,
+        active: false,
+        phase: "Upload konnte nicht vollständig gelesen werden",
+        errors: (current.errors ?? 0) + 1
+      } : null);
       setMessage(error instanceof Error ? error.message : "Lohnjournal-PDF konnte nicht gelesen werden.");
     } finally {
       setBusy(false);
@@ -21057,11 +21188,31 @@ function PayrollUpload({
   const confirm = async () => {
     const data = mergePayrollPeriods(payrollData, releasablePendingPeriods);
     setBusy(true);
+    setUploadProgress({
+      active: true,
+      label: "Lohnjournal wird freigegeben",
+      phase: "Freigabe wird gespeichert",
+      total: releasablePendingPeriods.length || 1,
+      done: 0,
+      success: 0,
+      warnings: warnings.length,
+      errors: errors.length
+    });
     try {
       await persistPayrollJournalData(data);
       setPendingPeriods([]);
       setResetArmed(false);
       await onImportConfirmed(data);
+      setUploadProgress({
+        active: false,
+        label: "Lohnjournal freigegeben",
+        phase: `${releasablePendingPeriods.length.toLocaleString("de-DE")} Monat(e) gespeichert`,
+        total: releasablePendingPeriods.length || 1,
+        done: releasablePendingPeriods.length || 1,
+        success: releasablePendingPeriods.length,
+        warnings: 0,
+        errors: 0
+      });
     } finally {
       setBusy(false);
     }
@@ -21079,6 +21230,7 @@ function PayrollUpload({
       setPendingPeriods([]);
       setResetArmed(false);
       await onImportReset();
+      setUploadProgress(null);
     } finally {
       setBusy(false);
     }
@@ -21194,6 +21346,8 @@ function PayrollUpload({
           </p>
         ) : null}
       </Card>
+
+      <UploadProgressCard progress={uploadProgress} />
 
       <div className="grid gap-3 md:grid-cols-4">
         <Mini label="Geladene Monate" value={(payrollData?.periods.length ?? 0).toLocaleString("de-DE")} />
@@ -22303,6 +22457,7 @@ function PersonalUpload({
   const [previousData, setPreviousData] = useState<PersonalDashboardData | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [successNotice, setSuccessNotice] = useState<{ title: string; text: string } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
   const canEdit = canModifyData(userRole);
 
   const refreshImportHistory = () => {
@@ -22331,12 +22486,46 @@ function PersonalUpload({
     const file = event.target.files?.[0];
     if (!file) return;
     setReport({ ...emptyPersonalImportReport, status: "reading", fileName: file.name });
+    setUploadProgress({
+      active: true,
+      label: "Personal-Import wird eingelesen",
+      phase: "Excel-Datei wird gelesen",
+      total: 1,
+      done: 0,
+      currentFile: file.name,
+      success: 0,
+      warnings: 0,
+      errors: 0
+    });
     try {
       await waitForBrowserPaint();
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      setUploadProgress({
+        active: true,
+        label: "Personal-Import wird eingelesen",
+        phase: "Personal-Arbeitsmappe wird ausgewertet",
+        total: 1,
+        done: 0,
+        currentFile: file.name,
+        success: 0,
+        warnings: 0,
+        errors: 0
+      });
+      await waitForBrowserPaint();
       const dashboardData = buildPersonalDashboardData(workbook, file.name, previousData);
       setReport(dashboardData.report);
       setPendingDashboardData(dashboardData.report.status === "error" ? null : dashboardData);
+      setUploadProgress({
+        active: false,
+        label: "Personal-Import gelesen",
+        phase: dashboardData.report.status === "error" ? "Mit Fehlern abgeschlossen" : "Bereit zur Freigabe",
+        total: 1,
+        done: 1,
+        currentFile: file.name,
+        success: dashboardData.report.status === "error" ? 0 : 1,
+        warnings: dashboardData.report.warnings.length,
+        errors: dashboardData.report.errors.length
+      });
     } catch (error) {
       setReport({
         ...emptyPersonalImportReport,
@@ -22350,6 +22539,17 @@ function PersonalUpload({
         ]
       });
       setPendingDashboardData(null);
+      setUploadProgress({
+        active: false,
+        label: "Personal-Import gelesen",
+        phase: "Datei konnte nicht gelesen werden",
+        total: 1,
+        done: 1,
+        currentFile: file.name,
+        success: 0,
+        warnings: 0,
+        errors: 1
+      });
     }
   }
 
@@ -22357,6 +22557,17 @@ function PersonalUpload({
     if (!canEdit) return;
     if ((report.status !== "ready" && report.status !== "warning") || !pendingDashboardData) return;
     setIsConfirming(true);
+    setUploadProgress({
+      active: true,
+      label: "Personal-Import wird bestätigt",
+      phase: "Freigabe wird gespeichert",
+      total: 1,
+      done: 0,
+      currentFile: report.fileName,
+      success: 0,
+      warnings: report.warnings.length,
+      errors: report.errors.length
+    });
     try {
       await saveConfirmedPersonalImport(report, pendingDashboardData);
       setConfirmedReport(report);
@@ -22366,6 +22577,17 @@ function PersonalUpload({
       setSuccessNotice({
         title: "Personal-Import bestätigt",
         text: `${report.fileName || "Die Personal-Arbeitsmappe"} wurde eingelesen und als aktive Datenbasis freigegeben.`
+      });
+      setUploadProgress({
+        active: false,
+        label: "Personal-Import bestätigt",
+        phase: "Aktive Datenbasis gespeichert",
+        total: 1,
+        done: 1,
+        currentFile: report.fileName,
+        success: 1,
+        warnings: report.warnings.length,
+        errors: 0
       });
     } finally {
       setIsConfirming(false);
@@ -22379,6 +22601,7 @@ function PersonalUpload({
     setConfirmedReport(null);
     setPendingDashboardData(null);
     setPreviousData(null);
+    setUploadProgress(null);
     refreshImportHistory();
     onImportReset?.();
   }
@@ -22421,6 +22644,7 @@ function PersonalUpload({
         <Mini label="Letzte bestätigte Datei" value={confirmedReport?.fileName ?? "Noch keine Datei bestätigt"} />
         <Mini label="Datenstand" value={confirmedReport?.importedAt ? new Date(confirmedReport.importedAt).toLocaleString("de-DE") : "Noch offen"} />
       </Card>
+      <UploadProgressCard progress={uploadProgress} />
       <UploadDataQualityCockpit kind="personal" personalData={pendingDashboardData ?? previousData} />
       {pendingDashboardData && <ImportChangeProtocolCard title="Änderungsprotokoll Personal-Import" rows={changeRows} />}
       <div className="analysis-only">
@@ -22533,6 +22757,7 @@ function Uploads({
   const [importHistory, setImportHistory] = useState<ImportHistoryEntry[]>([]);
   const [isConfirming, setIsConfirming] = useState(false);
   const [successNotice, setSuccessNotice] = useState<{ title: string; text: string } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
   const canEdit = canModifyData(userRole);
 
   const refreshImportHistory = () => {
@@ -22616,11 +22841,34 @@ function Uploads({
     if (!files.length) return;
 
     setReport({ ...emptyImportReport, status: "reading", fileName: `${files.length} Standortdateien` });
+    setUploadProgress({
+      active: true,
+      label: "CFO-Standortdateien werden eingelesen",
+      phase: "Dateien werden vorbereitet",
+      total: files.length,
+      done: 0,
+      success: 0,
+      warnings: 0,
+      errors: 0
+    });
 
     try {
       await waitForBrowserPaint();
       const results = [];
+      let processedCount = 0;
       for (const file of files) {
+        setUploadProgress({
+          active: true,
+          label: "CFO-Standortdateien werden eingelesen",
+          phase: "Standortdatei wird gelesen",
+          total: files.length,
+          done: processedCount,
+          currentFile: file.name,
+          success: results.filter((result) => result.data).length,
+          warnings: results.filter((result) => result.report.warnings.length).length,
+          errors: results.filter((result) => result.report.errors.length).length
+        });
+        await waitForBrowserPaint();
         try {
           results.push(await processCfoUploadFile(file));
         } catch (error) {
@@ -22641,6 +22889,18 @@ function Uploads({
             data: null as ImportedDashboardData | null
           });
         }
+        processedCount += 1;
+        setUploadProgress({
+          active: true,
+          label: "CFO-Standortdateien werden eingelesen",
+          phase: "Datei verarbeitet",
+          total: files.length,
+          done: processedCount,
+          currentFile: file.name,
+          success: results.filter((result) => result.data).length,
+          warnings: results.filter((result) => result.report.warnings.length).length,
+          errors: results.filter((result) => result.report.errors.length).length
+        });
       }
 
       const nextSiteUploads = { ...siteUploads };
@@ -22659,6 +22919,17 @@ function Uploads({
 
       const blockingErrors = results.flatMap((result) => result.report.errors.map((error) => `${result.fileName}: ${error}`));
       const uploadWarnings = results.flatMap((result) => result.report.warnings.map((warning) => `${result.fileName}: ${warning}`));
+      const importableCount = results.filter((result) => result.data).length;
+      setUploadProgress({
+        active: false,
+        label: "CFO-Upload gelesen",
+        phase: `${files.length.toLocaleString("de-DE")} Datei(en) verarbeitet. ${importableCount.toLocaleString("de-DE")} importfähig.`,
+        total: files.length,
+        done: files.length,
+        success: importableCount,
+        warnings: uploadWarnings.length,
+        errors: blockingErrors.length
+      });
       if (nextCombinedData) {
         setReport({
           ...nextCombinedData.report,
@@ -22687,6 +22958,17 @@ function Uploads({
     if (!file) return;
 
     setReport({ ...emptyImportReport, status: "reading", fileName: file.name });
+    setUploadProgress({
+      active: true,
+      label: `${site.name} wird eingelesen`,
+      phase: "Standortdatei wird gelesen",
+      total: 1,
+      done: 0,
+      currentFile: file.name,
+      success: 0,
+      warnings: 0,
+      errors: 0
+    });
 
     try {
       await waitForBrowserPaint();
@@ -22704,6 +22986,17 @@ function Uploads({
       );
       setPendingDashboardData(nextCombinedData);
       setReport(nextCombinedData?.report ?? result.report);
+      setUploadProgress({
+        active: false,
+        label: `${site.name} gelesen`,
+        phase: result.data ? "Bereit zur Freigabe" : "Nicht importfähig",
+        total: 1,
+        done: 1,
+        currentFile: file.name,
+        success: result.data ? 1 : 0,
+        warnings: result.report.warnings.length,
+        errors: result.report.errors.length
+      });
     } catch (error) {
       const errorReport = {
         ...emptyImportReport,
@@ -22721,6 +23014,17 @@ function Uploads({
         ...current,
         [site.id]: { fileName: file.name, report: errorReport, data: null }
       }));
+      setUploadProgress({
+        active: false,
+        label: `${site.name} gelesen`,
+        phase: "Datei konnte nicht gelesen werden",
+        total: 1,
+        done: 1,
+        currentFile: file.name,
+        success: 0,
+        warnings: 0,
+        errors: 1
+      });
     } finally {
       event.target.value = "";
     }
@@ -22731,6 +23035,17 @@ function Uploads({
     if ((report.status !== "ready" && report.status !== "warning") || !pendingDashboardData) return;
     const repairedDashboardData = repairImportedCashflowData(pendingDashboardData);
     setIsConfirming(true);
+    setUploadProgress({
+      active: true,
+      label: "CFO-Import wird bestätigt",
+      phase: "Freigabe wird gespeichert",
+      total: Object.values(siteUploads).filter((entry) => entry.data).length || 1,
+      done: 0,
+      currentFile: report.fileName,
+      success: 0,
+      warnings: report.warnings.length,
+      errors: report.errors.length
+    });
     try {
       await saveConfirmedImport(report, repairedDashboardData);
       setConfirmedReport(report);
@@ -22742,6 +23057,17 @@ function Uploads({
         text: `${report.fileName || "Die Standort-Arbeitsmappen"} wurden eingelesen und als aktive Datenbasis freigegeben.`
       });
       setSiteUploads({});
+      setUploadProgress({
+        active: false,
+        label: "CFO-Import bestätigt",
+        phase: "Aktive Datenbasis gespeichert",
+        total: Object.values(siteUploads).filter((entry) => entry.data).length || 1,
+        done: Object.values(siteUploads).filter((entry) => entry.data).length || 1,
+        currentFile: report.fileName,
+        success: Object.values(siteUploads).filter((entry) => entry.data).length || 1,
+        warnings: report.warnings.length,
+        errors: 0
+      });
     } finally {
       setIsConfirming(false);
     }
@@ -22755,6 +23081,7 @@ function Uploads({
     setPendingDashboardData(null);
     setConfirmedDashboardData(null);
     setSiteUploads({});
+    setUploadProgress(null);
     refreshImportHistory();
     onImportReset?.();
   }
@@ -22813,6 +23140,7 @@ function Uploads({
         <Mini label="Supabase-Sitzung" value={currentSupabaseAccessToken() ? "Angemeldet" : "Nicht aktiv"} />
         <Mini label="Import-Historie" value={importHistory.length ? `${importHistory.length} Einträge erkannt` : "Noch keine Historie"} />
       </Card>
+      <UploadProgressCard progress={uploadProgress} />
       <UploadDataQualityCockpit kind="cfo" cfoData={activeDashboardData} />
       {pendingDashboardData && <ImportChangeProtocolCard title="Änderungsprotokoll CFO-Import" rows={changeRows} />}
       <div className="analysis-only">

@@ -1442,6 +1442,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Fachliche Regeln: Vertragsstart, Datenwelt, Peer ohne Zielstandort, gesamte Vertragsperiode je Standort, Vorjahr nur innerhalb Vertragsperiode, fehlende Werte nicht als 0.
 - Uploads:
   - CFO-Upload und Personal-Upload enthalten ein Datenqualitaets-Cockpit je Standort.
+  - CFO-, Personal- und Lohnjournal-Upload zeigen waehrend des Einlesens eine kompakte Fortschrittsanzeige mit Anzahl verarbeiteter Dateien, aktueller Datei, importfaehigen Dateien, Hinweisen und Fehlern. Diese Anzeige ist reine UI-/Statuslogik und veraendert keine Importwerte oder fachlichen Zuordnungsregeln.
   - CFO-Datenqualitaet zeigt letzten Stand fuer BWA, Bank, PVS-Umsatz und Patienten/Termine.
   - Personal-Datenqualitaet zeigt Mitarbeiterstamm, aktive/inaktive Mitarbeiter und Massnahmen je Standort.
   - Wenn ein neuer Import geladen, aber noch nicht bestaetigt ist, zeigt ein Aenderungsprotokoll die wesentlichen Unterschiede gegenueber dem letzten bestaetigten Stand.
@@ -1453,6 +1454,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Der Tab `Personalkosten Lohnjournal` enthaelt neben BWA-Abgleich und Behandlerkosten eine Kosten- und Bewegungsanalyse: Erstattungsquote, hoechste Erstattungsentlastung je Standort, durchschnittliche Kosten je Mitarbeiter sowie Ein-/Austritte im Verlauf.
   - Sammelupload liest mehrere PDFs oder einen ausgewaehlten Ordner mit PDFs, erkennt Standort und Monat/Jahr aus der DATEV-Kopfzeile und ersetzt gleiche Standort-/Monatskombinationen, ohne andere Monate zu loeschen.
   - Der Lohnjournal-Upload darf gemischte Ordner mit mehreren Standorten enthalten. Die UI muss dies klar anzeigen: Zuordnung zuerst ueber DATEV-Kopfzeile, danach ueber bekannte Datei-/Ordner-Aliase; der Check zeigt kompakt Standortgruppen, Statuszaehler und eine reduzierte Dateiliste, Detailumfang bleibt im Importbericht.
+  - Beim Lohnjournal-Upload muss der Einlesefortschritt auch bei grossen PDF-Ordnern sichtbar bleiben: Anzahl gelesener Dateien, Gesamtzahl, aktuelle Datei, freigabefaehige Dateien, Hinweise und Fehler.
   - Die Tabelle `Erkannte Lohnjournal-Daten` im Upload bleibt kompakt und nutzt einen internen Scrollbereich mit fixierter Kopfzeile, damit alle gelesenen Monate direkt in der App geprueft werden koennen.
   - Wenn ein Standort/Monat bereits gespeichert ist oder im aktuellen Uploadpaket mehrfach vorkommt, muss der Upload vor Freigabe einen klaren Doppel-Hinweis im Plausibilitaetscheck zeigen.
   - DATEV-PDFs koennen Ueberschriften mit auseinandergezogenen Buchstaben ausgeben (`P e rs o n a lk o s t e n ...`); Parser muessen diese Schreibweise tolerant erkennen.
