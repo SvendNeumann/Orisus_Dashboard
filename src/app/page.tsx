@@ -2697,11 +2697,34 @@ function normalizeLegacyPayrollName(value: string) {
   return normalized;
 }
 
+function cleanLegacyPayrollNameCandidate(value: string) {
+  return normalizePersonalText(value)
+    .replace(/\s+Mitgliedsnummer\b.*$/i, "")
+    .replace(/\s+-\s+.*$/i, "")
+    .trim();
+}
+
+function isLegacyPayrollNameCandidate(value: string) {
+  const cleaned = cleanLegacyPayrollNameCandidate(value);
+  const compact = compactDatevText(cleaned);
+  if (!cleaned || /\d/.test(cleaned)) return false;
+  if (cleaned.includes("§")) return false;
+  if (["bn", "lohnartbezeichnung", "hinweisezurabrechnung", "mitgliedsnummer"].some((term) => compact.includes(term))) return false;
+  if (["orisus", "standort", "viktoriastr", "krankenkasse", "knappschaft", "barmer", "aok", "techniker", "sparkasse", "commerzbank", "deutschebank", "deutschekreditbank", "targobank", "apobank", "versorgungswerk", "krankheit", "betrnrag"].some((term) => compact.includes(term))) return false;
+  if (["str", "strasse", "straße", "weg", "platz", "bank"].some((term) => compact.endsWith(compactDatevText(term)))) return false;
+  return /^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß .'`-]+$/.test(cleaned) || /^([A-Za-zÄÖÜäöüß]\s+){4,}[A-Za-zÄÖÜäöüß]$/.test(cleaned);
+}
+
 function legacyPayrollSummaryGross(lines: string[]) {
   const summaryIndex = lines.findIndex((entry) => compactDatevText(entry).includes("summenauslohnabrechnung"));
   if (summaryIndex < 0) return 0;
-  const values = payrollRowAmountsFromLine(lines[summaryIndex].replace(/\s+/g, " ").trim(), 8);
-  return values.at(-1) ?? 0;
+  const block = lines.slice(summaryIndex, summaryIndex + 12)
+    .map((entry) => entry.replace(/\s+/g, " ").trim())
+    .join(" ");
+  const values = (block.match(/[0-9][0-9.]*,[0-9]{2}-?|[0-9][0-9.]*-?/g) ?? [])
+    .map(parseDatevAmount)
+    .filter((value) => value >= 10000 && value <= 300000);
+  return values.length ? Math.max(...values) : 0;
 }
 
 function parseLegacyPayrollRows(lines: string[]) {
@@ -2733,14 +2756,9 @@ function parseLegacyPayrollRows(lines: string[]) {
 
     const markerIndex = blockLines.findIndex((entry) => entry.includes(`*Pers.-Nr. ${personnelNumber}*`));
     const nameCandidate = blockLines.slice(Math.max(0, markerIndex + 1), Math.min(blockLines.length, markerIndex + 18)).find((entry) => {
-      const compact = compactDatevText(entry);
-      if (!entry || /\d/.test(entry)) return false;
-      if (entry.includes("§") || entry.includes("-")) return false;
-      if (["bn", "lohnartbezeichnung", "hinweisezurabrechnung", "mitgliedsnummer"].some((term) => compact.includes(term))) return false;
-      if (compact.includes("versorgungswerk") || compact.includes("krankheit") || compact.includes("betrnrag")) return false;
-      return /^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß .'`-]+$/.test(entry) || /^([A-Za-zÄÖÜäöüß]\s+){4,}[A-Za-zÄÖÜäöüß]$/.test(entry);
+      return isLegacyPayrollNameCandidate(entry);
     });
-    const name = normalizeLegacyPayrollName(nameCandidate ?? personnelNumber);
+    const name = normalizeLegacyPayrollName(cleanLegacyPayrollNameCandidate(nameCandidate ?? personnelNumber));
 
     const gross = blockLines.reduce((sum, entry) => {
       if (!/^\d{4}\s+/.test(entry)) return sum;
