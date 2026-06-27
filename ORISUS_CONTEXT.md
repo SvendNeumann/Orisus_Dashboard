@@ -196,6 +196,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - keine doppelte Index-/Ranking-Ueberladung in den Reports
 - KPI-Regeln sind als eigener Administration-Tab editierbar, mit verbessertem Kontrast der Eingabefelder.
 - FTE-Kennzahlen und Prozent-/Quotenwerte muessen appweit in KPIs, Charts, Tabellen, Reports und Tooltips immer mit genau einer Nachkommastelle dargestellt werden.
+- Im BWA-Tab muss der Standortfilter der konsolidierten BWA-Matrix neben den Einzelstandorten auch `Alle Standorte` enthalten, obwohl der Konzern rechts weiterhin als feste Referenz sichtbar bleibt.
 - Mobile Menues koennen ueber die abgedunkelte Flaeche geschlossen werden.
 - Orisus Board Earn-Out-/Wachstums-KPI-Logik ist fachlich getrennt:
   - erwarteter Earn-Out Run-Rate

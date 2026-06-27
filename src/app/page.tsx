@@ -10782,6 +10782,7 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
   const availablePeriods = bwaPeriodOptionsFor(importedData);
   const [period, setPeriod] = useState(() => defaultBwaPeriodFor(importedData));
   const sourceSites = sortSitesByContractStart(importedData?.sites ?? []);
+  const allSitesMatrixId = "alle-standorte";
   const [selectedMatrixSiteId, setSelectedMatrixSiteId] = useState(() => sourceSites[0]?.id ?? "");
   useEffect(() => {
     if (!availablePeriods.includes(period)) {
@@ -10789,7 +10790,7 @@ function BwaStatement({ title, siteId, importedData }: { title: string; siteId?:
     }
   }, [availablePeriods, importedData, period]);
   useEffect(() => {
-    if (!siteId && sourceSites.length && !sourceSites.some((site) => site.id === selectedMatrixSiteId)) {
+    if (!siteId && sourceSites.length && selectedMatrixSiteId !== allSitesMatrixId && !sourceSites.some((site) => site.id === selectedMatrixSiteId)) {
       setSelectedMatrixSiteId(sourceSites[0].id);
     }
   }, [selectedMatrixSiteId, siteId, sourceSites]);
@@ -10878,10 +10879,21 @@ function ConsolidatedBwaMatrix({
   availablePeriods: string[];
 }) {
   const sourceSites = sortSitesByContractStart(importedData?.sites ?? []);
+  const allSitesMatrixId = "alle-standorte";
+  const showAllSites = selectedSiteId === allSitesMatrixId;
   const selectedSite = sourceSites.find((site) => site.id === selectedSiteId) ?? sourceSites[0];
   const groups = importedData?.bwaRows?.length
     ? [
-        ...(selectedSite
+        ...(showAllSites
+          ? [
+              {
+                id: allSitesMatrixId,
+                label: "Alle Standorte",
+                rows: buildImportedBwaLines(importedData.bwaRows, period),
+                hasData: true
+              }
+            ]
+          : selectedSite
           ? [
               {
                 id: selectedSite.id,
@@ -10902,7 +10914,7 @@ function ConsolidatedBwaMatrix({
         <div>
           <h2 className="font-bold">{title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Links stehen die BWA-Positionen, daneben der ausgewählte Standort; der Konzern bleibt rechts als feste Referenz sichtbar.
+            Links stehen die BWA-Positionen, daneben der ausgewählte Standort oder alle Standorte gemeinsam; der Konzern bleibt rechts als feste Referenz sichtbar.
           </p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[28rem]">
@@ -10916,7 +10928,8 @@ function ConsolidatedBwaMatrix({
           </label>
           <label className="grid gap-1 text-xs font-bold uppercase text-muted-foreground">
             Standort
-            <Select value={selectedSite?.id ?? ""} onChange={(event) => setSelectedSiteId(event.target.value)} disabled={!sourceSites.length}>
+            <Select value={showAllSites ? allSitesMatrixId : selectedSite?.id ?? ""} onChange={(event) => setSelectedSiteId(event.target.value)} disabled={!sourceSites.length}>
+              <option value={allSitesMatrixId}>Alle Standorte</option>
               {sourceSites.map((site) => (
                 <option key={site.id} value={site.id}>{site.name}</option>
               ))}
@@ -10984,7 +10997,7 @@ function ConsolidatedBwaMatrix({
         </table>
       </div>
       <div className="border-t border-border bg-slate-50 p-4 text-sm text-muted-foreground">
-        Ansicht: Der ausgewählte Standort steht links im Vergleichsbereich; der Konzern bleibt rechts als Referenz sichtbar.
+        Ansicht: Die Filterauswahl steht links im Vergleichsbereich; der Konzern bleibt rechts als Referenz sichtbar.
       </div>
     </Card>
   );
