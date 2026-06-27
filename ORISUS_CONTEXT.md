@@ -1462,6 +1462,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Praxismanagement darf keine Lohnjournal-/Gehalts-/AG-Kostendetails sehen.
 - Krankheit / Fehlzeiten:
   - Der Tab `Krankheit / Fehlzeiten` zeigt oben genau drei steuerungsrelevante KPIs: Krankheitstage im Jahr, Krankheitstage je aktivem Mitarbeiter und hoechster Standortwert je aktivem Mitarbeiter. Basis bleibt `Input_Krankheitstage` plus Personalstamm/aktive Beschaeftigung im ausgewaehlten Jahr; Tabellen darunter bleiben Detail-/Plausibilitaetsebene.
+- Standortdetails:
+  - Einzelne Standortdetailseiten zeigen zusaetzlich standortbezogene Personal-KPIs aus dem Personalimport: aktive Mitarbeiter, Fluktuation im Personaljahr, aktive FTE und Krankheitstage je aktivem Mitarbeiter. Die Zuordnung erfolgt ueber Standort-ID; Finanz-KPIs bleiben BWA/PVS-basiert.
 - Mobile/Tabellen:
   - Neue breite Auswertungstabellen erhalten horizontales Scrollen, feste Kopfzeilen innerhalb der Tabelle und Mindestbreiten, damit Spalten auf Smartphone nicht ineinander laufen.
   - Lange Detail-/Prueftabellen sollen optisch ruhig und mit Scroll-/Sticky-Hilfen lesbar bleiben, da sie standardmaessig sichtbar sind.

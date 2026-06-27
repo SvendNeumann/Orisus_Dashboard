@@ -11845,6 +11845,29 @@ function StandortDetail({
   const periodLabel = period === "Gesamte Periode" ? `seit Vertragsstart ${site.start}` : period;
   const siteDevelopmentData = siteDevelopmentChartDataForPeriod(importedData, monthlyData, site.id, period);
   const cashflowDetails = filteredSite.cashflowDetails;
+  const personalYearFromDisplayDate = (value: string) => Number(value.split(".")[2]) || 0;
+  const personalAvailableYears = personalData
+    ? uniqueSortedNumbers([
+        ...personalData.report.years,
+        ...personalData.employees.map((employee) => personalYearFromDisplayDate(employee.entryDate)),
+        ...personalData.employees.map((employee) => personalYearFromDisplayDate(employee.exitDate))
+      ]).filter((item) => item >= 2024)
+    : [];
+  const selectedPersonalYear = selectedBwaPeriod(period).year ?? personalAvailableYears.at(-1) ?? new Date().getFullYear();
+  const siteEmployees = personalData?.employees.filter((employee) => siteIdForName(employee.site) === site.id) ?? [];
+  const activeSiteEmployees = siteEmployees.filter((employee) => employee.status.toLowerCase() === "aktiv");
+  const activeEmployeesInPersonalYear = siteEmployees.filter((employee) => personalWasEmployedInYear(employee, selectedPersonalYear));
+  const activeFte = activeSiteEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+  const exitsInPersonalYear = siteEmployees.filter((employee) => personalYearFromDisplayDate(employee.exitDate) === selectedPersonalYear).length;
+  const fluctuationRate = activeSiteEmployees.length ? (exitsInPersonalYear / activeSiteEmployees.length) * 100 : null;
+  const sicknessDays = (personalData?.sicknessEntries ?? [])
+    .filter((entry) => siteIdForName(entry.site) === site.id && entry.year === selectedPersonalYear)
+    .reduce((sum, entry) => sum + entry.days, 0);
+  const sicknessPerActiveEmployee = activeEmployeesInPersonalYear.length ? sicknessDays / activeEmployeesInPersonalYear.length : null;
+  const activeEmployeesStatus: Status = activeSiteEmployees.length ? "green" : "yellow";
+  const fluctuationStatus: Status = fluctuationRate == null ? "yellow" : fluctuationRate <= 10 ? "green" : fluctuationRate <= 20 ? "yellow" : "red";
+  const fteStatus: Status = activeFte > 0 ? "green" : "yellow";
+  const sicknessStatus: Status = sicknessPerActiveEmployee == null ? "yellow" : sicknessPerActiveEmployee <= 5 ? "green" : sicknessPerActiveEmployee <= 10 ? "yellow" : "red";
   const grossPerformanceInfo = (
     <div className="space-y-3">
       <p className="font-semibold text-slate-950">Herleitung Gesamtleistung</p>
@@ -11941,6 +11964,81 @@ function StandortDetail({
         <KpiCard label="EBITDA" value={filteredSite.ebitda} delta={`${pct(filteredSite.ebitdaMarge)} Marge`} icon={Banknote} status={statusByRule(filteredSite.ebitdaMarge, rules.ebitda_marge)} info={ebitdaInfo} />
         <KpiCard label="Cashflow gem. BWA" value={filteredSite.cashflow} delta="gem. BWA nach vorläufigem Ergebnis" icon={Wallet} status={statusByRule(filteredSite.cashflow, rules.cashflow_bwa)} info={cashflowInfo} />
       </div>
+      {personalData ? (
+        <Card className="p-4">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase text-primary">Personal-KPIs</p>
+              <h2 className="mt-1 text-xl font-extrabold text-white">{site.name} | Personalsteuerung {selectedPersonalYear}</h2>
+            </div>
+            <p className="text-sm text-muted-foreground">Standortbezogen aus Personalimport und Krankheitstagen.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              label="Aktive Mitarbeiter"
+              value={activeSiteEmployees.length}
+              plain
+              delta="Status Aktiv im Personalstamm"
+              icon={Users}
+              status={activeEmployeesStatus}
+              info={
+                <div className="space-y-2 text-sm">
+                  <InfoTextLine label="Standort" value={site.name} />
+                  <InfoTextLine label="Quelle" value="Personalimport / Mitarbeiterstamm" />
+                  <InfoTextLine label="Statusfilter" value="Status Aktiv" strong />
+                </div>
+              }
+            />
+            <KpiCard
+              label={`Fluktuation ${selectedPersonalYear}`}
+              value={fluctuationRate ?? 0}
+              percent
+              valueLabel={fluctuationRate == null ? "n. v." : pct(fluctuationRate)}
+              delta={`${exitsInPersonalYear.toLocaleString("de-DE")} Austritte | ${activeSiteEmployees.length.toLocaleString("de-DE")} aktiv`}
+              icon={UserRoundPlus}
+              status={fluctuationStatus}
+              info={
+                <div className="space-y-2 text-sm">
+                  <InfoTextLine label="Berechnung" value="Austritte im Jahr / aktuell aktive Mitarbeiter" strong />
+                  <InfoTextLine label="Austritte" value={exitsInPersonalYear.toLocaleString("de-DE")} />
+                  <InfoTextLine label="Aktive Mitarbeiter" value={activeSiteEmployees.length.toLocaleString("de-DE")} />
+                </div>
+              }
+            />
+            <KpiCard
+              label="FTE aktiv"
+              value={activeFte}
+              plain
+              valueLabel={activeFte.toLocaleString("de-DE", { maximumFractionDigits: 1 })}
+              delta="Basis 40 Std./Woche"
+              icon={Gauge}
+              status={fteStatus}
+              info={
+                <div className="space-y-2 text-sm">
+                  <InfoTextLine label="Quelle" value="Personalimport / Wochenstunden" />
+                  <InfoTextLine label="Berechnung" value="Summe Wochenstunden aktiver Mitarbeiter / 40" strong />
+                </div>
+              }
+            />
+            <KpiCard
+              label="Krankheit je aktivem Mitarbeiter"
+              value={sicknessPerActiveEmployee ?? 0}
+              plain
+              valueLabel={sicknessPerActiveEmployee == null ? "n. v." : sicknessPerActiveEmployee.toLocaleString("de-DE", { maximumFractionDigits: 1 })}
+              delta={`${sicknessDays.toLocaleString("de-DE", { maximumFractionDigits: 1 })} Krankheitstage ${selectedPersonalYear}`}
+              icon={Stethoscope}
+              status={sicknessStatus}
+              info={
+                <div className="space-y-2 text-sm">
+                  <InfoTextLine label="Quelle" value="Input_Krankheitstage + Personalstamm" />
+                  <InfoTextLine label="Berechnung" value="Krankheitstage / im Jahr beschäftigte Mitarbeiter" strong />
+                  <InfoTextLine label="Beschäftigte im Jahr" value={activeEmployeesInPersonalYear.length.toLocaleString("de-DE")} />
+                </div>
+              }
+            />
+          </div>
+        </Card>
+      ) : null}
       <div className="grid gap-5 xl:grid-cols-2">
         <CostRatios site={filteredSite} periodLabel={periodLabel} />
         <ChartCard
