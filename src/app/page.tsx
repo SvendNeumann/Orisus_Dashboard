@@ -3413,8 +3413,44 @@ function consolidatedReceivablesMonthRecord(receivablesBySiteByMonth?: Record<st
   return Object.fromEntries([...valuesByMonth.entries()].sort(([a], [b]) => a.localeCompare(b)));
 }
 
+const receivablesBankMovementLabels = [
+  "Offene Forderungen gesamt",
+  "Noch nicht geflossen gesamt",
+  "Noch nicht geflossen",
+  "Noch ausstehend vs Bank",
+  "SOLL Forderung PVS"
+];
+
+function consolidatedReceivablesMonthRecordFromBankRows(rows: ImportedBankMovementRow[] = []) {
+  const receivableRows = rows.filter((row) => {
+    if (!row.siteId || row.siteId === "konzern") return false;
+    return receivablesBankMovementLabels.some((label) => matchesBankMovementKey(row.label, label));
+  });
+  const groupedByLabel = new Map<string, ImportedBankMovementRow[]>();
+  receivableRows.forEach((row) => {
+    groupedByLabel.set(row.label, [...(groupedByLabel.get(row.label) ?? []), row]);
+  });
+  const selectedLabel = receivablesBankMovementLabels.find((label) =>
+    [...groupedByLabel.keys()].some((rowLabel) => matchesBankMovementKey(rowLabel, label))
+  );
+  if (!selectedLabel) return {};
+
+  const valuesByMonth = new Map<string, number>();
+  receivableRows
+    .filter((row) => matchesBankMovementKey(row.label, selectedLabel))
+    .forEach((row) => {
+      Object.entries(row.valuesByMonth).forEach(([key, value]) => {
+        if (!row.hasValueByMonth[key]) return;
+        valuesByMonth.set(key, (valuesByMonth.get(key) ?? 0) + value);
+      });
+    });
+
+  return Object.fromEntries([...valuesByMonth.entries()].sort(([a], [b]) => a.localeCompare(b)));
+}
+
 function consolidatedReceivablesMonthSnapshots(importedData?: ImportedDashboardData | null) {
-  const values = importedData?.receivablesByMonth ?? consolidatedReceivablesMonthRecord(importedData?.receivablesBySiteByMonth);
+  const directValues = importedData?.receivablesByMonth ?? consolidatedReceivablesMonthRecord(importedData?.receivablesBySiteByMonth);
+  const values = Object.keys(directValues).length ? directValues : consolidatedReceivablesMonthRecordFromBankRows(importedData?.bankMovementRows);
   return Object.entries(values)
     .map(([key, value]) => {
       const [year, month] = key.split("-").map(Number);
@@ -3439,6 +3475,10 @@ function receivablesPreviousMonthComparison(importedData: ImportedDashboardData 
     deviation,
     display: `Vormonat ${monthLabel}: ${eur(previous.value)} | ${deviation >= 0 ? "+" : ""}${eur(deviation)} zu jetzt`
   };
+}
+
+function missingReceivablesPreviousMonthText(currentValue: number) {
+  return currentValue > 0 ? "Vormonat: nach CFO-Neuimport verfügbar" : undefined;
 }
 
 function normalizeSiteId(value: unknown) {
@@ -7718,6 +7758,7 @@ function SummaryKpiCards({ sites, importedData }: { sites: DashboardSite[]; impo
   const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   const liquidityComparison = liquidityPreviousMonthComparison(importedData, metrics.kontostand);
   const receivablesComparison = receivablesPreviousMonthComparison(importedData, metrics.forderungen);
+  const receivablesFootnote = receivablesComparison?.display ?? missingReceivablesPreviousMonthText(metrics.forderungen);
 
   return (
     <div className="grid auto-rows-fr items-stretch gap-4 lg:grid-cols-3">
@@ -7789,7 +7830,7 @@ function SummaryKpiCards({ sites, importedData }: { sites: DashboardSite[]; impo
         label="Offene Forderungen"
         value={metrics.forderungen}
         delta={`${pct(receivablesRatio)} der Gesamtleistung`}
-        footnote={receivablesComparison?.display}
+        footnote={receivablesFootnote}
         icon={FileBarChart}
         status={statusByRule(receivablesRatio, rules.offene_forderungen)}
         info={
@@ -7810,7 +7851,9 @@ function SummaryKpiCards({ sites, importedData }: { sites: DashboardSite[]; impo
                   <InfoLine label={`Vormonat ${receivablesComparison.monthLabel}`} value={receivablesComparison.previousValue} />
                   <InfoLine label="Abweichung zu jetzt" value={receivablesComparison.deviation} strong />
                 </>
-              ) : null}
+              ) : (
+                <InfoTextLine label="Vormonat" value="nach erneutem CFO-Import verfügbar" />
+              )}
               <InfoLine label="Gesamtleistung als Bezugsgröße" value={metrics.gesamtleistung} />
               <InfoTextLine label="Forderungsquote" value={pct(receivablesRatio)} strong />
             </div>
@@ -8147,6 +8190,7 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
   const ebitdaSparkline = aggregateMetricTrendData(importedData, "ebitda");
   const cashflowSparkline = aggregateMetricTrendData(importedData, "cashflow_gesamt");
   const receivablesComparison = receivablesPreviousMonthComparison(importedData, metrics.forderungen);
+  const receivablesFootnote = receivablesComparison?.display ?? missingReceivablesPreviousMonthText(metrics.forderungen);
   const storyItems = [
     {
       label: "Ergebnisqualität",
@@ -8193,7 +8237,7 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
       label: "Forderungen",
       value: eur(metrics.forderungen, true),
       text: highestReceivableSite ? `höchster Bestand: ${highestReceivableSite.name}` : "aktueller Stand",
-      subtext: receivablesComparison?.display,
+      subtext: receivablesFootnote,
       status: "yellow",
       icon: ReceiptText,
       info: (
@@ -8206,7 +8250,9 @@ function ManagementStoryline({ sites, importedData }: { sites: DashboardSite[]; 
               <InfoLine label={`Vormonat ${receivablesComparison.monthLabel}`} value={receivablesComparison.previousValue} />
               <InfoLine label="Abweichung zu jetzt" value={receivablesComparison.deviation} strong />
             </>
-          ) : null}
+          ) : (
+            <InfoTextLine label="Vormonat" value="nach erneutem CFO-Import verfügbar" />
+          )}
           {highestReceivableSite ? <InfoLine label={`Höchster Einzelbestand: ${highestReceivableSite.name}`} value={highestReceivableSite.forderungen} /> : null}
           <InfoTextLine label="Berechnung" value="Summe der aktuellen Forderungsstände je Standort" />
           <InfoTextLine label="Quelle" value="Dashboard_Management / bestätigter CFO-Import" />
@@ -8412,6 +8458,7 @@ function DailyCfoCockpit({
   const metrics = cfoMetrics(sites, monthlyData, rules);
   const liquidityComparison = liquidityPreviousMonthComparison(importedData, metrics.kontostand);
   const receivablesComparison = receivablesPreviousMonthComparison(importedData, metrics.forderungen);
+  const receivablesFootnote = receivablesComparison?.display ?? missingReceivablesPreviousMonthText(metrics.forderungen);
   const revenuePeriods = useMemo(() => bwaPeriodOptionsFor(importedData), [importedData]);
   const [revenuePeriod, setRevenuePeriod] = useState(() => defaultBwaPeriodFor(importedData));
   const [cashflowPeriod, setCashflowPeriod] = useState(() => defaultBwaPeriodFor(importedData));
@@ -8549,7 +8596,7 @@ function DailyCfoCockpit({
       label: "Offene Forderungen | aktueller Stand",
       value: metrics.forderungen,
       delta: "Konsolidiert seit Vertragsstart",
-      footnote: receivablesComparison?.display,
+      footnote: receivablesFootnote,
       icon: FileBarChart,
       status: statusByRule(metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0, rules.offene_forderungen),
       info: (
@@ -8565,7 +8612,9 @@ function DailyCfoCockpit({
                 <InfoLine label={`Vormonat ${receivablesComparison.monthLabel}`} value={receivablesComparison.previousValue} />
                 <InfoLine label="Abweichung zu jetzt" value={receivablesComparison.deviation} strong />
               </>
-            ) : null}
+            ) : (
+              <InfoTextLine label="Vormonat" value="nach erneutem CFO-Import verfügbar" />
+            )}
           </div>
         </div>
       )
@@ -14503,6 +14552,7 @@ function OrisusPerformance({
   const ebitdaMarginKpi = ebitdaMarginRevenueTotal ? (ebitdaMarginEbitdaTotal / ebitdaMarginRevenueTotal) * 100 : 0;
   const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   const receivablesComparison = receivablesPreviousMonthComparison(importedData, metrics.forderungen);
+  const receivablesFootnote = receivablesComparison?.display ?? missingReceivablesPreviousMonthText(metrics.forderungen);
   const performanceKpiInfo = {
     grossPerformance: (
       <>
@@ -14555,7 +14605,9 @@ function OrisusPerformance({
             <InfoLine label={`Vormonat ${receivablesComparison.monthLabel}`} value={receivablesComparison.previousValue} />
             <InfoLine label="Abweichung zu jetzt" value={receivablesComparison.deviation} strong />
           </>
-        ) : null}
+        ) : (
+          <InfoTextLine label="Vormonat" value="nach erneutem CFO-Import verfügbar" />
+        )}
         <InfoLine label="Gesamtleistung als Bezugsgröße" value={metrics.gesamtleistung} />
         <InfoTextLine label="Forderungsquote" value={pct(receivablesRatio)} strong />
         <InfoTextLine label="Quelle" value="PVS/Finanzen/Kontostand- bzw. Forderungsdaten im bestätigten Import" />
@@ -14575,7 +14627,7 @@ function OrisusPerformance({
           { label: "Gesamtleistung", value: eur(metrics.gesamtleistung, true), detail: "BWA / Vertragsperioden", status: "green", icon: TrendingUp },
           { label: "PVS-Umsatz", value: eur(pvsTotal, true), detail: "Performance-Export", status: "green", icon: BadgeEuro },
           { label: "EBITDA-Marge", value: pct(metrics.ebitdaMarge), detail: "EBITDA / Leistung", status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge), icon: Gauge },
-          { label: "Forderungen", value: eur(metrics.forderungen, true), detail: `${pct(receivablesRatio)} der Leistung`, subdetail: receivablesComparison?.display, status: statusByRule(receivablesRatio, rules.offene_forderungen), icon: FileBarChart }
+          { label: "Forderungen", value: eur(metrics.forderungen, true), detail: `${pct(receivablesRatio)} der Leistung`, subdetail: receivablesFootnote, status: statusByRule(receivablesRatio, rules.offene_forderungen), icon: FileBarChart }
         ]}
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -14620,7 +14672,7 @@ function OrisusPerformance({
           info={performanceKpiInfo.ebitdaMargin}
         />
         <KpiCard label="Cashflow gem. BWA" value={metrics.cashflow} delta="gem. BWA-Brücke" icon={Wallet} status={statusByRule(metrics.cashflow, rules.cashflow_bwa)} info={performanceKpiInfo.cashflow} />
-        <KpiCard label="Offene Forderungen" value={metrics.forderungen} delta={`${pct(receivablesRatio)} der Gesamtleistung`} footnote={receivablesComparison?.display} icon={FileBarChart} status={statusByRule(receivablesRatio, rules.offene_forderungen)} info={performanceKpiInfo.receivables} />
+        <KpiCard label="Offene Forderungen" value={metrics.forderungen} delta={`${pct(receivablesRatio)} der Gesamtleistung`} footnote={receivablesFootnote} icon={FileBarChart} status={statusByRule(receivablesRatio, rules.offene_forderungen)} info={performanceKpiInfo.receivables} />
       </div>
       <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <ChartCard
@@ -17571,6 +17623,7 @@ function Cashflow({
   const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   const liquidityComparison = liquidityPreviousMonthComparison(importedData, metrics.kontostand);
   const receivablesComparison = receivablesPreviousMonthComparison(importedData, metrics.forderungen);
+  const receivablesFootnote = receivablesComparison?.display ?? missingReceivablesPreviousMonthText(metrics.forderungen);
   return (
     <section className="space-y-5">
       <PageTitle title="Cashflow-Analyse" text="Cashflow gem. BWA sowie Bank-Cashflow aus Praxiseingängen, Kosten, Annuitäten und Umbuchungen MVZ." />
@@ -17580,7 +17633,7 @@ function Cashflow({
         items={[
           { label: "Cashflow gem. BWA", value: eur(metrics.cashflow, true), detail: "operativer BWA-Cashflow", status: statusByRule(metrics.cashflow, rules.cashflow_bwa), icon: Wallet },
           { label: "Kontostand", value: eur(metrics.kontostand, true), detail: "aktueller Bankstand", subdetail: liquidityComparison?.display, status: metrics.kontostand >= 0 ? "green" : "red", icon: Landmark },
-          { label: "Offene Forderungen", value: eur(metrics.forderungen, true), detail: `${pct(receivablesRatio)} der Leistung`, subdetail: receivablesComparison?.display, status: statusByRule(receivablesRatio, rules.offene_forderungen), icon: ReceiptText },
+          { label: "Offene Forderungen", value: eur(metrics.forderungen, true), detail: `${pct(receivablesRatio)} der Leistung`, subdetail: receivablesFootnote, status: statusByRule(receivablesRatio, rules.offene_forderungen), icon: ReceiptText },
           { label: "Abgleich", value: "Bank vs. BWA", detail: "nur gleiche BWA-Zeiträume", status: "green", icon: BarChart3 }
         ]}
       />
@@ -18893,12 +18946,13 @@ function BoardPack({
   const boardChartData = bwaChartDataForPeriod(importedData, monthlyData, boardPeriod);
   const receivablesRatio = metrics.gesamtleistung ? (metrics.forderungen / metrics.gesamtleistung) * 100 : 0;
   const receivablesComparison = receivablesPreviousMonthComparison(importedData, metrics.forderungen);
+  const receivablesFootnote = receivablesComparison?.display ?? missingReceivablesPreviousMonthText(metrics.forderungen);
   const criticalSiteNames = metrics.kritisch.map((site) => site.name).join(", ") || "keine";
   const riskFocusItems: Array<{ label: string; value: string; subvalue?: string; status: Status; info: React.ReactNode }> = [
     {
       label: "Forderungen",
       value: `${eur(metrics.forderungen, true)} offen`,
-      subvalue: receivablesComparison?.display,
+      subvalue: receivablesFootnote,
       status: statusByRule(receivablesRatio, rules.offene_forderungen),
       info: (
         <div className="space-y-3">
@@ -18915,7 +18969,9 @@ function BoardPack({
                 <InfoLine label={`Vormonat ${receivablesComparison.monthLabel}`} value={receivablesComparison.previousValue} />
                 <InfoLine label="Abweichung zu jetzt" value={receivablesComparison.deviation} strong />
               </>
-            ) : null}
+            ) : (
+              <InfoTextLine label="Vormonat" value="nach erneutem CFO-Import verfügbar" />
+            )}
             <InfoLine label="Gesamtleistung gesamte Vertragsperiode" value={metrics.gesamtleistung} />
             <InfoTextLine label="Forderungsquote" value={pct(receivablesRatio)} strong />
             <InfoTextLine label="Statusregel" value={kpiRuleText(rules.offene_forderungen, "green")} />
