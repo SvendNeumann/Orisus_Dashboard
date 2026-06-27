@@ -20854,26 +20854,35 @@ function PayrollCosts({
   }, new Map<string, (typeof employeeSummaryRows)[number]>()).values());
   const entriesInSelection = uniqueEmployeeRows.filter((row) => dateWithinSelection(row.entryDate));
   const exitsInSelection = uniqueEmployeeRows.filter((row) => dateWithinSelection(row.exitDate));
-  const turnoverRate = uniqueEmployeeRows.length ? (exitsInSelection.length / uniqueEmployeeRows.length) * 100 : null;
-  const turnoverBySiteRows = Array.from(employeeSummaryRows.reduce((map, row) => {
-    const existing = map.get(row.siteName) ?? {
-      siteName: row.siteName,
-      employees: 0,
-      entries: 0,
-      exits: 0,
-      totalCost: 0
-    };
-    existing.employees += 1;
-    existing.totalCost += row.totalCost;
+  const avgMonthlyHeadcount = filteredPeriods.length ? totalEmployees / filteredPeriods.length : 0;
+  const turnoverRate = avgMonthlyHeadcount ? (exitsInSelection.length / avgMonthlyHeadcount) * 100 : null;
+  const entryExitBySite = uniqueEmployeeRows.reduce((map, row) => {
+    const existing = map.get(row.siteName) ?? { entries: 0, exits: 0 };
     if (dateWithinSelection(row.entryDate)) existing.entries += 1;
     if (dateWithinSelection(row.exitDate)) existing.exits += 1;
     map.set(row.siteName, existing);
     return map;
-  }, new Map<string, { siteName: string; employees: number; entries: number; exits: number; totalCost: number }>()).values())
+  }, new Map<string, { entries: number; exits: number }>());
+  const turnoverBySiteRows = Array.from(filteredPeriods.reduce((map, period) => {
+    const existing = map.get(period.siteName) ?? {
+      siteName: period.siteName,
+      months: 0,
+      employeeRows: 0,
+      totalCost: 0
+    };
+    existing.months += 1;
+    existing.employeeRows += period.employeeRows.length;
+    existing.totalCost += period.totals.totalCostIncludingReimbursements;
+    map.set(period.siteName, existing);
+    return map;
+  }, new Map<string, { siteName: string; months: number; employeeRows: number; totalCost: number }>()).values())
     .map((row) => ({
       ...row,
-      turnoverRate: row.employees ? (row.exits / row.employees) * 100 : null,
-      avgCost: row.employees ? row.totalCost / row.employees : 0
+      entries: entryExitBySite.get(row.siteName)?.entries ?? 0,
+      exits: entryExitBySite.get(row.siteName)?.exits ?? 0,
+      avgMonthlyHeadcount: row.months ? row.employeeRows / row.months : 0,
+      turnoverRate: row.months && row.employeeRows ? ((entryExitBySite.get(row.siteName)?.exits ?? 0) / (row.employeeRows / row.months)) * 100 : null,
+      avgCost: row.employeeRows ? row.totalCost / row.employeeRows : 0
     }))
     .sort((a, b) => compareSiteNamesByContractStart(a.siteName, b.siteName));
   const latestExitRows = exitsInSelection
@@ -21063,13 +21072,13 @@ function PayrollCosts({
         <Card className="overflow-hidden">
           <div className="table-head p-4 text-white">
             <h2 className="font-bold">Fluktuation aus Lohnjournal</h2>
-            <p className="mt-1 text-sm text-white/75">Quervergleich aus Eintritts- und Austrittsdaten je Personalnummer.</p>
+            <p className="mt-1 text-sm text-white/75">Ø Monatsbestand aus den Lohnjournalmonaten plus Ein-/Austritte je Personalnummer.</p>
           </div>
           <ResponsiveTable>
             <thead>
               <tr>
                 <TableHead>Standort</TableHead>
-                <TableHead>Mitarbeiter</TableHead>
+                <TableHead>Ø Monatsbestand</TableHead>
                 <TableHead>Eintritte</TableHead>
                 <TableHead>Austritte</TableHead>
                 <TableHead>Austrittsquote</TableHead>
@@ -21079,7 +21088,7 @@ function PayrollCosts({
               {turnoverBySiteRows.map((row) => (
                 <tr key={row.siteName}>
                   <TableCell strong>{row.siteName}</TableCell>
-                  <TableCell>{row.employees.toLocaleString("de-DE")}</TableCell>
+                  <TableCell>{row.avgMonthlyHeadcount.toLocaleString("de-DE", { maximumFractionDigits: 1 })}</TableCell>
                   <TableCell>{row.entries.toLocaleString("de-DE")}</TableCell>
                   <TableCell>{row.exits.toLocaleString("de-DE")}</TableCell>
                   <TableCell>{formatNullablePercent(row.turnoverRate)}</TableCell>
