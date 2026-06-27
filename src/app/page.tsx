@@ -5403,7 +5403,7 @@ export default function HomePage() {
               }}
             />
           )}
-          {page === "reports" && <Reports sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} />}
+          {page === "reports" && <Reports sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} payrollData={payrollData} />}
           {page === "admin" && isAdmin && <AdminAccessSettings />}
           {page === "kpi-regeln" && isAdmin && <AdminKpiRules />}
         </div>
@@ -23042,6 +23042,7 @@ function buildReportDocument({
           overflow: hidden;
           gap: 4px;
         }
+        .pmr-document .pmr-page:last-child,
         .pmr-document .pmr-benchmark-page:last-child { page-break-after: auto; }
         .pmr-document .pmr-header {
           grid-template-columns: 150px 1fr 95px;
@@ -23071,6 +23072,7 @@ function buildReportDocument({
         .pmr-document .status-dot { width: 5px; height: 5px; margin-right: 2px; }
         .pmr-document .status-label { font-size: 5.2px; }
         .pmr-document .kpi-grid { grid-template-columns: repeat(5, 1fr); gap: 4px; }
+        .pmr-document .pmr-personnel-page .kpi-grid { grid-template-columns: repeat(6, 1fr); }
         .pmr-document .kpi-card { min-height: 36px; border-radius: 8px; padding: 5px 7px; box-shadow: none; }
         .pmr-document .kpi-label { font-size: 6.3px; }
         .pmr-document .kpi-value { margin-top: 2px; font-size: 10.8px; }
@@ -24385,11 +24387,188 @@ function buildPmrSitePage(
   </div>`;
 }
 
+function pmrTwoColumnTable(rows: Array<[string, string]>) {
+  return `<table class="pmr-table compact">
+    <tbody>${rows.map(([label, value]) => `<tr><td>${reportEscape(label)}</td><td>${reportEscape(value)}</td></tr>`).join("")}</tbody>
+  </table>`;
+}
+
+function pmrPersonnelTrendTable(periods: PayrollPeriodData[], importedData: ImportedDashboardData | null | undefined) {
+  const rows = periods.slice(-6);
+  return `<table class="pmr-table compact monthly">
+    <thead><tr><th>Monat</th><th>MA</th><th>Lohnjournal inkl.</th><th>Ø/MA</th><th>Erstattung</th><th>BWA-Abw.</th></tr></thead>
+    <tbody>${rows.length ? rows.map((period) => {
+      const total = period.totals.totalCostIncludingReimbursements;
+      const employees = period.employeeRows.length;
+      const reimbursement = Math.abs(period.totals.reimbursementBa + period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg);
+      const difference = payrollBwaDifference(period, importedData);
+      const differenceClass = difference?.delta ? (difference.delta > 0 ? "negative" : "positive") : "";
+      return `<tr>
+        <td>${reportEscape(period.monthLabel)}</td>
+        <td>${reportEscape(String(employees))}</td>
+        <td>${reportEscape(eur(total))}</td>
+        <td>${reportEscape(formatNullableCurrency(employees ? total / employees : null))}</td>
+        <td>${reportEscape(eur(reimbursement))}</td>
+        <td class="${differenceClass}">${difference ? reportEscape(eur(difference.delta)) : "n. v."}</td>
+      </tr>`;
+    }).join("") : `<tr><td>Keine Lohnjournalperioden</td><td></td><td></td><td></td><td></td><td></td></tr>`}</tbody>
+  </table>`;
+}
+
+function payrollIsoMonth(value?: string) {
+  if (!value) return "";
+  const isoMatch = value.match(/^(\d{4})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
+  const germanMatch = value.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (germanMatch) return `${germanMatch[3]}-${germanMatch[2].padStart(2, "0")}`;
+  return "";
+}
+
+function pmrPersonnelMovementTable(periods: PayrollPeriodData[]) {
+  const monthKeys = new Set(periods.map((period) => `${period.year}-${String(period.month).padStart(2, "0")}`));
+  const employeeMap = new Map<string, { name: string; entryDate?: string; exitDate?: string }>();
+  periods.forEach((period) => {
+    period.employeeRows.forEach((employee) => {
+      const key = employee.personnelNumber || normalizeMetric(employee.name);
+      const existing = employeeMap.get(key) ?? { name: employee.name };
+      employeeMap.set(key, {
+        name: existing.name || employee.name,
+        entryDate: existing.entryDate || employee.entryDate,
+        exitDate: existing.exitDate || employee.exitDate
+      });
+    });
+  });
+  const employees = Array.from(employeeMap.values());
+  const entries = employees.filter((employee) => monthKeys.has(payrollIsoMonth(employee.entryDate))).length;
+  const exits = employees.filter((employee) => monthKeys.has(payrollIsoMonth(employee.exitDate))).length;
+  const latestExits = employees
+    .filter((employee) => employee.exitDate)
+    .sort((a, b) => (b.exitDate ?? "").localeCompare(a.exitDate ?? ""))
+    .slice(0, 5);
+  return `<table class="pmr-table compact">
+    <tbody>
+      <tr><td>Eintritte im Reportzeitraum</td><td>${reportEscape(String(entries))}</td></tr>
+      <tr><td>Austritte im Reportzeitraum</td><td>${reportEscape(String(exits))}</td></tr>
+      <tr><td>Lohnjournal-Personen im Zeitraum</td><td>${reportEscape(String(employees.length))}</td></tr>
+      <tr class="section"><td colspan="2">Letzte bekannte Austritte</td></tr>
+      ${latestExits.length ? latestExits.map((employee) => `<tr><td>${reportEscape(employee.name)}</td><td>${reportEscape(employee.exitDate ?? "")}</td></tr>`).join("") : `<tr><td>Keine Austritte im Lohnjournal</td><td></td></tr>`}
+    </tbody>
+  </table>`;
+}
+
+function pmrProviderPayrollTable(rows: PayrollDoctorHonorarRow[]) {
+  const visibleRows = rows.filter((row) => row.payrollCost > 0 || row.honorar > 0).slice(0, 7);
+  return `<table class="pmr-table compact">
+    <thead><tr><th>Gruppe</th><th>Behandler</th><th>Personalkosten</th><th>Honorar</th><th>PK-Quote</th></tr></thead>
+    <tbody>${visibleRows.length ? visibleRows.map((row) => `<tr>
+      <td>${reportEscape(row.category)}</td>
+      <td>${reportEscape(row.doctorName)}</td>
+      <td>${reportEscape(eur(row.payrollCost))}</td>
+      <td>${reportEscape(eur(row.honorar))}</td>
+      <td>${reportEscape(formatNullablePercent(row.quote))}</td>
+    </tr>`).join("") : `<tr><td>Keine gematchten Behandlerdaten</td><td></td><td></td><td></td><td></td></tr>`}</tbody>
+  </table>`;
+}
+
+function buildPmrPersonnelPage(
+  site: DashboardSite,
+  importedData: ImportedDashboardData,
+  personalData: PersonalDashboardData | null | undefined,
+  payrollData: PayrollJournalData | null | undefined,
+  period: string
+) {
+  const selectedYear = currentYearFromPeriod(period);
+  const periodLabel = performancePeriodLabel(period);
+  const selection = selectedBwaPeriod(period);
+  const personalRow = personalData ? personalRiskRows(personalData, selectedYear).find((row) => siteIdForName(row.site) === site.id) : null;
+  const siteEmployees = (personalData?.employees ?? []).filter((employee) => siteIdForName(employee.site) === site.id);
+  const activeEmployees = siteEmployees.filter(isActivePersonalEmployee);
+  const activeDentists = activeEmployees.filter((employee) => employee.isDentist).length;
+  const allSitePeriods = payrollPeriodsByMonth(payrollData).filter((payrollPeriod) => payrollPeriod.siteId === site.id);
+  const scopedPeriods = allSitePeriods.filter((payrollPeriod) => {
+    if (!selection.year) return true;
+    if (payrollPeriod.year !== selection.year) return false;
+    return selection.months?.length ? selection.months.includes(payrollPeriod.month) : true;
+  });
+  const reportPeriods = selection.year ? scopedPeriods : allSitePeriods;
+  const latestPeriod = allSitePeriods.at(-1);
+  const payrollTotal = reportPeriods.reduce((sum, payrollPeriod) => sum + payrollPeriod.totals.totalCostIncludingReimbursements, 0);
+  const grossTotal = reportPeriods.reduce((sum, payrollPeriod) => sum + payrollPeriod.totals.gross, 0);
+  const reimbursementTotal = reportPeriods.reduce((sum, payrollPeriod) => sum + Math.abs(payrollPeriod.totals.reimbursementBa + payrollPeriod.totals.reimbursementHealthInsurance + payrollPeriod.totals.reimbursementIfsg), 0);
+  const employeeRowCount = reportPeriods.reduce((sum, payrollPeriod) => sum + payrollPeriod.employeeRows.length, 0);
+  const averageMonthlyPayroll = reportPeriods.length ? payrollTotal / reportPeriods.length : null;
+  const averageEmployeePayroll = employeeRowCount ? payrollTotal / employeeRowCount : null;
+  const reimbursementQuote = grossTotal ? (reimbursementTotal / grossTotal) * 100 : null;
+  const bwaDifferences = reportPeriods.map((payrollPeriod) => payrollBwaDifference(payrollPeriod, importedData)).filter((row): row is NonNullable<ReturnType<typeof payrollBwaDifference>> => Boolean(row));
+  const bwaTotal = bwaDifferences.reduce((sum, row) => sum + row.bwaValue, 0);
+  const payrollWithBwaTotal = bwaDifferences.reduce((sum, row) => sum + row.payrollValue, 0);
+  const payrollBwaDelta = bwaDifferences.length ? payrollWithBwaTotal - bwaTotal : null;
+  const payrollBwaDeltaPct = bwaTotal ? ((payrollWithBwaTotal - bwaTotal) / bwaTotal) * 100 : null;
+  const contractStart = contractStartForSiteId(importedData, site.id);
+  const honorarRow = importedData.behandlerTotalRows?.find((row) => row.siteId === site.id);
+  const honorarValue = importedPeriodValueWithinContract(honorarRow, period, contractStart) ?? importedPeriodValue(honorarRow, period);
+  const personnelCostForQuote = payrollTotal || Math.abs(importedBwaMetricValue(importedData.bwaRows, site.id, "personalkosten_gesamt", period));
+  const personnelToHonorarQuote = honorarValue ? (personnelCostForQuote / honorarValue) * 100 : null;
+  const providerRows = payrollDoctorHonorarRows(allSitePeriods, importedData)
+    .filter((row) => row.siteName === site.name)
+    .sort((a, b) => (b.quote ?? 0) - (a.quote ?? 0) || b.payrollCost - a.payrollCost);
+  const latestAverageCost = latestPeriod?.employeeRows.length ? latestPeriod.totals.totalCostIncludingReimbursements / latestPeriod.employeeRows.length : null;
+
+  return `<div class="pmr-page pmr-personnel-page">
+    <header class="pmr-header">
+      <div class="pmr-logo"><img src="/orisus-logo.png" alt="Orisus Zahnmedizin" /></div>
+      <div><div class="eyebrow">Personalauswertung</div><h1>Personal ${reportEscape(site.name)}</h1><p>${reportEscape(periodLabel)} | Personalimport, Lohnjournal und Honorarumsätze</p></div>
+      <div class="pmr-meta"><strong>Seite 3</strong><span>Standortleiter</span><span>Vertraulich</span></div>
+    </header>
+    ${reportKpiGrid([
+      { label: "Aktive Mitarbeiter", value: formatNullableNumber(personalRow?.activeEmployees, 0), detail: "Personalimport", tone: "blue" },
+      { label: "FTE aktiv", value: formatNullableNumber(personalRow?.fte), detail: "eine Nachkommastelle", tone: "green" },
+      { label: "Krankheit je FTE", value: formatNullableNumber(personalRow?.sicknessPerFte), detail: String(selectedYear), tone: (personalRow?.sicknessPerFte ?? 0) > 14 ? "red" : (personalRow?.sicknessPerFte ?? 0) > 8 ? "yellow" : "green" },
+      { label: "Fluktuation", value: formatNullablePercent(personalRow?.fluctuation), detail: `${personalRow?.exits ?? 0} Austritte ${selectedYear}`, tone: (personalRow?.fluctuation ?? 0) > 20 ? "red" : (personalRow?.fluctuation ?? 0) > 10 ? "yellow" : "green" },
+      { label: "Ø Lohnjournal / Monat", value: formatNullableCurrency(averageMonthlyPayroll), detail: `${reportPeriods.length} Monate`, tone: "blue" },
+      { label: "PK / Honorar", value: formatNullablePercent(personnelToHonorarQuote), detail: periodLabel, tone: (personnelToHonorarQuote ?? 0) > 35 ? "red" : (personnelToHonorarQuote ?? 0) > 28 ? "yellow" : "green" }
+    ])}
+    <div class="pmr-grid top">
+      <section class="pmr-section"><h2>Personalstruktur & Fehlzeiten</h2>${pmrTwoColumnTable([
+        ["Aktive Mitarbeiter", formatNullableNumber(personalRow?.activeEmployees, 0)],
+        ["Aktive FTE", formatNullableNumber(personalRow?.fte)],
+        ["Aktive Zahnärzte / Behandler", formatNullableNumber(activeDentists, 0)],
+        ["Krankheitstage im Jahr", formatNullableNumber(personalRow?.sicknessDays)],
+        ["Krankheit je FTE", formatNullableNumber(personalRow?.sicknessPerFte)],
+        ["AG-Aufwand je FTE", formatNullableCurrency(personalRow?.employerCostPerFte)]
+      ])}</section>
+      <section class="pmr-section"><h2>Lohnjournal-Kostensteuerung</h2>${pmrTwoColumnTable([
+        ["Lohnjournal-Zeitraum", reportPeriods.length ? `${reportPeriods[0].monthLabel} bis ${reportPeriods.at(-1)?.monthLabel}` : "n. v."],
+        ["Gesamtkosten inkl. Erstatt.", formatNullableCurrency(reportPeriods.length ? payrollTotal : null)],
+        ["Ø Kosten je Mitarbeiterzeile", formatNullableCurrency(averageEmployeePayroll)],
+        ["Letzter Lohnjournalmonat", latestPeriod ? latestPeriod.monthLabel : "n. v."],
+        ["Letzter Monat Ø/MA", formatNullableCurrency(latestAverageCost)],
+        ["Erstattungsquote", formatNullablePercent(reimbursementQuote)],
+        ["Lohnjournal vs. BWA", payrollBwaDelta == null ? "n. v." : `${eur(payrollBwaDelta)} | ${formatNullablePercent(payrollBwaDeltaPct)}`]
+      ])}</section>
+    </div>
+    <div class="pmr-grid bottom">
+      <section class="pmr-section"><h2>Monatsverlauf Lohnjournal</h2>${pmrPersonnelTrendTable(reportPeriods, importedData)}</section>
+      <section class="pmr-section"><h2>Ein-/Austritte aus Lohnjournal</h2>${pmrPersonnelMovementTable(reportPeriods)}</section>
+    </div>
+    <div class="pmr-grid bottom">
+      <section class="pmr-section"><h2>Honorarumsatz vs. Personalkosten</h2>${pmrTwoColumnTable([
+        ["Honorarumsatz inkl. Eigenlabor", formatNullableCurrency(honorarValue)],
+        ["Personalkostenbasis", formatNullableCurrency(personnelCostForQuote || null)],
+        ["Personalkostenquote", formatNullablePercent(personnelToHonorarQuote)],
+        ["Datenlogik", reportPeriods.length ? "Lohnjournal im Reportzeitraum" : "Fallback BWA-Personalkosten"]
+      ])}</section>
+      <section class="pmr-section"><h2>Behandlerkosten vs. Honorar | seit Vertragsstart</h2>${pmrProviderPayrollTable(providerRows)}</section>
+    </div>
+  </div>`;
+}
+
 function buildPmrReport(
   selectedSites: DashboardSite[],
   allSites: DashboardSite[],
   importedData: ImportedDashboardData | null | undefined,
   personalData: PersonalDashboardData | null | undefined,
+  payrollData: PayrollJournalData | null | undefined,
   period: string,
   comparisonYear: number
 ) {
@@ -24406,7 +24585,8 @@ function buildPmrReport(
 
   const pages = selectedSites.map((site) => [
     buildPmrSitePage(site, importedData, personalData, period, comparisonYear),
-    buildPmrBenchmarkPage(site, allSites, importedData, personalData, period)
+    buildPmrBenchmarkPage(site, allSites, importedData, personalData, period),
+    buildPmrPersonnelPage(site, importedData, personalData, payrollData, period)
   ].join("")).join("");
   return buildReportDocument({
     title: "PMR Standortleiter-Report",
@@ -24607,12 +24787,14 @@ function Reports({
   sites = standorte,
   monthlyData = monthly,
   importedData,
-  personalData
+  personalData,
+  payrollData
 }: {
   sites?: DashboardSite[];
   monthlyData?: typeof monthly;
   importedData?: ImportedDashboardData | null;
   personalData?: PersonalDashboardData | null;
+  payrollData?: PayrollJournalData | null;
 }) {
   const rules = useKpiRules();
   const pmrPeriodOptions = useMemo(() => bwaPeriodOptionsFor(importedData), [importedData]);
@@ -24685,7 +24867,7 @@ function Reports({
             <FileBarChart className="h-8 w-8 text-primary" />
             <h2 className="mt-3 text-xl font-bold">Standortleiter-PMR</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Standortbezogener Report mit BWA bis EBITDA, Quoten, Earn-Out-Hochrechnung, Behandlerumsatz und Personalkosten je Behandler.
+              Standortbezogener Report mit BWA bis EBITDA, Benchmarking-Anlage und kompakter Personalauswertung aus Personalimport und Lohnjournal.
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.2fr_0.9fr_0.9fr_auto]">
@@ -24713,7 +24895,7 @@ function Reports({
               disabled={!selectedPmrSites.length}
               onClick={() => openPrintableReport(
                 pmrReportFileTitle(selectedPmrSites, activeReportSites, pmrPeriod),
-                buildPmrReport(selectedPmrSites, activeReportSites, importedData, personalData, pmrPeriod, Number(pmrComparisonYear))
+                buildPmrReport(selectedPmrSites, activeReportSites, importedData, personalData, payrollData, pmrPeriod, Number(pmrComparisonYear))
               )}
             >
               PMR öffnen

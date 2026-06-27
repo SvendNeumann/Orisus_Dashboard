@@ -237,7 +237,15 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Tabellen sollen appweit kompakter, mit klarer Kopfzeile, ruhiger Zeilenstruktur und deutlicher Summenzeile dargestellt werden; Inhalte und Reihenfolge bleiben fachlich erhalten.
   - Lange Status-/Warnhinweise in Karten muessen auf Tablet-Breiten innerhalb der Kachel umbrechen und duerfen nicht ueber Kartenraender oder Nachbarkacheln laufen.
   - Start-/Ueberblick-Kachelgruppen sollen ihre Spaltenzahl an die tatsaechliche Anzahl der KPIs anpassen, damit auf iPad/Desktop keine leeren Spalten entstehen und die Kacheln unten buendig abschliessen.
-- PMR-Export enthaelt Seite 1 Standortleiter-PMR und Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort.
+- PMR-Export enthaelt Seite 1 Standortleiter-PMR, Seite 2 den passenden Benchmarking-Auszug fuer denselben Standort und Seite 3 eine standortbezogene Personalauswertung.
+- PMR-Seite 3 nutzt Personalimport, Lohnjournal und Honorar-/Behandlerdaten gemeinsam:
+  - KPI-Block mit aktiven Mitarbeitern, FTE, Krankheit je FTE, Fluktuation, durchschnittlichem Lohnjournal je Monat und Personalkostenquote gegen Honorarumsatz.
+  - Personalstruktur-/Fehlzeitenblock aus dem Personalimport.
+  - Lohnjournal-Kostensteuerung mit Zeitraum, Gesamtkosten inkl. Erstattungen, durchschnittlichen Kosten je Mitarbeiterzeile, Erstattungsquote und Abweichung Lohnjournal vs. BWA.
+  - Monatsverlauf der Lohnjournalkosten je Standort.
+  - Ein-/Austritte aus den Lohnjournalen als Quervergleich zur Mitarbeiterliste.
+  - Honorarumsatz vs. Personalkosten und Behandlerkosten vs. Honorar seit Vertragsstart.
+  - Fehlende Lohnjournaldaten duerfen nicht als 0 interpretiert werden; falls kein Lohnjournal vorhanden ist, bleiben Werte `n. v.` oder nutzen explizit den BWA-Fallback fuer die Personalkostenquote.
 - Bankenreporting wurde analytischer aufgebaut; KPI-Kacheln muessen weiter streng im App-Kachelstil bleiben.
 - Orisus Performance hat oben KPI-Kacheln im einheitlichen App-Kachelstil mit Info-Buttons/Herleitungen.
 - Orisus Performance: Die KPI-Kacheln `Gesamtleistung`, `PVS-Umsatz` und `EBITDA-Marge` haben eigene Zeitraumfilter. Gesamtleistung und EBITDA-Marge laufen über BWA-Zeiträume; PVS-Umsatz läuft über die PVS-/Performance-Zeiträume.
