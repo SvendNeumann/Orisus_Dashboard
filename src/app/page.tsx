@@ -6568,6 +6568,11 @@ function PersonalCockpit({
         <PageTitle title="Personal-Cockpit" text="Stufe 1: zentrale Personalsteuerung aus der hochgeladenen Personalübersicht-Arbeitsmappe." />
         <CompactPersonalDataStatus personalData={personalData} />
       </div>
+      <Card className="p-3 text-sm text-muted-foreground">
+        <span className="font-bold text-foreground">Datenbasis:</span> Mitarbeiter, FTE, Krankheit, Fluktuation und AG-Aufwand kommen hier aus der
+        Mitarbeiterliste bzw. dem Personalimport. Echte abgerechnete Kosten aus dem DATEV-Lohnjournal werden separat im Tab{" "}
+        <span className="font-semibold text-foreground">Personalkosten Lohnjournal</span> ausgewertet.
+      </Card>
       <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="font-bold">Zeitraumauswahl Personal-Cockpit</h2>
@@ -6608,7 +6613,7 @@ function PersonalCockpit({
           label="AG-Aufwand aktiv"
           value={active.reduce((sum, employee) => sum + employee.employerCost, 0)}
           valueLabel={eurTwo(active.reduce((sum, employee) => sum + employee.employerCost, 0))}
-          delta="monatlich laut Import"
+          delta="Mitarbeiterliste / Personalimport"
           icon={BadgeEuro}
           status="yellow"
         />
@@ -6783,6 +6788,7 @@ function PersonalCockpit({
       <Card className="overflow-hidden">
         <div className="table-head p-4 text-white">
           <h2 className="font-bold">Kostenübersicht je Standort | aktive Mitarbeiter</h2>
+          <p className="mt-1 text-sm text-white/75">Datenbasis Kosten: Mitarbeiterliste / Personalimport, nicht DATEV-Lohnjournal.</p>
         </div>
         <ResponsiveTable>
           <thead>
@@ -6832,6 +6838,7 @@ function PersonalCockpit({
       <Card className="overflow-hidden">
         <div className="table-head p-4 text-white">
           <h2 className="font-bold">Kosten & operative Kennzahlen | aktive Kosten / {periodLabel}</h2>
+          <p className="mt-1 text-sm text-white/75">Personalkosten = AG-Aufwand aus Mitarbeiterliste / Personalimport.</p>
         </div>
         <ResponsiveTable>
           <thead>
@@ -6868,6 +6875,7 @@ function PersonalCockpit({
       </Card>
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="AG-Kosten je Standort | aktive Mitarbeiter" icon={BadgeEuro}>
+          <p className="mb-3 text-sm text-muted-foreground">Datenbasis: Mitarbeiterliste / Personalimport. Kein Lohnjournal-Vergleich in diesem Chart.</p>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie
@@ -7491,6 +7499,10 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
         }
       `}</style>
       <PageTitle title="Mitarbeiterübersicht" text="Stammdaten, Beschäftigungsart, Funktion und Vergütungsdaten aus Input_Mitarbeiter." />
+      <Card className="p-3 text-sm text-muted-foreground">
+        <span className="font-bold text-foreground">Datenbasis:</span> Diese Ansicht nutzt die Mitarbeiterliste bzw. den Personalimport.
+        AG-Aufwand, Fixgehalt und Stundenlohn sind Stammdatenwerte aus dieser Liste und werden nicht aus dem DATEV-Lohnjournal berechnet.
+      </Card>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Aktive Mitarbeiter"
@@ -7550,6 +7562,7 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
             info={
               <>
                 <p className="font-bold text-slate-900">Arbeitgeberaufwand je Standort</p>
+                <InfoTextLine label="Datenbasis" value="Mitarbeiterliste / Personalimport, nicht Lohnjournal" strong />
                 <div className="space-y-1">
                   {activeEmployeeBreakdownBySite.map((row) => (
                     <InfoTextLine key={row.siteName} label={row.siteName} value={eurTwo(row.employerCost)} />
@@ -15497,7 +15510,8 @@ function SiteBehandlerPersonnelCosts({
         <span className="font-bold">Personalkosten je Behandler {site.name} | seit Vertragsbeginn</span>
       </div>
       <div className="border-b border-border bg-slate-50 p-3 text-sm text-muted-foreground">
-        Quelle ist der bestätigte CFO-Import aus den Standort-Personalkosten-Tabs. Die Tabelle aggregiert Personalkosten und Honorarumsatz über die gesamte Vertragsperiode.
+        Datenbasis Personalkosten: CFO-Personalkostenexport aus den Standortdateien, nicht DATEV-Lohnjournal und nicht Mitarbeiterliste.
+        Statushinweise zu Inaktivität können ergänzend aus der Mitarbeiterliste kommen. Die Tabelle aggregiert Personalkosten und Honorarumsatz über die gesamte Vertragsperiode.
       </div>
       <ResponsiveTable>
         <thead>
@@ -21568,6 +21582,11 @@ function PayrollCosts({
   return (
     <section className="space-y-5">
       <PageTitle title="Personalkosten Lohnjournal" text="Verläufe, Abweichungen und Plausibilisierung der echten Personalkosten aus DATEV-Lohnjournalen." />
+      <Card className="p-3 text-sm text-muted-foreground">
+        <span className="font-bold text-foreground">Datenbasis:</span> Kostenwerte in diesem Tab kommen aus dem DATEV-Lohnjournal.
+        Vergleiche laufen je nach Block gegen BWA-Personalkosten oder gegen reinen Honorarumsatz aus dem CFO-/Behandlerimport.
+        Die Mitarbeiterliste ist hier nicht die Kostenbasis.
+      </Card>
       {!periods.length ? (
         <Card className="p-5">
           <h2 className="font-bold">Noch keine Lohnjournal-Daten</h2>
@@ -21604,6 +21623,7 @@ function PayrollCosts({
           info={
             <div className="space-y-2 text-sm">
               <InfoTextLine label="Quelle" value="DATEV-Lohnjournal, Gesamtkosten inkl. Erstattungen" />
+              <InfoTextLine label="Vergleich mit Mitarbeiterliste" value="Nein, diese Kosten kommen aus dem Lohnjournal" strong />
               <InfoLine label="Summe" value={totalPayroll} strong />
               <InfoLine label="Ø Monat" value={avgMonthlyPayroll} />
             </div>
@@ -21619,6 +21639,7 @@ function PayrollCosts({
           status={payrollStatus}
           info={
             <div className="space-y-2 text-sm">
+              <InfoTextLine label="Vergleich" value="DATEV-Lohnjournal gegen BWA-Personalkosten" strong />
               <InfoLine label="Lohnjournal mit BWA-Match" value={payrollWithBwa} />
               <InfoLine label="BWA-Personalkosten" value={totalBwa} />
               <InfoLine label="Differenz" value={totalDelta} strong />
@@ -21637,6 +21658,7 @@ function PayrollCosts({
           status={providerStatus}
           info={
             <div className="space-y-2 text-sm">
+              <InfoTextLine label="Vergleich" value="DATEV-Lohnjournal-Behandlerkosten gegen reinen Honorarumsatz" strong />
               <InfoTextLine label="Gruppen" value="Ärzte und PZR getrennt, ohne Dietrich, Schneider, Pomsel, Korkel" />
               <InfoLine label="Behandlerkosten" value={doctorHonorarTotals.payrollCost} />
               <InfoLine label="Reiner Honorarumsatz" value={doctorHonorarTotals.honorar} />
@@ -21656,6 +21678,7 @@ function PayrollCosts({
           info={
             <div className="space-y-2 text-sm">
               <InfoTextLine label="Basis" value="Eintritt/Austritt aus DATEV-Lohnjournal je Personalnummer" />
+              <InfoTextLine label="Mitarbeiterliste" value="kein Vergleich; Lohnjournal-Personalnummern sind Basis" />
               <InfoTextLine label="Quote" value="Austritte / eindeutige Mitarbeiter im ausgewählten Zeitraum" strong />
             </div>
           }
@@ -21664,6 +21687,7 @@ function PayrollCosts({
 
       <div className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
         <ChartCard title="Verlauf Personalkosten gem. Lohnjournal" icon={BadgeEuro}>
+          <p className="mb-3 text-sm text-muted-foreground">Datenbasis: DATEV-Lohnjournal; Linie = BWA-Personalkosten zum Vergleich.</p>
           <ResponsiveContainer width="100%" height={330}>
             <ComposedChart data={chartRows}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
@@ -21741,6 +21765,7 @@ function PayrollCosts({
           <div className="table-head p-4 text-white">
             <h2 className="font-bold">Kosten- und Erstattungsanalyse</h2>
             <p className="mt-1 text-sm text-white/75">Je Standort im gewählten Lohnjournalzeitraum.</p>
+            <p className="mt-1 text-xs text-white/65">Datenbasis: DATEV-Lohnjournal, nicht Mitarbeiterliste.</p>
           </div>
           <ResponsiveTable>
             <thead>
@@ -21770,6 +21795,7 @@ function PayrollCosts({
           <div className="table-head p-4 text-white">
             <h2 className="font-bold">Standortvergleich Lohnjournal</h2>
             <p className="mt-1 text-sm text-white/75">Verdichtet je Standort im gewählten Zeitraum.</p>
+            <p className="mt-1 text-xs text-white/65">Kostenbasis: DATEV-Lohnjournal; BWA-Abweichung nur gegen BWA-Personalkosten.</p>
           </div>
           <ResponsiveTable>
             <thead>
@@ -21799,6 +21825,7 @@ function PayrollCosts({
           <div className="table-head p-4 text-white">
             <h2 className="font-bold">Fluktuation aus Lohnjournal</h2>
             <p className="mt-1 text-sm text-white/75">Ø Monatsbestand aus den Lohnjournalmonaten plus Ein-/Austritte je Personalnummer.</p>
+            <p className="mt-1 text-xs text-white/65">Datenbasis: DATEV-Lohnjournal, nicht Mitarbeiterliste.</p>
           </div>
           <ResponsiveTable>
             <thead>
@@ -21829,6 +21856,7 @@ function PayrollCosts({
         <div className="table-head p-4 text-white">
           <h2 className="font-bold">Größte Abweichungen Lohnjournal vs. BWA</h2>
           <p className="mt-1 text-sm text-white/75">Fokus auf Monate, in denen Abrechnung und BWA besonders auseinanderlaufen.</p>
+          <p className="mt-1 text-xs text-white/65">Vergleich: DATEV-Lohnjournal Gesamtkosten inkl. Erstattungen gegen BWA-Personalkosten.</p>
         </div>
         <ResponsiveTable>
           <thead>
@@ -21864,6 +21892,9 @@ function PayrollCosts({
                 <h2 className="font-bold">Behandlerkosten vs. Honorarumsatz | Ärzte und PZR</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Immer gesamte Lohnjournalperiode seit Vertragsstart; unabhängig vom Jahresfilter oben. Ausgeschlossen: Dietrich, Schneider, Pomsel, Korkel.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Vergleich: DATEV-Lohnjournal-Behandlerkosten gegen reinen Honorarumsatz aus dem CFO-/Behandlerimport; nicht gegen Mitarbeiterliste.
                 </p>
               </div>
               <Select value={providerSite} onChange={(event) => setProviderSite(event.target.value)}>
@@ -21953,7 +21984,7 @@ function PayrollCosts({
         <Card className="overflow-hidden">
           <div className="border-b border-border p-4">
             <h2 className="font-bold">Mitarbeiter-Fokus aus Lohnjournal</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Keine zweite Mitarbeiterliste, sondern die größten Kostenpositionen und aktuelle Austritte im gewählten Zeitraum.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Keine zweite Mitarbeiterliste, sondern die größten Kostenpositionen und aktuelle Austritte im gewählten Zeitraum. Datenbasis ist ausschließlich das DATEV-Lohnjournal.</p>
           </div>
           <div className="grid gap-4 p-4 xl:grid-cols-2">
             <ResponsiveTable>
@@ -22094,6 +22125,10 @@ function PersonalProduktivitaet({
         title="Personalproduktivität"
         text="Standortvergleich von Leistung, PVS-Umsatz, EBITDA und Personalkosten im Verhältnis zur durchschnittlichen Personal- und Zahnarzt-FTE-Kapazität."
       />
+      <Card className="p-3 text-sm text-muted-foreground">
+        <span className="font-bold text-foreground">Datenbasis:</span> FTE und Mitarbeiterkapazität kommen aus der Mitarbeiterliste / dem Personalimport.
+        Personalkosten sind hier BWA-Personalkosten aus dem CFO-Import, nicht DATEV-Lohnjournal und keine Einzelgehälter.
+      </Card>
 
       {!personalData && (
         <Card className="border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
@@ -22108,7 +22143,7 @@ function PersonalProduktivitaet({
             <p className="mt-1 max-w-5xl text-sm leading-6 text-muted-foreground">
               Finanzwerte kommen aus BWA/PVS. FTE kommt aus dem Personalimport und wird je Zeitraum monatsgenau gemittelt.
               Inaktive Mitarbeiter werden historisch berücksichtigt, wenn sie im ausgewählten Zeitraum aktiv waren.
-              Personalkosten sind BWA-Personalkosten, keine offengelegten Gehaltsdetails.
+              Personalkosten sind BWA-Personalkosten, keine Lohnjournalwerte und keine offengelegten Gehaltsdetails.
             </p>
           </div>
           <Select className="w-full md:w-64" value={period} onChange={(event) => setPeriod(event.target.value)}>
@@ -22160,7 +22195,7 @@ function PersonalProduktivitaet({
               <strong className="text-foreground">PVS je Zahnarzt-FTE</strong> zeigt die Umsatzleistung der Behandlerkapazität; Grundlage sind Zahnarztstunden aus dem Personalimport.
             </p>
             <p>
-              <strong className="text-foreground">Personalkostenquote</strong> nutzt ausschließlich BWA-Personalkosten im Verhältnis zur BWA-Gesamtleistung.
+              <strong className="text-foreground">Personalkostenquote</strong> nutzt ausschließlich BWA-Personalkosten im Verhältnis zur BWA-Gesamtleistung, nicht das DATEV-Lohnjournal.
             </p>
           </div>
           <div className="mt-4 grid gap-2">
@@ -22186,6 +22221,7 @@ function PersonalProduktivitaet({
           <p className="mt-1 text-sm text-white/75">
             FTE = durchschnittliche aktive Wochenstunden / 40 im gewählten Zeitraum. Zahnarzt-FTE zählt nur Mitarbeiter mit Behandlerkennzeichnung.
           </p>
+          <p className="mt-1 text-xs text-white/65">Quelle FTE: Mitarbeiterliste / Personalimport. Quelle Personalkosten: BWA-Personalkosten aus CFO-Import.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="data-table border-separate border-spacing-0 text-xs">
@@ -24761,6 +24797,12 @@ function buildPmrPersonnelPage(
       <div><div class="eyebrow">Personalauswertung</div><h1>Personal ${reportEscape(site.name)}</h1><p>${reportEscape(periodLabel)} | Personalimport, Lohnjournal und Honorarumsätze</p></div>
       <div class="pmr-meta"><strong>Seite 3</strong><span>Standortleiter</span><span>Vertraulich</span></div>
     </header>
+    <section class="pmr-section"><h2>Datenbasis</h2>${pmrTwoColumnTable([
+      ["Mitarbeiter / FTE / Fehlzeiten", "Mitarbeiterliste / Personalimport"],
+      ["Lohnjournal-Kosten", "DATEV-Lohnjournal, Gesamtkosten inkl. Erstattungen"],
+      ["Lohnjournal vs. BWA", "DATEV-Lohnjournal gegen BWA-Personalkosten"],
+      ["Behandlerkosten vs. Honorar", "DATEV-Lohnjournal gegen reinen Honorarumsatz aus CFO-/Behandlerimport"]
+    ])}</section>
     ${reportKpiGrid([
       { label: "Aktive Mitarbeiter", value: formatNullableNumber(personalRow?.activeEmployees, 0), detail: "Personalimport", tone: "blue" },
       { label: "FTE aktiv", value: formatNullableNumber(personalRow?.fte), detail: "eine Nachkommastelle", tone: "green" },
@@ -24771,6 +24813,7 @@ function buildPmrPersonnelPage(
     ])}
     <div class="pmr-grid top">
       <section class="pmr-section"><h2>Personalstruktur & Fehlzeiten</h2>${pmrTwoColumnTable([
+        ["Datenbasis", "Mitarbeiterliste / Personalimport"],
         ["Aktive Mitarbeiter", formatNullableNumber(personalRow?.activeEmployees, 0)],
         ["Aktive FTE", formatNullableNumber(personalRow?.fte)],
         ["Aktive Zahnärzte / Behandler", formatNullableNumber(activeDentists, 0)],
@@ -24779,6 +24822,7 @@ function buildPmrPersonnelPage(
         ["AG-Aufwand je FTE", formatNullableCurrency(personalRow?.employerCostPerFte)]
       ])}</section>
       <section class="pmr-section"><h2>Lohnjournal-Kostensteuerung</h2>${pmrTwoColumnTable([
+        ["Datenbasis", "DATEV-Lohnjournal"],
         ["Lohnjournal-Zeitraum", reportPeriods.length ? `${reportPeriods[0].monthLabel} bis ${reportPeriods.at(-1)?.monthLabel}` : "n. v."],
         ["Gesamtkosten inkl. Erstatt.", formatNullableCurrency(reportPeriods.length ? payrollTotal : null)],
         ["Ø Kosten je Mitarbeiterzeile", formatNullableCurrency(averageEmployeePayroll)],
@@ -24794,7 +24838,8 @@ function buildPmrPersonnelPage(
         ["Honorarumsatz inkl. Eigenlabor", formatNullableCurrency(honorarValue)],
         ["Personalkostenbasis", formatNullableCurrency(personnelCostForQuote || null)],
         ["Personalkostenquote", formatNullablePercent(personnelToHonorarQuote)],
-        ["Datenlogik", reportPeriods.length ? "Lohnjournal im Reportzeitraum" : "Fallback BWA-Personalkosten"]
+        ["Datenlogik", reportPeriods.length ? "DATEV-Lohnjournal im Reportzeitraum" : "Fallback BWA-Personalkosten"],
+        ["Mitarbeiterliste", "nicht Kostenbasis"]
       ])}</section>
       <section class="pmr-section"><h2>Behandlerkosten vs. Honorar | seit Vertragsstart</h2>${pmrProviderPayrollTable(providerRows)}</section>
     </div>
