@@ -2749,6 +2749,7 @@ function applyLegacyPayrollSummaryGrossFallback(rows: PayrollEmployeeCostRow[], 
 }
 
 function parseLegacyPayrollOverviewTotals(lines: string[]) {
+  const candidates: Array<{ totalWithoutReimbursements: number; totalIncludingReimbursements: number }> = [];
   for (let index = 0; index < lines.length - 1; index += 1) {
     const current = lines[index].replace(/\s+/g, " ").trim();
     const next = lines[index + 1].replace(/\s+/g, " ").trim();
@@ -2765,10 +2766,10 @@ function parseLegacyPayrollOverviewTotals(lines: string[]) {
       totalIncludingReimbursements <= totalWithoutReimbursements &&
       totalWithoutReimbursements - totalIncludingReimbursements <= 50000
     ) {
-      return { totalWithoutReimbursements, totalIncludingReimbursements };
+      candidates.push({ totalWithoutReimbursements, totalIncludingReimbursements });
     }
   }
-  return null;
+  return candidates.sort((a, b) => b.totalWithoutReimbursements - a.totalWithoutReimbursements)[0] ?? null;
 }
 
 function applyLegacyPayrollOverviewTotalsFallback(rows: PayrollEmployeeCostRow[], totals: PayrollPeriodData["totals"], lines: string[]) {
