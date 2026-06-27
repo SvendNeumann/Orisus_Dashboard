@@ -20332,8 +20332,6 @@ function PayrollUpload({
     return map;
   }, new Map<string, { siteName: string; periods: number; employees: number; gross: number; totalCost: number; errors: number; warnings: number; months: string[] }>()).values())
     .sort((a, b) => compareSiteNamesByContractStart(a.siteName, b.siteName));
-  const visiblePeriodRows = visiblePeriods.slice(0, 14);
-  const hiddenPeriodCount = Math.max(visiblePeriods.length - visiblePeriodRows.length, 0);
 
   const handleFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
@@ -20632,7 +20630,7 @@ function PayrollUpload({
         <div className="table-head flex flex-col gap-3 p-4 text-white lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="font-bold">Erkannte Lohnjournal-Daten</h2>
-            <p className="mt-1 text-sm text-white/75">Kompakte Dateiliste. Der vollständige Detailcheck bleibt im Importbericht verfügbar.</p>
+            <p className="mt-1 text-sm text-white/75">Kompakte Dateiliste mit Scrollbereich. Der vollständige Detailcheck bleibt zusätzlich im Importbericht verfügbar.</p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs font-bold">
             <span className="rounded-full bg-white/15 px-3 py-1">{visiblePeriods.length.toLocaleString("de-DE")} Monate</span>
@@ -20640,17 +20638,17 @@ function PayrollUpload({
           </div>
         </div>
         {visiblePeriods.length ? (
-          <div className="overflow-x-auto">
+          <div className="max-h-[440px] overflow-auto">
             <table className="data-table min-w-[880px] border-separate border-spacing-0 text-sm">
               <thead>
                 <tr>
                   {["Status", "Standort", "Monat", "Datei", "Mitarbeiter", "Gesamtkosten inkl.", "Check"].map((head) => (
-                    <th key={head} className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">{head}</th>
+                    <th key={head} className="sticky top-0 z-10 table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">{head}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {visiblePeriodRows.map((period) => {
+                {visiblePeriods.map((period) => {
                   const status = period.errors.length ? "red" : payrollStatusWarnings(period).length ? "yellow" : "green";
                   const statusLabel = period.errors.length ? "Fehler" : payrollStatusWarnings(period).length ? "Beobachten" : "Stabil";
                   return (
@@ -20671,7 +20669,6 @@ function PayrollUpload({
                 })}
               </tbody>
             </table>
-            {hiddenPeriodCount ? <p className="border-t border-border p-3 text-xs font-semibold text-muted-foreground">{hiddenPeriodCount.toLocaleString("de-DE")} weitere Zeile(n) sind im Importbericht enthalten.</p> : null}
           </div>
         ) : (
           <p className="p-4 text-sm font-semibold text-muted-foreground">Noch keine Lohnjournal-Daten geladen.</p>
