@@ -5332,7 +5332,7 @@ export default function HomePage() {
           />
           {requiresImport && !importDataLoading && !effectiveImportedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
           {requiresPersonalImport && !personalDataLoading && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
-          {effectiveImportedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} payrollData={payrollData} />}
           {effectiveImportedData && page === "zusammenfassung" && <ZusammenfassungTab sites={dashboardSites} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
@@ -6390,6 +6390,12 @@ function PersonalCockpit({
     : [];
   const averageRevenuePerFte = productivityRows.length ? productivityRows.reduce((sum, value) => sum + value, 0) / productivityRows.length : null;
   const productivityStatus: Status = averageRevenuePerFte == null ? "yellow" : "green";
+  const riskRows = personalRiskRows(personalData, selectedYear);
+  const highestSicknessRisk = [...riskRows].sort((a, b) => (b.sicknessPerFte ?? -1) - (a.sicknessPerFte ?? -1))[0];
+  const highestCostPerFte = [...riskRows].sort((a, b) => (b.employerCostPerFte ?? -1) - (a.employerCostPerFte ?? -1))[0];
+  const highestRiskRow = [...riskRows].sort((a, b) => b.riskScore - a.riskScore || compareSiteNamesByContractStart(a.site, b.site))[0];
+  const criticalRiskRows = riskRows.filter((row) => row.status === "red");
+  const watchRiskRows = riskRows.filter((row) => row.status === "yellow");
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -6463,6 +6469,70 @@ function PersonalCockpit({
           }
         />
       </div>
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <p className="text-xs font-bold uppercase text-white/70">Management-Fokus Personal</p>
+          <h2 className="mt-1 text-xl font-extrabold">Wo muss das Management hinschauen?</h2>
+          <p className="mt-1 text-sm text-white/75">
+            Verdichtet aus Personalstamm und Krankheitstagen: Fluktuation, Krankheit je FTE, AG-Aufwand je FTE und Standortampel.
+          </p>
+        </div>
+        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-border bg-slate-950/20 p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Höchste Fluktuation</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{highestFluctuationRow.site || "n. v."}</p>
+            <p className="mt-1 text-sm font-semibold text-muted-foreground">{pct(highestFluctuationRow.fluctuation)} | {highestFluctuationRow.exitsInLatestYear} Austritte</p>
+          </div>
+          <div className="rounded-lg border border-border bg-slate-950/20 p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Höchste Krankheit je FTE</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{highestSicknessRisk?.site ?? "n. v."}</p>
+            <p className="mt-1 text-sm font-semibold text-muted-foreground">{formatNullableNumber(highestSicknessRisk?.sicknessPerFte)} Tage/FTE</p>
+          </div>
+          <div className="rounded-lg border border-border bg-slate-950/20 p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Höchster AG-Aufwand je FTE</p>
+            <p className="mt-1 text-2xl font-extrabold text-white">{highestCostPerFte?.site ?? "n. v."}</p>
+            <p className="mt-1 text-sm font-semibold text-muted-foreground">{formatNullableCurrency(highestCostPerFte?.employerCostPerFte)}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-slate-950/20 p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Personalrisiko</p>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <p className="text-2xl font-extrabold text-white">{highestRiskRow?.site ?? "n. v."}</p>
+              {highestRiskRow ? <StatusDot status={highestRiskRow.status} /> : null}
+            </div>
+            <p className="mt-1 text-sm font-semibold text-muted-foreground">
+              {criticalRiskRows.length ? `${criticalRiskRows.length} auffällig` : watchRiskRows.length ? `${watchRiskRows.length} beobachten` : "Keine Auffälligkeit"}
+            </p>
+          </div>
+        </div>
+        <div className="border-t border-border">
+          <ResponsiveTable>
+            <thead>
+              <tr>
+                <TableHead>Standort</TableHead>
+                <TableHead>Aktive MA</TableHead>
+                <TableHead>FTE</TableHead>
+                <TableHead>Fluktuation</TableHead>
+                <TableHead>Krankheit/FTE</TableHead>
+                <TableHead>AG-Aufwand/FTE</TableHead>
+                <TableHead>Ampel</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {riskRows.map((row) => (
+                <tr key={row.site}>
+                  <TableCell strong>{row.site}</TableCell>
+                  <TableCell>{row.activeEmployees.toLocaleString("de-DE")}</TableCell>
+                  <TableCell>{formatNullableNumber(row.fte)}</TableCell>
+                  <TableCell>{formatNullablePercent(row.fluctuation)}</TableCell>
+                  <TableCell>{formatNullableNumber(row.sicknessPerFte)}</TableCell>
+                  <TableCell>{formatNullableCurrency(row.employerCostPerFte)}</TableCell>
+                  <td className="border-b border-r border-border p-3"><StatusDot status={row.status} label={row.status === "red" ? "Auffällig" : row.status === "yellow" ? "Beobachten" : "Stabil"} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </ResponsiveTable>
+        </div>
+      </Card>
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="Aktive Mitarbeiter je Standort | aktueller Stand" icon={Building2}>
           <ResponsiveContainer width="100%" height={260}>
@@ -6733,17 +6803,31 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
   const siteRows = sites.map((site) => {
     const employeesInYear = personalData.employees.filter((employee) => employee.site === site && personalWasEmployedInYear(employee, selectedYear));
     const entries = personalData.sicknessEntries.filter((entry) => entry.site === site && entry.year === selectedYear);
+    const fte = employeesInYear.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+    const days = entries.reduce((sum, entry) => sum + entry.days, 0);
     return {
       site,
-      days: entries.reduce((sum, entry) => sum + entry.days, 0),
+      days,
       cases: entries.length,
-      active: employeesInYear.length
+      active: employeesInYear.length,
+      fte,
+      sicknessPerFte: fte ? days / fte : null,
+      sicknessQuote: fte ? (days / (fte * 220)) * 100 : null
     };
   });
   const totalSicknessDays = siteRows.reduce((sum, row) => sum + row.days, 0);
   const totalSicknessCases = siteRows.reduce((sum, row) => sum + row.cases, 0);
-  const totalActiveEmployees = siteRows.reduce((sum, row) => sum + row.active, 0);
-  const sicknessDaysPerActiveEmployee = totalActiveEmployees ? totalSicknessDays / totalActiveEmployees : 0;
+  const totalFteInYear = siteRows.reduce((sum, row) => sum + row.fte, 0);
+  const sicknessDaysPerFte = totalFteInYear ? totalSicknessDays / totalFteInYear : null;
+  const sicknessQuote = totalFteInYear ? (totalSicknessDays / (totalFteInYear * 220)) * 100 : null;
+  const previousYear = selectedYear - 1;
+  const previousEmployees = personalData.employees.filter((employee) => personalWasEmployedInYear(employee, previousYear));
+  const previousFte = previousEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+  const previousSicknessDays = personalData.sicknessEntries
+    .filter((entry) => entry.year === previousYear)
+    .reduce((sum, entry) => sum + entry.days, 0);
+  const previousSicknessPerFte = previousFte ? previousSicknessDays / previousFte : null;
+  const sicknessPerFteTrend = sicknessDaysPerFte != null && previousSicknessPerFte != null ? sicknessDaysPerFte - previousSicknessPerFte : null;
   const monthRows = bwaMonths.map((month, index) => ({
     month,
     days: personalData.sicknessEntries.filter((entry) => entry.year === selectedYear && entry.month === index + 1).reduce((sum, entry) => sum + entry.days, 0)
@@ -6780,9 +6864,14 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
     { site: "", activeEmployees: 0, monthlyActiveEmployees: [], monthlyValues: [], relativeValues: [], total: 0, relativeTotal: 0 }
   );
   const peakMonth = monthRows.reduce((highest, row) => (row.days > highest.days ? row : highest), { month: "", days: 0 });
-  const sicknessPerEmployeeStatus: Status = sicknessDaysPerActiveEmployee <= 5 ? "green" : sicknessDaysPerActiveEmployee <= 10 ? "yellow" : "red";
-  const highestRelativeStatus: Status = highestRelativeRow.relativeTotal <= 5 ? "green" : highestRelativeRow.relativeTotal <= 10 ? "yellow" : "red";
-  const totalSicknessStatus: Status = totalSicknessDays <= totalActiveEmployees * 5 ? "green" : totalSicknessDays <= totalActiveEmployees * 10 ? "yellow" : "red";
+  const highestFteRow = siteRows.reduce(
+    (highest, row) => ((row.sicknessPerFte ?? 0) > (highest.sicknessPerFte ?? 0) ? row : highest),
+    { site: "", days: 0, cases: 0, active: 0, fte: 0, sicknessPerFte: null as number | null, sicknessQuote: null as number | null }
+  );
+  const sicknessPerFteStatus: Status = sicknessDaysPerFte == null ? "yellow" : sicknessDaysPerFte <= 8 ? "green" : sicknessDaysPerFte <= 14 ? "yellow" : "red";
+  const sicknessQuoteStatus: Status = sicknessQuote == null ? "yellow" : sicknessQuote <= 3 ? "green" : sicknessQuote <= 6 ? "yellow" : "red";
+  const sicknessTrendStatus: Status = sicknessPerFteTrend == null ? "yellow" : sicknessPerFteTrend <= 0 ? "green" : sicknessPerFteTrend <= 2 ? "yellow" : "red";
+  const totalSicknessStatus: Status = totalFteInYear ? (totalSicknessDays <= totalFteInYear * 8 ? "green" : totalSicknessDays <= totalFteInYear * 14 ? "yellow" : "red") : "yellow";
   const maxRelativeMonth = Math.max(...relativeMonthlyRows.flatMap((row) => row.relativeValues), 0);
   const relativeHeatTone = (value: number) => {
     if (!value || !maxRelativeMonth) return "rgba(15, 118, 110, 0.10)";
@@ -6818,7 +6907,7 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
           <option key={item} value={item}>{item}</option>
         ))}
       </Select>
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label={`Krankheitstage ${selectedYear}`}
           value={totalSicknessDays}
@@ -6836,39 +6925,88 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
           }
         />
         <KpiCard
-          label="Krankheit je aktivem Mitarbeiter"
-          value={sicknessDaysPerActiveEmployee}
+          label="Krankheit je FTE"
+          value={sicknessDaysPerFte ?? 0}
           plain
-          valueLabel={formatOneDecimal(sicknessDaysPerActiveEmployee)}
-          delta={`${totalActiveEmployees.toLocaleString("de-DE")} aktive Mitarbeiter im Jahr`}
-          icon={Users}
-          status={sicknessPerEmployeeStatus}
+          valueLabel={formatNullableNumber(sicknessDaysPerFte)}
+          delta={`${formatNullableNumber(totalFteInYear)} FTE im Jahr`}
+          icon={Gauge}
+          status={sicknessPerFteStatus}
           info={
             <div className="space-y-2 text-sm">
               <InfoTextLine label="Quelle Krankheit" value="Input_Krankheitstage" />
               <InfoTextLine label="Quelle Mitarbeiter" value="Personalstamm, im Jahr beschäftigt" />
-              <InfoTextLine label="Berechnung" value="Krankheitstage / aktive Mitarbeiter im Jahr" strong />
+              <InfoTextLine label="Berechnung" value="Krankheitstage / FTE im Jahr" strong />
             </div>
           }
         />
         <KpiCard
-          label="Höchster Standortwert"
-          value={highestRelativeRow.relativeTotal}
-          plain
-          valueLabel={highestRelativeRow.site ? formatOneDecimal(highestRelativeRow.relativeTotal) : "n. v."}
-          secondaryValue={highestRelativeRow.site || "Kein Standort"}
-          delta={peakMonth.days ? `Peak-Monat: ${peakMonth.month} mit ${formatOneDecimal(peakMonth.days)} Tagen` : "Keine Krankheitstage im Jahr"}
-          icon={Building2}
-          status={highestRelativeStatus}
+          label="Krankenquote geschätzt"
+          value={sicknessQuote ?? 0}
+          percent
+          valueLabel={formatNullablePercent(sicknessQuote)}
+          delta="Basis 220 Arbeitstage je FTE"
+          icon={Stethoscope}
+          status={sicknessQuoteStatus}
           info={
             <div className="space-y-2 text-sm">
-              <InfoTextLine label="Standort" value={highestRelativeRow.site || "n. v."} strong />
-              <InfoTextLine label="Berechnung" value="Höchste Krankheitstage je aktivem Mitarbeiter im Standortvergleich" />
+              <InfoTextLine label="Berechnung" value="Krankheitstage / (FTE * 220 Arbeitstage)" strong />
+              <InfoTextLine label="Hinweis" value="Geschätzte Managementquote; keine arbeitsrechtliche Fehlzeitenquote." />
+            </div>
+          }
+        />
+        <KpiCard
+          label={`Trend ggü. ${previousYear}`}
+          value={sicknessPerFteTrend ?? 0}
+          plain
+          valueLabel={sicknessPerFteTrend == null ? "n. v." : `${sicknessPerFteTrend >= 0 ? "+" : ""}${formatOneDecimal(sicknessPerFteTrend)} Tage/FTE`}
+          secondaryValue={highestFteRow.site ? `Fokus: ${highestFteRow.site}` : undefined}
+          delta={peakMonth.days ? `Peak-Monat: ${peakMonth.month} mit ${formatOneDecimal(peakMonth.days)} Tagen` : "Keine Krankheitstage im Jahr"}
+          icon={TrendingUp}
+          status={sicknessTrendStatus}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Aktuell" value={formatNullableNumber(sicknessDaysPerFte)} />
+              <InfoTextLine label="Vorjahr" value={formatNullableNumber(previousSicknessPerFte)} />
+              <InfoTextLine label="Delta" value={sicknessPerFteTrend == null ? "n. v." : `${sicknessPerFteTrend >= 0 ? "+" : ""}${formatOneDecimal(sicknessPerFteTrend)} Tage/FTE`} strong />
               <InfoTextLine label="Peak-Monat" value={peakMonth.days ? `${peakMonth.month} | ${formatOneDecimal(peakMonth.days)} Tage` : "n. v."} />
             </div>
           }
         />
       </div>
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Fehlzeitenampel je Standort | {selectedYear}</h2>
+          <p className="mt-1 text-sm text-white/75">Vergleichbar über Krankheitstage je FTE und geschätzte Krankenquote.</p>
+        </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <TableHead>Standort</TableHead>
+              <TableHead>Krankheitstage</TableHead>
+              <TableHead>FTE</TableHead>
+              <TableHead>Tage/FTE</TableHead>
+              <TableHead>Krankenquote</TableHead>
+              <TableHead>Einordnung</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {siteRows.map((row) => {
+              const signal: Status = row.sicknessPerFte == null ? "yellow" : row.sicknessPerFte <= 8 ? "green" : row.sicknessPerFte <= 14 ? "yellow" : "red";
+              return (
+                <tr key={row.site}>
+                  <TableCell strong>{row.site}</TableCell>
+                  <TableCell>{formatOneDecimal(row.days)}</TableCell>
+                  <TableCell>{formatNullableNumber(row.fte)}</TableCell>
+                  <TableCell>{formatNullableNumber(row.sicknessPerFte)}</TableCell>
+                  <TableCell>{formatNullablePercent(row.sicknessQuote)}</TableCell>
+                  <td className="border-b border-r border-border p-3"><StatusDot status={signal} label={signal === "red" ? "Auffällig" : signal === "yellow" ? "Beobachten" : "Stabil"} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </ResponsiveTable>
+      </Card>
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title={`Krankheitstage je Monat | ${selectedYear}`} icon={Stethoscope}>
           <ResponsiveContainer width="100%" height={260}>
@@ -7749,12 +7887,16 @@ function Cockpit({
   setPage,
   sites,
   monthlyData,
-  importedData
+  importedData,
+  personalData,
+  payrollData
 }: {
   setPage: (page: Page) => void;
   sites: DashboardSite[];
   monthlyData: typeof monthly;
   importedData: ImportedDashboardData | null;
+  personalData?: PersonalDashboardData | null;
+  payrollData?: PayrollJournalData | null;
 }) {
   const cockpitPeriod = defaultBwaPeriodFor(importedData);
   const topBehandlerPeriods = periodOptionsFromImportedRows(importedData?.behandlerHonorarRows);
@@ -7806,7 +7948,7 @@ function Cockpit({
         <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
           <CostShareDonut sites={sites} />
         </ChartCard>
-        <Insights setPage={setPage} />
+        <Insights setPage={setPage} sites={sites} importedData={importedData} personalData={personalData} payrollData={payrollData} />
       </div>
     </section>
   );
@@ -9224,31 +9366,123 @@ function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
   );
 }
 
-function Insights({ setPage }: { setPage: (page: Page) => void }) {
+function Insights({
+  setPage,
+  sites,
+  importedData,
+  personalData,
+  payrollData
+}: {
+  setPage: (page: Page) => void;
+  sites: DashboardSite[];
+  importedData: ImportedDashboardData | null;
+  personalData?: PersonalDashboardData | null;
+  payrollData?: PayrollJournalData | null;
+}) {
+  const rules = useKpiRules();
+  const severityRank: Record<Status, number> = { red: 0, yellow: 1, green: 2 };
+  const metrics = cfoMetrics(sites, monthly, rules);
+  const receivableFocus = [...sites]
+    .filter((site) => site.gesamtleistung > 0)
+    .map((site) => ({ site, ratio: site.gesamtleistung ? (site.forderungen / site.gesamtleistung) * 100 : 0 }))
+    .sort((a, b) => b.ratio - a.ratio)[0];
+  const cashflowFocus = [...sites].filter((site) => site.gesamtleistung > 0).sort((a, b) => a.cashflow - b.cashflow)[0];
+  const costFocus = [...sites]
+    .filter((site) => site.gesamtleistung > 0)
+    .map((site) => ({ site, quote: boardCostRatio(site) }))
+    .sort((a, b) => b.quote - a.quote)[0];
+  const personalYear = personalData
+    ? Math.max(
+        ...personalData.report.years,
+        ...personalData.employees.map((employee) => personalDisplayYear(employee.entryDate)),
+        ...personalData.employees.map((employee) => personalDisplayYear(employee.exitDate)),
+        new Date().getFullYear()
+      )
+    : new Date().getFullYear();
+  const personalFocus = personalData ? personalRiskRows(personalData, personalYear).sort((a, b) => b.riskScore - a.riskScore)[0] : null;
+  const payrollFocus = payrollPeriodsByMonth(payrollData)
+    .map((period) => {
+      const diff = payrollBwaDifference(period, importedData);
+      return { period, diff };
+    })
+    .filter((row) => Boolean(row.diff))
+    .sort((a, b) => Math.abs(b.diff?.deltaPct ?? 0) - Math.abs(a.diff?.deltaPct ?? 0))[0];
   const insights = [
-    "Cashflow gem. BWA Essen negativ: Annuitäten und Forderungsaufbau drücken den BWA-Cashflow.",
-    "EBITDA-Marge Ulmet liegt über Ziel und stabilisiert die Konzernmarge.",
-    "Offene Forderungen sind konzernweit gestiegen; Fokus auf Essen und Kehl.",
-    "Earn-Out Kirchberg bei 58 % Fortschritt.",
-    "Gesamtleistung Konzern liegt 4,2 % über Vorjahr.",
-    "Kostenquote Kehl auffällig; Fremdlaborquote prüfen."
-  ];
+    receivableFocus
+      ? {
+          title: "Forderungen",
+          text: `${receivableFocus.site.name}: ${eur(receivableFocus.site.forderungen, true)} offen, ${pct(receivableFocus.ratio)} der Gesamtleistung.`,
+          status: statusByRule(receivableFocus.ratio, rules.offene_forderungen),
+          page: "performance" as Page
+        }
+      : null,
+    cashflowFocus
+      ? {
+          title: "Cashflow",
+          text: `${cashflowFocus.name}: Cashflow gem. BWA ${eur(cashflowFocus.cashflow, true)} seit Vertragsstart.`,
+          status: cashflowFocus.cashflow < 0 ? "red" as Status : "green" as Status,
+          page: "cashflow" as Page
+        }
+      : null,
+    costFocus
+      ? {
+          title: "Kostenquote",
+          text: `${costFocus.site.name}: operative Kostenquote ${pct(costFocus.quote)}. Material, Fremdlabor, Personal und sonstige Kosten prüfen.`,
+          status: statusByRule(costFocus.quote, rules.kostenquote),
+          page: "bwa" as Page
+        }
+      : null,
+    personalFocus
+      ? {
+          title: "Personalrisiko",
+          text: `${personalFocus.site}: ${formatNullableNumber(personalFocus.sicknessPerFte)} Krankheitstage/FTE, ${formatNullablePercent(personalFocus.fluctuation)} Fluktuation.`,
+          status: personalFocus.status,
+          page: "personal-cockpit" as Page
+        }
+      : null,
+    payrollFocus
+      ? {
+          title: "Lohnjournal vs. BWA",
+          text: `${payrollFocus.period.siteName} ${payrollFocus.period.monthLabel}: Abweichung ${eur(payrollFocus.diff?.delta ?? 0, true)} bzw. ${pct(payrollFocus.diff?.deltaPct ?? 0)}.`,
+          status: Math.abs(payrollFocus.diff?.deltaPct ?? 0) >= 15 ? "red" as Status : Math.abs(payrollFocus.diff?.deltaPct ?? 0) >= 5 ? "yellow" as Status : "green" as Status,
+          page: "payroll-costs" as Page
+        }
+      : null,
+    {
+      title: "Ergebnisqualität",
+      text: `Konzern-EBITDA-Marge ${pct(metrics.ebitdaMarge)}, Cashflow gem. BWA ${eur(metrics.cashflow, true)}.`,
+      status: statusByRule(metrics.ebitdaMarge, rules.ebitda_marge),
+      page: "board" as Page
+    }
+  ]
+    .filter((item): item is { title: string; text: string; status: Status; page: Page } => Boolean(item))
+    .sort((a, b) => severityRank[a.status] - severityRank[b.status])
+    .slice(0, 6);
+  const primaryPage = insights[0]?.page ?? "analysen";
   return (
     <Card className="h-full p-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-bold">Orisus Insights | aktueller Stand</h2>
-        <Badge tone="blue">Regelbereit</Badge>
+        <Badge tone={insights.some((insight) => insight.status === "red") ? "red" : insights.some((insight) => insight.status === "yellow") ? "yellow" : "green"}>
+          {insights.some((insight) => insight.status === "red") ? "Auffällig" : insights.some((insight) => insight.status === "yellow") ? "Beobachten" : "Stabil"}
+        </Badge>
       </div>
       <div className="mt-4 space-y-3">
         {insights.map((insight) => (
-          <div key={insight} className="flex gap-3 rounded-md bg-slate-50 p-3">
+          <div key={`${insight.title}-${insight.text}`} className="flex gap-3 rounded-md bg-slate-50 p-3">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-            <p className="text-sm leading-6">{insight}</p>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-bold">{insight.title}</p>
+                <StatusDot status={insight.status} />
+              </div>
+              <p className="mt-1 text-sm leading-6">{insight.text}</p>
+            </div>
           </div>
         ))}
       </div>
-      <Button className="mt-4 w-full sm:w-auto" variant="secondary" onClick={() => setPage("analysen")}>
-        Benchmarking öffnen
+      <Button className="mt-4 w-full sm:w-auto" variant="secondary" onClick={() => setPage(primaryPage)}>
+        Fokus öffnen
       </Button>
     </Card>
   );
@@ -20181,6 +20415,59 @@ function formatNullablePercent(value: number | null | undefined) {
   return value == null || !Number.isFinite(value) ? "n. v." : pct(value);
 }
 
+function personalDisplayYear(value: string) {
+  return Number(value.split(".")[2]) || 0;
+}
+
+function isActivePersonalEmployee(employee: PersonalEmployee) {
+  return employee.status.toLowerCase() === "aktiv";
+}
+
+function personalRiskStatus(score: number): Status {
+  return score >= 70 ? "red" : score >= 40 ? "yellow" : "green";
+}
+
+function personalRiskRows(personalData: PersonalDashboardData, selectedYear: number) {
+  const sites = sortSiteNamesByContractStart(
+    personalData.settings.sites.length ? personalData.settings.sites : uniqueSortedText(personalData.employees.map((employee) => employee.site))
+  );
+  return sites.map((site) => {
+    const siteEmployees = personalData.employees.filter((employee) => employee.site === site);
+    const activeEmployees = siteEmployees.filter(isActivePersonalEmployee);
+    const employedInYear = siteEmployees.filter((employee) => personalWasEmployedInYear(employee, selectedYear));
+    const fte = activeEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+    const fteInYear = employedInYear.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+    const employerCost = activeEmployees.reduce((sum, employee) => sum + employee.employerCost, 0);
+    const exits = siteEmployees.filter((employee) => personalDisplayYear(employee.exitDate) === selectedYear).length;
+    const sicknessDays = personalData.sicknessEntries
+      .filter((entry) => entry.site === site && entry.year === selectedYear)
+      .reduce((sum, entry) => sum + entry.days, 0);
+    const sicknessPerFte = fteInYear ? sicknessDays / fteInYear : null;
+    const sicknessPerEmployee = employedInYear.length ? sicknessDays / employedInYear.length : null;
+    const fluctuation = activeEmployees.length ? (exits / activeEmployees.length) * 100 : null;
+    const employerCostPerFte = fte ? employerCost / fte : null;
+    const riskScore =
+      (sicknessPerFte == null ? 15 : sicknessPerFte > 14 ? 45 : sicknessPerFte > 8 ? 25 : 5) +
+      (fluctuation == null ? 10 : fluctuation > 20 ? 35 : fluctuation > 10 ? 20 : 5) +
+      (activeEmployees.length ? 0 : 25);
+    return {
+      site,
+      activeEmployees: activeEmployees.length,
+      fte,
+      fteInYear,
+      employerCost,
+      employerCostPerFte,
+      exits,
+      sicknessDays,
+      sicknessPerFte,
+      sicknessPerEmployee,
+      fluctuation,
+      riskScore,
+      status: personalRiskStatus(riskScore)
+    };
+  });
+}
+
 const payrollEmployeeNameAliases: Record<string, string> = {
   "kirchberg:01016": "Franziska Paatsch"
 };
@@ -20803,6 +21090,8 @@ function PayrollCosts({
       payroll: period.totals.totalCostIncludingReimbursements,
       gross: period.totals.gross,
       reimbursements: Math.abs(period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg + period.totals.reimbursementBa),
+      reimbursementQuote: period.totals.gross ? (Math.abs(period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg + period.totals.reimbursementBa) / period.totals.gross) * 100 : 0,
+      avgEmployeeCost: period.employeeRows.length ? period.totals.totalCostIncludingReimbursements / period.employeeRows.length : 0,
       bwa: bwa?.bwaValue ?? null
     };
   });
@@ -20982,8 +21271,25 @@ function PayrollCosts({
   const latestExitRows = exitsInSelection
     .sort((a, b) => (b.exitDate ?? "").localeCompare(a.exitDate ?? ""))
     .slice(0, 8);
+  const monthlyMovementRows = filteredPeriods.map((period) => {
+    const monthKey = `${period.year}-${String(period.month).padStart(2, "0")}`;
+    return {
+      label: `${period.siteName} ${bwaMonths[period.month - 1].slice(0, 3)} ${String(period.year).slice(-2)}`,
+      entries: uniqueEmployeeRows.filter((row) => row.siteName === period.siteName && row.entryDate?.slice(0, 7) === monthKey).length,
+      exits: uniqueEmployeeRows.filter((row) => row.siteName === period.siteName && row.exitDate?.slice(0, 7) === monthKey).length,
+      avgCost: period.employeeRows.length ? period.totals.totalCostIncludingReimbursements / period.employeeRows.length : 0
+    };
+  });
+  const siteReimbursementRows = siteSummaryRows.map((row) => ({
+    ...row,
+    reimbursementAbs: Math.abs(row.reimbursements),
+    reimbursementQuote: row.gross ? (Math.abs(row.reimbursements) / row.gross) * 100 : null,
+    avgEmployeeCost: row.employeeRows ? row.payroll / row.employeeRows : null
+  }));
+  const highestReimbursementRow = [...siteReimbursementRows].sort((a, b) => (b.reimbursementQuote ?? -1) - (a.reimbursementQuote ?? -1))[0];
   const highestDeviationRow = topDeviationRows[0];
   const payrollCoveragePct = totalBwa ? (payrollWithBwa / totalBwa) * 100 : null;
+  const reimbursementQuote = totalGross ? (reimbursementAbs / totalGross) * 100 : null;
   const payrollStatus: Status = totalDeltaPct === null ? "yellow" : Math.abs(totalDeltaPct) <= 5 ? "green" : Math.abs(totalDeltaPct) <= 15 ? "yellow" : "red";
   const providerStatus: Status = doctorQuote === null ? "yellow" : doctorQuote <= 35 ? "green" : doctorQuote <= 45 ? "yellow" : "red";
   const turnoverStatus: Status = turnoverRate === null ? "yellow" : turnoverRate <= 5 ? "green" : turnoverRate <= 10 ? "yellow" : "red";
@@ -21119,6 +21425,18 @@ function PayrollCosts({
                 <p className="mt-1 text-lg font-extrabold text-white">{entriesInSelection.length.toLocaleString("de-DE")}</p>
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border bg-slate-950/20 p-3">
+                <p className="text-xs font-bold uppercase text-muted-foreground">Erstattungsquote</p>
+                <p className="mt-1 text-lg font-extrabold text-white">{formatNullablePercent(reimbursementQuote)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Erstattungen / Gesamtbrutto</p>
+              </div>
+              <div className="rounded-lg border border-border bg-slate-950/20 p-3">
+                <p className="text-xs font-bold uppercase text-muted-foreground">Höchste Erstattung</p>
+                <p className="mt-1 text-lg font-extrabold text-white">{highestReimbursementRow?.siteName ?? "n. v."}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{formatNullablePercent(highestReimbursementRow?.reimbursementQuote)}</p>
+              </div>
+            </div>
             <div className="rounded-lg border border-border bg-slate-950/20 p-3">
               <p className="text-xs font-bold uppercase text-muted-foreground">Behandler-Match</p>
               <p className="mt-1 text-lg font-extrabold text-white">{doctorQuote === null ? "n. v." : formatNullablePercent(doctorQuote)}</p>
@@ -21130,6 +21448,49 @@ function PayrollCosts({
               <p className="mt-1 text-xs text-muted-foreground">Brutto {eur(totalGross, true)} | inkl. Erstattungen {eur(totalPayroll, true)}</p>
             </div>
           </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <ChartCard title="Kosten je Mitarbeiter und Personalbewegung" icon={Users}>
+          <ResponsiveContainer width="100%" height={300}>
+            <ComposedChart data={monthlyMovementRows}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 11, fontWeight: 700 }} />
+              <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
+              <Tooltip formatter={(value, name) => name === "avgCost" ? eur(Number(value)) : Number(value).toLocaleString("de-DE")} />
+              <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+              <Bar dataKey="entries" name="Eintritte" fill="#38bdf8" radius={[8, 8, 0, 0]} maxBarSize={34} />
+              <Bar dataKey="exits" name="Austritte" fill="#f59e0b" radius={[8, 8, 0, 0]} maxBarSize={34} />
+              <Line type="monotone" dataKey="avgCost" name="Ø Kosten je Mitarbeiter" stroke="#30d5c8" strokeWidth={3} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <Card className="overflow-hidden">
+          <div className="table-head p-4 text-white">
+            <h2 className="font-bold">Kosten- und Erstattungsanalyse</h2>
+            <p className="mt-1 text-sm text-white/75">Je Standort im gewählten Lohnjournalzeitraum.</p>
+          </div>
+          <ResponsiveTable>
+            <thead>
+              <tr>
+                <TableHead>Standort</TableHead>
+                <TableHead>Ø Kosten/MA</TableHead>
+                <TableHead>Erstattung</TableHead>
+                <TableHead>Quote</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {siteReimbursementRows.map((row) => (
+                <tr key={row.siteName}>
+                  <TableCell strong>{row.siteName}</TableCell>
+                  <TableCell>{formatNullableCurrency(row.avgEmployeeCost)}</TableCell>
+                  <TableCell>{eur(row.reimbursementAbs)}</TableCell>
+                  <TableCell>{formatNullablePercent(row.reimbursementQuote)}</TableCell>
+                </tr>
+              ))}
+            </tbody>
+          </ResponsiveTable>
         </Card>
       </div>
 

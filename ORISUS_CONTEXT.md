@@ -258,10 +258,13 @@ Aktuelle wichtige Live-Ergaenzungen:
 - Personal-Cockpit:
   - Die Diagramme `Aktive Mitarbeiter je Standort` und `Krankheitstage je Standort` zeigen die Werte direkt lesbar in den Balken, damit die Zahl nicht erst per Hover/Touch-Tooltip sichtbar wird.
   - Die Übersicht `Krankheitstage Mitarbeiter` zeigt im Personal-Cockpit die Top 15 Mitarbeiter des gewählten Jahres.
-  - Sichtbare Verguetungs-/Kostenwerte wie AG-Aufwand, AG-Kosten und durchschnittlicher Stundenlohn werden mit zwei Nachkommastellen angezeigt. Die Berechnungs- und Importlogik bleibt unveraendert.
+  - Das Personal-Cockpit enthaelt einen Management-Fokus Personal mit Standortvergleich fuer hoechste Fluktuation, Krankheit je FTE, AG-Aufwand je FTE und einer Personalrisiko-Ampel je Standort. Die Ampel nutzt nur vorhandene Personalimportdaten und Krankheitstage; sie ist ein Management-Signal, keine arbeitsrechtliche Bewertung.
 - Krankheit / Fehlzeiten:
+  - Der Tab zeigt oben neben Krankheitstagen auch Krankheit je FTE, eine geschaetzte Krankenquote und den Trend gegenueber Vorjahr. Die Krankenquote wird als Krankheitstage / (FTE * 220 Arbeitstage) berechnet und ist eine Managementnaeherung.
+  - Zusaetzlich gibt es eine Fehlzeitenampel je Standort mit Krankheitstagen, FTE, Tagen/FTE und geschaetzter Krankenquote.
   - Die Tabelle `Top kranke Mitarbeiter` zeigt die Top 15 Mitarbeiter des gewaehlten Jahres.
 - Mitarbeiterübersicht:
+  - Sichtbare Verguetungs-/Kostenwerte wie AG-Aufwand, AG-Kosten und durchschnittlicher Stundenlohn werden mit zwei Nachkommastellen angezeigt. Die Berechnungs- und Importlogik bleibt unveraendert.
   - Die KPI-Kacheln `Aktive Mitarbeiter`, `FTE aktiv` und `AG-Aufwand aktiv` haben Info-Buttons mit Standort-Aufschluesselung. Das `i` zeigt je Standort die aktiven Mitarbeiter, aktive FTE bzw. den aktiven Arbeitgeberaufwand plus Gesamtsumme. `AG-Aufwand aktiv` bleibt fuer Praxismanagement ausgeblendet.
   - Gehaltsfelder wie `Fixgehalt`, `Stundenlohn Fixgehalt` und `AG-Aufwand` werden in der Tabelle und in den Info-Herleitungen mit zwei Nachkommastellen formatiert.
 - Administration:
@@ -1437,6 +1440,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
 - Lohnjournal / DATEV-Personalkosten:
   - Es gibt einen eigenen Administration-Tab `Lohnjournal-Upload` fuer DATEV-PDFs mit `Personalkostenuebersicht` je Standort/Monat.
   - Lohnjournal-Importe werden persistent in Supabase gespeichert (`orisus_payroll_journal_imports`) und lokal nur als Fallback gecacht. Freigabe ersetzt die aktive Lohnjournal-Datenbasis in Supabase; gleiche Standort-/Monatskombinationen werden appseitig vor dem Speichern zusammengefuehrt. Inaktive ersetzte Lohnjournal-Importstaende werden analog zur allgemeinen Supabase-Datenhygiene auf die letzten 20 Historienstaende begrenzt; die aktive Lohnjournal-Datenbasis bleibt erhalten. Lesen duerfen Admin und Info; Praxismanagement darf keine Lohnjournal-/Gehalts-/AG-Kostendetails laden.
+  - Der Tab `Personalkosten Lohnjournal` enthaelt neben BWA-Abgleich und Behandlerkosten eine Kosten- und Bewegungsanalyse: Erstattungsquote, hoechste Erstattungsentlastung je Standort, durchschnittliche Kosten je Mitarbeiter sowie Ein-/Austritte im Verlauf.
   - Sammelupload liest mehrere PDFs oder einen ausgewaehlten Ordner mit PDFs, erkennt Standort und Monat/Jahr aus der DATEV-Kopfzeile und ersetzt gleiche Standort-/Monatskombinationen, ohne andere Monate zu loeschen.
   - Der Lohnjournal-Upload darf gemischte Ordner mit mehreren Standorten enthalten. Die UI muss dies klar anzeigen: Zuordnung zuerst ueber DATEV-Kopfzeile, danach ueber bekannte Datei-/Ordner-Aliase; der Check zeigt kompakt Standortgruppen, Statuszaehler und eine reduzierte Dateiliste, Detailumfang bleibt im Importbericht.
   - Die Tabelle `Erkannte Lohnjournal-Daten` im Upload bleibt kompakt und nutzt einen internen Scrollbereich mit fixierter Kopfzeile, damit alle gelesenen Monate direkt in der App geprueft werden koennen.
@@ -1454,6 +1458,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Fehlerhafte/noch nicht erkannte Lohnjournaldateien muessen im Uploadbericht dateischarf erhalten bleiben und duerfen sich nicht gegenseitig ueberschreiben, wenn Standort oder Monat unbekannt ist.
   - Wenn in einem Lohnjournal-Sammelupload einzelne Dateien trotz Pruefung fehlerhaft bleiben, duerfen fehlerfreie Standort-/Monatskombinationen freigegeben werden. Fehlerhafte Dateien bleiben im Uploadbericht sichtbar, werden aber nicht persistiert.
   - Der Lohnjournal-Upload hat einen PDF-/Druckexport `Importbericht als PDF`, der den aktuell sichtbaren Upload inkl. Plausibilitaetscheck, Fehlern, Warnungen und erkannter Dateitabelle ausgibt.
+- Orisus-Dashboard:
+  - Die `Orisus Insights` sind dynamisch aus bestaetigten CFO-, Personal- und Lohnjournal-Daten abgeleitet. Sie priorisieren auffaellige Signale aus Forderungen, Cashflow, Kostenquote, Personalrisiko, Lohnjournal-vs.-BWA-Abweichung und Ergebnisqualitaet. Statische Beispieltexte duerfen dort nicht wieder eingefuehrt werden.
   - Wenn die DATEV-Summenzeile in der Personalkostenuebersicht nicht stabil auslesbar ist, aber Mitarbeiterzeilen mit Kostenwerten erkannt wurden, duerfen Periodensummen aus den Mitarbeiterzeilen gebildet werden; der Importbericht weist diesen Fallback als neutralen Hinweis aus, nicht als gelbe Warnung.
   - Nach einem neuen Lohnjournal-Import setzt der Tab `Personalkosten Lohnjournal` seine Filter auf `Alle Standorte` und `Alle Jahre`, damit neu geladene Monate wie Mai/Juni nicht durch alte Filterauswahl verborgen bleiben.
   - Zuruecksetzen im Lohnjournal-Upload darf keine nativen Browser-Confirm-Dialoge verwenden, sondern nur App-interne Bestaetigung.
