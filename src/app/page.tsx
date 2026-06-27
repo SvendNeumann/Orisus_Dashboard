@@ -2728,6 +2728,24 @@ function legacyPayrollSummaryGross(lines: string[]) {
   return values.length ? Math.max(...values) : 0;
 }
 
+function applyLegacyPayrollSummaryGrossFallback(rows: PayrollEmployeeCostRow[], totals: PayrollPeriodData["totals"], lines: string[]) {
+  const summaryGross = legacyPayrollSummaryGross(lines);
+  if (!summaryGross || totals.gross >= summaryGross * 0.5) return false;
+  const grossDelta = summaryGross - totals.gross;
+  totals.gross = summaryGross;
+  totals.totalCostWithoutReimbursements += grossDelta;
+  totals.totalCostIncludingReimbursements += grossDelta;
+  const grossRows = rows.filter((row) => row.gross > 0);
+  const fallbackRows = grossRows.length ? grossRows : rows;
+  const perRowGrossDelta = fallbackRows.length ? grossDelta / fallbackRows.length : 0;
+  fallbackRows.forEach((row) => {
+    row.gross += perRowGrossDelta;
+    row.totalCostWithoutReimbursements += perRowGrossDelta;
+    row.totalCostIncludingReimbursements += perRowGrossDelta;
+  });
+  return true;
+}
+
 function parseLegacyPayrollRows(lines: string[]) {
   const rows: PayrollEmployeeCostRow[] = [];
   const compactText = compactDatevText(lines.join(" "));
@@ -2796,21 +2814,7 @@ function parseLegacyPayrollRows(lines: string[]) {
 
   const uniqueRows = Array.from(new Map(rows.map((row) => [row.personnelNumber, row])).values());
   const totals = payrollTotalsFromRows(uniqueRows);
-  const summaryGross = legacyPayrollSummaryGross(lines);
-  if (summaryGross && totals.gross < summaryGross * 0.5) {
-    const grossDelta = summaryGross - totals.gross;
-    totals.gross = summaryGross;
-    totals.totalCostWithoutReimbursements += grossDelta;
-    totals.totalCostIncludingReimbursements += grossDelta;
-    const grossRows = uniqueRows.filter((row) => row.gross > 0);
-    const fallbackRows = grossRows.length ? grossRows : uniqueRows;
-    const perRowGrossDelta = fallbackRows.length ? grossDelta / fallbackRows.length : 0;
-    fallbackRows.forEach((row) => {
-      row.gross += perRowGrossDelta;
-      row.totalCostWithoutReimbursements += perRowGrossDelta;
-      row.totalCostIncludingReimbursements += perRowGrossDelta;
-    });
-  }
+  const usedSummaryGrossFallback = applyLegacyPayrollSummaryGrossFallback(uniqueRows, totals, lines);
   const reimbursementLine = lines.find((entry) => compactDatevText(entry).includes("gesamtsummeerstattungsbetrag"));
   const reimbursement = parseDatevAmount(reimbursementLine?.match(/[0-9][0-9.]*,[0-9]{2}-?|[0-9][0-9.]*-?/g)?.at(-1) ?? "");
   if (reimbursement) {
@@ -2818,7 +2822,7 @@ function parseLegacyPayrollRows(lines: string[]) {
     totals.totalCostIncludingReimbursements = totals.totalCostWithoutReimbursements - reimbursement;
   }
 
-  return { rows: uniqueRows, totals, used: uniqueRows.length > 0 };
+  return { rows: uniqueRows, totals, used: uniqueRows.length > 0, usedSummaryGrossFallback };
 }
 
 function buildPayrollPeriodDataFromText(text: string, fileName: string): PayrollPeriodData {
@@ -2831,6 +2835,9 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   const legacyRows = parsedOverview.employeeRows.length >= 3 || payslipRows.length ? { rows: [], totals: emptyPayrollTotals(), used: false } : parseLegacyPayrollRows(lines);
   const employeeRows = parsedOverview.employeeRows.length >= 3 ? parsedOverview.employeeRows : payslipRows.length ? payslipRows : legacyRows.rows;
   const rowTotals = payrollTotalsFromRows(employeeRows);
+  const usedPayslipSummaryGrossFallback = !parsedOverview.employeeRows.length && payslipRows.length > 0
+    ? applyLegacyPayrollSummaryGrossFallback(employeeRows, rowTotals, lines)
+    : false;
   const usedEmployeeSumFallback = parsedOverview.employeeRows.length >= 3 && !parsedOverview.totals.totalCostIncludingReimbursements && !!rowTotals.totalCostIncludingReimbursements;
   const totals = parsedOverview.employeeRows.length >= 3 ? payrollTotalsWithRowFallback(parsedOverview.totals, rowTotals) : legacyRows.used ? legacyRows.totals : rowTotals;
   const employmentDates = parsePayrollEmploymentDatesFromText(normalizedText);
@@ -2844,6 +2851,7 @@ function buildPayrollPeriodDataFromText(text: string, fileName: string): Payroll
   if (!period) errors.push(`${fileName}: Monat/Jahr konnte weder aus DATEV-Text noch aus Dateiname erkannt werden.`);
   if (!compactDatevText(normalizedText).includes("personalkostenubersicht")) warnings.push(legacyRows.used ? `${fileName}: Alte DATEV-Lohnjournalstruktur erkannt; Personalkosten wurden aus Einzelabrechnungsseiten und AAG-Erstattungen gelesen.` : `${fileName}: Keine DATEV-Personalkostenübersicht im Text erkannt; Entgeltabrechnungsseiten werden als Fallback genutzt.`);
   if (usedEmployeeSumFallback) warnings.push(`${fileName}: DATEV-Summenzeile wurde nicht vollständig erkannt; Periodensummen wurden aus den Mitarbeiterzeilen gebildet.`);
+  if (usedPayslipSummaryGrossFallback || legacyRows.usedSummaryGrossFallback) warnings.push(`${fileName}: Gesamtbrutto wurde aus dem DATEV-Block Summen aus Lohnabrechnung übernommen, weil die Einzelzeilen spaltenweise unvollständig ausgelesen wurden.`);
   if (!enrichedEmployeeRows.length) errors.push(`${fileName}: Keine Mitarbeiterzeilen in Personalkostenübersicht oder Entgeltabrechnungen erkannt.`);
   const employeeTotal = enrichedEmployeeRows.reduce((sum, row) => sum + row.totalCostIncludingReimbursements, 0);
   if (totals.totalCostIncludingReimbursements && Math.abs(employeeTotal - totals.totalCostIncludingReimbursements) > 1) {
