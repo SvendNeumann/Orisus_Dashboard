@@ -137,8 +137,8 @@ Navigation wurde gruppiert:
 - Standorte & BWA
   - Standorte
   - BWA
-  - Entwicklungs-Analyse
   - Cashflow-Analyse
+  - Entwicklungs-Analyse
 - Performance & Benchmarking
   - Orisus Performance
   - Fruehwarnsystem

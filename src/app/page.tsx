@@ -1906,8 +1906,8 @@ const navSections = [
     items: [
       { id: "standorte", label: "Standorte", icon: Building2 },
       { id: "bwa", label: "BWA", icon: FileBarChart },
-      { id: "kennzahlen", label: "Entwicklungs-Analyse", icon: BarChart3 },
-      { id: "cashflow", label: "Cashflow-Analyse", icon: Wallet }
+      { id: "cashflow", label: "Cashflow-Analyse", icon: Wallet },
+      { id: "kennzahlen", label: "Entwicklungs-Analyse", icon: BarChart3 }
     ]
   },
   {
