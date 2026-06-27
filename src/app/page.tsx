@@ -20437,13 +20437,138 @@ function PayrollCosts({
     }),
     { payrollCost: 0, honorar: 0 }
   );
-  const employeeRows = filteredPeriods.flatMap((period) =>
+  const diffRows = filteredPeriods.map((period) => {
+    const diff = payrollBwaDifference(period, importedData);
+    const tone: Status = !diff ? "yellow" : Math.abs(diff.deltaPct) >= 15 ? "red" : Math.abs(diff.deltaPct) >= 5 ? "yellow" : "green";
+    return { period, diff, tone };
+  });
+  const diffRowsWithBwa = diffRows.filter((row) => row.diff);
+  const totalBwa = diffRowsWithBwa.reduce((sum, row) => sum + (row.diff?.bwaValue ?? 0), 0);
+  const payrollWithBwa = diffRowsWithBwa.reduce((sum, row) => sum + row.period.totals.totalCostIncludingReimbursements, 0);
+  const totalDelta = payrollWithBwa - totalBwa;
+  const totalDeltaPct = totalBwa ? (totalDelta / totalBwa) * 100 : null;
+  const avgMonthlyPayroll = filteredPeriods.length ? totalPayroll / filteredPeriods.length : 0;
+  const avgEmployeeCost = totalEmployees ? totalPayroll / totalEmployees : 0;
+  const reimbursementAbs = Math.abs(totalReimbursements);
+  const doctorQuote = doctorHonorarTotals.honorar ? (doctorHonorarTotals.payrollCost / doctorHonorarTotals.honorar) * 100 : null;
+  const matchedDoctorCount = matchedDoctorHonorarRows.filter((row) => row.honorar > 0).length;
+  const unmatchedDoctorCount = doctorHonorarRows.filter((row) => row.honorar > 0 && !row.payrollCost).length;
+  const topDeviationRows = [...diffRowsWithBwa]
+    .sort((a, b) => Math.abs(b.diff?.deltaPct ?? 0) - Math.abs(a.diff?.deltaPct ?? 0))
+    .slice(0, 8);
+  const siteSummaryRows = Array.from(filteredPeriods.reduce((map, period) => {
+    const existing = map.get(period.siteName) ?? {
+      siteName: period.siteName,
+      months: 0,
+      payroll: 0,
+      gross: 0,
+      reimbursements: 0,
+      employeeRows: 0,
+      bwa: 0,
+      hasBwa: 0
+    };
+    const diff = payrollBwaDifference(period, importedData);
+    existing.months += 1;
+    existing.payroll += period.totals.totalCostIncludingReimbursements;
+    existing.gross += period.totals.gross;
+    existing.reimbursements += period.totals.reimbursementBa + period.totals.reimbursementHealthInsurance + period.totals.reimbursementIfsg;
+    existing.employeeRows += period.employeeRows.length;
+    if (diff) {
+      existing.bwa += diff.bwaValue;
+      existing.hasBwa += 1;
+    }
+    map.set(period.siteName, existing);
+    return map;
+  }, new Map<string, { siteName: string; months: number; payroll: number; gross: number; reimbursements: number; employeeRows: number; bwa: number; hasBwa: number }>()).values())
+    .map((row) => ({
+      ...row,
+      avgPayroll: row.months ? row.payroll / row.months : 0,
+      delta: row.hasBwa ? row.payroll - row.bwa : null,
+      deltaPct: row.hasBwa && row.bwa ? ((row.payroll - row.bwa) / row.bwa) * 100 : null
+    }))
+    .sort((a, b) => compareSiteNamesByContractStart(a.siteName, b.siteName));
+  const employeeSummaryRows = Array.from(filteredPeriods.flatMap((period) =>
     period.employeeRows.map((row) => ({
       ...row,
       siteName: period.siteName,
-      monthLabel: period.monthLabel
+      monthLabel: period.monthLabel,
+      periodSort: period.year * 100 + period.month
     }))
-  );
+  ).reduce((map, row) => {
+    const key = `${row.siteName}-${row.personnelNumber}-${normalizeMetric(row.name)}`;
+    const existing = map.get(key) ?? {
+      key,
+      siteName: row.siteName,
+      personnelNumber: row.personnelNumber,
+      name: row.name,
+      months: 0,
+      gross: 0,
+      reimbursements: 0,
+      totalCost: 0,
+      latestSort: 0,
+      latestMonth: row.monthLabel,
+      entryDate: row.entryDate,
+      exitDate: row.exitDate
+    };
+    existing.months += 1;
+    existing.gross += row.gross;
+    existing.reimbursements += row.reimbursementBa + row.reimbursementHealthInsurance + row.reimbursementIfsg;
+    existing.totalCost += row.totalCostIncludingReimbursements;
+    existing.entryDate = earlierPayrollDate(existing.entryDate, row.entryDate);
+    existing.exitDate = laterPayrollDate(existing.exitDate, row.exitDate);
+    if (row.periodSort >= existing.latestSort) {
+      existing.latestSort = row.periodSort;
+      existing.latestMonth = row.monthLabel;
+    }
+    map.set(key, existing);
+    return map;
+  }, new Map<string, { key: string; siteName: string; personnelNumber: string; name: string; months: number; gross: number; reimbursements: number; totalCost: number; latestSort: number; latestMonth: string; entryDate?: string; exitDate?: string }>()).values());
+  const topEmployeeCostRows = [...employeeSummaryRows]
+    .sort((a, b) => b.totalCost - a.totalCost)
+    .slice(0, 12);
+  const doctorFocusRows = [...doctorHonorarRows]
+    .filter((row) => Math.abs(row.honorar) > 0 || Math.abs(row.payrollCost) > 0)
+    .sort((a, b) => (b.quote ?? -1) - (a.quote ?? -1) || b.payrollCost - a.payrollCost)
+    .slice(0, 10);
+  const periodStart = filteredPeriods.length ? `${Math.min(...filteredPeriods.map((period) => period.year * 100 + period.month))}` : "";
+  const periodEnd = filteredPeriods.length ? `${Math.max(...filteredPeriods.map((period) => period.year * 100 + period.month))}` : "";
+  const dateWithinSelection = (date?: string) => {
+    if (!date || !periodStart || !periodEnd) return false;
+    const compact = date.slice(0, 7).replace("-", "");
+    return compact >= periodStart && compact <= periodEnd;
+  };
+  const uniqueEmployeeRows = Array.from(employeeSummaryRows.reduce((map, row) => {
+    const key = `${row.siteName}-${row.personnelNumber || normalizeMetric(row.name)}`;
+    if (!map.has(key)) map.set(key, row);
+    return map;
+  }, new Map<string, (typeof employeeSummaryRows)[number]>()).values());
+  const entriesInSelection = uniqueEmployeeRows.filter((row) => dateWithinSelection(row.entryDate));
+  const exitsInSelection = uniqueEmployeeRows.filter((row) => dateWithinSelection(row.exitDate));
+  const turnoverRate = uniqueEmployeeRows.length ? (exitsInSelection.length / uniqueEmployeeRows.length) * 100 : null;
+  const turnoverBySiteRows = Array.from(employeeSummaryRows.reduce((map, row) => {
+    const existing = map.get(row.siteName) ?? {
+      siteName: row.siteName,
+      employees: 0,
+      entries: 0,
+      exits: 0,
+      totalCost: 0
+    };
+    existing.employees += 1;
+    existing.totalCost += row.totalCost;
+    if (dateWithinSelection(row.entryDate)) existing.entries += 1;
+    if (dateWithinSelection(row.exitDate)) existing.exits += 1;
+    map.set(row.siteName, existing);
+    return map;
+  }, new Map<string, { siteName: string; employees: number; entries: number; exits: number; totalCost: number }>()).values())
+    .map((row) => ({
+      ...row,
+      turnoverRate: row.employees ? (row.exits / row.employees) * 100 : null,
+      avgCost: row.employees ? row.totalCost / row.employees : 0
+    }))
+    .sort((a, b) => compareSiteNamesByContractStart(a.siteName, b.siteName));
+  const latestExitRows = exitsInSelection
+    .sort((a, b) => (b.exitDate ?? "").localeCompare(a.exitDate ?? ""))
+    .slice(0, 8);
 
   return (
     <section className="space-y-5">
@@ -20475,58 +20600,142 @@ function PayrollCosts({
 
       <div className="grid gap-3 md:grid-cols-4">
         <Mini label="Gesamtkosten inkl. Erstatt." value={eur(totalPayroll, true)} />
-        <Mini label="Gesamtbrutto" value={eur(totalGross, true)} />
-        <Mini label="Erstattungen Saldo" value={eur(totalReimbursements, true)} />
-        <Mini label="Mitarbeiterzeilen" value={totalEmployees.toLocaleString("de-DE")} />
+        <Mini label="Ø Monat Lohnjournal" value={eur(avgMonthlyPayroll, true)} />
+        <Mini label="Abw. vs. BWA" value={totalDeltaPct === null ? "n. v." : `${eur(totalDelta, true)} | ${pct(totalDeltaPct)}`} />
+        <Mini label="Fluktuation Lohnjournal" value={turnoverRate === null ? "n. v." : `${exitsInSelection.length} Austritte | ${pct(turnoverRate)}`} />
       </div>
 
-      <ChartCard title="Verlauf Personalkosten gem. Lohnjournal" icon={BadgeEuro}>
-        <ResponsiveContainer width="100%" height={340}>
-          <ComposedChart data={chartRows}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 11, fontWeight: 700 }} />
-            <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
-            <Tooltip formatter={(value) => eur(Number(value))} />
-            <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
-            <Bar dataKey="payroll" name="Lohnjournal Gesamtkosten inkl." fill="#30d5c8" radius={[8, 8, 0, 0]} maxBarSize={54} />
-            <Line type="monotone" dataKey="bwa" name="BWA Personalkosten" stroke="#f59e0b" strokeWidth={3} connectNulls={false} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
+        <ChartCard title="Verlauf Personalkosten gem. Lohnjournal" icon={BadgeEuro}>
+          <ResponsiveContainer width="100%" height={330}>
+            <ComposedChart data={chartRows}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 11, fontWeight: 700 }} />
+              <YAxis tickLine={false} axisLine={false} tick={false} width={8} />
+              <Tooltip formatter={(value) => eur(Number(value))} />
+              <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: 8 }} />
+              <Bar dataKey="payroll" name="Lohnjournal inkl." fill="#30d5c8" radius={[8, 8, 0, 0]} maxBarSize={54} />
+              <Line type="monotone" dataKey="bwa" name="BWA Personalkosten" stroke="#f59e0b" strokeWidth={3} connectNulls={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </ChartCard>
 
-      <Card className="overflow-hidden">
-        <div className="table-head p-4 text-white">
-          <h2 className="font-bold">Abweichung Lohnjournal vs. BWA</h2>
-          <p className="mt-1 text-sm text-white/75">BWA bleibt offizielle GuV-Sicht; Lohnjournal ist die echte Abrechnungsbasis je Standort/Monat.</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table border-separate border-spacing-0 text-sm">
+        <Card className="p-4">
+          <h2 className="font-bold text-white">Steuerungsfokus</h2>
+          <div className="mt-4 space-y-3">
+            <div className="rounded-lg border border-border bg-slate-950/20 p-3">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Abrechnungskosten</p>
+              <p className="mt-1 text-2xl font-extrabold text-white">{eur(totalPayroll, true)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Brutto {eur(totalGross, true)} | Erstattungen {eur(reimbursementAbs, true)}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border bg-slate-950/20 p-3">
+                <p className="text-xs font-bold uppercase text-muted-foreground">Ø MA-Kosten</p>
+                <p className="mt-1 text-lg font-extrabold text-white">{eur(avgEmployeeCost, true)}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-slate-950/20 p-3">
+                <p className="text-xs font-bold uppercase text-muted-foreground">Eintritte</p>
+                <p className="mt-1 text-lg font-extrabold text-white">{entriesInSelection.length.toLocaleString("de-DE")}</p>
+              </div>
+            </div>
+            <div className="rounded-lg border border-border bg-slate-950/20 p-3">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Arztkosten-Match</p>
+              <p className="mt-1 text-lg font-extrabold text-white">{doctorQuote === null ? "n. v." : formatNullablePercent(doctorQuote)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{matchedDoctorCount} gematcht, {unmatchedDoctorCount} offen</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card className="overflow-hidden">
+          <div className="table-head p-4 text-white">
+            <h2 className="font-bold">Standortvergleich Lohnjournal</h2>
+            <p className="mt-1 text-sm text-white/75">Verdichtet je Standort im gewählten Zeitraum.</p>
+          </div>
+          <ResponsiveTable>
             <thead>
               <tr>
-                {["Standort", "Monat", "Lohnjournal inkl.", "BWA-Personalkosten", "Abweichung", "Abweichung %", "Einordnung"].map((head) => (
-                  <th key={head} className="table-head border-b border-r border-border p-3 text-left text-xs uppercase text-white">{head}</th>
-                ))}
+                <TableHead>Standort</TableHead>
+                <TableHead>Monate</TableHead>
+                <TableHead>Lohnjournal inkl.</TableHead>
+                <TableHead>Ø Monat</TableHead>
+                <TableHead>BWA-Abw.</TableHead>
               </tr>
             </thead>
             <tbody>
-              {filteredPeriods.map((period) => {
-                const diff = payrollBwaDifference(period, importedData);
-                const tone: Status = !diff ? "yellow" : Math.abs(diff.deltaPct) >= 15 ? "red" : Math.abs(diff.deltaPct) >= 5 ? "yellow" : "green";
-                return (
-                  <tr key={period.id}>
-                    <TableCell strong>{period.siteName}</TableCell>
-                    <TableCell>{period.monthLabel}</TableCell>
-                    <TableCell>{eur(period.totals.totalCostIncludingReimbursements)}</TableCell>
-                    <TableCell>{diff ? eur(diff.bwaValue) : "n. v."}</TableCell>
-                    <TableCell>{diff ? eur(diff.delta) : "n. v."}</TableCell>
-                    <TableCell>{diff ? pct(diff.deltaPct) : "n. v."}</TableCell>
-                    <td className="border-b border-r border-border p-3"><StatusDot status={tone} label={!diff ? "BWA n. v." : tone === "green" ? "Stabil" : tone === "yellow" ? "Beobachten" : "Auffällig"} /></td>
-                  </tr>
-                );
-              })}
+              {siteSummaryRows.map((row) => (
+                <tr key={row.siteName}>
+                  <TableCell strong>{row.siteName}</TableCell>
+                  <TableCell>{row.months.toLocaleString("de-DE")}</TableCell>
+                  <TableCell>{eur(row.payroll)}</TableCell>
+                  <TableCell>{eur(row.avgPayroll)}</TableCell>
+                  <TableCell>{row.deltaPct === null ? "n. v." : `${eur(row.delta ?? 0)} | ${pct(row.deltaPct)}`}</TableCell>
+                </tr>
+              ))}
             </tbody>
-          </table>
+          </ResponsiveTable>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <div className="table-head p-4 text-white">
+            <h2 className="font-bold">Fluktuation aus Lohnjournal</h2>
+            <p className="mt-1 text-sm text-white/75">Quervergleich aus Eintritts- und Austrittsdaten je Personalnummer.</p>
+          </div>
+          <ResponsiveTable>
+            <thead>
+              <tr>
+                <TableHead>Standort</TableHead>
+                <TableHead>Mitarbeiter</TableHead>
+                <TableHead>Eintritte</TableHead>
+                <TableHead>Austritte</TableHead>
+                <TableHead>Austrittsquote</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {turnoverBySiteRows.map((row) => (
+                <tr key={row.siteName}>
+                  <TableCell strong>{row.siteName}</TableCell>
+                  <TableCell>{row.employees.toLocaleString("de-DE")}</TableCell>
+                  <TableCell>{row.entries.toLocaleString("de-DE")}</TableCell>
+                  <TableCell>{row.exits.toLocaleString("de-DE")}</TableCell>
+                  <TableCell>{formatNullablePercent(row.turnoverRate)}</TableCell>
+                </tr>
+              ))}
+            </tbody>
+          </ResponsiveTable>
+        </Card>
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Größte Abweichungen Lohnjournal vs. BWA</h2>
+          <p className="mt-1 text-sm text-white/75">Fokus auf Monate, in denen Abrechnung und BWA besonders auseinanderlaufen.</p>
         </div>
+        <ResponsiveTable>
+          <thead>
+            <tr>
+              <TableHead>Standort</TableHead>
+              <TableHead>Monat</TableHead>
+              <TableHead>Lohnjournal inkl.</TableHead>
+              <TableHead>BWA-Personalkosten</TableHead>
+              <TableHead>Abweichung</TableHead>
+              <TableHead>Einordnung</TableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {topDeviationRows.map(({ period, diff, tone }) => (
+              <tr key={period.id}>
+                <TableCell strong>{period.siteName}</TableCell>
+                <TableCell>{period.monthLabel}</TableCell>
+                <TableCell>{eur(period.totals.totalCostIncludingReimbursements)}</TableCell>
+                <TableCell>{diff ? eur(diff.bwaValue) : "n. v."}</TableCell>
+                <TableCell>{diff ? `${eur(diff.delta)} | ${pct(diff.deltaPct)}` : "n. v."}</TableCell>
+                <td className="border-b border-r border-border p-3"><StatusDot status={tone} label={tone === "green" ? "Stabil" : tone === "yellow" ? "Beobachten" : "Auffällig"} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </ResponsiveTable>
       </Card>
 
       {canSeeDetails ? (
@@ -20536,6 +20745,20 @@ function PayrollCosts({
             <p className="mt-1 text-sm text-muted-foreground">
               Lohnjournal-Gesamtkosten gematchter Ärzte gegen reinen Honorarumsatz aus dem bestätigten CFO-Import. Eigenlabor ist hier bewusst nicht enthalten.
             </p>
+          </div>
+          <div className="grid gap-3 p-4 md:grid-cols-3">
+            <div className="rounded-lg border border-border bg-muted/10 p-3">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Gematchte Arztkosten</p>
+              <p className="mt-1 text-lg font-extrabold text-white">{eur(doctorHonorarTotals.payrollCost, true)}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/10 p-3">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Reiner Honorarumsatz</p>
+              <p className="mt-1 text-lg font-extrabold text-white">{eur(doctorHonorarTotals.honorar, true)}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/10 p-3">
+              <p className="text-xs font-bold uppercase text-muted-foreground">Arztkostenquote</p>
+              <p className="mt-1 text-lg font-extrabold text-white">{formatNullablePercent(doctorQuote)}</p>
+            </div>
           </div>
           <ResponsiveTable>
             <thead>
@@ -20551,7 +20774,7 @@ function PayrollCosts({
               </tr>
             </thead>
             <tbody>
-              {doctorHonorarRows.map((row) => (
+              {doctorFocusRows.map((row) => (
                 <tr key={row.key}>
                   <TableCell strong>{row.siteName}</TableCell>
                   <TableCell strong>{row.doctorName}</TableCell>
@@ -20563,7 +20786,7 @@ function PayrollCosts({
                   <TableCell>{row.matchNote}</TableCell>
                 </tr>
               ))}
-              {doctorHonorarRows.length ? (
+              {doctorFocusRows.length ? (
                 <tr className="summary-row">
                   <TableCell strong summary>Gesamt gematcht</TableCell>
                   <TableCell summary>{""}</TableCell>
@@ -20594,38 +20817,59 @@ function PayrollCosts({
       {canSeeDetails ? (
         <Card className="overflow-hidden">
           <div className="border-b border-border p-4">
-            <h2 className="font-bold">Mitarbeiterkosten aus Lohnjournal</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Nur für Rollen mit Zugriff auf Vergütungs-/Kosteninformationen sichtbar.</p>
+            <h2 className="font-bold">Mitarbeiter-Fokus aus Lohnjournal</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Keine zweite Mitarbeiterliste, sondern die größten Kostenpositionen und aktuelle Austritte im gewählten Zeitraum.</p>
           </div>
-          <div className="max-h-[70vh] overflow-auto">
-            <table className="data-table border-separate border-spacing-0 text-xs">
+          <div className="grid gap-4 p-4 xl:grid-cols-2">
+            <ResponsiveTable>
               <thead>
                 <tr>
-                  {["Standort", "Monat", "Pers.-Nr.", "Name", "Eintritt", "Austritt", "Quelle Datum", "Gesamtbrutto", "SV-AG", "Umlage", "Pausch. Steuern", "Erstattungen", "Gesamtkosten inkl."].map((head) => (
-                    <th key={head} className="sticky top-0 table-head border-b border-r border-border p-2 text-left uppercase text-white">{head}</th>
-                  ))}
+                  <TableHead>Standort</TableHead>
+                  <TableHead>Mitarbeiter</TableHead>
+                  <TableHead>Monate</TableHead>
+                  <TableHead>Gesamtkosten inkl.</TableHead>
+                  <TableHead>Ø Monat</TableHead>
                 </tr>
               </thead>
               <tbody>
-                {employeeRows.map((row) => (
-                  <tr key={`${row.siteName}-${row.monthLabel}-${row.personnelNumber}`}>
-                    <TableCell>{row.siteName}</TableCell>
-                    <TableCell>{row.monthLabel}</TableCell>
-                    <TableCell>{row.personnelNumber}</TableCell>
+                {topEmployeeCostRows.map((row) => (
+                  <tr key={row.key}>
+                    <TableCell strong>{row.siteName}</TableCell>
                     <TableCell strong>{row.name}</TableCell>
-                    <TableCell>{formatPayrollDate(row.entryDate)}</TableCell>
-                    <TableCell>{formatPayrollDate(row.exitDate)}</TableCell>
-                    <TableCell>{row.employmentDateSource ?? "n. v."}</TableCell>
-                    <TableCell>{eur(row.gross)}</TableCell>
-                    <TableCell>{eur(row.svEmployerShare)}</TableCell>
-                    <TableCell>{eur(row.allocation)}</TableCell>
-                    <TableCell>{eur(row.flatTax)}</TableCell>
-                    <TableCell>{eur(row.reimbursementBa + row.reimbursementHealthInsurance + row.reimbursementIfsg)}</TableCell>
-                    <TableCell strong>{eur(row.totalCostIncludingReimbursements)}</TableCell>
+                    <TableCell>{row.months.toLocaleString("de-DE")}</TableCell>
+                    <TableCell>{eur(row.totalCost)}</TableCell>
+                    <TableCell>{eur(row.months ? row.totalCost / row.months : 0)}</TableCell>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ResponsiveTable>
+            <ResponsiveTable>
+              <thead>
+                <tr>
+                  <TableHead>Standort</TableHead>
+                  <TableHead>Austritt</TableHead>
+                  <TableHead>Mitarbeiter</TableHead>
+                  <TableHead>Kosten im Zeitraum</TableHead>
+                </tr>
+              </thead>
+              <tbody>
+                {latestExitRows.length ? latestExitRows.map((row) => (
+                  <tr key={`${row.siteName}-${row.personnelNumber}-${row.exitDate}`}>
+                    <TableCell strong>{row.siteName}</TableCell>
+                    <TableCell>{formatPayrollDate(row.exitDate)}</TableCell>
+                    <TableCell strong>{row.name}</TableCell>
+                    <TableCell>{eur(row.totalCost)}</TableCell>
+                  </tr>
+                )) : (
+                  <tr>
+                    <TableCell strong>Keine Austritte</TableCell>
+                    <TableCell>{""}</TableCell>
+                    <TableCell>{""}</TableCell>
+                    <TableCell>{""}</TableCell>
+                  </tr>
+                )}
+              </tbody>
+            </ResponsiveTable>
           </div>
         </Card>
       ) : null}
