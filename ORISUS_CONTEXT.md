@@ -1432,6 +1432,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Personal-Aenderungsprotokoll: Veraenderung Mitarbeiterbestand, aktive Mitarbeiter, Massnahmen, Importwarnungen und Fehler.
 - Lohnjournal / DATEV-Personalkosten:
   - Es gibt einen eigenen Administration-Tab `Lohnjournal-Upload` fuer DATEV-PDFs mit `Personalkostenuebersicht` je Standort/Monat.
+  - Lohnjournal-Importe werden persistent in Supabase gespeichert (`orisus_payroll_journal_imports`) und lokal nur als Fallback gecacht. Freigabe ersetzt die aktive Lohnjournal-Datenbasis in Supabase; gleiche Standort-/Monatskombinationen werden appseitig vor dem Speichern zusammengefuehrt. Lesen duerfen Admin und Info; Praxismanagement darf keine Lohnjournal-/Gehalts-/AG-Kostendetails laden.
   - Sammelupload liest mehrere PDFs oder einen ausgewaehlten Ordner mit PDFs, erkennt Standort und Monat/Jahr aus der DATEV-Kopfzeile und ersetzt gleiche Standort-/Monatskombinationen, ohne andere Monate zu loeschen.
   - Wenn ein Standort/Monat bereits gespeichert ist oder im aktuellen Uploadpaket mehrfach vorkommt, muss der Upload vor Freigabe einen klaren Doppel-Hinweis im Plausibilitaetscheck zeigen.
   - DATEV-PDFs koennen Ueberschriften mit auseinandergezogenen Buchstaben ausgeben (`P e rs o n a lk o s t e n ...`); Parser muessen diese Schreibweise tolerant erkennen.

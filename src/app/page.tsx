@@ -187,6 +187,7 @@ const personalImportSchemaVersion = "2026-06-21-personal-stage-one-v1";
 const payrollJournalStorageKey = "orisus-payroll-journal-data";
 const payrollJournalSchemaVersion = "2026-06-26-payroll-journal-v1";
 const personalSupabaseImportTableName = "orisus_personal_imports";
+const payrollSupabaseImportTableName = "orisus_payroll_journal_imports";
 const supabaseAccessTokenKey = "orisus-cfo-supabase-access-token";
 const supabaseRefreshTokenKey = "orisus-cfo-supabase-refresh-token";
 const supabaseUserEmailKey = "orisus-cfo-supabase-user-email";
@@ -1057,6 +1058,10 @@ function canLoadPersonalData(role: UserRole) {
   return role === "admin" || role === "info" || role === "praxismanagement";
 }
 
+function canLoadPayrollJournalData(role: UserRole) {
+  return role === "admin" || role === "info";
+}
+
 function currentSupabaseAccessToken() {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(supabaseAccessTokenKey) ?? "";
@@ -1347,6 +1352,70 @@ async function clearSupabaseConfirmedPersonalImport() {
   if (!token) return;
   await supabaseFetch(
     `/rest/v1/${personalSupabaseImportTableName}?active=eq.true`,
+    {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" }
+    },
+    token
+  ).catch(() => undefined);
+}
+
+async function loadSupabasePayrollJournalData() {
+  if (!isSupabaseConfigured()) return null;
+  const token = currentSupabaseAccessToken();
+  if (!token) return null;
+  const rows = await supabaseFetch<Array<{ payload: PayrollJournalData }>>(
+    `/rest/v1/${payrollSupabaseImportTableName}?select=payload&active=eq.true&order=imported_at.desc&limit=1`,
+    undefined,
+    token
+  ).catch(() => []);
+  const payrollData = rows[0]?.payload ?? null;
+  if (!payrollData) return null;
+  if (payrollData.schemaVersion !== payrollJournalSchemaVersion) return null;
+  return payrollData;
+}
+
+async function saveSupabasePayrollJournalData(data: PayrollJournalData) {
+  if (!canModifyData(currentUserRole())) return false;
+  if (!isSupabaseConfigured()) return false;
+  const token = currentSupabaseAccessToken();
+  if (!token) return false;
+  await supabaseFetch(
+    `/rest/v1/${payrollSupabaseImportTableName}?active=eq.true`,
+    {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ active: false })
+    },
+    token
+  ).catch(() => undefined);
+  await supabaseFetch(
+    `/rest/v1/${payrollSupabaseImportTableName}`,
+    {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({
+        id: importHistoryId(`lohnjournal-${data.importedAt}`),
+        active: true,
+        file_name: "Lohnjournal",
+        imported_at: data.importedAt,
+        schema_version: data.schemaVersion,
+        report: { warnings: data.warnings, errors: data.errors, periods: data.periods.length },
+        payload: data
+      })
+    },
+    token
+  );
+  return true;
+}
+
+async function clearSupabasePayrollJournalData() {
+  if (!canModifyData(currentUserRole())) return;
+  if (!isSupabaseConfigured()) return;
+  const token = currentSupabaseAccessToken();
+  if (!token) return;
+  await supabaseFetch(
+    `/rest/v1/${payrollSupabaseImportTableName}?active=eq.true`,
     {
       method: "DELETE",
       headers: { Prefer: "return=minimal" }
@@ -2993,6 +3062,32 @@ function savePayrollJournalData(data: PayrollJournalData | null) {
     return;
   }
   window.localStorage.setItem(payrollJournalStorageKey, JSON.stringify(data));
+}
+
+async function loadPayrollJournalData() {
+  if (isSupabaseConfigured() && currentSupabaseAccessToken()) {
+    try {
+      const supabaseData = await loadSupabasePayrollJournalData();
+      if (!supabaseData) {
+        savePayrollJournalData(null);
+        return null;
+      }
+      savePayrollJournalData(supabaseData);
+      return supabaseData;
+    } catch {
+      // Keep local fallback for unstable mobile sessions.
+    }
+  }
+  return readPayrollJournalData();
+}
+
+async function persistPayrollJournalData(data: PayrollJournalData | null) {
+  savePayrollJournalData(data);
+  if (data) {
+    await saveSupabasePayrollJournalData(data).catch(() => false);
+    return;
+  }
+  await clearSupabasePayrollJournalData().catch(() => undefined);
 }
 
 function mergePayrollPeriods(previous: PayrollJournalData | null, nextPeriods: PayrollPeriodData[]): PayrollJournalData {
@@ -4998,8 +5093,20 @@ export default function HomePage() {
   }, [authProfileReady, authStep, userRole]);
 
   useEffect(() => {
-    if (authStep !== "app" || !authProfileReady || !canLoadPersonalData(userRole)) return;
-    setPayrollData(readPayrollJournalData());
+    if (authStep !== "app" || !authProfileReady) return;
+    if (!canLoadPayrollJournalData(userRole)) {
+      setPayrollData(null);
+      return;
+    }
+    let isMounted = true;
+    loadPayrollJournalData()
+      .then((savedPayrollData) => {
+        if (isMounted) setPayrollData(savedPayrollData);
+      })
+      .catch(() => undefined);
+    return () => {
+      isMounted = false;
+    };
   }, [authProfileReady, authStep, userRole]);
 
   const setPersistentAuthStep = (step: AuthStep) => {
@@ -20001,8 +20108,8 @@ function PayrollUpload({
   onImportReset
 }: {
   payrollData: PayrollJournalData | null;
-  onImportConfirmed: (data: PayrollJournalData) => void;
-  onImportReset: () => void;
+  onImportConfirmed: (data: PayrollJournalData) => void | Promise<void>;
+  onImportReset: () => void | Promise<void>;
 }) {
   const [pendingPeriods, setPendingPeriods] = useState<PayrollPeriodData[]>([]);
   const [message, setMessage] = useState("");
@@ -20088,24 +20195,34 @@ function PayrollUpload({
     }
   };
 
-  const confirm = () => {
+  const confirm = async () => {
     const data = mergePayrollPeriods(payrollData, releasablePendingPeriods);
-    savePayrollJournalData(data);
-    setPendingPeriods([]);
-    setResetArmed(false);
-    onImportConfirmed(data);
+    setBusy(true);
+    try {
+      await persistPayrollJournalData(data);
+      setPendingPeriods([]);
+      setResetArmed(false);
+      await onImportConfirmed(data);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const reset = () => {
+  const reset = async () => {
     if (!resetArmed) {
       setResetArmed(true);
       setMessage("Zum Zurücksetzen bitte den Button noch einmal bestätigen.");
       return;
     }
-    savePayrollJournalData(null);
-    setPendingPeriods([]);
-    setResetArmed(false);
-    onImportReset();
+    setBusy(true);
+    try {
+      await persistPayrollJournalData(null);
+      setPendingPeriods([]);
+      setResetArmed(false);
+      await onImportReset();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const openImportReport = () => {
