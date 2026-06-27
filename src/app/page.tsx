@@ -6797,7 +6797,9 @@ function PersonalCockpit({
       <Card className="overflow-hidden">
         <div className="p-4">
           <h2 className="font-bold">Personalstruktur je Standort | {periodLabel}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Gezählt werden ausschließlich Mitarbeiter mit Status Aktiv.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Datenbasis: Mitarbeiterliste / Personalimport, nicht DATEV-Lohnjournal. Gezählt werden ausschließlich Mitarbeiter mit Status Aktiv.
+          </p>
         </div>
         <ResponsiveTable>
           <thead>
@@ -6834,6 +6836,9 @@ function PersonalCockpit({
             </tr>
           </tbody>
         </ResponsiveTable>
+        <p className="border-t border-border bg-slate-50 p-3 text-xs font-semibold text-muted-foreground">
+          Quelle dieser Tabelle: Personalimport/Mitarbeiterliste. FTE = Wochenstunden / 40; AG-Aufwand = AG_Aufwand aus Personalimport. Keine Werte aus dem Lohnjournal.
+        </p>
       </Card>
       <Card className="overflow-hidden">
         <div className="table-head p-4 text-white">
@@ -6882,13 +6887,15 @@ function PersonalCockpit({
           </tbody>
         </ResponsiveTable>
         <p className="border-t border-border bg-slate-50 p-3 text-xs text-muted-foreground">
-          Basis: aktive Mitarbeitende; Team-MA = Mitarbeitende ohne Behandler; AG-Kosten = AG_Aufwand aus dem Personal-Upload.
+          Quelle dieser Tabelle: Personalimport/Mitarbeiterliste. Basis: aktive Mitarbeitende; Team-MA = Mitarbeitende ohne Behandler; AG-Kosten = AG_Aufwand aus dem Personal-Upload. Keine echten Abrechnungskosten aus dem DATEV-Lohnjournal.
         </p>
       </Card>
       <Card className="overflow-hidden">
         <div className="table-head p-4 text-white">
           <h2 className="font-bold">Kosten & operative Kennzahlen | aktive Kosten / {periodLabel}</h2>
-          <p className="mt-1 text-sm text-white/75">Personalkosten = AG-Aufwand aus Mitarbeiterliste / Personalimport.</p>
+          <p className="mt-1 text-sm text-white/75">
+            Datenbasis: Mitarbeiterliste / Personalimport, nicht DATEV-Lohnjournal. Personalkosten = AG-Aufwand aus aktiven Mitarbeiterstammdaten.
+          </p>
         </div>
         <ResponsiveTable>
           <thead>
@@ -6922,6 +6929,9 @@ function PersonalCockpit({
             </tr>
           </tbody>
         </ResponsiveTable>
+        <p className="border-t border-border bg-slate-50 p-3 text-xs font-semibold text-muted-foreground">
+          Quelle dieser Tabelle: Personalimport/Mitarbeiterliste. Krankheitstage kommen aus dem Fehlzeitenimport; Fluktuation aus Austritten im Mitarbeiterstamm. Kein Lohnjournal-Vergleich.
+        </p>
       </Card>
       <div className="grid gap-5 xl:grid-cols-2">
         <ChartCard title="AG-Kosten je Standort | aktive Mitarbeiter" icon={BadgeEuro}>
