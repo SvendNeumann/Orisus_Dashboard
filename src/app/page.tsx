@@ -6579,7 +6579,7 @@ function PersonalCockpit({
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageTitle title="Personal-Cockpit" text="Stufe 1: zentrale Personalsteuerung aus der hochgeladenen Personalübersicht-Arbeitsmappe." />
+        <PageTitle title="Personal-Cockpit" text="Zentrale Personalsteuerung aus Mitarbeiterliste, Fehlzeiten und operativen Standortkennzahlen." />
         <CompactPersonalDataStatus personalData={personalData} />
       </div>
       <Card className="p-3 text-sm text-muted-foreground">
