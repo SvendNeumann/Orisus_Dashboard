@@ -20862,8 +20862,12 @@ const payrollEmployeeNameAliases: Record<string, string> = {
 };
 
 function payrollEmployeeDisplayName(siteId: string, personnelNumber: string, name: string) {
-  if (siteId === "kirchberg" && normalizeMetric(name) === "fp") return "Franziska Paatsch";
+  if (siteId === "kirchberg" && normalizeMetric(name).replace(/_/g, "") === "fp") return "Franziska Paatsch";
   return payrollEmployeeNameAliases[`${siteId}:${personnelNumber}`] ?? name;
+}
+
+function hidePayrollEmployeeFromFocus(name: string) {
+  return normalizeMetric(name).replace(/_/g, "") === "fp";
 }
 
 function payrollPeriodsByMonth(payrollData?: PayrollJournalData | null) {
@@ -21693,6 +21697,7 @@ function PayrollCosts({
     return map;
   }, new Map<string, { key: string; siteName: string; personnelNumber: string; name: string; months: number; gross: number; reimbursements: number; totalCost: number; latestSort: number; latestMonth: string; entryDate?: string; exitDate?: string }>()).values());
   const topEmployeeCostRows = [...employeeSummaryRows]
+    .filter((row) => !hidePayrollEmployeeFromFocus(row.name))
     .sort((a, b) => b.totalCost - a.totalCost)
     .slice(0, 12);
   const providerDetailPeriods = periods.filter((period) => providerSite === "Alle Standorte" || period.siteName === providerSite);
