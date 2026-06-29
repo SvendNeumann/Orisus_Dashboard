@@ -1058,6 +1058,7 @@ Anforderungen:
 - Fuer historische Jahre: Mitarbeiter, die damals aktiv waren, muessen mitzaehlen.
 - Top 10 kranke Mitarbeiter:
   - Name
+  - Im Tab `Krankheit / Fehlzeiten` gibt es unten eine scrollbar bleibende Mitarbeiter-Gesamtliste. Sie konsolidiert Krankheitstage je Mitarbeiter ueber einen eigenen Zeitraumfilter (`Alle Jahre`, Jahr oder Monat) und bietet ein Freitext-Suchfeld ueber Name, Mitarbeiter-ID und Standort. Quelle ist ausschliesslich der Personal-/Fehlzeitenimport `Input_Krankheitstage`, nicht das DATEV-Lohnjournal.
   - Standort
   - Krankheitstage
   - Quote am Jahr / Anteil, sinnvoll formuliert

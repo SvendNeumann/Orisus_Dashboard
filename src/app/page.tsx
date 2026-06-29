@@ -7039,6 +7039,8 @@ function CompactPersonalDataStatus({ personalData }: { personalData: PersonalDas
 
 function PersonalSickness({ personalData }: { personalData: PersonalDashboardData }) {
   const [year, setYear] = useState(String(personalData.report.years.at(-1) ?? new Date().getFullYear()));
+  const [employeePeriod, setEmployeePeriod] = useState("Alle Jahre");
+  const [employeeSearch, setEmployeeSearch] = useState("");
   const selectedYear = Number(year);
   const formatOneDecimal = (value: number) =>
     value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -7143,6 +7145,57 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
   )
     .sort((a, b) => b.days - a.days)
     .slice(0, 15);
+  const employeePeriodOptions = [
+    { value: "Alle Jahre", label: "Alle Jahre" },
+    ...personalData.report.years.flatMap((periodYear) => [
+      { value: String(periodYear), label: `Geschäftsjahr ${periodYear}` },
+      ...bwaMonths.map((monthName, index) => ({
+        value: `${periodYear}-${String(index + 1).padStart(2, "0")}`,
+        label: `${monthName} ${periodYear}`
+      }))
+    ])
+  ];
+  const employeePeriodLabel = employeePeriodOptions.find((option) => option.value === employeePeriod)?.label ?? employeePeriod;
+  const sicknessEntryInEmployeePeriod = (entry: PersonalSicknessEntry) => {
+    if (employeePeriod === "Alle Jahre") return true;
+    if (/^\d{4}$/.test(employeePeriod)) return entry.year === Number(employeePeriod);
+    const [periodYear, periodMonth] = employeePeriod.split("-").map(Number);
+    return entry.year === periodYear && entry.month === periodMonth;
+  };
+  const employeeSearchTerm = normalizeMetric(employeeSearch);
+  const allEmployeeSicknessRows = Array.from(
+    personalData.sicknessEntries
+      .filter(sicknessEntryInEmployeePeriod)
+      .reduce((map, entry) => {
+        const key = entry.employeeId || `${entry.employeeName}-${entry.site}`;
+        const existing = map.get(key) ?? {
+          key,
+          employeeId: entry.employeeId,
+          employeeName: entry.employeeName || entry.employeeId || "Unbekannt",
+          sites: [] as string[],
+          days: 0,
+          cases: 0,
+          firstPeriod: "",
+          lastPeriod: ""
+        };
+        existing.sites = uniqueSortedText([...existing.sites, entry.site].filter(Boolean));
+        existing.days += entry.days;
+        existing.cases += 1;
+        const periodKey = `${entry.year}-${String(entry.month).padStart(2, "0")}`;
+        existing.firstPeriod = existing.firstPeriod && existing.firstPeriod < periodKey ? existing.firstPeriod : periodKey;
+        existing.lastPeriod = existing.lastPeriod && existing.lastPeriod > periodKey ? existing.lastPeriod : periodKey;
+        map.set(key, existing);
+        return map;
+      }, new Map<string, { key: string; employeeId: string; employeeName: string; sites: string[]; days: number; cases: number; firstPeriod: string; lastPeriod: string }>())
+      .values()
+  )
+    .filter((row) => {
+      if (!employeeSearchTerm) return true;
+      return normalizeMetric(`${row.employeeName} ${row.employeeId} ${row.sites.join(" ")}`).includes(employeeSearchTerm);
+    })
+    .sort((a, b) => b.days - a.days || a.employeeName.localeCompare(b.employeeName, "de"));
+  const totalEmployeeSicknessDays = allEmployeeSicknessRows.reduce((sum, row) => sum + row.days, 0);
+  const totalEmployeeSicknessCases = allEmployeeSicknessRows.reduce((sum, row) => sum + row.cases, 0);
 
   return (
     <section className="space-y-5">
@@ -7433,6 +7486,76 @@ function PersonalSickness({ personalData }: { personalData: PersonalDashboardDat
             </tr>
           </tbody>
         </ResponsiveTable>
+      </Card>
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
+            <div>
+              <h2 className="font-bold">Mitarbeiter-Gesamtliste Krankheitstage</h2>
+              <p className="mt-1 text-sm text-white/75">
+                Konsolidierte Krankheitstage je Mitarbeiter im gewählten Zeitraum. Quelle: Personalimport / Input_Krankheitstage.
+              </p>
+            </div>
+            <Select className="bg-white text-slate-900 lg:w-56" value={employeePeriod} onChange={(event) => setEmployeePeriod(event.target.value)}>
+              {employeePeriodOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+            <Input
+              className="bg-white text-slate-900 placeholder:text-slate-500 lg:w-64"
+              value={employeeSearch}
+              onChange={(event) => setEmployeeSearch(event.target.value)}
+              placeholder="Mitarbeiter suchen..."
+            />
+          </div>
+          <div className="mt-3 grid gap-2 text-xs font-semibold text-white/75 sm:grid-cols-3">
+            <span>Zeitraum: {employeePeriodLabel}</span>
+            <span>{allEmployeeSicknessRows.length.toLocaleString("de-DE")} Mitarbeiter gefunden</span>
+            <span>{formatOneDecimal(totalEmployeeSicknessDays)} Tage | {totalEmployeeSicknessCases.toLocaleString("de-DE")} Einträge</span>
+          </div>
+        </div>
+        <div className="max-h-[520px] overflow-auto">
+          <table className="data-table min-w-[820px] border-separate border-spacing-0 text-sm">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                <TableHead>Rang</TableHead>
+                <TableHead>Mitarbeiter</TableHead>
+                <TableHead>Mitarbeiter-ID</TableHead>
+                <TableHead>Standort(e)</TableHead>
+                <TableHead>Krankheitstage</TableHead>
+                <TableHead>Einträge</TableHead>
+                <TableHead>Zeitraum in Daten</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {allEmployeeSicknessRows.map((row, index) => (
+                <tr key={row.key}>
+                  <TableCell strong>{index + 1}</TableCell>
+                  <TableCell strong>{row.employeeName}</TableCell>
+                  <TableCell>{row.employeeId || "n. v."}</TableCell>
+                  <TableCell>{row.sites.join(", ") || "n. v."}</TableCell>
+                  <TableCell>{formatOneDecimal(row.days)}</TableCell>
+                  <TableCell>{row.cases.toLocaleString("de-DE")}</TableCell>
+                  <TableCell>{row.firstPeriod && row.lastPeriod ? `${row.firstPeriod} bis ${row.lastPeriod}` : "n. v."}</TableCell>
+                </tr>
+              ))}
+              {!allEmployeeSicknessRows.length ? (
+                <tr>
+                  <TableCell strong>Keine Treffer</TableCell>
+                  <TableCell>{employeeSearch ? "Suche anpassen" : "Keine Krankheitseinträge im Zeitraum"}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+        <p className="border-t border-border bg-slate-50 p-3 text-xs font-semibold text-muted-foreground">
+          Diese Liste konsolidiert alle Krankheitseinträge je Mitarbeiter im ausgewählten Zeitraum. Sie basiert ausschließlich auf dem Fehlzeitenimport, nicht auf dem DATEV-Lohnjournal.
+        </p>
       </Card>
     </section>
   );
