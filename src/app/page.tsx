@@ -1340,6 +1340,23 @@ async function loadSupabaseConfirmedPersonalImport() {
   return personalData;
 }
 
+async function loadApiConfirmedPersonalImport(retriedAfterRefresh = false) {
+  const token = await activeSupabaseAccessToken(retriedAfterRefresh);
+  if (!token) return null;
+  const response = await fetch("/api/personal-import", {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if ((response.status === 401 || response.status === 403) && !retriedAfterRefresh) {
+    return loadApiConfirmedPersonalImport(true);
+  }
+  if (!response.ok) return null;
+  const data = (await response.json().catch(() => null)) as { payload?: PersonalDashboardData | null } | null;
+  const personalData = data?.payload ?? null;
+  if (!personalData) return null;
+  if (personalData.schemaVersion !== personalImportSchemaVersion) return null;
+  return personalData;
+}
+
 async function loadSupabasePersonalImportHistory() {
   if (!isSupabaseConfigured()) return [];
   const token = currentSupabaseAccessToken();
@@ -1632,29 +1649,31 @@ async function clearConfirmedImport() {
 }
 
 async function loadConfirmedPersonalImportData() {
+  const readLocalPersonalImport = async () => {
+    const persistentDashboard = await readPersistentValue<PersonalDashboardData>(personalImportPersistenceDashboardKey);
+    const localDashboard = !persistentDashboard ? window.localStorage.getItem(personalImportDashboardStorageKey) : null;
+    const parsedDashboard = persistentDashboard ?? (localDashboard ? (JSON.parse(localDashboard) as PersonalDashboardData) : null);
+    if (!parsedDashboard) return null;
+    if (parsedDashboard.schemaVersion !== personalImportSchemaVersion) {
+      await clearLocalConfirmedPersonalImport();
+      return null;
+    }
+    return parsedDashboard;
+  };
+
   if (isSupabaseConfigured() && currentSupabaseAccessToken()) {
     try {
-      const supabaseDashboard = await loadSupabaseConfirmedPersonalImport();
-      if (!supabaseDashboard) {
-        await clearLocalConfirmedPersonalImport();
-        return null;
+      const remoteDashboard = (await loadSupabaseConfirmedPersonalImport()) ?? (await loadApiConfirmedPersonalImport());
+      if (remoteDashboard) {
+        await saveLocalConfirmedPersonalImport(remoteDashboard.report, remoteDashboard);
+        return remoteDashboard;
       }
-      await saveLocalConfirmedPersonalImport(supabaseDashboard.report, supabaseDashboard);
-      return supabaseDashboard;
     } catch {
       // If Supabase is temporarily unavailable, keep the local fallback for offline/unstable mobile sessions.
     }
   }
 
-  const persistentDashboard = await readPersistentValue<PersonalDashboardData>(personalImportPersistenceDashboardKey);
-  const localDashboard = !persistentDashboard ? window.localStorage.getItem(personalImportDashboardStorageKey) : null;
-  const parsedDashboard = persistentDashboard ?? (localDashboard ? (JSON.parse(localDashboard) as PersonalDashboardData) : null);
-  if (!parsedDashboard) return null;
-  if (parsedDashboard.schemaVersion !== personalImportSchemaVersion) {
-    await clearLocalConfirmedPersonalImport();
-    return null;
-  }
-  return parsedDashboard;
+  return readLocalPersonalImport();
 }
 
 async function saveLocalConfirmedPersonalImport(report: PersonalImportReport, dashboardData: PersonalDashboardData) {

@@ -98,6 +98,8 @@ Praxismanagement:
   - Mitarbeiteruebersicht
 - Darf keine CFO-, BWA-, Finanz-, Upload-, Admin- oder Reportingbereiche sehen.
 - CFO-/Finanzimportdaten werden fuer Praxismanagement app-seitig nicht geladen und beim Rollenwechsel auf Praxismanagement aus dem lokalen Geraetecache entfernt.
+- Bestaetigte Personalimportdaten duerfen fuer Praxismanagement geladen werden. Wenn der direkte Supabase-REST-Zugriff wegen RLS/Policies keinen Datensatz liefert, nutzt die App einen serverseitig geschuetzten Leseweg (`/api/personal-import`), der die aktive Rolle in `orisus_user_roles` prueft und ausschliesslich den aktiven Personalimport zurueckgibt. CFO-/Finanz-, Lohnjournal-, Upload- und Admin-Daten bleiben fuer Praxismanagement weiterhin gesperrt.
+- Ein fehlgeschlagener Direktzugriff auf den Personalimport darf den lokalen bestaetigten Personalimport nicht loeschen; lokaler Fallback bleibt fuer instabile/mobile Sessions erhalten.
 - In der Mitarbeiteruebersicht duerfen keine Gehalts-/Arbeitgeberkosten sichtbar sein:
   - keine KPI-Kachel Arbeitgeberaufwand
   - keine Spalten Fixgehalt
