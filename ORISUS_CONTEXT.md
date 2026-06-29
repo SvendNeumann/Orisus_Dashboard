@@ -172,6 +172,10 @@ Aktuelle wichtige Live-Ergaenzungen:
     - `EBITDA Ist vs. Ziel gem. Übernahme` mit BWA-Zeitraumfilter.
     - `Aktuelle Liquidität` als aktueller konsolidierter Kontostand.
     - `Offene Forderungen` als aktueller Forderungsbestand.
+  - Darunter stehen drei Personal-KPI-Kacheln:
+    - `Aktive Mitarbeiter` aus Mitarbeiterliste/Personalimport, Status `Aktiv`.
+    - `FTE aktuell` aus aktiven Wochenstunden / 40, immer mit einer Nachkommastelle.
+    - `Krankheitstage` aus `Input_Krankheitstage` mit eigenem Zeitraumfilter (`Alle Jahre`, Jahr oder Monat).
   - Tabelle `BWA-Uebersicht` mit Standort- und Zeitraumfilter: Umsatz gemaess BWA, EBITDA gemaess BWA, EBITDA-Marge und Cashflow gemaess BWA.
   - Tabelle `PVS-Gesamtumsatz` mit Standort- und Zeitraumfilter.
   - Tabelle `Honorarumsatz plus Eigenlabor` mit Standort- und Zeitraumfilter.

@@ -5511,7 +5511,7 @@ export default function HomePage() {
           {requiresImport && !importDataLoading && !effectiveImportedData && <NoImportState canUpload={isAdmin} onUpload={() => go("uploads")} />}
           {requiresPersonalImport && !personalDataLoading && !personalData && <NoPersonalImportState canUpload={isAdmin} onUpload={() => go("personal-upload")} />}
           {effectiveImportedData && page === "cockpit" && <Cockpit setPage={go} sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} personalData={personalData} payrollData={payrollData} />}
-          {effectiveImportedData && page === "zusammenfassung" && <ZusammenfassungTab sites={dashboardSites} importedData={effectiveImportedData} />}
+          {effectiveImportedData && page === "zusammenfassung" && <ZusammenfassungTab sites={dashboardSites} importedData={effectiveImportedData} personalData={personalData} />}
           {effectiveImportedData && page === "kennzahlen" && <KennzahlenEntwicklung sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "performance" && <OrisusPerformance sites={dashboardSites} monthlyData={dashboardMonthly} importedData={effectiveImportedData} />}
           {effectiveImportedData && page === "fruehwarnsystem" && <Fruehwarnsystem sites={dashboardSites} importedData={effectiveImportedData} />}
@@ -7912,7 +7912,15 @@ function PersonalActions({ personalData }: { personalData: PersonalDashboardData
   );
 }
 
-function ZusammenfassungTab({ sites, importedData }: { sites: DashboardSite[]; importedData: ImportedDashboardData }) {
+function ZusammenfassungTab({
+  sites,
+  importedData,
+  personalData
+}: {
+  sites: DashboardSite[];
+  importedData: ImportedDashboardData;
+  personalData?: PersonalDashboardData | null;
+}) {
   return (
     <section className="space-y-5">
       <PageTitle
@@ -7920,6 +7928,7 @@ function ZusammenfassungTab({ sites, importedData }: { sites: DashboardSite[]; i
         text="Kompakte Tabellenansicht für BWA-Umsatz, EBITDA, Cashflow, PVS-Umsatz, Behandlerumsatz inklusive Eigenlabor und Bankbewegungen."
       />
       <SummaryKpiCards sites={sites} importedData={importedData} />
+      <SummaryPersonalKpiCards personalData={personalData} />
       <SummaryBwaOverviewTable sites={sites} importedData={importedData} />
       <div className="grid gap-5 xl:grid-cols-2">
         <SummaryPeriodValueTable
@@ -7939,6 +7948,110 @@ function ZusammenfassungTab({ sites, importedData }: { sites: DashboardSite[]; i
       </div>
       <BankCashflowControlTable sites={sites} importedData={importedData} />
     </section>
+  );
+}
+
+function SummaryPersonalKpiCards({ personalData }: { personalData?: PersonalDashboardData | null }) {
+  const availableYears = useMemo(
+    () => personalData?.report.years.length ? personalData.report.years : [new Date().getFullYear()],
+    [personalData]
+  );
+  const latestYear = availableYears.at(-1) ?? new Date().getFullYear();
+  const sicknessPeriodOptions = useMemo(() => [
+    { value: "Alle Jahre", label: "Alle Jahre" },
+    ...availableYears.flatMap((periodYear) => [
+      { value: String(periodYear), label: `Geschäftsjahr ${periodYear}` },
+      ...bwaMonths.map((monthName, index) => ({
+        value: `${periodYear}-${String(index + 1).padStart(2, "0")}`,
+        label: `${monthName} ${periodYear}`
+      }))
+    ])
+  ], [availableYears]);
+  const [sicknessPeriod, setSicknessPeriod] = useState(String(latestYear));
+
+  useEffect(() => {
+    if (!sicknessPeriodOptions.some((option) => option.value === sicknessPeriod)) setSicknessPeriod(String(latestYear));
+  }, [latestYear, sicknessPeriod, sicknessPeriodOptions]);
+
+  const activeEmployees = personalData?.employees.filter((employee) => employee.status.toLowerCase() === "aktiv") ?? [];
+  const activeFte = activeEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+  const sicknessPeriodLabel = sicknessPeriodOptions.find((option) => option.value === sicknessPeriod)?.label ?? sicknessPeriod;
+  const sicknessEntries = (personalData?.sicknessEntries ?? []).filter((entry) => {
+    if (sicknessPeriod === "Alle Jahre") return true;
+    if (/^\d{4}$/.test(sicknessPeriod)) return entry.year === Number(sicknessPeriod);
+    const [periodYear, periodMonth] = sicknessPeriod.split("-").map(Number);
+    return entry.year === periodYear && entry.month === periodMonth;
+  });
+  const sicknessDays = sicknessEntries.reduce((sum, entry) => sum + entry.days, 0);
+  const sicknessStatus: Status = !personalData ? "yellow" : sicknessDays <= 0 ? "green" : sicknessDays <= activeFte * 8 ? "green" : sicknessDays <= activeFte * 14 ? "yellow" : "red";
+
+  return (
+    <div className="grid auto-rows-fr items-stretch gap-4 lg:grid-cols-3">
+      <KpiCard
+        label="Aktive Mitarbeiter"
+        value={activeEmployees.length}
+        valueLabel={personalData ? activeEmployees.length.toLocaleString("de-DE") : "n. v."}
+        plain
+        delta="aktueller Status Aktiv"
+        footnote="Quelle: Mitarbeiterliste / Personalimport"
+        icon={Users}
+        status={personalData ? "green" : "yellow"}
+        info={
+          <div className="space-y-2">
+            <p className="font-bold text-slate-900">Herleitung aktive Mitarbeiter</p>
+            <InfoTextLine label="Quelle" value="Mitarbeiterliste / Personalimport" />
+            <InfoTextLine label="Filter" value="Status = Aktiv" strong />
+            <InfoTextLine label="Anzahl" value={personalData ? activeEmployees.length.toLocaleString("de-DE") : "Personalimport fehlt"} strong />
+          </div>
+        }
+      />
+      <KpiCard
+        label="FTE aktuell"
+        value={activeFte}
+        valueLabel={personalData ? activeFte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "n. v."}
+        plain
+        delta="Wochenstunden / 40"
+        footnote="Quelle: Mitarbeiterliste / Personalimport"
+        icon={Gauge}
+        status={personalData ? "green" : "yellow"}
+        info={
+          <div className="space-y-2">
+            <p className="font-bold text-slate-900">Herleitung FTE aktuell</p>
+            <InfoTextLine label="Quelle" value="Mitarbeiterliste / Personalimport" />
+            <InfoTextLine label="Filter" value="nur aktive Mitarbeiter" />
+            <InfoTextLine label="Berechnung" value="Summe Wochenstunden / 40" strong />
+            <InfoTextLine label="FTE" value={personalData ? activeFte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "Personalimport fehlt"} strong />
+          </div>
+        }
+      />
+      <KpiCard
+        label="Krankheitstage"
+        value={sicknessDays}
+        valueLabel={personalData ? sicknessDays.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "n. v."}
+        plain
+        delta={sicknessPeriodLabel}
+        footnote="Quelle: Fehlzeitenimport / Input_Krankheitstage"
+        icon={Stethoscope}
+        status={sicknessStatus}
+        control={
+          <Select className="mx-auto h-9 w-full max-w-[11.5rem] px-2 text-xs font-semibold" value={sicknessPeriod} onChange={(event) => setSicknessPeriod(event.target.value)}>
+            {sicknessPeriodOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </Select>
+        }
+        info={
+          <div className="space-y-2">
+            <p className="font-bold text-slate-900">Herleitung Krankheitstage</p>
+            <InfoTextLine label="Quelle" value="Personalimport / Input_Krankheitstage" />
+            <InfoTextLine label="Zeitraum" value={sicknessPeriodLabel} strong />
+            <InfoTextLine label="Berechnung" value="Summe Krankheitstage im ausgewählten Zeitraum" />
+            <InfoTextLine label="Einträge" value={personalData ? sicknessEntries.length.toLocaleString("de-DE") : "Personalimport fehlt"} />
+            <InfoTextLine label="Krankheitstage" value={personalData ? sicknessDays.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "n. v."} strong />
+          </div>
+        }
+      />
+    </div>
   );
 }
 
