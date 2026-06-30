@@ -5543,6 +5543,7 @@ export default function HomePage() {
           {effectiveImportedData && page === "standorte" && (
             <Standorte
               sites={dashboardSites}
+              importedData={effectiveImportedData}
               onOpen={(id) => {
                 setSelectedSite(id);
                 go("standort-detail");
@@ -10341,40 +10342,69 @@ function Insights({
   );
 }
 
-function Standorte({ onOpen, sites = standorte }: { onOpen: (id: string) => void; sites?: DashboardSite[] }) {
+function Standorte({
+  onOpen,
+  sites = standorte,
+  importedData
+}: {
+  onOpen: (id: string) => void;
+  sites?: DashboardSite[];
+  importedData?: ImportedDashboardData | null;
+}) {
+  const rules = useKpiRules();
+  const availablePeriods = bwaPeriodOptionsFor(importedData);
+  const [period, setPeriod] = useState(() => defaultBwaPeriodFor(importedData));
+  useEffect(() => {
+    if (!availablePeriods.includes(period)) {
+      setPeriod(defaultBwaPeriodFor(importedData));
+    }
+  }, [availablePeriods, importedData, period]);
+  const periodLabel = period === "Gesamte Periode" ? "seit jeweiligem Vertragsstart" : performancePeriodLabel(period);
   const sortedSites = sortSitesByContractStart(sites);
   return (
     <section className="space-y-5">
-      <PageTitle title="Standorte" text="Kumulierte Standortwerte seit jeweiligem Vertragsstart; Kontostand und Forderungen als aktueller Stand." />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <PageTitle title="Standorte" text={`Standortwerte im Zeitraum ${periodLabel}; Kontostand und Forderungen als aktueller Stand.`} />
+        <Select className="w-full sm:w-auto sm:min-w-[15rem]" value={period} onChange={(event) => setPeriod(event.target.value)}>
+          {availablePeriods.map((option) => (
+            <option key={option} value={option}>{performancePeriodLabel(option)}</option>
+          ))}
+        </Select>
+      </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {sortedSites.map((site) => (
-          <Card key={site.id} className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <h2 className="text-xl font-bold">{site.name}</h2>
-                <p className="text-sm text-muted-foreground">Start in der Gruppe: {site.start}</p>
+        {sortedSites.map((site) => {
+          const periodSite = filteredSiteForPeriod(site, importedData, period);
+          const periodStatus = statusForSiteByRules(periodSite, rules);
+          return (
+            <Card key={site.id} className="p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold">{site.name}</h2>
+                  <p className="text-sm text-muted-foreground">Start in der Gruppe: {site.start}</p>
+                  <p className="mt-1 text-xs font-semibold uppercase text-primary">{periodLabel}</p>
+                </div>
+                <div className="min-w-0 max-w-full sm:max-w-[15rem]">
+                  <StatusDot
+                    status={periodStatus}
+                    label={siteStatusLabel(periodSite)}
+                    className="w-full justify-start whitespace-normal text-left leading-tight"
+                  />
+                </div>
               </div>
-              <div className="min-w-0 max-w-full sm:max-w-[15rem]">
-                <StatusDot
-                  status={site.status}
-                  label={siteStatusLabel(site)}
-                  className="w-full justify-start whitespace-normal text-left leading-tight"
-                />
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <Mini label="Gesamtleistung" value={eur(periodSite.gesamtleistung, true)} />
+                <Mini label="EBITDA" value={eur(periodSite.ebitda, true)} />
+                <Mini label="Marge" value={pct(periodSite.ebitdaMarge)} />
+                <Mini label="Cashflow gem. BWA" value={eur(periodSite.cashflow, true)} />
+                <Mini label="Kontostand aktuell" value={eur(site.kontostand, true)} />
+                <Mini label="Forderungen aktuell" value={eur(site.forderungen, true)} />
               </div>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <Mini label="Gesamtleistung seit Start" value={eur(site.gesamtleistung, true)} />
-              <Mini label="EBITDA seit Start" value={eur(site.ebitda, true)} />
-              <Mini label="Marge" value={pct(site.ebitdaMarge)} />
-              <Mini label="Cashflow gem. BWA seit Start" value={eur(site.cashflow, true)} />
-              <Mini label="Kontostand aktuell" value={eur(site.kontostand, true)} />
-              <Mini label="Forderungen aktuell" value={eur(site.forderungen, true)} />
-            </div>
-            <Button className="mt-4 w-full" variant="secondary" onClick={() => onOpen(site.id)}>
-              Standort öffnen
-            </Button>
-          </Card>
-        ))}
+              <Button className="mt-4 w-full" variant="secondary" onClick={() => onOpen(site.id)}>
+                Standort öffnen
+              </Button>
+            </Card>
+          );
+        })}
       </div>
     </section>
   );

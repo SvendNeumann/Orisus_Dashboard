@@ -1513,6 +1513,9 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Der Tab `Krankheit / Fehlzeiten` zeigt oben genau drei steuerungsrelevante KPIs: Krankheitstage im Jahr, Krankheitstage je aktivem Mitarbeiter und hoechster Standortwert je aktivem Mitarbeiter. Basis bleibt `Input_Krankheitstage` plus Personalstamm/aktive Beschaeftigung im ausgewaehlten Jahr; Tabellen darunter bleiben Detail-/Plausibilitaetsebene.
 - Standortdetails:
   - Einzelne Standortdetailseiten zeigen zusaetzlich standortbezogene Personal-KPIs aus dem Personalimport: aktive Mitarbeiter, Fluktuation im Personaljahr, aktive FTE und Krankheitstage je aktivem Mitarbeiter. Die Zuordnung erfolgt ueber Standort-ID; Finanz-KPIs bleiben BWA/PVS-basiert.
+- Standorte-Tab:
+  - Die Standortuebersicht hat einen BWA-Zeitraumfilter. Gesamtleistung, EBITDA, EBITDA-Marge und Cashflow gem. BWA je Standort reagieren auf den gewaehlten Zeitraum ueber die bestehende `filteredSiteForPeriod`-Logik.
+  - Kontostand und Forderungen bleiben in den Standortkarten weiterhin als aktueller Stand beschriftet und werden nicht durch den Zeitraumfilter historisiert.
 - Mobile/Tabellen:
   - Neue breite Auswertungstabellen erhalten horizontales Scrollen, feste Kopfzeilen innerhalb der Tabelle und Mindestbreiten, damit Spalten auf Smartphone nicht ineinander laufen.
   - Lange Detail-/Prueftabellen sollen optisch ruhig und mit Scroll-/Sticky-Hilfen lesbar bleiben, da sie standardmaessig sichtbar sind.
