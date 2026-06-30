@@ -1523,6 +1523,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Im Orisus-Dashboard schalten die grossen Chart-/Analyse-Zweispaltenbloecke erst ab `2xl` auf Desktop-Zweispaltigkeit. Auf Tablet-Breiten bleiben sie einspaltig, damit Charts und Insight-Karten nicht nebeneinander gequetscht werden.
   - Der Donut `Kostenquoten am Umsatz` stapelt Chart und Legende auf Tablet untereinander; die Legendenzeilen haben `min-w-0`, `break-words` und feste Prozentwerte, damit lange Labels wie `Weitere operative Kosten` nicht buchstabenweise umbrechen.
   - Chart-Karten haben zusaetzlich `min-w-0` und versteckten horizontalen Ueberlauf innerhalb der Chart-Flaeche, damit Recharts-Inhalte keine Tablet-Spalten sprengen.
+  - Appweite `Startueberblick`-/Executive-Summary-Karten schalten ihre Text/KPI-Zweispaltigkeit und 4-/5-Spalten-KPI-Raster erst ab `2xl`. Auf Tablet bleiben KPI-Karten breiter, damit Werte wie `995.356 EUR` und Labels wie `Offene Forderungen` nicht zerbrechen.
 - KPI-Sparklines:
   - Sparklines in KPI-Kacheln mit eigener Zeitraumauswahl muessen denselben Zeitraum wie die Kachel zeigen.
   - Kacheln ohne eigene Zeitraumauswahl duerfen weiterhin den aktuellen Importtrend zeigen.

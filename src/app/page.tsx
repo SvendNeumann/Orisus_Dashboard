@@ -10512,22 +10512,22 @@ function TabExecutiveSummary({
     items.length <= 3
       ? "sm:grid-cols-2 lg:grid-cols-3"
       : items.length === 4
-        ? "sm:grid-cols-2 xl:grid-cols-4"
-        : "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
+        ? "sm:grid-cols-2 2xl:grid-cols-4"
+        : "sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5";
 
   return (
     <Card className="tab-start-card overflow-hidden p-4 sm:p-5">
-      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.55fr]">
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-[0.95fr_1.55fr]">
         <div className="rounded-xl border border-white/12 bg-slate-950/30 p-4 shadow-inner shadow-black/10">
           <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#55e6dd]">Startüberblick</p>
           <h2 className="mt-2 text-xl font-extrabold text-white">{title}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">{text}</p>
         </div>
-        <div className={cn("tab-start-grid grid auto-rows-fr gap-3", itemGridClass)}>
+        <div className={cn("tab-start-grid grid min-w-0 auto-rows-fr gap-3", itemGridClass)}>
           {items.map((item) => {
             const Icon = item.icon ?? Gauge;
             return (
-              <div key={item.label} className="flex h-full min-h-36 flex-col rounded-xl border border-white/12 bg-white/7 p-4 shadow-sm shadow-black/10">
+              <div key={item.label} className="flex h-full min-w-0 flex-col rounded-xl border border-white/12 bg-white/7 p-4 shadow-sm shadow-black/10 sm:min-h-36">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#30d5c8]/25 bg-[#30d5c8]/12 text-[#73f2e8]">
                     <Icon className="h-4 w-4" />
@@ -10535,9 +10535,9 @@ function TabExecutiveSummary({
                   {item.status ? <StatusDot status={item.status} /> : null}
                 </div>
                 <div className="mt-3 flex flex-1 flex-col justify-end">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
-                  <p className="mt-1 text-2xl font-extrabold tracking-tight text-white">{item.value}</p>
-                  <p className="mt-1 text-xs font-semibold text-slate-300">{item.detail}</p>
+                  <p className="min-w-0 break-words text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+                  <p className="mt-1 min-w-0 break-words text-xl font-extrabold tracking-tight text-white sm:text-2xl">{item.value}</p>
+                  <p className="mt-1 min-w-0 break-words text-xs font-semibold text-slate-300">{item.detail}</p>
                   {item.subdetail ? <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-400">{item.subdetail}</p> : null}
                 </div>
               </div>
