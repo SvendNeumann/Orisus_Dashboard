@@ -9390,7 +9390,7 @@ function DailyCfoCockpit({
           />
         ))}
       </div>
-      <div className="grid auto-rows-fr items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid auto-rows-fr items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         {bottomKpis.map((kpi) => (
           <KpiCard
             key={kpi.label}
@@ -15346,7 +15346,7 @@ function OrisusPerformance({
           { label: "Forderungen", value: eur(metrics.forderungen, true), detail: `${pct(receivablesRatio)} der Leistung`, subdetail: receivablesFootnote, status: statusByRule(receivablesRatio, rules.offene_forderungen), icon: FileBarChart }
         ]}
       />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         <KpiCard
           label="Gesamtleistung"
           value={grossPerformanceTotal}
@@ -15747,7 +15747,7 @@ function PerformanceRevenueBlock({
         </Select>
       </div>
       <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">{subtitle}</div>
-      <div className="grid gap-px table-grid-bg md:grid-cols-5">
+      <div className="grid gap-px table-grid-bg md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         <KennzahlTile label={`${mode === "honorar" ? "Behandlerumsatz inkl. Eigenlabor" : "PVS Umsatz"} Zeitraum`} value={eur(current)} />
         <KennzahlTile label="YoY Zeitraum" value={pctDeltaOrBlank(current, previous) || "n. v."} />
         <KennzahlTile label="QTD YoY" value={pctDeltaOrBlank(qtd, qtdPrevious) || "n. v."} />
@@ -20500,7 +20500,7 @@ function ChristianHenriciInfo({ sites, importedData }: { sites: DashboardSite[];
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         <KpiCard
           label="Abrufdarlehen"
           value={totals.abrufdarlehen}

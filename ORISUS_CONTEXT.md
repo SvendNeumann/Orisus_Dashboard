@@ -1525,6 +1525,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Chart-Karten haben zusaetzlich `min-w-0` und versteckten horizontalen Ueberlauf innerhalb der Chart-Flaeche, damit Recharts-Inhalte keine Tablet-Spalten sprengen.
   - Appweite `Startueberblick`-/Executive-Summary-Karten schalten ihre Text/KPI-Zweispaltigkeit und 4-/5-Spalten-KPI-Raster erst ab `2xl`. Auf Tablet bleiben KPI-Karten breiter, damit Werte wie `995.356 EUR` und Labels wie `Offene Forderungen` nicht zerbrechen.
   - Entwicklungs-Analyse: Der obere Kennzahlenueberblick schaltet erst ab `2xl` in sechs Spalten. Lange Quellen-/Dateizeilen duerfen umbrechen, breite Performance-/EBITDA-Tabellen laufen innerhalb horizontaler Scrollbereiche mit festen Mindestbreiten.
+  - Weitere 5-Spalten-KPI-Raster, u. a. in Orisus Performance, Behandler-/PVS-Performance und Christian-Henrici-Info, schalten ebenfalls erst ab `2xl` auf fuenf Spalten; Tablet nutzt maximal zwei bis drei Spalten.
 - KPI-Sparklines:
   - Sparklines in KPI-Kacheln mit eigener Zeitraumauswahl muessen denselben Zeitraum wie die Kachel zeigen.
   - Kacheln ohne eigene Zeitraumauswahl duerfen weiterhin den aktuellen Importtrend zeigen.
