@@ -1516,6 +1516,10 @@ Zuletzt umgesetzte / festgelegte Punkte:
 - Mobile/Tabellen:
   - Neue breite Auswertungstabellen erhalten horizontales Scrollen, feste Kopfzeilen innerhalb der Tabelle und Mindestbreiten, damit Spalten auf Smartphone nicht ineinander laufen.
   - Lange Detail-/Prueftabellen sollen optisch ruhig und mit Scroll-/Sticky-Hilfen lesbar bleiben, da sie standardmaessig sichtbar sind.
+- Tablet-Fix 30.06.2026:
+  - Im Orisus-Dashboard schalten die grossen Chart-/Analyse-Zweispaltenbloecke erst ab `2xl` auf Desktop-Zweispaltigkeit. Auf Tablet-Breiten bleiben sie einspaltig, damit Charts und Insight-Karten nicht nebeneinander gequetscht werden.
+  - Der Donut `Kostenquoten am Umsatz` stapelt Chart und Legende auf Tablet untereinander; die Legendenzeilen haben `min-w-0`, `break-words` und feste Prozentwerte, damit lange Labels wie `Weitere operative Kosten` nicht buchstabenweise umbrechen.
+  - Chart-Karten haben zusaetzlich `min-w-0` und versteckten horizontalen Ueberlauf innerhalb der Chart-Flaeche, damit Recharts-Inhalte keine Tablet-Spalten sprengen.
 - KPI-Sparklines:
   - Sparklines in KPI-Kacheln mit eigener Zeitraumauswahl muessen denselben Zeitraum wie die Kachel zeigen.
   - Kacheln ohne eigene Zeitraumauswahl duerfen weiterhin den aktuellen Importtrend zeigen.

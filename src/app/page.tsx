@@ -8730,7 +8730,7 @@ function Cockpit({
       <DailyCfoCockpit sites={sites} monthlyData={monthlyData} period={cockpitPeriod} importedData={importedData} />
       <ManagementStoryline sites={sites} importedData={importedData} />
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(22rem,0.75fr)]">
+      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.45fr)_minmax(22rem,0.75fr)]">
         <ChartCard title="Ist EBITDA vs. Ziel-EBITDA Kaufvertrag & Übernahme | seit Vertragsstart" icon={TrendingUp}>
           <EbitdaTargetChart sites={sites} importedData={importedData} />
         </ChartCard>
@@ -8739,7 +8739,7 @@ function Cockpit({
         </ChartCard>
       </div>
 
-      <div className="analysis-only grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(24rem,0.9fr)]">
+      <div className="analysis-only grid gap-5 2xl:grid-cols-[minmax(0,1.1fr)_minmax(24rem,0.9fr)]">
         <ChartCard title="Standortvergleich Gesamtleistung & EBITDA | seit Vertragsstart" icon={BarChart3}>
           <SitePerformanceChart sites={sites} />
         </ChartCard>
@@ -8758,7 +8758,7 @@ function Cockpit({
         </ChartCard>
       </div>
 
-      <div className="analysis-only grid gap-5 xl:grid-cols-[minmax(24rem,0.75fr)_minmax(0,1.25fr)]">
+      <div className="analysis-only grid gap-5 2xl:grid-cols-[minmax(24rem,0.75fr)_minmax(0,1.25fr)]">
         <ChartCard title="Kostenquoten am Umsatz | seit Vertragsstart" icon={PieIcon}>
           <CostShareDonut sites={sites} />
         </ChartCard>
@@ -9673,13 +9673,13 @@ function ChartCard({
   const [infoOpen, setInfoOpen] = useState(false);
 
   return (
-    <Card className="chart-card relative h-full p-4 sm:p-5">
+    <Card className="chart-card relative h-full min-w-0 p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 border-b border-white/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <div className="modern-icon-tile flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary">
             <Icon className="h-4 w-4" />
           </div>
-          <h2 className="text-base font-extrabold leading-tight text-white">{title}</h2>
+          <h2 className="min-w-0 text-base font-extrabold leading-tight text-white">{title}</h2>
           {info ? (
             <button
               type="button"
@@ -9698,7 +9698,7 @@ function ChartCard({
           {info}
         </InfoDialog>
       ) : null}
-      <div className="chart-surface">{children}</div>
+      <div className="chart-surface min-w-0 overflow-hidden">{children}</div>
     </Card>
   );
 }
@@ -9922,25 +9922,27 @@ function CostShareDonut({ sites = standorte }: { sites?: DashboardSite[] }) {
   ];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
-      <ResponsiveContainer width="100%" height={230}>
-        <PieChart>
-          <Pie data={data} innerRadius={64} outerRadius={94} paddingAngle={3} dataKey="value">
-            {data.map((entry) => (
-              <Cell key={entry.name} fill={entry.color} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(v) => eur(Number(v))} />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="space-y-2 self-center">
+    <div className="grid min-w-0 gap-3 2xl:grid-cols-[minmax(210px,0.9fr)_minmax(16rem,1fr)]">
+      <div className="min-w-0">
+        <ResponsiveContainer width="100%" height={230}>
+          <PieChart>
+            <Pie data={data} innerRadius={64} outerRadius={94} paddingAngle={3} dataKey="value">
+              {data.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip formatter={(v) => eur(Number(v))} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="min-w-0 space-y-2 self-center">
         {data.map((item) => (
-          <div key={item.name} className="flex items-center justify-between gap-3 rounded-md bg-slate-50 p-2.5">
-            <span className="flex items-center gap-2 text-sm font-semibold">
-              <span className="h-3 w-3 rounded-sm" style={{ background: item.color }} />
-              {item.name}
+          <div key={item.name} className="flex min-w-0 items-center justify-between gap-3 rounded-md bg-slate-50 p-2.5">
+            <span className="flex min-w-0 items-center gap-2 text-sm font-semibold leading-tight">
+              <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: item.color }} />
+              <span className="min-w-0 break-words">{item.name}</span>
             </span>
-            <span className="text-sm font-bold">{pct((item.value / revenue) * 100)}</span>
+            <span className="shrink-0 text-sm font-bold">{pct((item.value / revenue) * 100)}</span>
           </div>
         ))}
         <div className="grid gap-2 pt-2 sm:grid-cols-2">
