@@ -1381,6 +1381,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
     - Kirchberg: 100.000 EUR aus Praxisausgaben herausrechnen.
 - Darlehen & Earn-Out:
   - Im Block `Fremdkapital & Tilgung` zeigt die Kachel `Bereits getilgt` neben dem Eurobetrag die aktuelle Tilgungsquote und die VJ-Quote mit `/ VJ ...`. Aktuelle Quote = bereits getilgt / aufgenommenes Fremdkapital. VJ-Quote = kumulierte BWA-Zeile `Tilgung` bis Ende Vorjahr / aufgenommenes Fremdkapital, sofern im bestaetigten Import vorhanden; sonst `VJ n. v.`.
+  - In den Standortkarten zeigt jede `Restschuld`-Kachel zusaetzlich die Tilgungsquote des jeweiligen Standorts. Formel: (Darlehen minus Restschuld) / Darlehen.
 - Bankenreporting:
   - Tab soll aus Bank-/Kreditgeberperspektive aufgebaut sein, analytischer als reine Datenablage.
   - KPI-Kacheln muessen im normalen App-Kachelstil bleiben, nicht als grosse flache Tabellenzellen.

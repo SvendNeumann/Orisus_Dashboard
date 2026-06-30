@@ -20275,6 +20275,8 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
           const dueStatus = earnOutDueStatus(site);
           const projectedEarnOut = projectedEarnOutForSite(site, earnOutPeriod);
           const achievement = projectedEarnOut.achievement * 100;
+          const siteGetilgt = Math.max(0, site.darlehen.darlehen - site.darlehen.restschuld);
+          const siteTilgungsquote = site.darlehen.darlehen ? (siteGetilgt / site.darlehen.darlehen) * 100 : 0;
           return (
             <Card key={site.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
@@ -20284,7 +20286,10 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <Mini label="Kaufpreis" value={eur(site.darlehen.kaufpreis, true)} />
                 <Mini label="Darlehen" value={eur(site.darlehen.darlehen, true)} />
-                <Mini label="Restschuld" value={eur(site.darlehen.restschuld, true)} />
+                <Mini
+                  label="Restschuld"
+                  value={`${eur(site.darlehen.restschuld, true)} | ${pct(siteTilgungsquote)} getilgt`}
+                />
                 <Mini label="Tilgung" value={eur(site.darlehen.tilgung, true)} />
                 <Mini label="Zins" value={eur(site.darlehen.zins, true)} />
                 <Mini label="Ziel EBITDA p.a." value={eur(projectedEarnOut.target, true)} />
