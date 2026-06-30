@@ -10550,8 +10550,10 @@ function TabExecutiveSummary({
     subdetail?: string | null;
     status?: Status;
     icon?: React.ComponentType<{ className?: string }>;
+    info?: React.ReactNode;
   }>;
 }) {
+  const [infoOpenLabel, setInfoOpenLabel] = useState<string | null>(null);
   const itemGridClass =
     items.length <= 3
       ? "sm:grid-cols-2 lg:grid-cols-3"
@@ -10579,11 +10581,28 @@ function TabExecutiveSummary({
                   {item.status ? <StatusDot status={item.status} /> : null}
                 </div>
                 <div className="mt-3 flex flex-1 flex-col justify-end">
-                  <p className="min-w-0 break-words text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="min-w-0 break-words text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+                    {item.info ? (
+                      <button
+                        type="button"
+                        aria-label={`${item.label} erklären`}
+                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/8 text-cyan-100 transition hover:bg-white/14"
+                        onClick={() => setInfoOpenLabel(item.label)}
+                      >
+                        <Info className="h-3 w-3" />
+                      </button>
+                    ) : null}
+                  </div>
                   <p className="mt-1 min-w-0 break-words text-xl font-extrabold tracking-tight text-white sm:text-2xl">{item.value}</p>
                   <p className="mt-1 min-w-0 break-words text-xs font-semibold text-slate-300">{item.detail}</p>
                   {item.subdetail ? <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-400">{item.subdetail}</p> : null}
                 </div>
+                {infoOpenLabel === item.label && item.info ? (
+                  <InfoDialog title={item.label} onClose={() => setInfoOpenLabel(null)}>
+                    {item.info}
+                  </InfoDialog>
+                ) : null}
               </div>
             );
           })}
@@ -19209,7 +19228,7 @@ function Bankenreporting({
       status: statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
       icon: Gauge,
       emphasis: true,
-      info: <p>Zeigt, wie oft das EBITDA den Kapitaldienst deckt. Formel: EBITDA der gesamten Vertragsperiode geteilt durch Tilgung plus Zins seit Vertragsstart. Für Banken ist das die zentrale Tragfähigkeitskennzahl.</p>
+      info: <p>Zeigt, ob genug Ergebnis da ist, um Zins und Tilgung zu bezahlen. Der Faktor sagt, wie oft das Ergebnis diese Zahlungen rechnerisch deckt. Wichtig, weil hier schnell sichtbar wird, ob die Gruppe ihre Kredite aus dem laufenden Geschäft bedienen kann.</p>
     },
     {
       label: "Net Debt / Run-Rate EBITDA",
@@ -19218,7 +19237,7 @@ function Bankenreporting({
       status: statusForLower(bankKpiLeverageRunRate, 2.5, 3.5),
       icon: Landmark,
       emphasis: true,
-      info: <p>Setzt die aktuelle Restschuld ins Verhältnis zur EBITDA-Run-Rate. Formel: Restschuld geteilt durch die Summe der standortbezogenen EBITDA-Run-Rates seit jeweiligem Praxisstart. Je niedriger der Wert, desto besser ist die Entschuldungsfähigkeit.</p>
+      info: <p>Zeigt, wie groß die offene Restschuld im Verhältnis zum laufenden Ergebnis ist. Der Faktor sagt, wie viele Jahresergebnisse rechnerisch in der Restschuld stecken. Wichtig, weil eine niedrigere Zahl mehr Luft für Investitionen und Rückzahlungen lässt.</p>
     },
     {
       label: "Cashflow-Konversion",
@@ -19227,7 +19246,7 @@ function Bankenreporting({
       status: statusForHigher(bankKpiCashflowConversion, 50, 25),
       icon: Wallet,
       emphasis: true,
-      info: <p>Zeigt, welcher Anteil des EBITDA als Cashflow gem. BWA ankommt. Formel: Cashflow gem. BWA seit Vertragsstart geteilt durch EBITDA seit Vertragsstart. Niedrige Werte weisen auf Tilgung, Investitionen, Forderungsaufbau oder Umbuchungen hin.</p>
+      info: <p>Zeigt, wie viel vom Ergebnis wirklich als Geldfluss ankommt. Der Prozentwert sagt, welcher Anteil des Ergebnisses zu Cashflow wird. Wichtig, weil gutes Ergebnis allein nicht reicht, wenn das Geld durch Investitionen, Tilgung oder offene Forderungen gebunden ist.</p>
     },
     {
       label: "Forderungsquote",
@@ -19236,7 +19255,7 @@ function Bankenreporting({
       status: statusByRule(bankKpiReceivablesRatio, rules.offene_forderungen),
       icon: ReceiptText,
       emphasis: true,
-      info: <p>Misst die Kapitalbindung in offenen Forderungen. Formel: offene Forderungen geteilt durch Gesamtleistung der gesamten Vertragsperiode. Für Banken ist eine hohe Quote ein Working-Capital-Risiko.</p>
+      info: <p>Zeigt, welcher Anteil der Leistung noch nicht bezahlt ist. Der Prozentwert sagt, wie viel von 100 Euro Leistung noch offen ist. Wichtig, weil offene Forderungen zwar Umsatz sind, aber noch kein Geld auf dem Konto.</p>
     },
     {
       label: "Gesamtleistung",
@@ -19314,10 +19333,38 @@ function Bankenreporting({
         title="Bankensicht kompakt"
         text="Die Kreditgeber-Perspektive beginnt mit Tragfähigkeit, Verschuldung, Cashflow-Qualität und Working Capital. Die Risikomatrix und Detailcharts bleiben darunter verfügbar."
         items={[
-          { label: "Kapitaldienst", value: `${bankKpiMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "EBITDA / Tilgung + Zins", status: statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit), icon: Gauge },
-          { label: "Net Debt / EBITDA", value: `${bankKpiLeverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`, detail: "Restschuld / Run-Rate", status: statusForLower(bankKpiLeverageRunRate, 2.5, 3.5), icon: Landmark },
-          { label: "Cashflow-Konversion", value: pct(bankKpiCashflowConversion), detail: "Cashflow / EBITDA", status: statusForHigher(bankKpiCashflowConversion, 50, 25), icon: Wallet },
-          { label: "Forderungsquote", value: pct(bankKpiReceivablesRatio), detail: "Working Capital", status: statusByRule(bankKpiReceivablesRatio, rules.offene_forderungen), icon: ReceiptText }
+          {
+            label: "Kapitaldienst",
+            value: `${bankKpiMetrics.kapitaldienstfaehigkeit.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
+            detail: "EBITDA / Tilgung + Zins",
+            status: statusByRule(bankKpiMetrics.kapitaldienstfaehigkeit, rules.kapitaldienstfaehigkeit),
+            icon: Gauge,
+            info: <p>Zeigt, ob genug Ergebnis da ist, um Zins und Tilgung zu bezahlen. Der Faktor sagt, wie oft das Ergebnis diese Zahlungen rechnerisch deckt. Wichtig, weil hier schnell sichtbar wird, ob die Gruppe ihre Kredite aus dem laufenden Geschäft bedienen kann.</p>
+          },
+          {
+            label: "Net Debt / EBITDA",
+            value: `${bankKpiLeverageRunRate.toLocaleString("de-DE", { maximumFractionDigits: 2 })}x`,
+            detail: "Restschuld / Run-Rate",
+            status: statusForLower(bankKpiLeverageRunRate, 2.5, 3.5),
+            icon: Landmark,
+            info: <p>Zeigt, wie groß die offene Restschuld im Verhältnis zum laufenden Ergebnis ist. Je niedriger die Zahl, desto schneller kann die Gruppe ihre Schulden rechnerisch abbauen. Wichtig, weil eine hohe Zahl wenig Spielraum lässt.</p>
+          },
+          {
+            label: "Cashflow-Konversion",
+            value: pct(bankKpiCashflowConversion),
+            detail: "Cashflow / EBITDA",
+            status: statusForHigher(bankKpiCashflowConversion, 50, 25),
+            icon: Wallet,
+            info: <p>Zeigt, wie viel vom Ergebnis wirklich als Geldfluss ankommt. Der Prozentwert sagt, welcher Anteil des Ergebnisses zu Cashflow wird. Wichtig, weil gutes Ergebnis allein nicht reicht, wenn das Geld nicht auf dem Konto ankommt.</p>
+          },
+          {
+            label: "Forderungsquote",
+            value: pct(bankKpiReceivablesRatio),
+            detail: "Working Capital",
+            status: statusByRule(bankKpiReceivablesRatio, rules.offene_forderungen),
+            icon: ReceiptText,
+            info: <p>Zeigt, welcher Anteil der Leistung noch nicht bezahlt ist. Der Prozentwert sagt, wie viel von 100 Euro Leistung noch offen ist. Wichtig, weil offene Forderungen zwar Umsatz sind, aber noch kein Geld auf dem Konto.</p>
+          }
         ]}
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

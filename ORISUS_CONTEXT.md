@@ -1387,6 +1387,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - KPI-Kacheln muessen im normalen App-Kachelstil bleiben, nicht als grosse flache Tabellenzellen.
   - Kacheln ohne eigenen Zeitraumfilter beziehen sich auf gesamte Vertragsperiode seit Standortstart.
   - Jede KPI-Kachel muss den betrachteten Zeitraum klar sichtbar ausweisen.
+  - Die vier Startueberblick-Kennzahlen haben wieder `i`-Erklaerungen. Texte muessen einfach bleiben: was zeigt die Kennzahl und warum ist sie wichtig, ohne Bank-Fachdeutsch.
   - In Diagrammen `Gesamtleistung und EBITDA-Entwicklung` soll zusaetzlich `Soll-EBITDA gemaess Kaufvertrag` visualisiert werden.
   - Bankgeldbewegungen: Monate ohne Werte leer lassen, nicht mit 0 fuellen.
 - Orisus Performance:
