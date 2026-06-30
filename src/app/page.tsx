@@ -10141,12 +10141,33 @@ function CashflowBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
   );
 }
 
-function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
+function previousYearRepaymentProgress(sites: DashboardSite[], importedData?: ImportedDashboardData | null) {
+  if (!importedData?.bwaRows?.length) return null;
+  const latestYear = Math.max(...importedData.report.jahre.filter((year) => Number.isFinite(year) && year >= 1900));
+  if (!Number.isFinite(latestYear)) return null;
+  const previousYear = latestYear - 1;
+  const relevantSiteIds = new Set(sites.map((site) => site.id));
+  const repaidUntilPreviousYear = importedData.bwaRows
+    .filter((row) => relevantSiteIds.has(row.siteId) && row.metricKey === "tilgung")
+    .reduce((sum, row) => {
+      return sum + Object.entries(row.valuesByYear).reduce((yearSum, [year, value]) => {
+        const parsedYear = Number(year);
+        return parsedYear <= previousYear ? yearSum + Math.abs(value ?? 0) : yearSum;
+      }, 0);
+    }, 0);
+  if (!repaidUntilPreviousYear) return null;
+  return { year: previousYear, amount: Math.round(repaidUntilPreviousYear) };
+}
+
+function DebtCapitalBlock({ sites = standorte, importedData }: { sites?: DashboardSite[]; importedData?: ImportedDashboardData | null }) {
   const sortedSites = sortSitesByContractStart(sites);
   const aufgenommen = sites.reduce((sum, site) => sum + site.darlehen.darlehen, 0);
   const rest = sites.reduce((sum, site) => sum + site.darlehen.restschuld, 0);
   const getilgt = Math.max(0, aufgenommen - rest);
   const tilgungsquote = aufgenommen ? (getilgt / aufgenommen) * 100 : 0;
+  const previousRepayment = previousYearRepaymentProgress(sites, importedData);
+  const previousTilgungsquote = previousRepayment && aufgenommen ? (previousRepayment.amount / aufgenommen) * 100 : null;
+  const repaymentProgressLabel = `${pct(tilgungsquote)} / VJ ${previousTilgungsquote == null ? "n. v." : pct(previousTilgungsquote)}`;
 
   return (
     <Card className="p-4">
@@ -10176,7 +10197,30 @@ function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
             </div>
           }
         />
-        <Mini label="Bereits getilgt" value={eur(getilgt)} />
+        <Mini
+          label="Bereits getilgt"
+          value={`${eur(getilgt)} | ${repaymentProgressLabel}`}
+          info={
+            <div className="space-y-3">
+              <p className="font-bold text-slate-900">Tilgungsfortschritt</p>
+              <p>
+                Die aktuelle Quote berechnet sich aus bereits getilgtem Fremdkapital geteilt durch aufgenommenes Fremdkapital.
+                Der VJ-Wert nutzt die kumulierte BWA-Tilgung bis zum Ende des Vorjahres, sofern im bestätigten Import vorhanden.
+              </p>
+              <InfoLine label="Aufgenommenes Fremdkapital" value={aufgenommen} />
+              <InfoLine label="Bereits getilgt aktuell" value={getilgt} />
+              <InfoTextLine label="Aktuelle Quote" value={pct(tilgungsquote)} strong />
+              {previousRepayment ? (
+                <>
+                  <InfoLine label={`Bereits getilgt bis ${previousRepayment.year}`} value={previousRepayment.amount} />
+                  <InfoTextLine label={`Quote VJ ${previousRepayment.year}`} value={previousTilgungsquote == null ? "n. v." : pct(previousTilgungsquote)} strong />
+                </>
+              ) : (
+                <InfoTextLine label="Quote VJ" value="n. v." strong />
+              )}
+            </div>
+          }
+        />
         <Mini label="Rest-Fremdkapital" value={eur(rest)} />
       </div>
 
@@ -10188,7 +10232,7 @@ function DebtCapitalBlock({ sites = standorte }: { sites?: DashboardSite[] }) {
         <div className="grid gap-0 divide-y divide-border md:grid-cols-2 md:divide-x md:divide-y-0">
           <div className="p-3 text-sm">
             <span className="inline-flex h-3 w-3 rounded-sm bg-emerald-500" />{" "}
-            <span className="font-semibold">Getilgt:</span> {eur(getilgt)}
+            <span className="font-semibold">Getilgt:</span> {eur(getilgt)} | {repaymentProgressLabel}
           </div>
           <div className="p-3 text-sm">
             <span className="inline-flex h-3 w-3 rounded-sm bg-cyan-800" />{" "}
@@ -20211,7 +20255,7 @@ function Darlehen({ sites = standorte, importedData }: { sites?: DashboardSite[]
           { label: "Tilgung", value: eur(tilgung, true), detail: "laufend bedient", status: "green", icon: ShieldCheck }
         ]}
       />
-      <DebtCapitalBlock sites={sites} />
+      <DebtCapitalBlock sites={sites} importedData={importedData} />
       <EarnOutSummary sites={sites} period={earnOutPeriod} />
       <div className="grid gap-4 lg:grid-cols-4">
         <KpiCard label="Gesamte Restschuld" value={restschuld} delta="Konsolidiert" icon={Landmark} status="yellow" />

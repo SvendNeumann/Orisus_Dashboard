@@ -1379,6 +1379,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Fixe interne Bereinigung:
     - Ulmet: 100.000 EUR von Bank-Praxisumsatz/Bankeingaengen abziehen.
     - Kirchberg: 100.000 EUR aus Praxisausgaben herausrechnen.
+- Darlehen & Earn-Out:
+  - Im Block `Fremdkapital & Tilgung` zeigt die Kachel `Bereits getilgt` neben dem Eurobetrag die aktuelle Tilgungsquote und die VJ-Quote mit `/ VJ ...`. Aktuelle Quote = bereits getilgt / aufgenommenes Fremdkapital. VJ-Quote = kumulierte BWA-Zeile `Tilgung` bis Ende Vorjahr / aufgenommenes Fremdkapital, sofern im bestaetigten Import vorhanden; sonst `VJ n. v.`.
 - Bankenreporting:
   - Tab soll aus Bank-/Kreditgeberperspektive aufgebaut sein, analytischer als reine Datenablage.
   - KPI-Kacheln muessen im normalen App-Kachelstil bleiben, nicht als grosse flache Tabellenzellen.
