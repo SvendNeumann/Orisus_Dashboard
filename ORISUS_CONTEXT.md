@@ -1009,10 +1009,19 @@ Wichtige Inhalte:
 - Arbeitgeberaufwand
 - Bemerkungen
 - Krankheitstage
+- Gehaltserhoehungen aus `Input_Gehaltshistorie`
 - Personalmassnahmen
 - AG-Kosten
 - Teamkosten
 - Fluktuation
+
+Personal-Tab `Gehaltserhoehungen`:
+
+- Unter `Personal` gibt es einen eigenen Reiter `Gehaltserhoehungen`.
+- Datenbasis ist ausschliesslich der bestaetigte Personalimport bzw. `Input_Gehaltshistorie`; keine DATEV-Lohnjournalwerte und keine BWA-Personalkosten.
+- Die Sicht zeigt KPI-Kacheln, Standort-/Jahresfilter, Suche, Standortwirkung und eine scrollbare Detailtabelle mit Datum, Mitarbeiter, Standort, altem/neuem Gehalt, Differenz, prozentualer Erhoehung, Grund und Freigabe.
+- Werte werden erst nach bestaetigtem Personal-Neuimport sichtbar, wenn die Excel-Arbeitsmappe das Blatt `Input_Gehaltshistorie` bzw. die in der Mitarbeiterliste verlinkten Gehaltserhoehungen enthaelt.
+- Wegen Gehalts-/Verguetungsdetails ist dieser Reiter fuer `praxismanagement` nicht freigegeben. Praxismanagement bleibt auf Krankheit/Fehlzeiten, Mitarbeiteruebersicht ohne Gehalts-/AG-Kostenspalten und Personalmaßnahmen beschraenkt.
 
 ## 20. Personal-Cockpit
 

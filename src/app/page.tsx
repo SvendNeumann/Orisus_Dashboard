@@ -133,6 +133,7 @@ type Page =
   | "personal-cockpit"
   | "personal-krankheit"
   | "personal-mitarbeiter"
+  | "personal-gehaltserhoehungen"
   | "personal-massnahmen"
   | "personal-upload"
   | "payroll-upload"
@@ -1962,6 +1963,7 @@ const navSections = [
       { id: "payroll-costs", label: "Personalkosten Lohnjournal", icon: BadgeEuro },
       { id: "personal-krankheit", label: "Krankheit / Fehlzeiten", icon: Stethoscope },
       { id: "personal-mitarbeiter", label: "Mitarbeiterübersicht", icon: UserRound },
+      { id: "personal-gehaltserhoehungen", label: "Gehaltserhöhungen", icon: TrendingUp },
       { id: "personal-massnahmen", label: "Personalmaßnahmen", icon: CheckCircle2 }
     ]
   },
@@ -2021,6 +2023,7 @@ const appPageIds: Page[] = [
   "personal-cockpit",
   "personal-krankheit",
   "personal-mitarbeiter",
+  "personal-gehaltserhoehungen",
   "personal-massnahmen",
   "personal-upload",
   "payroll-upload",
@@ -5170,7 +5173,7 @@ export default function HomePage() {
   const dashboardMonthly = effectiveImportedData?.monthly ?? [];
   const isAdmin = userRole === "admin";
   const allowedPages = useMemo(() => pagesForRole(userRole), [userRole]);
-  const personalPages: Page[] = ["personal-cockpit", "personal-krankheit", "personal-mitarbeiter", "personal-massnahmen", "personal-upload"];
+  const personalPages: Page[] = ["personal-cockpit", "personal-krankheit", "personal-mitarbeiter", "personal-gehaltserhoehungen", "personal-massnahmen", "personal-upload"];
   const personalContentPages = personalPages.filter((item) => item !== "personal-upload") as Page[];
   const visibleMobileNav = useMemo(() => mobileNavForRole(userRole), [userRole]);
   const [openNavSections, setOpenNavSections] = useState<Record<string, boolean>>({
@@ -5572,6 +5575,7 @@ export default function HomePage() {
           {personalData && page === "personal-cockpit" && <PersonalCockpit personalData={personalData} importedData={effectiveImportedData} />}
           {personalData && page === "personal-krankheit" && <PersonalSickness personalData={personalData} />}
           {personalData && page === "personal-mitarbeiter" && <PersonalEmployees personalData={personalData} userRole={userRole} />}
+          {personalData && page === "personal-gehaltserhoehungen" && <PersonalSalaryIncreases personalData={personalData} />}
           {personalData && page === "personal-massnahmen" && <PersonalActions personalData={personalData} />}
           {page === "payroll-costs" && <PayrollCosts payrollData={payrollData} importedData={effectiveImportedData} userRole={userRole} onUpload={() => go("payroll-upload")} />}
           {page === "personal-upload" && isAdmin && (
@@ -7891,6 +7895,292 @@ function PersonalEmployees({ personalData, userRole }: { personalData: PersonalD
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+function salaryEntryDate(entry: PersonalSalaryEntry) {
+  return parseGermanDisplayDate(entry.date);
+}
+
+function salaryEntryYear(entry: PersonalSalaryEntry) {
+  return salaryEntryDate(entry)?.getFullYear() ?? null;
+}
+
+function salaryIncreasePct(entry: PersonalSalaryEntry) {
+  return entry.oldSalary ? (entry.difference / entry.oldSalary) * 100 : null;
+}
+
+function PersonalSalaryIncreases({ personalData }: { personalData: PersonalDashboardData }) {
+  const salaryYears = uniqueSortedNumbers(personalData.salaryEntries.map((entry) => salaryEntryYear(entry)).filter((year): year is number => Boolean(year))).reverse();
+  const [site, setSite] = useState("Alle Standorte");
+  const [year, setYear] = useState("Alle Jahre");
+  const [search, setSearch] = useState("");
+  const sites = sortSiteNamesByContractStart(
+    uniqueSortedText([
+      ...personalData.settings.sites,
+      ...personalData.salaryEntries.map((entry) => entry.site)
+    ].filter(Boolean))
+  );
+  const normalizedSearch = normalizeMetric(search);
+  const rows = personalData.salaryEntries
+    .filter((entry) => {
+      const entryYear = salaryEntryYear(entry);
+      const siteMatch = site === "Alle Standorte" || entry.site === site;
+      const yearMatch = year === "Alle Jahre" || entryYear === Number(year);
+      const searchMatch =
+        !normalizedSearch ||
+        normalizeMetric(`${entry.employeeName} ${entry.employeeId} ${entry.site} ${entry.reason} ${entry.approvedBy}`).includes(normalizedSearch);
+      return siteMatch && yearMatch && searchMatch;
+    })
+    .sort((a, b) => {
+      const dateA = salaryEntryDate(a)?.getTime() ?? 0;
+      const dateB = salaryEntryDate(b)?.getTime() ?? 0;
+      return dateB - dateA || a.employeeName.localeCompare(b.employeeName, "de");
+    });
+  const totalDifference = rows.reduce((sum, entry) => sum + entry.difference, 0);
+  const increases = rows.filter((entry) => entry.difference > 0);
+  const increasesWithPct = increases
+    .map((entry) => salaryIncreasePct(entry))
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const averageIncreasePct = increasesWithPct.length ? increasesWithPct.reduce((sum, value) => sum + value, 0) / increasesWithPct.length : null;
+  const approvedRows = rows.filter((entry) => entry.approvedBy);
+  const siteSummaryRows = sites
+    .map((siteName) => {
+      const siteRows = rows.filter((entry) => entry.site === siteName);
+      const monthlyEffect = siteRows.reduce((sum, entry) => sum + entry.difference, 0);
+      const increaseRows = siteRows.filter((entry) => entry.difference > 0);
+      return {
+        site: siteName,
+        count: siteRows.length,
+        monthlyEffect,
+        averagePct: (() => {
+          const values = increaseRows
+            .map((entry) => salaryIncreasePct(entry))
+            .filter((value): value is number => value != null && Number.isFinite(value));
+          return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+        })()
+      };
+    })
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.monthlyEffect - a.monthlyEffect);
+  const highestSite = siteSummaryRows[0];
+  const activeEmployeeById = new Map(personalData.employees.map((employee) => [employee.id, employee]));
+  const periodLabel = year === "Alle Jahre" ? "alle Jahre" : year;
+
+  return (
+    <section className="space-y-5">
+      <PageTitle
+        title="Gehaltserhöhungen"
+        text="Auswertung der Gehaltsänderungen aus Input_Gehaltshistorie im bestätigten Personalimport."
+      />
+      <Card className="p-3 text-sm text-muted-foreground">
+        <span className="font-bold text-foreground">Datenbasis:</span> Mitarbeiterliste / Personalimport, Blatt{" "}
+        <span className="font-bold text-foreground">Input_Gehaltshistorie</span>. Diese Ansicht nutzt keine DATEV-Lohnjournalwerte.
+        Wenn die Excel-Mitarbeiterliste die Gehaltserhöhung verlinkt, erscheint sie nach bestätigtem Personalimport hier automatisch.
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          label="Gehaltserhöhungen"
+          value={increases.length}
+          plain
+          delta={`${rows.length.toLocaleString("de-DE")} Änderungen im Filter`}
+          icon={TrendingUp}
+          status={increases.length ? "yellow" : "green"}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Quelle" value="Input_Gehaltshistorie" strong />
+              <InfoTextLine label="Zeitraum" value={periodLabel} />
+              <InfoTextLine label="Filter" value={site} />
+            </div>
+          }
+        />
+        <KpiCard
+          label="Monatlicher Effekt"
+          value={totalDifference}
+          valueLabel={eurTwo(totalDifference)}
+          plain
+          delta="Summe Differenz Gehalt neu minus alt"
+          icon={BadgeEuro}
+          status={totalDifference > 0 ? "yellow" : "green"}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Berechnung" value="Σ (Gehalt_neu - Gehalt_alt)" strong />
+              <InfoTextLine label="Quelle" value="Mitarbeiterliste / Personalimport" />
+              <InfoTextLine label="Hinweis" value="Monatswert aus der Importspalte Differenz bzw. berechnet aus alt/neu." />
+            </div>
+          }
+        />
+        <KpiCard
+          label="Effekt p.a."
+          value={totalDifference * 12}
+          valueLabel={eurTwo(totalDifference * 12)}
+          plain
+          delta="hochgerechnet aus Monatsdifferenz"
+          icon={FileBarChart}
+          status={totalDifference > 0 ? "yellow" : "green"}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Berechnung" value="Monatlicher Effekt * 12" strong />
+              <InfoTextLine label="Einordnung" value="Management-Hochrechnung; keine Lohnjournal-Abrechnung." />
+            </div>
+          }
+        />
+        <KpiCard
+          label="Ø Erhöhung"
+          value={averageIncreasePct ?? 0}
+          valueLabel={formatNullablePercent(averageIncreasePct)}
+          percent
+          secondaryValue={highestSite ? `Fokus: ${highestSite.site}` : undefined}
+          delta={`${approvedRows.length.toLocaleString("de-DE")} mit Freigabehinweis`}
+          icon={Gauge}
+          status={averageIncreasePct == null || averageIncreasePct <= 5 ? "green" : averageIncreasePct <= 10 ? "yellow" : "red"}
+          info={
+            <div className="space-y-2 text-sm">
+              <InfoTextLine label="Berechnung" value="Ø positive Differenz / Gehalt_alt" strong />
+              <InfoTextLine label="Freigaben" value={`${approvedRows.length.toLocaleString("de-DE")} von ${rows.length.toLocaleString("de-DE")}`} />
+              <InfoTextLine label="Datenbasis" value="Input_Gehaltshistorie" />
+            </div>
+          }
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Mitarbeiter, Grund, Freigabe suchen..." />
+        <Select value={site} onChange={(event) => setSite(event.target.value)}>
+          <option>Alle Standorte</option>
+          {sites.map((item) => <option key={item}>{item}</option>)}
+        </Select>
+        <Select value={year} onChange={(event) => setYear(event.target.value)}>
+          <option>Alle Jahre</option>
+          {salaryYears.map((item) => <option key={item}>{item}</option>)}
+        </Select>
+        <div className="rounded-md border border-border bg-white/5 px-4 py-3 text-sm font-semibold text-muted-foreground">
+          {rows.length.toLocaleString("de-DE")} Treffer | {eurTwo(totalDifference)} mtl.
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.4fr]">
+        <Card className="overflow-hidden">
+          <div className="table-head p-4 text-white">
+            <h2 className="font-bold">Standortwirkung</h2>
+            <p className="mt-1 text-sm text-white/75">Monatlicher Effekt aus Gehaltsänderungen im aktuellen Filter.</p>
+          </div>
+          <ResponsiveTable>
+            <thead>
+              <tr>
+                <TableHead>Standort</TableHead>
+                <TableHead>Änderungen</TableHead>
+                <TableHead>Monatl. Effekt</TableHead>
+                <TableHead>Ø Erhöhung</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {siteSummaryRows.map((row) => (
+                <tr key={row.site}>
+                  <TableCell strong>{row.site}</TableCell>
+                  <TableCell>{row.count.toLocaleString("de-DE")}</TableCell>
+                  <TableCell>{eurTwo(row.monthlyEffect)}</TableCell>
+                  <TableCell>{formatNullablePercent(row.averagePct)}</TableCell>
+                </tr>
+              ))}
+              {!siteSummaryRows.length && (
+                <tr>
+                  <TableCell strong>Keine Daten</TableCell>
+                  <TableCell>Keine Gehaltshistorie im Filter</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                </tr>
+              )}
+            </tbody>
+          </ResponsiveTable>
+        </Card>
+
+        <ChartCard title="Gehaltseffekt je Standort" icon={BarChart3}>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={siteSummaryRows}>
+              <defs>
+                <linearGradient id="salaryIncreaseGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#30d5c8" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#0f766e" stopOpacity={0.7} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(178,226,229,0.18)" />
+              <XAxis dataKey="site" tickLine={false} axisLine={false} tick={{ fill: "#c8e5e7", fontSize: 12, fontWeight: 700 }} />
+              <YAxis hide />
+              <Tooltip formatter={(value) => [eurTwo(Number(value)), "Monatl. Effekt"]} />
+              <Bar dataKey="monthlyEffect" fill="url(#salaryIncreaseGradient)" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="mt-2 text-xs font-semibold text-muted-foreground">
+            Quelle: Personalimport / Input_Gehaltshistorie. Kein DATEV-Lohnjournal und keine BWA-Personalkosten.
+          </p>
+        </ChartCard>
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="table-head p-4 text-white">
+          <h2 className="font-bold">Detailtabelle Gehaltserhöhungen</h2>
+          <p className="mt-1 text-sm text-white/75">
+            Scrollbare Liste aus Input_Gehaltshistorie, ergänzt um den aktuellen Mitarbeiterstatus aus Input_Mitarbeiter.
+          </p>
+        </div>
+        <div className="max-h-[560px] overflow-auto">
+          <table className="data-table min-w-[1120px] border-separate border-spacing-0 text-sm">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                <TableHead>Datum</TableHead>
+                <TableHead>Mitarbeiter</TableHead>
+                <TableHead>Standort</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Gehalt alt</TableHead>
+                <TableHead>Gehalt neu</TableHead>
+                <TableHead>Differenz</TableHead>
+                <TableHead>Erhöhung %</TableHead>
+                <TableHead>Grund</TableHead>
+                <TableHead>Freigegeben von</TableHead>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((entry) => {
+                const employee = activeEmployeeById.get(entry.employeeId);
+                return (
+                  <tr key={entry.id}>
+                    <TableCell>{entry.date || "n. v."}</TableCell>
+                    <TableCell strong>{entry.employeeName || employee?.name || entry.employeeId || "Nicht benannt"}</TableCell>
+                    <TableCell>{entry.site || employee?.site || "n. v."}</TableCell>
+                    <TableCell>{employee?.status || "n. v."}</TableCell>
+                    <TableCell>{entry.oldSalary ? eurTwo(entry.oldSalary) : "n. v."}</TableCell>
+                    <TableCell>{entry.newSalary ? eurTwo(entry.newSalary) : "n. v."}</TableCell>
+                    <TableCell>{eurTwo(entry.difference)}</TableCell>
+                    <TableCell>{formatNullablePercent(salaryIncreasePct(entry))}</TableCell>
+                    <TableCell>{entry.reason || "n. v."}</TableCell>
+                    <TableCell>{entry.approvedBy || "n. v."}</TableCell>
+                  </tr>
+                );
+              })}
+              {!rows.length && (
+                <tr>
+                  <TableCell strong>Keine Treffer</TableCell>
+                  <TableCell>{personalData.salaryEntries.length ? "Filter anpassen" : "Input_Gehaltshistorie enthält noch keine Einträge"}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                  <TableCell>{""}</TableCell>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="border-t border-border bg-slate-50 p-3 text-xs font-semibold text-muted-foreground">
+          Die Detailtabelle ist ein Abbild der Gehaltshistorie aus der Personal-Arbeitsmappe. Änderungen werden erst nach einem bestätigten Personal-Neuimport sichtbar.
+        </p>
+      </Card>
     </section>
   );
 }
