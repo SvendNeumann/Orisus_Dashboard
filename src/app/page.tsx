@@ -13389,12 +13389,12 @@ function KennzahlenEntwicklung({
         text="Standort-Performance, Zielerreichung und monatliche EBITDA-Entwicklung im Format der Orisus-Auswertung."
       />
 
-      <Card className="overflow-hidden">
+      <Card className="min-w-0 overflow-hidden">
         <div className="table-head p-3 text-lg font-bold text-white">Standort-Performance | Überblick | seit Vertragsstart</div>
-        <div className="border-b border-border bg-slate-50 p-3 text-sm italic text-muted-foreground">
+        <div className="break-words border-b border-border bg-slate-50 p-3 text-sm italic leading-6 text-muted-foreground [overflow-wrap:anywhere]">
           Auswertung: bestätigter Import | Standorte seit jeweiligem Vertragsstart | Quelle: {importedData?.fileName ?? "Kein Upload bestätigt"}
         </div>
-        <div className="grid gap-px table-grid-bg md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid min-w-0 gap-px table-grid-bg md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
           <KennzahlTile label="Gesamtleistung | Vertragsperioden" value={eur(totalPerformance, true)} />
           <KennzahlTile label="EBITDA | Vertragsperioden" value={eur(totalEbitda, true)} />
           <KennzahlTile label="EBITDA-Marge | Vertragsperioden" value={pct((totalEbitda / totalPerformance) * 100)} />
@@ -13436,9 +13436,9 @@ function KennzahlenEntwicklung({
 
 function KennzahlTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-h-32 flex-col items-center justify-center bg-white p-5 text-center">
-      <p className="text-xs font-bold uppercase text-foreground">{label}</p>
-      <p className="mt-4 text-2xl font-bold text-primary">{value}</p>
+    <div className="flex min-h-32 min-w-0 flex-col items-center justify-center bg-white p-5 text-center">
+      <p className="min-w-0 break-words text-xs font-bold uppercase text-foreground">{label}</p>
+      <p className="mt-4 min-w-0 break-words text-xl font-bold text-primary sm:text-2xl">{value}</p>
     </div>
   );
 }
@@ -13493,11 +13493,11 @@ function KennzahlenStandortTable({
           </Select>
         ) : null}
       </div>
-      <div className="border-b border-border bg-slate-50 p-3 text-sm italic text-muted-foreground">
+      <div className="break-words border-b border-border bg-slate-50 p-3 text-sm italic leading-6 text-muted-foreground [overflow-wrap:anywhere]">
         Auswertung: {performancePeriodLabel(period)} | bestätigter Import | Quelle: {importedData?.fileName ?? "Kein Upload bestätigt"}
       </div>
-      <div className="overflow-x-auto">
-        <table className="data-table border-separate border-spacing-0 text-xs">
+      <div className="max-w-full overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+        <table className="data-table min-w-[1760px] border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
               {[
@@ -13685,11 +13685,11 @@ function MonthlyEbitdaTable({
           </Select>
         ) : null}
       </div>
-      <div className="border-b border-border bg-slate-50 p-2 text-sm italic text-muted-foreground">
+      <div className="break-words border-b border-border bg-slate-50 p-2 text-sm italic leading-6 text-muted-foreground [overflow-wrap:anywhere]">
         Auswertung: {periodLabel} | Ist-EBITDA je Monat und Standort | Zielabweichung kumuliert gegen Übernahme und Bank/KV
       </div>
-      <div className="overflow-x-auto">
-        <table className="data-table border-separate border-spacing-0 text-xs">
+      <div className="max-w-full overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]">
+        <table className="data-table min-w-[1320px] border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
               <th className="border-b border-r border-border table-head p-2 text-white">Monat</th>

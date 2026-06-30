@@ -1524,6 +1524,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Der Donut `Kostenquoten am Umsatz` stapelt Chart und Legende auf Tablet untereinander; die Legendenzeilen haben `min-w-0`, `break-words` und feste Prozentwerte, damit lange Labels wie `Weitere operative Kosten` nicht buchstabenweise umbrechen.
   - Chart-Karten haben zusaetzlich `min-w-0` und versteckten horizontalen Ueberlauf innerhalb der Chart-Flaeche, damit Recharts-Inhalte keine Tablet-Spalten sprengen.
   - Appweite `Startueberblick`-/Executive-Summary-Karten schalten ihre Text/KPI-Zweispaltigkeit und 4-/5-Spalten-KPI-Raster erst ab `2xl`. Auf Tablet bleiben KPI-Karten breiter, damit Werte wie `995.356 EUR` und Labels wie `Offene Forderungen` nicht zerbrechen.
+  - Entwicklungs-Analyse: Der obere Kennzahlenueberblick schaltet erst ab `2xl` in sechs Spalten. Lange Quellen-/Dateizeilen duerfen umbrechen, breite Performance-/EBITDA-Tabellen laufen innerhalb horizontaler Scrollbereiche mit festen Mindestbreiten.
 - KPI-Sparklines:
   - Sparklines in KPI-Kacheln mit eigener Zeitraumauswahl muessen denselben Zeitraum wie die Kachel zeigen.
   - Kacheln ohne eigene Zeitraumauswahl duerfen weiterhin den aktuellen Importtrend zeigen.
