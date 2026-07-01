@@ -1391,7 +1391,7 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - In Diagrammen `Gesamtleistung und EBITDA-Entwicklung` soll zusaetzlich `Soll-EBITDA gemaess Kaufvertrag` visualisiert werden.
   - Bankgeldbewegungen: Monate ohne Werte leer lassen, nicht mit 0 fuellen.
 - Personal-KPI-Kacheln:
-  - Die Summary-Kacheln `Aktive Mitarbeiter`, `FTE aktuell` und `Krankheitstage` zeigen direkt unter dem `i` eine kompakte Standort-Aufteilung. Die gleiche Aufteilung steht auch im Info-Popup.
+  - Die Summary-Kacheln `Aktive Mitarbeiter`, `FTE aktuell` und `Krankheitstage` zeigen die Standort-Aufteilung nur im `i`-Info-Popup, nicht sichtbar in der Kachel selbst.
 - Orisus Performance:
   - KPI-Kacheln oben im einheitlichen Kachelstil mit Info-Buttons/Herleitungen.
   - Diagramm `Operative Entwicklung` hat Zeitraumfilter.
