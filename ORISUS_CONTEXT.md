@@ -1390,6 +1390,8 @@ Zuletzt umgesetzte / festgelegte Punkte:
   - Die vier Startueberblick-Kennzahlen haben wieder `i`-Erklaerungen. Texte muessen einfach bleiben: was zeigt die Kennzahl und warum ist sie wichtig, ohne Bank-Fachdeutsch.
   - In Diagrammen `Gesamtleistung und EBITDA-Entwicklung` soll zusaetzlich `Soll-EBITDA gemaess Kaufvertrag` visualisiert werden.
   - Bankgeldbewegungen: Monate ohne Werte leer lassen, nicht mit 0 fuellen.
+- Personal-KPI-Kacheln:
+  - Die Summary-Kacheln `Aktive Mitarbeiter`, `FTE aktuell` und `Krankheitstage` zeigen direkt unter dem `i` eine kompakte Standort-Aufteilung. Die gleiche Aufteilung steht auch im Info-Popup.
 - Orisus Performance:
   - KPI-Kacheln oben im einheitlichen Kachelstil mit Info-Buttons/Herleitungen.
   - Diagramm `Operative Entwicklung` hat Zeitraumfilter.

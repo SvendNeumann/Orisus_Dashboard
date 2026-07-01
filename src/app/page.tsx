@@ -8285,6 +8285,19 @@ function SummaryPersonalKpiCards({ personalData }: { personalData?: PersonalDash
 
   const activeEmployees = personalData?.employees.filter((employee) => employee.status.toLowerCase() === "aktiv") ?? [];
   const activeFte = activeEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0);
+  const personalSites = sortSiteNamesByContractStart(
+    personalData?.settings.sites.length
+      ? personalData.settings.sites
+      : uniqueSortedText(personalData?.employees.map((employee) => employee.site) ?? [])
+  );
+  const personalSiteBreakdown = personalSites.map((site) => {
+    const siteActiveEmployees = activeEmployees.filter((employee) => employee.site === site);
+    return {
+      site,
+      activeEmployees: siteActiveEmployees.length,
+      fte: siteActiveEmployees.reduce((sum, employee) => sum + employee.weeklyHours / 40, 0)
+    };
+  });
   const sicknessPeriodLabel = sicknessPeriodOptions.find((option) => option.value === sicknessPeriod)?.label ?? sicknessPeriod;
   const sicknessEntries = (personalData?.sicknessEntries ?? []).filter((entry) => {
     if (sicknessPeriod === "Alle Jahre") return true;
@@ -8293,6 +8306,10 @@ function SummaryPersonalKpiCards({ personalData }: { personalData?: PersonalDash
     return entry.year === periodYear && entry.month === periodMonth;
   });
   const sicknessDays = sicknessEntries.reduce((sum, entry) => sum + entry.days, 0);
+  const sicknessSiteBreakdown = personalSites.map((site) => ({
+    site,
+    days: sicknessEntries.filter((entry) => entry.site === site).reduce((sum, entry) => sum + entry.days, 0)
+  }));
   const sicknessStatus: Status = !personalData ? "yellow" : sicknessDays <= 0 ? "green" : sicknessDays <= activeFte * 8 ? "green" : sicknessDays <= activeFte * 14 ? "yellow" : "red";
 
   return (
@@ -8306,11 +8323,22 @@ function SummaryPersonalKpiCards({ personalData }: { personalData?: PersonalDash
         footnote="Quelle: Mitarbeiterliste / Personalimport"
         icon={Users}
         status={personalData ? "green" : "yellow"}
+        cornerDetail={
+          <CompactSiteBreakdown
+            rows={personalSiteBreakdown.map((row) => ({ label: row.site, value: row.activeEmployees.toLocaleString("de-DE") }))}
+            emptyLabel="kein Import"
+          />
+        }
         info={
           <div className="space-y-2">
             <p className="font-bold text-slate-900">Herleitung aktive Mitarbeiter</p>
             <InfoTextLine label="Quelle" value="Mitarbeiterliste / Personalimport" />
             <InfoTextLine label="Filter" value="Status = Aktiv" strong />
+            <div className="space-y-1">
+              {personalSiteBreakdown.map((row) => (
+                <InfoTextLine key={row.site} label={row.site} value={row.activeEmployees.toLocaleString("de-DE")} />
+              ))}
+            </div>
             <InfoTextLine label="Anzahl" value={personalData ? activeEmployees.length.toLocaleString("de-DE") : "Personalimport fehlt"} strong />
           </div>
         }
@@ -8324,12 +8352,30 @@ function SummaryPersonalKpiCards({ personalData }: { personalData?: PersonalDash
         footnote="Quelle: Mitarbeiterliste / Personalimport"
         icon={Gauge}
         status={personalData ? "green" : "yellow"}
+        cornerDetail={
+          <CompactSiteBreakdown
+            rows={personalSiteBreakdown.map((row) => ({
+              label: row.site,
+              value: row.fte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+            }))}
+            emptyLabel="kein Import"
+          />
+        }
         info={
           <div className="space-y-2">
             <p className="font-bold text-slate-900">Herleitung FTE aktuell</p>
             <InfoTextLine label="Quelle" value="Mitarbeiterliste / Personalimport" />
             <InfoTextLine label="Filter" value="nur aktive Mitarbeiter" />
             <InfoTextLine label="Berechnung" value="Summe Wochenstunden / 40" strong />
+            <div className="space-y-1">
+              {personalSiteBreakdown.map((row) => (
+                <InfoTextLine
+                  key={row.site}
+                  label={row.site}
+                  value={row.fte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                />
+              ))}
+            </div>
             <InfoTextLine label="FTE" value={personalData ? activeFte.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "Personalimport fehlt"} strong />
           </div>
         }
@@ -8350,12 +8396,26 @@ function SummaryPersonalKpiCards({ personalData }: { personalData?: PersonalDash
             ))}
           </Select>
         }
+        cornerDetail={
+          <CompactSiteBreakdown
+            rows={sicknessSiteBreakdown.map((row) => ({
+              label: row.site,
+              value: row.days.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+            }))}
+            emptyLabel="kein Import"
+          />
+        }
         info={
           <div className="space-y-2">
             <p className="font-bold text-slate-900">Herleitung Krankheitstage</p>
             <InfoTextLine label="Quelle" value="Personalimport / Input_Krankheitstage" />
             <InfoTextLine label="Zeitraum" value={sicknessPeriodLabel} strong />
             <InfoTextLine label="Berechnung" value="Summe Krankheitstage im ausgewählten Zeitraum" />
+            <div className="space-y-1">
+              {sicknessSiteBreakdown.map((row) => (
+                <InfoTextLine key={row.site} label={row.site} value={row.days.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} />
+              ))}
+            </div>
             <InfoTextLine label="Einträge" value={personalData ? sicknessEntries.length.toLocaleString("de-DE") : "Personalimport fehlt"} />
             <InfoTextLine label="Krankheitstage" value={personalData ? sicknessDays.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "n. v."} strong />
           </div>
@@ -9414,6 +9474,20 @@ function PageTitle({ title, text }: { title: string; text: string }) {
   );
 }
 
+function CompactSiteBreakdown({ rows, emptyLabel = "n. v." }: { rows: Array<{ label: string; value: string }>; emptyLabel?: string }) {
+  if (!rows.length) return <p className="text-[10px] font-semibold leading-4 text-slate-400">{emptyLabel}</p>;
+  return (
+    <div className="space-y-0.5 text-left text-[10px] font-semibold leading-4 text-slate-300">
+      {rows.map((row) => (
+        <div key={row.label} className="flex max-w-[9.5rem] items-center justify-between gap-2">
+          <span className="min-w-0 truncate">{row.label}</span>
+          <span className="shrink-0 text-slate-100">{row.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function KpiCard({
   label,
   value,
@@ -9427,6 +9501,7 @@ function KpiCard({
   secondaryValue,
   valueLabel,
   info,
+  cornerDetail,
   sparkline,
   featured = false,
   className
@@ -9443,6 +9518,7 @@ function KpiCard({
   secondaryValue?: React.ReactNode;
   valueLabel?: string;
   info?: React.ReactNode;
+  cornerDetail?: React.ReactNode;
   sparkline?: SparklinePoint[];
   featured?: boolean;
   className?: string;
@@ -9452,7 +9528,7 @@ function KpiCard({
   return (
     <Card className={cn("modern-kpi-card relative flex flex-col text-center", featured ? "min-h-[14rem] p-5" : "min-h-[10.75rem] p-4", className)}>
       <div className="mb-3 flex min-h-8 items-start justify-between gap-3">
-        <div className="w-8 shrink-0">
+        <div className={cn("shrink-0", cornerDetail ? "w-40 max-w-[60%]" : "w-8")}>
           {info && (
           <button
             className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-slate-950/18 text-slate-200 transition hover:border-primary hover:text-primary"
@@ -9463,6 +9539,7 @@ function KpiCard({
             <Info className="h-4 w-4" />
           </button>
           )}
+          {cornerDetail ? <div className="mt-2">{cornerDetail}</div> : null}
         </div>
         <div className="flex min-w-0 justify-end">
           <StatusDot status={status} />
