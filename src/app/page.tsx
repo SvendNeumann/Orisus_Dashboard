@@ -178,7 +178,7 @@ const importPersistenceDbName = "orisus-cfo-dashboard";
 const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
-const importDashboardSchemaVersion = "2026-06-25-receivables-management-v17";
+const importDashboardSchemaVersion = "2026-07-02-receivables-negative-salden-v18";
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const personalImportPersistenceReportKey = "personal-report";
 const personalImportPersistenceDashboardKey = "personal-dashboard";
@@ -3923,7 +3923,7 @@ function currentOpenReceivablesRowValue(row: Record<string, unknown>) {
 function preferredCurrentOpenReceivablesValue(rows: Record<string, unknown>[]) {
   const candidates = rows
     .map((row) => ({ row, value: currentOpenReceivablesRowValue(row) }))
-    .filter((entry): entry is { row: Record<string, unknown>; value: number } => entry.value != null && entry.value > 0)
+    .filter((entry): entry is { row: Record<string, unknown>; value: number } => entry.value != null && entry.value !== 0)
     .sort((a, b) => {
       const yearDelta = (rowYear(b.row) ?? 0) - (rowYear(a.row) ?? 0);
       if (yearDelta) return yearDelta;
@@ -3949,7 +3949,7 @@ function receivablesMonthlyRecordFromRows(rows: Record<string, unknown>[]) {
     const month = rowMonth(row);
     if (!year || year < 1900 || !month || month < 1 || month > 12) return;
     const value = currentOpenReceivablesRowValue(row);
-    if (value == null || value <= 0) return;
+    if (value == null || value === 0) return;
     const priority = currentOpenReceivablesRowPriority(row);
     if (!priority) return;
     const key = `${year}-${month}`;
@@ -4002,7 +4002,7 @@ function managementOpenReceivablesFromWorkbook(workbook: XLSX.WorkBook) {
 }
 
 function managementOpenReceivablesRecord(valuesBySite: Map<string, number>) {
-  return Object.fromEntries([...valuesBySite.entries()].filter(([, value]) => value > 0));
+  return Object.fromEntries([...valuesBySite.entries()].filter(([, value]) => value !== 0));
 }
 
 function monthNumberFromHeader(value: unknown) {
@@ -4166,7 +4166,7 @@ function openReceivablesSinceStart(
     sumRowsByCategory(siteRows, ["soll_forderung_pvs"], ["finanzen"], ["pvs"]);
   const istCashGeflossen = sumRows(siteRows, null, ["ist_cash_geflossen_pvs"], ["finanzen"]);
   const calculatedReceivables = sollForderung - istCashGeflossen;
-  if (sollForderung || istCashGeflossen) return Math.max(0, calculatedReceivables);
+  if (sollForderung || istCashGeflossen) return calculatedReceivables;
 
   return preferredRowsValue(
     allSiteRows,
