@@ -179,6 +179,10 @@ const importPersistenceStoreName = "confirmed-import";
 const importPersistenceReportKey = "report";
 const importPersistenceDashboardKey = "dashboard";
 const importDashboardSchemaVersion = "2026-07-02-receivables-negative-salden-v18";
+const compatibleImportDashboardSchemaVersions = new Set([
+  importDashboardSchemaVersion,
+  "2026-06-25-receivables-management-v17"
+]);
 const importSourceSheetName = "Konzern_Konsolidierung_STD";
 const personalImportPersistenceReportKey = "personal-report";
 const personalImportPersistenceDashboardKey = "personal-dashboard";
@@ -1282,7 +1286,7 @@ async function loadSupabaseConfirmedImport() {
   );
   const importedData = rows[0]?.payload ?? null;
   if (!importedData) return null;
-  if (importedData.schemaVersion !== importDashboardSchemaVersion) return null;
+  if (!compatibleImportDashboardSchemaVersions.has(importedData.schemaVersion)) return null;
   return repairImportedCashflowData(importedData);
 }
 
@@ -1609,7 +1613,7 @@ async function loadConfirmedImportData() {
   const localDashboard = !persistentDashboard ? window.localStorage.getItem(importDashboardStorageKey) : null;
   const parsedDashboard = persistentDashboard ?? (localDashboard ? (JSON.parse(localDashboard) as ImportedDashboardData) : null);
   if (!parsedDashboard) return null;
-  if (parsedDashboard.schemaVersion !== importDashboardSchemaVersion) {
+  if (!compatibleImportDashboardSchemaVersions.has(parsedDashboard.schemaVersion)) {
     await clearLocalConfirmedImport();
     return null;
   }

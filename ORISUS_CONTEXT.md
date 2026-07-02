@@ -183,6 +183,7 @@ Aktuelle wichtige Live-Ergaenzungen:
   - Tabelle `Honorarumsatz plus Eigenlabor` mit Standort- und Zeitraumfilter.
   - Tabelle `Bankbewegungen` mit Standort- und Zeitraumfilter, basierend auf der bereits vorhandenen Bankbewegungslogik aus Input_Finanzen. Die Monatsauswahl und Monatstabelle laufen nur bis zum letzten Monat mit echter Bankbewegung; reine Folge-Nullmonate aus leeren/formelhaften Importspalten werden ausgeblendet. Nullwerte innerhalb des gepflegten Zeitraums bleiben sichtbar.
   - Offene Forderungen duerfen negative Standort-/Monatswerte saldieren. Negative Werte werden nicht mehr auf 0 gekappt und nicht aus den Forderungs-Monats-/Managementwerten herausgefiltert.
+  - CFO-Import-Schema `2026-06-25-receivables-management-v17` bleibt kompatibel, damit bestaetigte Altimporte weiter geladen werden. Neue Uploads laufen mit `2026-07-02-receivables-negative-salden-v18`.
   - Es wurden keine neuen Importregeln eingefuehrt; der Tab nutzt vorhandene Importdaten und bestehende Periodenlogik.
 - Standortleiter-PMR als dynamischer druckbarer Report je Standort.
 - PMR-Report mit Standortauswahl, Zeitraumfilter, Vergleichsjahr und Hoch-/Querformat.
